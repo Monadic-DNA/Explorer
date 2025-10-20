@@ -207,7 +207,7 @@ function MainContent() {
   const [showRunAllModal, setShowRunAllModal] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
-    phase: 'fetching' | 'analyzing' | 'complete' | 'error';
+    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'complete' | 'error';
     fetchedBatches: number;
     totalStudiesFetched: number;
     totalInDatabase: number;
@@ -480,6 +480,11 @@ function MainContent() {
     setRunAllProgress({ current: 0, total: 0 });
 
     try {
+      // Check if genotype data is loaded
+      if (!genotypeData) {
+        throw new Error('No genotype data loaded. Please upload your genetic data first.');
+      }
+
       // Use IndexedDB-based implementation
       const { runAllAnalysisIndexed } = await import('@/lib/run-all-indexed');
 
@@ -923,6 +928,7 @@ function MainContent() {
       <DisclaimerModal
         isOpen={showRunAllDisclaimer}
         onClose={() => setShowRunAllDisclaimer(false)}
+        type="initial"
         onAccept={handleRunAllDisclaimerAccept}
       />
       <RunAllModal

@@ -586,7 +586,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                 {/* Progress indicator */}
                 <div className="loading-progress">
                   <div className="progress-steps">
-                    <div className={`progress-step ${loadingPhase === 'query' ? 'active' : loadingPhase !== 'query' ? 'completed' : ''}`}>
+                    <div className={`progress-step ${loadingPhase === 'query' ? 'active' : 'completed'}`}>
                       <span className="step-icon">{loadingPhase !== 'query' ? '✓' : '○'}</span>
                       <span className="step-label">Query Results</span>
                     </div>
