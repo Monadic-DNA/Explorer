@@ -7,6 +7,7 @@ import {NilaiOpenAIClient, AuthType, NilAuthInstance} from "@nillion/nilai-ts";
 import NilAIConsentModal from "./NilAIConsentModal";
 import StudyQualityIndicators from "./StudyQualityIndicators";
 import { useResults } from "./ResultsContext";
+import { useCustomization } from "./CustomizationContext";
 
 type LLMCommentaryModalProps = {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export default function LLMCommentaryModal({
   console.log('[LLMCommentaryModal] Component rendering, isOpen:', isOpen);
   const resultsContext = useResults();
   const { getTopResultsByEffect } = resultsContext;
+  const { customization } = useCustomization();
   const [commentary, setCommentary] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -182,6 +184,39 @@ STUDY QUALITY INDICATORS (USE THESE TO TEMPER YOUR INTERPRETATION):
 CRITICAL: You MUST acknowledge these study limitations in your commentary. If sample size is small, ancestry is limited, or replication is lacking, explicitly mention this reduces confidence in the findings.`;
             }
 
+            // Build user context from customization data
+            let userContext = '';
+            if (customization) {
+              const parts = [];
+              if (customization.ethnicities.length > 0) {
+                parts.push(`Ethnicities: ${customization.ethnicities.join(', ')}`);
+              }
+              if (customization.countriesOfOrigin.length > 0) {
+                parts.push(`Countries of ancestral origin: ${customization.countriesOfOrigin.join(', ')}`);
+              }
+              if (customization.genderAtBirth) {
+                parts.push(`Gender assigned at birth: ${customization.genderAtBirth}`);
+              }
+              if (customization.age) {
+                parts.push(`Age: ${customization.age}`);
+              }
+              if (customization.personalConditions && customization.personalConditions.length > 0) {
+                parts.push(`Personal medical history: ${customization.personalConditions.join(', ')}`);
+              }
+              if (customization.familyConditions && customization.familyConditions.length > 0) {
+                parts.push(`Family medical history: ${customization.familyConditions.join(', ')}`);
+              }
+
+              if (parts.length > 0) {
+                userContext = `
+
+USER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):
+${parts.join('\n')}
+
+IMPORTANT: Consider how this user's background (ancestry, age, gender, family history) may affect their risk profile and the applicability of these study findings. Be specific about ancestry-related limitations if the study population doesn't match the user's background.`;
+              }
+            }
+
             const prompt = `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
 
 IMPORTANT DISCLAIMERS TO INCLUDE:
@@ -191,7 +226,7 @@ IMPORTANT DISCLAIMERS TO INCLUDE:
 4. Genetic risk is just one factor among many (lifestyle, environment, other genes)
 5. Always consult healthcare professionals for medical interpretation
 6. These results come from research studies and may not be clinically validated
-${studyQualityContext}
+${studyQualityContext}${userContext}
 
 CURRENT RESULT TO ANALYZE:
 Trait: ${currentResult.traitName}
@@ -426,6 +461,39 @@ STUDY QUALITY INDICATORS (USE THESE TO TEMPER YOUR INTERPRETATION):
 CRITICAL: You MUST acknowledge these study limitations in your commentary. If sample size is small, ancestry is limited, or replication is lacking, explicitly mention this reduces confidence in the findings.`;
       }
 
+      // Build user context from customization data
+      let userContext = '';
+      if (customization) {
+        const parts = [];
+        if (customization.ethnicities.length > 0) {
+          parts.push(`Ethnicities: ${customization.ethnicities.join(', ')}`);
+        }
+        if (customization.countriesOfOrigin.length > 0) {
+          parts.push(`Countries of ancestral origin: ${customization.countriesOfOrigin.join(', ')}`);
+        }
+        if (customization.genderAtBirth) {
+          parts.push(`Gender assigned at birth: ${customization.genderAtBirth}`);
+        }
+        if (customization.age) {
+          parts.push(`Age: ${customization.age}`);
+        }
+        if (customization.personalConditions && customization.personalConditions.length > 0) {
+          parts.push(`Personal medical history: ${customization.personalConditions.join(', ')}`);
+        }
+        if (customization.familyConditions && customization.familyConditions.length > 0) {
+          parts.push(`Family medical history: ${customization.familyConditions.join(', ')}`);
+        }
+
+        if (parts.length > 0) {
+          userContext = `
+
+USER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):
+${parts.join('\n')}
+
+IMPORTANT: Consider how this user's background (ancestry, age, gender, family history) may affect their risk profile and the applicability of these study findings. Be specific about ancestry-related limitations if the study population doesn't match the user's background.`;
+        }
+      }
+
       const prompt = `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
 
 IMPORTANT DISCLAIMERS TO INCLUDE:
@@ -435,7 +503,7 @@ IMPORTANT DISCLAIMERS TO INCLUDE:
 4. Genetic risk is just one factor among many (lifestyle, environment, other genes)
 5. Always consult healthcare professionals for medical interpretation
 6. These results come from research studies and may not be clinically validated
-${studyQualityContext}
+${studyQualityContext}${userContext}
 
 CURRENT RESULT TO ANALYZE:
 Trait: ${currentResult.traitName}

@@ -2816,3 +2816,160 @@ tbody tr:hover {
   background: #2563EB;
   border-color: #2563EB;
 }
+
+/* Customization Modal Styles */
+.customization-modal {
+  max-width: 650px;
+  width: 100%;
+}
+
+.customization-modal .modal-content {
+  padding: 2rem;
+  overflow-y: auto;
+  max-height: 80vh;
+}
+
+.customization-info {
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.customization-info p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.field-hint {
+  display: block;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="password"],
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+
+.password-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.error-message {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin: 1rem 0;
+  color: #991b1b;
+  font-size: 0.9rem;
+}
+
+/* Customize Button */
+.customize-button {
+  position: relative;
+}
+
+.customize-button.locked {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #991b1b;
+}
+
+.customize-button.locked:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.customize-button.unlocked {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #065f46;
+}
+
+.customize-button.unlocked:hover {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.customize-button.not-set {
+  /* Default button styling */
+}
+
+/* Dark theme adjustments */
+:root[data-theme="dark"] .customization-info {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+:root[data-theme="dark"] .form-group input,
+:root[data-theme="dark"] .form-group select,
+:root[data-theme="dark"] .form-group textarea {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #f3f4f6;
+}
+
+:root[data-theme="dark"] .error-message {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+:root[data-theme="dark"] .customize-button.locked {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+:root[data-theme="dark"] .customize-button.unlocked {
+  background: rgba(34, 197, 94, 0.15);
+  color: #6ee7b7;
+}
+
+.disclaimer-button.danger {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #991b1b;
+}
+
+.disclaimer-button.danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}

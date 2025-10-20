@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { GenotypeProvider, useGenotype } from "./components/UserDataUpload";
 import { ResultsProvider, useResults } from "./components/ResultsContext";
+import { CustomizationProvider } from "./components/CustomizationContext";
 import StudyResultReveal from "./components/StudyResultReveal";
 import MenuBar from "./components/MenuBar";
 import VariantChips from "./components/VariantChips";
@@ -944,7 +945,9 @@ export default function HomePage() {
   return (
     <GenotypeProvider>
       <ResultsProvider>
-        <MainContent />
+        <CustomizationProvider>
+          <MainContent />
+        </CustomizationProvider>
       </ResultsProvider>
     </GenotypeProvider>
   );

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
+import { useCustomization } from "./CustomizationContext";
+import CustomizationModal from "./CustomizationModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
 
 type MenuBarProps = {
@@ -14,7 +16,9 @@ type MenuBarProps = {
 export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: MenuBarProps) {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
+  const { status: customizationStatus } = useCustomization();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
 
@@ -66,7 +70,34 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
     }
   };
 
+  const getCustomizationIcon = () => {
+    switch (customizationStatus) {
+      case 'not-set':
+        return '⚙️';
+      case 'locked':
+        return '🔒';
+      case 'unlocked':
+        return '🔓';
+    }
+  };
+
+  const getCustomizationTooltip = () => {
+    switch (customizationStatus) {
+      case 'not-set':
+        return 'Customize AI analysis with your personal information';
+      case 'locked':
+        return 'Customization is locked - click to unlock';
+      case 'unlocked':
+        return 'Customization is unlocked - click to edit or lock';
+    }
+  };
+
   return (
+    <>
+      <CustomizationModal
+        isOpen={showCustomizationModal}
+        onClose={() => setShowCustomizationModal(false)}
+      />
     <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
@@ -165,6 +196,18 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
         <div className="menu-separator" />
 
         <div className="utility-section menu-group">
+          <button
+            className={`control-button customize-button ${customizationStatus}`}
+            onClick={() => setShowCustomizationModal(true)}
+            title={getCustomizationTooltip()}
+          >
+            {getCustomizationIcon()} Customize
+          </button>
+        </div>
+
+        <div className="menu-separator" />
+
+        <div className="utility-section menu-group">
           {cacheInfo && (
             <>
               <span className="stat-item">
@@ -232,5 +275,6 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
         </div>
       </div>
     </div>
+    </>
   );
 }
