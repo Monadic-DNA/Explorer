@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
@@ -27,6 +27,24 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
   const [error, setError] = useState<string | null>(null);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [showCommentary, setShowCommentary] = useState(false);
+
+  // Memoize modal props - must be at top level before any conditional returns
+  const currentResultForModal = useMemo(() => {
+    if (!result?.hasMatch) return null;
+    return {
+      studyId,
+      gwasId: studyAccession || '',
+      traitName,
+      studyTitle,
+      userGenotype: result.userGenotype!,
+      riskAllele: result.riskAllele!,
+      effectSize: result.effectSize!,
+      riskScore: result.riskScore!,
+      riskLevel: result.riskLevel!,
+      matchedSnp: result.matchedSnp!,
+      analysisDate: new Date().toISOString(),
+    };
+  }, [result, studyId, studyAccession, traitName, studyTitle]);
 
   // Check if we already have a saved result (check by studyAccession for Run All results, fallback to studyId)
   useEffect(() => {
@@ -237,16 +255,14 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
       );
     }
 
-    const savedResult = getResult(studyId);
-
     return (
       <>
-        {savedResult && (
+        {showCommentary && currentResultForModal && (
           <LLMCommentaryModal
             isOpen={showCommentary}
             onClose={() => setShowCommentary(false)}
-            currentResult={savedResult}
-            allResults={savedResults}
+            currentResult={currentResultForModal}
+            allResults={[]}
           />
         )}
         <div className="result-with-commentary">

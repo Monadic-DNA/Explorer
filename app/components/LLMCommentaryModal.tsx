@@ -22,7 +22,9 @@ export default function LLMCommentaryModal({
   currentResult,
   allResults, // Deprecated parameter
 }: LLMCommentaryModalProps) {
-  const { getTopResultsByEffect, savedResults } = useResults();
+  console.log('[LLMCommentaryModal] Component rendering, isOpen:', isOpen);
+  const resultsContext = useResults();
+  const { getTopResultsByEffect } = resultsContext;
   const [commentary, setCommentary] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function LLMCommentaryModal({
 
           try {
             // Phase 1: Query database for relevant results
-            const totalResults = savedResults.length;
+            const totalResults = resultsContext.savedResults.length;
             console.log('[fetchCommentary] Total results:', totalResults);
             setResultsCount(totalResults);
             setLoadingPhase('query');
@@ -279,7 +281,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
         })();
       }
     }
-  }, [isOpen, hasConsent, savedResults, getTopResultsByEffect, currentResult]);
+  }, [isOpen, hasConsent, getTopResultsByEffect, currentResult]);
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {
@@ -306,7 +308,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
     try {
       // Phase 1: Query database for relevant results
-      const totalResults = savedResults.length;
+      const totalResults = resultsContext.savedResults.length;
       console.log('[fetchCommentary] Total results:', totalResults);
       setResultsCount(totalResults);
       setLoadingPhase('query');
