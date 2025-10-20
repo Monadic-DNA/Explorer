@@ -390,9 +390,9 @@ body {
   z-index: 2000;
   overflow-y: auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 5vh 1rem 2rem;
+  padding: 2rem 1rem;
   animation: modalOverlayFadeIn 0.2s ease-out;
 }
 

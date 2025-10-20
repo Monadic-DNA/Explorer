@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { SavedResult } from "@/lib/results-manager";
 import {NilaiOpenAIClient, AuthType, NilAuthInstance} from "@nillion/nilai-ts";
 import NilAIConsentModal from "./NilAIConsentModal";
@@ -538,19 +539,13 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
   if (!isOpen) return null;
 
-  // If consent modal is showing, only render that
-  if (showConsentModal) {
-    return (
-      <NilAIConsentModal
-        isOpen={showConsentModal}
-        onAccept={handleConsentAccept}
-        onDecline={handleConsentDecline}
-      />
-    );
-  }
-
-  // Otherwise render the commentary modal
-  return (
+  const modalContent = showConsentModal ? (
+    <NilAIConsentModal
+      isOpen={showConsentModal}
+      onAccept={handleConsentAccept}
+      onDecline={handleConsentDecline}
+    />
+  ) : (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-dialog commentary-modal"
@@ -672,4 +667,9 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       </div>
     </div>
   );
+
+  // Render modal in a portal at document body level to ensure it appears fixed to viewport
+  return typeof document !== 'undefined'
+    ? createPortal(modalContent, document.body)
+    : null;
 }
