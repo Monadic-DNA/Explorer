@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SavedResult } from "@/lib/results-manager";
-import { NilaiOpenAIClient, AuthType } from "@nillion/nilai-ts";
+import {NilaiOpenAIClient, AuthType, NilAuthInstance} from "@nillion/nilai-ts";
 import NilAIConsentModal from "./NilAIConsentModal";
 import StudyQualityIndicators from "./StudyQualityIndicators";
 import { useResults } from "./ResultsContext";
@@ -349,9 +349,11 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       setDelegationStatus("Initializing secure AI connection...");
       await new Promise(resolve => setTimeout(resolve, 50));
 
+      // Initialize NilAI client with delegation token authentication
       const client = new NilaiOpenAIClient({
-        baseURL: "https://nilai-a779.nillion.network/v1/",
+        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
         authType: AuthType.DELEGATION_TOKEN,
+        nilauthInstance: NilAuthInstance.PRODUCTION,
       });
 
       // Get delegation request from client
@@ -455,7 +457,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
       // Make request directly to NilAI (data never touches our server!)
       const response = await client.chat.completions.create({
-        model: "google/gemma-3-27b-it",
+        model: "openai/gpt-oss-20b",
         messages: [
           {
             role: "system",
