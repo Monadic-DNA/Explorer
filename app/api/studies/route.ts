@@ -378,6 +378,15 @@ export async function GET(request: NextRequest) {
     ? 'hashtext(COALESCE(gc.study_accession, \'\') || COALESCE(gc.snps, \'\') || COALESCE(gc.strongest_snp_risk_allele, \'\') || COALESCE(gc.p_value, \'\') || COALESCE(gc.or_or_beta::text, \'\')) AS id'
     : 'gc.rowid AS id';
 
+  // Calculate rawLimit first (needed for HNSW candidate limit calculation)
+  // Most filters now run in SQL, so we only need a small buffer for excludeLowQuality and confidenceBand
+  // These filters are applied post-query in JavaScript
+  const needsPostFilterBuffer = excludeLowQuality || confidenceBandFilter !== null;
+  const isRunAllQuery = excludeLowQuality === false && excludeMissingGenotype === false && !search && !trait;
+  // Use 2x buffer for post-filtering to ensure enough results after JS-side filtering
+  // Respect user's limit choice (removed arbitrary 200 cap)
+  const rawLimit = fetchAll ? limit : (needsPostFilterBuffer ? limit * 2 : limit);
+
   // Build FROM clause - for semantic search, query embeddings table first, then join
   // This allows the HNSW index to be used efficiently
   let fromClause = 'FROM gwas_catalog gc';
@@ -434,13 +443,6 @@ export async function GET(request: NextRequest) {
     ${fromClause}
     ${whereClause}
     ${orderByClause}`;
-  // Most filters now run in SQL, so we only need a small buffer for excludeLowQuality and confidenceBand
-  // These filters are applied post-query in JavaScript
-  const needsPostFilterBuffer = excludeLowQuality || confidenceBandFilter !== null;
-  const isRunAllQuery = excludeLowQuality === false && excludeMissingGenotype === false && !search && !trait;
-  // Use 2x buffer for post-filtering to ensure enough results after JS-side filtering
-  // Respect user's limit choice (removed arbitrary 200 cap)
-  const rawLimit = fetchAll ? limit : (needsPostFilterBuffer ? limit * 2 : limit);
 
   // Add LIMIT/OFFSET directly to query for PostgreSQL (safe since rawLimit and offset are validated integers)
   // This avoids parameter type inference issues with pg driver

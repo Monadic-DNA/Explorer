@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { GenotypeProvider, useGenotype } from "./components/UserDataUpload";
 import { ResultsProvider, useResults } from "./components/ResultsContext";
 import { CustomizationProvider } from "./components/CustomizationContext";
@@ -39,6 +39,7 @@ type Filters = {
   sortDirection: SortDirection;
   limit: number;
   confidenceBand: ConfidenceBand | null;
+  offset: number;
 };
 
 type Study = {
@@ -101,6 +102,7 @@ const defaultFilters: Filters = {
   sortDirection: "desc",
   limit: 75,
   confidenceBand: null,
+  offset: 0,
 };
 
 
@@ -164,6 +166,7 @@ function getEffectCategory(effectStr: string | null): { label: string; className
 function buildQuery(filters: Filters): string {
   const params = new URLSearchParams();
   params.set("limit", String(filters.limit));
+  params.set("offset", String(filters.offset));
   params.set("sort", filters.sort);
   params.set("direction", filters.sortDirection);
   params.set("excludeLowQuality", String(filters.excludeLowQuality));
@@ -191,6 +194,8 @@ function MainContent() {
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
+  const scrollPositionRef = useRef<number>(0);
+  const isLoadingMoreRef = useRef<boolean>(false);
   const [traits, setTraits] = useState<string[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [meta, setMeta] = useState<Omit<StudiesResponse, "data" | "error">>({
@@ -253,6 +258,13 @@ function MainContent() {
       const next = { ...prev, [key]: value };
       if (key !== "confidenceBand") {
         next.confidenceBand = null;
+      }
+
+      // Reset offset to 0 when any filter changes (except offset, sort, sortDirection, limit)
+      // This ensures "Load More" starts fresh when user changes search/filters
+      const shouldResetOffset = key !== 'offset' && key !== 'sort' && key !== 'sortDirection' && key !== 'limit';
+      if (shouldResetOffset) {
+        next.offset = 0;
       }
 
       // Track filter changes (with debouncing for search handled separately)
@@ -352,13 +364,24 @@ function MainContent() {
           trackSearch(debouncedSearch, filteredData.length, totalLoadTime);
         }
 
-        setStudies(filteredData);
-        setMeta({
-          total: filteredData.length,
-          limit: payload.limit ?? apiFilters.limit,
-          truncated: payload.truncated ?? false,
-          sourceCount: payload.sourceCount ?? 0,
-        });
+        // Append results if offset > 0 (Load More), otherwise replace
+        if (apiFilters.offset > 0) {
+          setStudies(prev => [...prev, ...filteredData]);
+          setMeta(prev => ({
+            total: prev.total + filteredData.length,
+            limit: payload.limit ?? apiFilters.limit,
+            truncated: payload.truncated ?? false,
+            sourceCount: payload.sourceCount ?? 0,
+          }));
+        } else {
+          setStudies(filteredData);
+          setMeta({
+            total: filteredData.length,
+            limit: payload.limit ?? apiFilters.limit,
+            truncated: payload.truncated ?? false,
+            sourceCount: payload.sourceCount ?? 0,
+          });
+        }
       })
       .catch((err) => {
         if (controller.signal.aborted) {
@@ -370,11 +393,18 @@ function MainContent() {
       .finally(() => {
         if (!controller.signal.aborted) {
           setLoading(false);
+          // Restore scroll position after loading more results
+          if (isLoadingMoreRef.current) {
+            requestAnimationFrame(() => {
+              window.scrollTo(0, scrollPositionRef.current);
+              isLoadingMoreRef.current = false;
+            });
+          }
         }
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, genotypeData]);
+  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, genotypeData]);
 
   const qualitySummary = useMemo<QualitySummary>(() => {
     return studies.reduce<QualitySummary>(
@@ -923,6 +953,42 @@ function MainContent() {
           </tbody>
         </table>
         </div>
+
+        {/* Load More Button */}
+        {!loading && studies.length > 0 && studies.length < meta.sourceCount && (
+          <div style={{
+            marginTop: '2rem',
+            textAlign: 'center',
+            padding: '1rem',
+            borderTop: '1px solid #e0e0e0'
+          }}>
+            <p style={{ marginBottom: '1rem', color: '#666' }}>
+              Showing {studies.length.toLocaleString()} of {meta.sourceCount.toLocaleString()} matches
+            </p>
+            <button
+              onClick={() => {
+                // Save current scroll position before loading more
+                scrollPositionRef.current = window.scrollY;
+                isLoadingMoreRef.current = true;
+                updateFilter('offset', filters.offset + filters.limit);
+              }}
+              style={{
+                padding: '0.75rem 2rem',
+                fontSize: '1rem',
+                backgroundColor: '#0070f3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0051cc'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0070f3'}
+            >
+              Load More Results
+            </button>
+          </div>
+        )}
       </section>
       </main>
       <Footer />
