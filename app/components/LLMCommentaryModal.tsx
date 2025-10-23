@@ -26,7 +26,7 @@ export default function LLMCommentaryModal({
 }: LLMCommentaryModalProps) {
   console.log('[LLMCommentaryModal] Component rendering, isOpen:', isOpen);
   const resultsContext = useResults();
-  const { getTopResultsByEffect } = resultsContext;
+  const { getTopResultsByRelevance } = resultsContext;
   const { customization } = useCustomization();
   const [commentary, setCommentary] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +37,9 @@ export default function LLMCommentaryModal({
   const [studyMetadata, setStudyMetadata] = useState<any>(null);
   const [loadingPhase, setLoadingPhase] = useState<'query' | 'metadata' | 'token' | 'ai' | 'done'>('query');
   const [resultsCount, setResultsCount] = useState<number>(0);
+  const [analysisResultsCount, setAnalysisResultsCount] = useState<number>(0);
+  const [analysisResults, setAnalysisResults] = useState<SavedResult[]>([]);
+  const [hasCustomization, setHasCustomization] = useState<boolean>(false);
 
   useEffect(() => {
     // Check if user has previously consented
@@ -76,19 +79,35 @@ export default function LLMCommentaryModal({
             // Yield to UI to show loading state
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            console.log(`[fetchCommentary] Fetching top 499 results from ${totalResults} total using SQL query...`);
+            console.log(`[fetchCommentary] Fetching top 499 most relevant results from ${totalResults} total using semantic search...`);
             const startFilter = Date.now();
 
-            const topResults = await getTopResultsByEffect(499, currentResult.gwasId);
-            console.log('[fetchCommentary] Got top results:', topResults.length);
+            // Use semantic search to find results most relevant to this trait/study
+            // Note: This will lazily generate embeddings if they don't exist yet
+            setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
+            const queryText = `${currentResult.traitName} ${currentResult.studyTitle}`;
+            const topResults = await getTopResultsByRelevance(queryText, 499, currentResult.gwasId);
+            console.log('[fetchCommentary] Got top relevant results:', topResults.length);
 
             // Add current result at the top
             const resultsForContext = [currentResult, ...topResults];
 
             const filterTime = Date.now() - startFilter;
-            console.log(`Fetched top 500 results in ${filterTime}ms using indexed SQL query`);
+            console.log(`Fetched top 500 results in ${filterTime}ms using semantic similarity search`);
 
-            setDelegationStatus(`✓ Selected ${resultsForContext.length} most significant results (${filterTime}ms)`);
+            // Store analysis metadata
+            setAnalysisResultsCount(resultsForContext.length);
+            setAnalysisResults(resultsForContext);
+            setHasCustomization(!!(customization && (
+              customization.ethnicities.length > 0 ||
+              customization.countriesOfOrigin.length > 0 ||
+              customization.genderAtBirth ||
+              customization.age ||
+              (customization.personalConditions && customization.personalConditions.length > 0) ||
+              (customization.familyConditions && customization.familyConditions.length > 0)
+            )));
+
+            setDelegationStatus(`✓ Selected ${resultsForContext.length} most relevant results (${filterTime}ms)`);
 
             // Yield to UI after query
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -317,7 +336,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
         })();
       }
     }
-  }, [isOpen, hasConsent, getTopResultsByEffect, currentResult]);
+  }, [isOpen, hasConsent, getTopResultsByRelevance, currentResult]);
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {
@@ -353,19 +372,35 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       // Yield to UI to show loading state
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      console.log(`[fetchCommentary] Fetching top 499 results from ${totalResults} total using SQL query...`);
+      console.log(`[fetchCommentary] Fetching top 499 most relevant results from ${totalResults} total using semantic search...`);
       const startFilter = Date.now();
 
-      const topResults = await getTopResultsByEffect(499, currentResult.gwasId);
-      console.log('[fetchCommentary] Got top results:', topResults.length);
+      // Use semantic search to find results most relevant to this trait/study
+      // Note: This will lazily generate embeddings if they don't exist yet
+      setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
+      const queryText = `${currentResult.traitName} ${currentResult.studyTitle}`;
+      const topResults = await getTopResultsByRelevance(queryText, 499, currentResult.gwasId);
+      console.log('[fetchCommentary] Got top relevant results:', topResults.length);
 
       // Add current result at the top
       const resultsForContext = [currentResult, ...topResults];
 
       const filterTime = Date.now() - startFilter;
-      console.log(`Fetched top 500 results in ${filterTime}ms using indexed SQL query`);
+      console.log(`Fetched top 500 results in ${filterTime}ms using semantic similarity search`);
 
-      setDelegationStatus(`✓ Selected ${resultsForContext.length} most significant results (${filterTime}ms)`);
+      // Store analysis metadata
+      setAnalysisResultsCount(resultsForContext.length);
+      setAnalysisResults(resultsForContext);
+      setHasCustomization(!!(customization && (
+        customization.ethnicities.length > 0 ||
+        customization.countriesOfOrigin.length > 0 ||
+        customization.genderAtBirth ||
+        customization.age ||
+        (customization.personalConditions && customization.personalConditions.length > 0) ||
+        (customization.familyConditions && customization.familyConditions.length > 0)
+      )));
+
+      setDelegationStatus(`✓ Selected ${resultsForContext.length} most relevant results (${filterTime}ms)`);
 
       // Yield to UI after query
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -700,6 +735,21 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                 {studyMetadata && (
                   <StudyQualityIndicators metadata={studyMetadata} />
                 )}
+
+                {/* Analysis Metadata */}
+                <div className="analysis-metadata">
+                  <div className="metadata-item">
+                    <span className="metadata-icon">📊</span>
+                    <span className="metadata-label">Results analyzed:</span>
+                    <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
+                  </div>
+                  <div className="metadata-item">
+                    <span className="metadata-icon">👤</span>
+                    <span className="metadata-label">Personalization:</span>
+                    <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
+                  </div>
+                </div>
+
                 <div className="commentary-section">
                   <div className="commentary-header">
                     <span className="commentary-icon">🤖</span>
@@ -710,6 +760,53 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                     dangerouslySetInnerHTML={{ __html: commentary }}
                   />
                 </div>
+
+                {/* Collapsible list of studies used in analysis */}
+                {analysisResults.length > 0 && (
+                  <details className="studies-used-section">
+                    <summary className="studies-used-summary">
+                      <span className="summary-icon">📚</span>
+                      <span className="summary-text">
+                        View all {analysisResults.length} studies used in this analysis
+                      </span>
+                      <span className="summary-arrow">▼</span>
+                    </summary>
+                    <div className="studies-used-list">
+                      {analysisResults.map((result, index) => (
+                        <div key={result.studyId} className="study-item">
+                          <div className="study-item-header">
+                            <span className="study-number">{index + 1}.</span>
+                            <span className="study-trait">{result.traitName}</span>
+                            {index === 0 && (
+                              <span className="current-badge">Current</span>
+                            )}
+                          </div>
+                          <div className="study-item-details">
+                            <div className="study-detail">
+                              <span className="detail-label">Study:</span>
+                              <span className="detail-value">{result.studyTitle}</span>
+                            </div>
+                            <div className="study-detail">
+                              <span className="detail-label">Your genotype:</span>
+                              <span className="detail-value">{result.userGenotype}</span>
+                            </div>
+                            <div className="study-detail">
+                              <span className="detail-label">Risk score:</span>
+                              <span className={`detail-value risk-${result.riskLevel}`}>
+                                {result.riskScore}x ({result.riskLevel})
+                              </span>
+                            </div>
+                            <div className="study-detail">
+                              <span className="detail-label">SNP:</span>
+                              <span className="detail-value">{result.matchedSnp}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
                 <div className="ai-limitations-disclaimer">
                   <div className="disclaimer-icon">⚠️</div>
                   <div>

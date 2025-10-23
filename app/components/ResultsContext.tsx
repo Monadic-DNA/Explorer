@@ -23,6 +23,7 @@ type ResultsContextType = {
   getTopRisks: (limit?: number) => Promise<SavedResult[]>;
   getProtectiveVariants: (limit?: number) => Promise<SavedResult[]>;
   getTopResultsByEffect: (limit: number, excludeGwasId?: string) => Promise<SavedResult[]>;
+  getTopResultsByRelevance: (query: string, limit: number, excludeGwasId?: string) => Promise<SavedResult[]>;
   getTraitCategories: () => Promise<Array<{ trait: string; count: number }>>;
   getRiskStatistics: () => Promise<any>;
   executeQuery: (sql: string, params?: any[]) => Promise<any[]>;
@@ -154,6 +155,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       getTopRisks: resultsDB.getTopRisks.bind(resultsDB),
       getProtectiveVariants: resultsDB.getProtectiveVariants.bind(resultsDB),
       getTopResultsByEffect: resultsDB.getTopResultsByEffect.bind(resultsDB),
+      getTopResultsByRelevance: resultsDB.getTopResultsByRelevance.bind(resultsDB),
       getTraitCategories: resultsDB.getTraitCategories.bind(resultsDB),
       getRiskStatistics: resultsDB.getRiskStatistics.bind(resultsDB),
       executeQuery: resultsDB.executeQuery.bind(resultsDB),

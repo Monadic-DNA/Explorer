@@ -5,13 +5,11 @@
  * - Model: nomic-ai/nomic-embed-text-v1.5 (quantized)
  * - Dimensions: 512 (33% storage savings, 0.5% quality loss vs 768)
  * - Latency: 50-100ms (CPU), <1ms (cached)
- * - Cache: Two-tier (memory + PostgreSQL)
+ * - Cache: In-memory LRU cache
  *
  * Usage:
  *   const embedding = await embeddingService.embed("alzheimer risk");
  */
-
-import { embeddingCache } from './embedding-cache';
 
 // Import will fail during build/SSR, so we lazy load it
 let pipeline: any = null;
@@ -42,6 +40,10 @@ export class EmbeddingService {
   private loading: Promise<void> | null = null;
   private readonly MODEL_NAME = 'nomic-ai/nomic-embed-text-v1.5';
   private readonly DIMENSIONS = 512; // Using 512 dims (Matryoshka truncation)
+
+  // Simple in-memory LRU cache
+  private cache: Map<string, number[]> = new Map();
+  private readonly MAX_CACHE_SIZE = 1000;
 
   /**
    * Initialize the embedding model
@@ -100,9 +102,13 @@ export class EmbeddingService {
    * @returns 512-dimensional embedding vector
    */
   async embed(query: string): Promise<number[]> {
-    // Check cache first (memory + database)
-    const cached = await embeddingCache.get(query);
+    // Normalize query for consistent cache keys
+    const normalized = query.trim().toLowerCase();
+
+    // Check in-memory cache first
+    const cached = this.cache.get(normalized);
     if (cached) {
+      console.log(`[Embedding] Cache hit for: "${query}"`);
       return cached;
     }
 
@@ -129,14 +135,28 @@ export class EmbeddingService {
       const elapsed = Date.now() - start;
       console.log(`[Embedding] Generated in ${elapsed}ms for: "${query}"`);
 
-      // Store in cache (memory + database)
-      await embeddingCache.set(query, embedding);
+      // Store in in-memory cache (LRU)
+      this.addToCache(normalized, embedding);
 
       return embedding;
     } catch (error) {
       console.error(`[Embedding] Failed to generate embedding:`, error);
       throw new Error(`Failed to generate embedding: ${error}`);
     }
+  }
+
+  /**
+   * Add embedding to cache with LRU eviction
+   */
+  private addToCache(query: string, embedding: number[]): void {
+    // LRU eviction: Remove oldest entry if cache is full
+    if (this.cache.size >= this.MAX_CACHE_SIZE) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) {
+        this.cache.delete(firstKey);
+      }
+    }
+    this.cache.set(query, embedding);
   }
 
   /**

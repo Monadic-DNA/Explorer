@@ -1823,6 +1823,38 @@ tbody tr:hover {
   gap: 1rem;
 }
 
+/* Analysis Metadata Section */
+.analysis-metadata {
+  display: flex;
+  gap: 2rem;
+  padding: 1rem;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.metadata-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.metadata-icon {
+  font-size: 1.1rem;
+}
+
+.metadata-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.metadata-value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 .commentary-body p {
   margin: 0 0 1rem;
   line-height: 1.7;
@@ -1830,6 +1862,153 @@ tbody tr:hover {
 
 .commentary-body p:last-child {
   margin-bottom: 0;
+}
+
+/* Studies Used Section */
+.studies-used-section {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0;
+  margin-top: 1rem;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.studies-used-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.studies-used-summary::-webkit-details-marker {
+  display: none;
+}
+
+.studies-used-summary:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.summary-icon {
+  font-size: 1.2rem;
+}
+
+.summary-text {
+  flex: 1;
+}
+
+.summary-arrow {
+  transition: transform 0.2s ease;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+details[open] .summary-arrow {
+  transform: rotate(180deg);
+}
+
+.studies-used-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0 1rem 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+}
+
+.studies-used-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.studies-used-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.studies-used-list::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 3px;
+}
+
+.study-item {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: white;
+}
+
+.study-item:last-child {
+  margin-bottom: 0;
+}
+
+.study-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.study-number {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  min-width: 2rem;
+}
+
+.study-trait {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.current-badge {
+  background: var(--accent-blue);
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.study-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-left: 2rem;
+}
+
+.study-detail {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.detail-label {
+  color: var(--text-muted);
+  font-weight: 500;
+  min-width: 100px;
+}
+
+.detail-value {
+  color: var(--text-primary);
+}
+
+.detail-value.risk-increased {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.detail-value.risk-decreased {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.detail-value.risk-neutral {
+  color: #6b7280;
 }
 
 .commentary-footer {
@@ -1862,6 +2041,25 @@ tbody tr:hover {
 :root[data-theme="dark"] .commentary-result-summary {
   background: rgba(59, 130, 246, 0.1);
   border-color: rgba(59, 130, 246, 0.2);
+}
+
+:root[data-theme="dark"] .analysis-metadata {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+:root[data-theme="dark"] .studies-used-section {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .studies-used-summary:hover {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+:root[data-theme="dark"] .study-item {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Terms Acceptance Modal Styles */

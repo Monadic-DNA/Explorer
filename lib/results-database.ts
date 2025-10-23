@@ -3,6 +3,7 @@
 
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import type { SavedResult } from './results-manager';
+import { embeddingService } from './embedding-service';
 
 let SQL: SqlJsStatic | null = null;
 
@@ -36,7 +37,8 @@ export class ResultsDatabase {
         riskScore REAL NOT NULL,
         riskLevel TEXT NOT NULL,
         matchedSnp TEXT NOT NULL,
-        analysisDate TEXT NOT NULL
+        analysisDate TEXT NOT NULL,
+        embedding TEXT
       );
     `);
 
@@ -50,14 +52,27 @@ export class ResultsDatabase {
     console.log('ResultsDatabase initialized with indexed schema');
   }
 
-  async insertResult(result: SavedResult): Promise<void> {
+  async insertResult(result: SavedResult, generateEmbedding: boolean = false): Promise<void> {
     if (!this.db) await this.initialize();
+
+    // Optionally generate embedding for semantic search (disabled by default for performance)
+    let embeddingJson: string | null = null;
+    if (generateEmbedding) {
+      const embeddingText = `${result.traitName} ${result.studyTitle}`;
+      try {
+        const embedding = await embeddingService.embed(embeddingText);
+        embeddingJson = JSON.stringify(embedding);
+      } catch (error) {
+        console.warn('[ResultsDB] Failed to generate embedding:', error);
+        // Continue without embedding - semantic search will skip this result
+      }
+    }
 
     this.db!.run(`
       INSERT OR REPLACE INTO results (
         studyId, gwasId, traitName, studyTitle, userGenotype,
-        riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       result.studyId,
       result.gwasId || null,
@@ -69,12 +84,35 @@ export class ResultsDatabase {
       result.riskScore,
       result.riskLevel,
       result.matchedSnp,
-      result.analysisDate
+      result.analysisDate,
+      embeddingJson
     ]);
   }
 
-  async insertResultsBatch(results: SavedResult[]): Promise<void> {
+  async insertResultsBatch(results: SavedResult[], generateEmbeddings: boolean = false): Promise<void> {
     if (!this.db) await this.initialize();
+
+    // Optionally generate embeddings (disabled by default for performance with large batches)
+    let embeddings: (string | null)[] = [];
+    if (generateEmbeddings) {
+      console.log(`[ResultsDB] Generating embeddings for ${results.length} results...`);
+      const startTime = Date.now();
+      const embeddingPromises = results.map(async (result) => {
+        const embeddingText = `${result.traitName} ${result.studyTitle}`;
+        try {
+          const embedding = await embeddingService.embed(embeddingText);
+          return JSON.stringify(embedding);
+        } catch (error) {
+          console.warn(`[ResultsDB] Failed to generate embedding for result ${result.studyId}:`, error);
+          return null;
+        }
+      });
+      embeddings = await Promise.all(embeddingPromises);
+      console.log(`[ResultsDB] Generated ${embeddings.filter(e => e !== null).length} embeddings in ${Date.now() - startTime}ms`);
+    } else {
+      // No embeddings - fill with nulls
+      embeddings = new Array(results.length).fill(null);
+    }
 
     // Use transaction for batch insert (much faster)
     this.db!.run('BEGIN TRANSACTION;');
@@ -83,11 +121,12 @@ export class ResultsDatabase {
       const stmt = this.db!.prepare(`
         INSERT OR REPLACE INTO results (
           studyId, gwasId, traitName, studyTitle, userGenotype,
-          riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      for (const result of results) {
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
         stmt.run([
           result.studyId,
           result.gwasId || null,
@@ -99,13 +138,14 @@ export class ResultsDatabase {
           result.riskScore,
           result.riskLevel,
           result.matchedSnp,
-          result.analysisDate
+          result.analysisDate,
+          embeddings[i]
         ]);
       }
 
       stmt.free();
       this.db!.run('COMMIT;');
-      console.log(`Batch inserted ${results.length} results`);
+      console.log(`Batch inserted ${results.length} results${generateEmbeddings ? ' with embeddings' : ''}`);
     } catch (error) {
       this.db!.run('ROLLBACK;');
       console.error('Batch insert failed:', error);
@@ -267,6 +307,159 @@ export class ResultsDatabase {
     if (!result.length) return [];
 
     return result[0].values.map(row => this.rowToResult(result[0].columns, row));
+  }
+
+  // Generate embeddings for results that don't have them yet (lazy generation)
+  async generateMissingEmbeddings(maxResults?: number): Promise<number> {
+    if (!this.db) await this.initialize();
+
+    console.log(`[ResultsDB] Checking for results without embeddings...`);
+
+    // Get results without embeddings
+    const result = this.db!.exec(`
+      SELECT * FROM results WHERE embedding IS NULL ${maxResults ? `LIMIT ${maxResults}` : ''}
+    `);
+
+    if (!result.length || !result[0].values.length) {
+      console.log(`[ResultsDB] All results have embeddings`);
+      return 0;
+    }
+
+    const resultsToEmbed = result[0].values.map(row => this.rowToResult(result[0].columns, row));
+    console.log(`[ResultsDB] Generating embeddings for ${resultsToEmbed.length} results...`);
+
+    const startTime = Date.now();
+    let embeddedCount = 0;
+
+    // Generate embeddings in parallel
+    const embeddingPromises = resultsToEmbed.map(async (savedResult) => {
+      const embeddingText = `${savedResult.traitName} ${savedResult.studyTitle}`;
+      try {
+        const embedding = await embeddingService.embed(embeddingText);
+        return { studyId: savedResult.studyId, embedding: JSON.stringify(embedding) };
+      } catch (error) {
+        console.warn(`[ResultsDB] Failed to generate embedding for result ${savedResult.studyId}:`, error);
+        return null;
+      }
+    });
+
+    const embeddingResults = await Promise.all(embeddingPromises);
+
+    // Update database with generated embeddings
+    this.db!.run('BEGIN TRANSACTION;');
+    try {
+      const stmt = this.db!.prepare(`UPDATE results SET embedding = ? WHERE studyId = ?`);
+      for (const embResult of embeddingResults) {
+        if (embResult) {
+          stmt.run([embResult.embedding, embResult.studyId]);
+          embeddedCount++;
+        }
+      }
+      stmt.free();
+      this.db!.run('COMMIT;');
+    } catch (error) {
+      this.db!.run('ROLLBACK;');
+      throw error;
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[ResultsDB] Generated ${embeddedCount} embeddings in ${elapsed}ms`);
+
+    return embeddedCount;
+  }
+
+  // Semantic search method for LLM context: Get top N results by relevance to query
+  async getTopResultsByRelevance(query: string, limit: number, excludeGwasId?: string): Promise<SavedResult[]> {
+    if (!this.db) await this.initialize();
+
+    console.log(`[ResultsDB] Semantic search for: "${query}"`);
+    const startTime = Date.now();
+
+    // Generate embedding for query
+    let queryEmbedding: number[];
+    try {
+      queryEmbedding = await embeddingService.embed(query);
+    } catch (error) {
+      console.error('[ResultsDB] Failed to generate query embedding:', error);
+      // Fall back to getTopResultsByEffect
+      console.warn('[ResultsDB] Falling back to significance-based ranking');
+      return this.getTopResultsByEffect(limit, excludeGwasId);
+    }
+
+    // Check if we need to generate embeddings first
+    const countResult = this.db!.exec(`SELECT COUNT(*) as count FROM results WHERE embedding IS NULL`);
+    const missingCount = countResult.length ? (countResult[0].values[0][0] as number) : 0;
+
+    if (missingCount > 0) {
+      console.log(`[ResultsDB] Found ${missingCount} results without embeddings, generating lazily...`);
+      await this.generateMissingEmbeddings();
+    }
+
+    // Get all results with embeddings
+    const result = this.db!.exec(`
+      SELECT * FROM results
+      WHERE embedding IS NOT NULL ${excludeGwasId ? 'AND gwasId != ?' : ''}
+    `, excludeGwasId ? [excludeGwasId] : []);
+
+    if (!result.length || !result[0].values.length) {
+      console.warn('[ResultsDB] No results with embeddings found, falling back to significance-based ranking');
+      return this.getTopResultsByEffect(limit, excludeGwasId);
+    }
+
+    // Convert rows to SavedResult objects and compute similarities
+    const resultsWithSimilarity = result[0].values.map(row => {
+      const savedResult = this.rowToResult(result[0].columns, row);
+
+      // Get embedding from result
+      const embeddingIndex = result[0].columns.indexOf('embedding');
+      const embeddingJson = row[embeddingIndex] as string;
+
+      if (!embeddingJson) {
+        return { result: savedResult, similarity: -1 };
+      }
+
+      const resultEmbedding: number[] = JSON.parse(embeddingJson);
+
+      // Compute cosine similarity
+      const similarity = this.cosineSimilarity(queryEmbedding, resultEmbedding);
+
+      return { result: savedResult, similarity };
+    });
+
+    // Sort by similarity (descending) and take top N
+    resultsWithSimilarity.sort((a, b) => b.similarity - a.similarity);
+    const topResults = resultsWithSimilarity.slice(0, limit).map(item => item.result);
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[ResultsDB] Semantic search completed in ${elapsed}ms, found ${topResults.length} relevant results`);
+
+    return topResults;
+  }
+
+  // Helper: Compute cosine similarity between two vectors
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new Error('Vectors must have same length');
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+
+    if (normA === 0 || normB === 0) {
+      return 0;
+    }
+
+    return dotProduct / (normA * normB);
   }
 
   async getTraitCategories(): Promise<Array<{ trait: string; count: number }>> {
