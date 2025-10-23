@@ -85,7 +85,10 @@ export function getDb(): DbConnection {
     if (!pgPool) {
       pgPool = new Pool({
         connectionString: postgresDb,
-        ssl: getSSLConfig(postgresDb)
+        ssl: getSSLConfig(postgresDb),
+        // Set HNSW ef_search parameter for better recall in semantic search
+        // This increases the number of candidates examined by the HNSW index
+        options: '-c hnsw.ef_search=1000'
       });
     }
     return {

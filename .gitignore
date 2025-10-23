@@ -37,3 +37,5 @@ yarn-error.log*
 /localdata/gwas_catalog.sqlite
 /localdata/gwas_catalog_v1.0.2-associations_e115_r2025-09-15.tsv
 /localdata/gwas_catalog_v1.0.2-associations_e115_r2025-09-15.tsv.gz
+/venv/
+/embeddings_backup.npz

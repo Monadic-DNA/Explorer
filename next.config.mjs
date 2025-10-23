@@ -8,7 +8,8 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   compress: true, // Enable gzip compression for API responses
   experimental: {
-    optimizePackageImports: ["react", "react-dom"]
+    optimizePackageImports: ["react", "react-dom"],
+    serverComponentsExternalPackages: ['onnxruntime-node', 'sharp']
   },
   async rewrites() {
     return [
@@ -41,6 +42,23 @@ const nextConfig = {
         crypto: false,
       };
     }
+
+    // Exclude native .node binaries from client bundle
+    config.externals = config.externals || [];
+    if (!isServer) {
+      config.externals.push({
+        'onnxruntime-node': 'commonjs onnxruntime-node',
+        'sharp': 'commonjs sharp',
+      });
+    }
+
+    // Ignore .node files in webpack processing
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    config.module.rules.push({
+      test: /\.node$/,
+      use: 'ignore-loader',
+    });
 
     return config;
   },
