@@ -21,12 +21,17 @@ async function loadTransformers() {
     pipeline = transformers.pipeline;
     env = transformers.env;
 
-    // Force use of WASM backend (not onnxruntime-node) for compatibility
-    env.backends.onnx.wasm.numThreads = 1;
-    env.backends.onnx.wasm.simd = true;
+    // Server-side: Use ONNX Runtime with GPU support if available
+    // Check for CUDA availability (will use CPU as fallback)
+    const useCuda = process.env.USE_CUDA === 'true';
 
-    // Disable ONNX Runtime Node.js backend (use WASM instead)
-    env.backends.onnx.node = false;
+    if (useCuda) {
+      console.log('[Embedding] Attempting to use GPU (CUDA) for inference...');
+      env.backends.onnx.executionProviders = ['cuda', 'cpu'];
+    } else {
+      console.log('[Embedding] Using CPU for inference');
+      env.backends.onnx.executionProviders = ['cpu'];
+    }
 
     // Configure cache directory
     env.cacheDir = process.env.TRANSFORMERS_CACHE || '/tmp/.transformers-cache';
@@ -108,7 +113,7 @@ export class EmbeddingService {
     // Check in-memory cache first
     const cached = this.cache.get(normalized);
     if (cached) {
-      console.log(`[Embedding] Cache hit for: "${query}"`);
+      // Silent cache hit - no logging for performance
       return cached;
     }
 

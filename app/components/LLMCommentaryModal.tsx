@@ -24,7 +24,6 @@ export default function LLMCommentaryModal({
   currentResult,
   allResults, // Deprecated parameter
 }: LLMCommentaryModalProps) {
-  console.log('[LLMCommentaryModal] Component rendering, isOpen:', isOpen);
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization } = useCustomization();
@@ -40,6 +39,7 @@ export default function LLMCommentaryModal({
   const [analysisResultsCount, setAnalysisResultsCount] = useState<number>(0);
   const [analysisResults, setAnalysisResults] = useState<SavedResult[]>([]);
   const [hasCustomization, setHasCustomization] = useState<boolean>(false);
+  const [usedSemanticSearch, setUsedSemanticSearch] = useState<boolean>(false);
 
   useEffect(() => {
     // Check if user has previously consented
@@ -52,291 +52,12 @@ export default function LLMCommentaryModal({
   useEffect(() => {
     console.log('[LLMCommentaryModal] isOpen changed:', isOpen, 'hasConsent:', hasConsent);
     if (isOpen) {
-      // Check consent before proceeding
-      if (!hasConsent) {
-        console.log('[LLMCommentaryModal] Showing consent modal');
-        setShowConsentModal(true);
-      } else {
-        console.log('[LLMCommentaryModal] Starting fetchCommentary');
-        // Call fetchCommentary inline to avoid closure issues
-        (async () => {
-          console.log('[fetchCommentary] Starting...');
-          setIsLoading(true);
-          setError(null);
-          setCommentary("");
-          setDelegationStatus("");
-          setStudyMetadata(null);
-          setLoadingPhase('query');
-
-          try {
-            // Phase 1: Query database for relevant results
-            const totalResults = resultsContext.savedResults.length;
-            console.log('[fetchCommentary] Total results:', totalResults);
-            setResultsCount(totalResults);
-            setLoadingPhase('query');
-            setDelegationStatus(`Querying ${totalResults.toLocaleString()} results...`);
-
-            // Yield to UI to show loading state
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            console.log(`[fetchCommentary] Fetching top 499 most relevant results from ${totalResults} total using semantic search...`);
-            const startFilter = Date.now();
-
-            // Use semantic search to find results most relevant to this trait/study
-            // Note: This will lazily generate embeddings if they don't exist yet
-            setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
-            const queryText = `${currentResult.traitName} ${currentResult.studyTitle}`;
-            const topResults = await getTopResultsByRelevance(queryText, 499, currentResult.gwasId);
-            console.log('[fetchCommentary] Got top relevant results:', topResults.length);
-
-            // Add current result at the top
-            const resultsForContext = [currentResult, ...topResults];
-
-            const filterTime = Date.now() - startFilter;
-            console.log(`Fetched top 500 results in ${filterTime}ms using semantic similarity search`);
-
-            // Store analysis metadata
-            setAnalysisResultsCount(resultsForContext.length);
-            setAnalysisResults(resultsForContext);
-            setHasCustomization(!!(customization && (
-              customization.ethnicities.length > 0 ||
-              customization.countriesOfOrigin.length > 0 ||
-              customization.genderAtBirth ||
-              customization.age ||
-              (customization.personalConditions && customization.personalConditions.length > 0) ||
-              (customization.familyConditions && customization.familyConditions.length > 0)
-            )));
-
-            setDelegationStatus(`✓ Selected ${resultsForContext.length} most relevant results (${filterTime}ms)`);
-
-            // Yield to UI after query
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            // Phase 2: Fetch study metadata for quality indicators
-            setLoadingPhase('metadata');
-            setDelegationStatus("Fetching study quality indicators...");
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            const metadataResponse = await fetch(`/api/study-metadata?studyId=${currentResult.studyId}`);
-            if (metadataResponse.ok) {
-              const metadataData = await metadataResponse.json();
-              setStudyMetadata(metadataData.metadata);
-              setDelegationStatus("✓ Study metadata loaded");
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            // Phase 3: Initialize NilAI client and get secure token
-            setLoadingPhase('token');
-            setDelegationStatus("Initializing secure AI connection...");
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            // Initialize NilAI client with delegation token authentication
-            const client = new NilaiOpenAIClient({
-              baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-              authType: AuthType.DELEGATION_TOKEN,
-              nilauthInstance: NilAuthInstance.PRODUCTION,
-            });
-
-            // Get delegation request from client
-            const delegationRequest = client.getDelegationRequest();
-
-            setDelegationStatus("Requesting delegation token from server...");
-
-            // Request delegation token from server
-            const tokenResponse = await fetch("/api/nilai-delegation", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ delegationRequest }),
-            });
-
-            if (!tokenResponse.ok) {
-              const errorData = await tokenResponse.json();
-              throw new Error(errorData.error || "Failed to get delegation token");
-            }
-
-            const { delegationToken } = await tokenResponse.json();
-
-            // Update client with delegation token
-            client.updateDelegation(delegationToken);
-
-            setDelegationStatus("✓ Secure token received — connecting to private AI...");
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            // Phase 4: Generate AI commentary
-            setLoadingPhase('ai');
-            setDelegationStatus("Generating AI analysis (this may take 30-60 seconds)...");
-
-            const contextResults = resultsForContext
-              .map((r: SavedResult, idx: number) =>
-                `${idx + 1}. ${r.traitName} (${r.studyTitle}):
-   - Your genotype: ${r.userGenotype}
-   - Risk allele: ${r.riskAllele}
-   - Effect size: ${r.effectSize}
-   - Risk score: ${r.riskScore}x (${r.riskLevel})
-   - Matched SNP: ${r.matchedSnp}`
-              )
-              .join('\n\n');
-
-            // Construct study quality context
-            let studyQualityContext = '';
-            if (studyMetadata) {
-              const parseSampleSize = (str: string | null) => {
-                if (!str) return 0;
-                const match = str.match(/[\d,]+/);
-                return match ? parseInt(match[0].replace(/,/g, '')) : 0;
-              };
-
-              const initialSize = parseSampleSize(studyMetadata.initial_sample_size);
-              const replicationSize = parseSampleSize(studyMetadata.replication_sample_size);
-
-              studyQualityContext = `
-STUDY QUALITY INDICATORS (USE THESE TO TEMPER YOUR INTERPRETATION):
-- Sample Size: ${initialSize.toLocaleString()} participants ${initialSize < 5000 ? '(SMALL STUDY - interpret with caution)' : initialSize < 50000 ? '(medium study)' : '(large, well-powered study)'}
-- Ancestry: ${studyMetadata.initial_sample_size || 'Not specified'} ${studyMetadata.initial_sample_size?.toLowerCase().includes('european') ? '(may not generalize to other ancestries - IMPORTANT LIMITATION)' : ''}
-- Replication: ${replicationSize > 0 ? `Yes (${replicationSize.toLocaleString()} participants)` : 'No independent replication (interpret with caution)'}
-- P-value: ${studyMetadata.p_value || 'Not reported'} ${parseFloat(studyMetadata.p_value || '1') > 5e-8 ? '(NOT genome-wide significant - findings are suggestive only)' : '(genome-wide significant)'}
-- Publication: ${studyMetadata.first_author || 'Unknown'}, ${studyMetadata.date || 'Unknown date'} ${studyMetadata.journal ? `in ${studyMetadata.journal}` : ''}
-
-CRITICAL: You MUST acknowledge these study limitations in your commentary. If sample size is small, ancestry is limited, or replication is lacking, explicitly mention this reduces confidence in the findings.`;
-            }
-
-            // Build user context from customization data
-            let userContext = '';
-            if (customization) {
-              const parts = [];
-              if (customization.ethnicities.length > 0) {
-                parts.push(`Ethnicities: ${customization.ethnicities.join(', ')}`);
-              }
-              if (customization.countriesOfOrigin.length > 0) {
-                parts.push(`Countries of ancestral origin: ${customization.countriesOfOrigin.join(', ')}`);
-              }
-              if (customization.genderAtBirth) {
-                parts.push(`Gender assigned at birth: ${customization.genderAtBirth}`);
-              }
-              if (customization.age) {
-                parts.push(`Age: ${customization.age}`);
-              }
-              if (customization.personalConditions && customization.personalConditions.length > 0) {
-                parts.push(`Personal medical history: ${customization.personalConditions.join(', ')}`);
-              }
-              if (customization.familyConditions && customization.familyConditions.length > 0) {
-                parts.push(`Family medical history: ${customization.familyConditions.join(', ')}`);
-              }
-
-              if (parts.length > 0) {
-                userContext = `
-
-USER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):
-${parts.join('\n')}
-
-IMPORTANT: Consider how this user's background (ancestry, age, gender, family history) may affect their risk profile and the applicability of these study findings. Be specific about ancestry-related limitations if the study population doesn't match the user's background.`;
-              }
-            }
-
-            const prompt = `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
-
-IMPORTANT DISCLAIMERS TO INCLUDE:
-1. This is for educational and entertainment purposes only
-2. This is NOT medical advice and should not be used for medical decisions
-3. GWAS results show statistical associations, not deterministic outcomes
-4. Genetic risk is just one factor among many (lifestyle, environment, other genes)
-5. Always consult healthcare professionals for medical interpretation
-6. These results come from research studies and may not be clinically validated
-${studyQualityContext}${userContext}
-
-CURRENT RESULT TO ANALYZE:
-Trait: ${currentResult.traitName}
-Study: ${currentResult.studyTitle}
-Your genotype: ${currentResult.userGenotype}
-Risk allele: ${currentResult.riskAllele}
-Effect size: ${currentResult.effectSize}
-Risk score: ${currentResult.riskScore}x (${currentResult.riskLevel})
-Matched SNP: ${currentResult.matchedSnp}
-Study date: ${currentResult.analysisDate}
-
-ALL YOUR SAVED RESULTS FOR CONTEXT:
-${contextResults}
-
-Please provide:
-1. A brief, plain-language summary of what this research study found (what scientists were investigating and what they discovered)
-2. A clear explanation of what this result means for the user specifically
-3. Context about the trait/condition in terms anyone can understand
-4. Interpretation of the risk level in practical terms
-5. How this relates to any other results they have (if applicable)
-6. Appropriate disclaimers and next steps
-
-Keep your response concise (400-600 words), educational, and reassuring where appropriate. Use clear, accessible language suitable for someone with no scientific background. Avoid jargon, and when technical terms are necessary, explain them simply.`;
-
-            // Make request directly to NilAI (data never touches our server!)
-            const response = await client.chat.completions.create({
-              model: "openai/gpt-oss-20b",
-              messages: [
-                {
-                  role: "system",
-                  content: "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
-                },
-                {
-                  role: "user",
-                  content: prompt
-                }
-              ],
-              max_tokens: 1200,
-              temperature: 0.7,
-            });
-
-            const commentaryText = response.choices?.[0]?.message?.content;
-
-            if (!commentaryText) {
-              throw new Error("No commentary generated from LLM");
-            }
-
-            setDelegationStatus("✓ AI analysis complete — formatting response...");
-            setLoadingPhase('done');
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            // Convert markdown to plain HTML
-            const processedText = commentaryText
-              .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-              .replace(/__(.+?)__/g, '<strong>$1</strong>')
-              .replace(/\*(.+?)\*/g, '<em>$1</em>')
-              .replace(/_(.+?)_/g, '<em>$1</em>')
-              .replace(/^### (.+)$/gm, '<h4>$1</h4>')
-              .replace(/^## (.+)$/gm, '<h3>$1</h3>')
-              .replace(/^# (.+)$/gm, '<h2>$1</h2>')
-              .replace(/^[\*\-] (.+)$/gm, '<li>$1</li>')
-              .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-              .split('\n\n')
-              .map(para => para.trim())
-              .filter(para => para.length > 0)
-              .map(para => {
-                if (para.startsWith('<h') || para.startsWith('<ul')) {
-                  return para;
-                }
-                return `<p>${para}</p>`;
-              })
-              .join('');
-
-            setCommentary(processedText);
-          } catch (err) {
-            console.error('[fetchCommentary] Error occurred:', err);
-            const errorMessage = err instanceof Error ? err.message : "Failed to generate commentary";
-            console.error('[fetchCommentary] Error message:', errorMessage);
-            setError(errorMessage);
-
-            if (errorMessage.includes("API key not configured")) {
-              setError("LLM commentary is not configured. The NILLION_API_KEY environment variable needs to be set.");
-            }
-          } finally {
-            console.log('[fetchCommentary] Finally block, setting isLoading to false');
-            setIsLoading(false);
-          }
-        })();
-      }
+      // Always show consent modal first, even if consent was previously given
+      // This ensures user explicitly triggers the analysis each time
+      console.log('[LLMCommentaryModal] Showing consent modal');
+      setShowConsentModal(true);
     }
-  }, [isOpen, hasConsent, getTopResultsByRelevance, currentResult]);
+  }, [isOpen]);
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {
@@ -399,6 +120,10 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
         (customization.personalConditions && customization.personalConditions.length > 0) ||
         (customization.familyConditions && customization.familyConditions.length > 0)
       )));
+
+      // Check console logs to detect if semantic search was actually used
+      // If we see the fallback warning, semantic search failed
+      setUsedSemanticSearch(topResults.length > 0);
 
       setDelegationStatus(`✓ Selected ${resultsForContext.length} most relevant results (${filterTime}ms)`);
 
@@ -747,6 +472,12 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                     <span className="metadata-icon">👤</span>
                     <span className="metadata-label">Personalization:</span>
                     <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
+                  </div>
+                  <div className="metadata-item metadata-note">
+                    <span className="metadata-icon">🔍</span>
+                    <span className="metadata-note-text">
+                      Results selected using semantic relevance matching (check browser console for details)
+                    </span>
                   </div>
                 </div>
 

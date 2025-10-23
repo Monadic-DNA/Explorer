@@ -541,7 +541,7 @@ function MainContent() {
       // Add all results in one efficient batch operation
       console.log(`Adding ${results.length} results to the results manager...`);
       const startAdd = Date.now();
-      await addResultsBatch(results);
+      await addResultsBatch(results); // Embeddings will be fetched on-demand during AI analysis
       const addTime = Date.now() - startAdd;
       console.log(`Finished adding ${results.length} results in ${addTime}ms`);
     } catch (error) {

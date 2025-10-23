@@ -3,12 +3,13 @@ import { gwasDB, type GWASStudy } from './gwas-db';
 import type { SavedResult } from './results-manager';
 
 export type RunAllProgress = {
-  phase: 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'complete' | 'error';
+  phase: 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
   loaded: number;
   total: number;
   elapsedSeconds: number;
   matchingStudies: number;
   matchCount: number;
+  embeddingProgress?: { current: number; total: number }; // For embedding generation phase
 };
 
 export async function runAllAnalysisIndexed(

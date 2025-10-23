@@ -4,7 +4,7 @@ type RunAllModalProps = {
   isOpen: boolean;
   onClose: () => void;
   status: {
-    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'complete' | 'error';
+    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
     fetchedBatches: number;
     totalStudiesFetched: number;
     totalInDatabase: number;
@@ -16,6 +16,7 @@ type RunAllModalProps = {
     elapsedSeconds?: number;
     etaSeconds?: number;
     errorMessage?: string;
+    embeddingProgress?: { current: number; total: number };
   };
 };
 
@@ -137,6 +138,32 @@ export default function RunAllModal({ isOpen, onClose, status }: RunAllModalProp
                   <p>Elapsed: <strong>{formatTime(status.elapsedSeconds)}</strong></p>
                 )}
                 <p className="status-hint">Processing sequentially to minimize memory usage...</p>
+              </div>
+            </div>
+          )}
+
+          {status.phase === 'embeddings' && (
+            <div className="status-section">
+              <div className="status-header">
+                <div className="spinner"></div>
+                <h3>Generating AI Embeddings...</h3>
+              </div>
+              <div className="status-details">
+                {status.embeddingProgress && (
+                  <>
+                    <p>Progress: <strong>{status.embeddingProgress.current.toLocaleString()}</strong> / <strong>{status.embeddingProgress.total.toLocaleString()}</strong> results</p>
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${(status.embeddingProgress.current / status.embeddingProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+                <p className="status-hint">
+                  Generating semantic embeddings for AI-powered analysis. This enables intelligent
+                  result selection when you use AI commentary. This is a one-time process.
+                </p>
               </div>
             </div>
           )}

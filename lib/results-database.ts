@@ -3,7 +3,12 @@
 
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import type { SavedResult } from './results-manager';
-import { embeddingService } from './embedding-service';
+
+export type EmbeddingKey = {
+  study_accession: string;
+  snps: string;
+  strongest_snp_risk_allele: string;
+};
 
 let SQL: SqlJsStatic | null = null;
 
@@ -14,6 +19,52 @@ async function initSQL() {
     });
   }
   return SQL;
+}
+
+// Helper function to fetch embeddings from PostgreSQL (with batching)
+async function fetchEmbeddingsFromDB(keys: EmbeddingKey[]): Promise<Map<string, number[]>> {
+  if (keys.length === 0) return new Map();
+
+  const BATCH_SIZE = 1000; // API limit
+  const embeddingsMap = new Map<string, number[]>();
+
+  try {
+    console.log(`[ResultsDB] Fetching ${keys.length} embeddings from PostgreSQL in batches of ${BATCH_SIZE}...`);
+
+    // Fetch in batches
+    for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+      const batch = keys.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(keys.length / BATCH_SIZE);
+
+      console.log(`[ResultsDB] Fetching batch ${batchNum}/${totalBatches} (${batch.length} keys)...`);
+
+      const response = await fetch('/api/fetch-embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: batch }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} for batch ${batchNum}`);
+      }
+
+      const data = await response.json();
+
+      // Add to map
+      for (const { key, embedding } of data.embeddings) {
+        if (embedding) {
+          embeddingsMap.set(key, embedding);
+        }
+      }
+    }
+
+    console.log(`[ResultsDB] ✓ Fetched ${embeddingsMap.size}/${keys.length} embeddings from PostgreSQL`);
+    return embeddingsMap;
+  } catch (error) {
+    console.error('[ResultsDB] Failed to fetch embeddings:', error);
+    throw error;
+  }
 }
 
 export class ResultsDatabase {
@@ -60,8 +111,10 @@ export class ResultsDatabase {
     if (generateEmbedding) {
       const embeddingText = `${result.traitName} ${result.studyTitle}`;
       try {
-        const embedding = await embeddingService.embed(embeddingText);
-        embeddingJson = JSON.stringify(embedding);
+        const embeddings = await generateEmbeddingsAPI([embeddingText]);
+        if (embeddings[0]) {
+          embeddingJson = JSON.stringify(embeddings[0]);
+        }
       } catch (error) {
         console.warn('[ResultsDB] Failed to generate embedding:', error);
         // Continue without embedding - semantic search will skip this result
@@ -89,30 +142,11 @@ export class ResultsDatabase {
     ]);
   }
 
-  async insertResultsBatch(results: SavedResult[], generateEmbeddings: boolean = false): Promise<void> {
+  async insertResultsBatch(results: SavedResult[]): Promise<void> {
     if (!this.db) await this.initialize();
 
-    // Optionally generate embeddings (disabled by default for performance with large batches)
-    let embeddings: (string | null)[] = [];
-    if (generateEmbeddings) {
-      console.log(`[ResultsDB] Generating embeddings for ${results.length} results...`);
-      const startTime = Date.now();
-      const embeddingPromises = results.map(async (result) => {
-        const embeddingText = `${result.traitName} ${result.studyTitle}`;
-        try {
-          const embedding = await embeddingService.embed(embeddingText);
-          return JSON.stringify(embedding);
-        } catch (error) {
-          console.warn(`[ResultsDB] Failed to generate embedding for result ${result.studyId}:`, error);
-          return null;
-        }
-      });
-      embeddings = await Promise.all(embeddingPromises);
-      console.log(`[ResultsDB] Generated ${embeddings.filter(e => e !== null).length} embeddings in ${Date.now() - startTime}ms`);
-    } else {
-      // No embeddings - fill with nulls
-      embeddings = new Array(results.length).fill(null);
-    }
+    // Don't store embeddings in SQL.js - they'll be fetched on-demand from PostgreSQL
+    const embeddings = new Array(results.length).fill(null);
 
     // Use transaction for batch insert (much faster)
     this.db!.run('BEGIN TRANSACTION;');
@@ -145,9 +179,14 @@ export class ResultsDatabase {
 
       stmt.free();
       this.db!.run('COMMIT;');
-      console.log(`Batch inserted ${results.length} results${generateEmbeddings ? ' with embeddings' : ''}`);
+      console.log(`Batch inserted ${results.length} results`);
     } catch (error) {
-      this.db!.run('ROLLBACK;');
+      // Only rollback if transaction is still active
+      try {
+        this.db!.run('ROLLBACK;');
+      } catch (rollbackError) {
+        console.warn('Rollback failed (transaction may have already completed):', rollbackError);
+      }
       console.error('Batch insert failed:', error);
       throw error;
     }
@@ -326,24 +365,38 @@ export class ResultsDatabase {
     }
 
     const resultsToEmbed = result[0].values.map(row => this.rowToResult(result[0].columns, row));
-    console.log(`[ResultsDB] Generating embeddings for ${resultsToEmbed.length} results...`);
+    console.log(`[ResultsDB] Generating embeddings for ${resultsToEmbed.length} results via server-side API...`);
 
     const startTime = Date.now();
     let embeddedCount = 0;
 
-    // Generate embeddings in parallel
-    const embeddingPromises = resultsToEmbed.map(async (savedResult) => {
-      const embeddingText = `${savedResult.traitName} ${savedResult.studyTitle}`;
-      try {
-        const embedding = await embeddingService.embed(embeddingText);
-        return { studyId: savedResult.studyId, embedding: JSON.stringify(embedding) };
-      } catch (error) {
-        console.warn(`[ResultsDB] Failed to generate embedding for result ${savedResult.studyId}:`, error);
-        return null;
-      }
-    });
+    // Generate embeddings via API in batches
+    const BATCH_SIZE = 100;
+    const embeddingResults: Array<{ studyId: number; embedding: string } | null> = [];
 
-    const embeddingResults = await Promise.all(embeddingPromises);
+    for (let i = 0; i < resultsToEmbed.length; i += BATCH_SIZE) {
+      const batch = resultsToEmbed.slice(i, i + BATCH_SIZE);
+      const texts = batch.map(r => `${r.traitName} ${r.studyTitle}`);
+
+      try {
+        const batchEmbeddings = await generateEmbeddingsAPI(texts);
+        for (let j = 0; j < batch.length; j++) {
+          if (batchEmbeddings[j]) {
+            embeddingResults.push({
+              studyId: batch[j].studyId,
+              embedding: JSON.stringify(batchEmbeddings[j])
+            });
+          } else {
+            embeddingResults.push(null);
+          }
+        }
+        console.log(`[ResultsDB] Generated batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(resultsToEmbed.length / BATCH_SIZE)}`);
+      } catch (error) {
+        console.error(`[ResultsDB] Batch ${Math.floor(i / BATCH_SIZE) + 1} failed:`, error);
+        // Fill with nulls for failed batch
+        embeddingResults.push(...new Array(batch.length).fill(null));
+      }
+    }
 
     // Update database with generated embeddings
     this.db!.run('BEGIN TRANSACTION;');
@@ -375,65 +428,92 @@ export class ResultsDatabase {
     console.log(`[ResultsDB] Semantic search for: "${query}"`);
     const startTime = Date.now();
 
-    // Generate embedding for query
-    let queryEmbedding: number[];
     try {
-      queryEmbedding = await embeddingService.embed(query);
-    } catch (error) {
-      console.error('[ResultsDB] Failed to generate query embedding:', error);
-      // Fall back to getTopResultsByEffect
-      console.warn('[ResultsDB] Falling back to significance-based ranking');
-      return this.getTopResultsByEffect(limit, excludeGwasId);
-    }
+      // Step 1: Use PostgreSQL vector similarity to find top N most similar studies
+      console.log(`[ResultsDB] Querying PostgreSQL for ${limit} most similar studies...`);
+      const response = await fetch('/api/similar-studies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, limit }),
+      });
 
-    // Check if we need to generate embeddings first
-    const countResult = this.db!.exec(`SELECT COUNT(*) as count FROM results WHERE embedding IS NULL`);
-    const missingCount = countResult.length ? (countResult[0].values[0][0] as number) : 0;
-
-    if (missingCount > 0) {
-      console.log(`[ResultsDB] Found ${missingCount} results without embeddings, generating lazily...`);
-      await this.generateMissingEmbeddings();
-    }
-
-    // Get all results with embeddings
-    const result = this.db!.exec(`
-      SELECT * FROM results
-      WHERE embedding IS NOT NULL ${excludeGwasId ? 'AND gwasId != ?' : ''}
-    `, excludeGwasId ? [excludeGwasId] : []);
-
-    if (!result.length || !result[0].values.length) {
-      console.warn('[ResultsDB] No results with embeddings found, falling back to significance-based ranking');
-      return this.getTopResultsByEffect(limit, excludeGwasId);
-    }
-
-    // Convert rows to SavedResult objects and compute similarities
-    const resultsWithSimilarity = result[0].values.map(row => {
-      const savedResult = this.rowToResult(result[0].columns, row);
-
-      // Get embedding from result
-      const embeddingIndex = result[0].columns.indexOf('embedding');
-      const embeddingJson = row[embeddingIndex] as string;
-
-      if (!embeddingJson) {
-        return { result: savedResult, similarity: -1 };
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
 
-      const resultEmbedding: number[] = JSON.parse(embeddingJson);
+      const data = await response.json();
+      const similarStudies = data.studies;
 
-      // Compute cosine similarity
-      const similarity = this.cosineSimilarity(queryEmbedding, resultEmbedding);
+      console.log(`[ResultsDB] ✓ Found ${similarStudies.length} similar studies from PostgreSQL vector search`);
 
-      return { result: savedResult, similarity };
-    });
+      if (similarStudies.length === 0) {
+        console.warn('[ResultsDB] No similar studies found');
+        console.warn('[ResultsDB] ⚠️  FALLING BACK TO SIGNIFICANCE-BASED RANKING');
+        return this.getTopResultsByEffect(limit, excludeGwasId);
+      }
 
-    // Sort by similarity (descending) and take top N
-    resultsWithSimilarity.sort((a, b) => b.similarity - a.similarity);
-    const topResults = resultsWithSimilarity.slice(0, limit).map(item => item.result);
+      // Step 2: Build index of similar studies for fast lookup
+      const similarStudiesSet = new Set<string>();
+      for (const study of similarStudies) {
+        const key = `${study.study_accession}|${study.snps}|${study.strongest_snp_risk_allele}`;
+        similarStudiesSet.add(key);
+      }
 
-    const elapsed = Date.now() - startTime;
-    console.log(`[ResultsDB] Semantic search completed in ${elapsed}ms, found ${topResults.length} relevant results`);
+      // Step 3: Get all user results and filter to those that match similar studies
+      const result = this.db!.exec(`
+        SELECT * FROM results
+        WHERE gwasId IS NOT NULL ${excludeGwasId ? 'AND gwasId != ?' : ''}
+      `, excludeGwasId ? [excludeGwasId] : []);
 
-    return topResults;
+      if (!result.length || !result[0].values.length) {
+        console.warn('[ResultsDB] No user results found');
+        return [];
+      }
+
+      const allResults = result[0].values.map(row => this.rowToResult(result[0].columns, row));
+
+      // Step 4: Match user results with similar studies and preserve similarity order
+      const matchedResults: SavedResult[] = [];
+      const matchedKeys = new Set<string>();
+
+      for (const study of similarStudies) {
+        const key = `${study.study_accession}|${study.snps}|${study.strongest_snp_risk_allele}`;
+
+        // Find matching user result
+        for (const userResult of allResults) {
+          if (!userResult.gwasId || !userResult.matchedSnp || !userResult.riskAllele) continue;
+
+          const userKey = `${userResult.gwasId}|${userResult.matchedSnp}|${userResult.riskAllele}`;
+
+          if (userKey === key && !matchedKeys.has(userKey)) {
+            matchedResults.push(userResult);
+            matchedKeys.add(userKey);
+            break; // Found match, move to next study
+          }
+        }
+
+        if (matchedResults.length >= limit) break;
+      }
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ResultsDB] ✓ Semantic search completed in ${elapsed}ms`);
+      console.log(`[ResultsDB] ✓ Matched ${matchedResults.length} user results to similar studies`);
+
+      // Debug: Log top 10 matches
+      const topMatches = matchedResults.slice(0, 10).map((r, i) => ({
+        rank: i + 1,
+        trait: r.traitName,
+        study: r.gwasId
+      }));
+      console.log('[ResultsDB] Top 10 matched results:', topMatches);
+
+      return matchedResults;
+
+    } catch (error) {
+      console.error('[ResultsDB] ❌ Failed to perform semantic search:', error);
+      console.warn('[ResultsDB] ⚠️  FALLING BACK TO SIGNIFICANCE-BASED RANKING');
+      return this.getTopResultsByEffect(limit, excludeGwasId);
+    }
   }
 
   // Helper: Compute cosine similarity between two vectors
