@@ -389,7 +389,11 @@ export async function GET(request: NextRequest) {
     // This prevents full table scans by letting the HNSW index do the heavy lifting
 
     const vectorLiteral = `'${JSON.stringify(queryEmbedding)}'::vector`;
-    const hnswCandidateLimit = 1500; // Get enough candidates to ensure good results after filtering
+    // Dynamic candidate limit based on user's requested limit and filter strictness
+    // Use larger multiplier when filters are active to ensure enough results after filtering
+    const hasStrictFilters = minSampleSize !== null || maxPValue !== null || minLogP !== null || excludeMissingGenotype;
+    const candidateMultiplier = hasStrictFilters ? 10 : 5; // 10x with filters, 5x without
+    const hnswCandidateLimit = Math.max(1000, Math.min(rawLimit * candidateMultiplier, 10000));
 
     fromClause = `FROM (
       SELECT study_accession, snps, strongest_snp_risk_allele, embedding
@@ -434,7 +438,9 @@ export async function GET(request: NextRequest) {
   // These filters are applied post-query in JavaScript
   const needsPostFilterBuffer = excludeLowQuality || confidenceBandFilter !== null;
   const isRunAllQuery = excludeLowQuality === false && excludeMissingGenotype === false && !search && !trait;
-  const rawLimit = fetchAll ? limit : (needsPostFilterBuffer ? Math.min(limit * 2, 200) : limit);
+  // Use 2x buffer for post-filtering to ensure enough results after JS-side filtering
+  // Respect user's limit choice (removed arbitrary 200 cap)
+  const rawLimit = fetchAll ? limit : (needsPostFilterBuffer ? limit * 2 : limit);
 
   // Add LIMIT/OFFSET directly to query for PostgreSQL (safe since rawLimit and offset are validated integers)
   // This avoids parameter type inference issues with pg driver

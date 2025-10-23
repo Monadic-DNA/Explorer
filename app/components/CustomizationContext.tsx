@@ -32,7 +32,8 @@ const defaultCustomization: UserCustomization = {
   countriesOfOrigin: [],
   genderAtBirth: '',
   age: null,
-  conditionsOfInterest: [],
+  personalConditions: [],
+  familyConditions: [],
 };
 
 export function CustomizationProvider({ children }: { children: ReactNode }) {
