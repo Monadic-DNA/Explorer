@@ -214,7 +214,7 @@ function MainContent() {
   const [showRunAllModal, setShowRunAllModal] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
-    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'complete' | 'error';
+    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
     fetchedBatches: number;
     totalStudiesFetched: number;
     totalInDatabase: number;

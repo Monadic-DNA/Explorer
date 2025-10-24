@@ -113,18 +113,10 @@ export class ResultsDatabase {
     if (!this.db) await this.initialize();
 
     // Optionally generate embedding for semantic search (disabled by default for performance)
-    let embeddingJson: string | null = null;
+    // Note: Embedding generation is currently not implemented
+    const embeddingJson: string | null = null;
     if (generateEmbedding) {
-      const embeddingText = `${result.traitName} ${result.studyTitle}`;
-      try {
-        const embeddings = await generateEmbeddingsAPI([embeddingText]);
-        if (embeddings[0]) {
-          embeddingJson = JSON.stringify(embeddings[0]);
-        }
-      } catch (error) {
-        console.warn('[ResultsDB] Failed to generate embedding:', error);
-        // Continue without embedding - semantic search will skip this result
-      }
+      console.warn('[ResultsDB] Embedding generation requested but not implemented');
     }
 
     this.db!.run(`
@@ -369,7 +361,12 @@ export class ResultsDatabase {
   }
 
   // Generate embeddings for results that don't have them yet (lazy generation)
-  async generateMissingEmbeddings(maxResults?: number): Promise<number> {
+  async generateMissingEmbeddings(_maxResults?: number): Promise<number> {
+    // Note: Embedding generation is currently not implemented
+    console.warn('[ResultsDB] generateMissingEmbeddings called but not implemented');
+    return 0;
+
+    /* Disabled code below - would need to integrate with embeddingService or API
     if (!this.db) await this.initialize();
 
     console.log(`[ResultsDB] Checking for results without embeddings...`);
@@ -439,6 +436,7 @@ export class ResultsDatabase {
     console.log(`[ResultsDB] Generated ${embeddedCount} embeddings in ${elapsed}ms`);
 
     return embeddedCount;
+    */
   }
 
   // Semantic search method for LLM context: Get top N results by relevance to query
@@ -500,13 +498,13 @@ export class ResultsDatabase {
       const matchedResultIds = new Set<number>();
 
       // Debug: Sample a few study accessions and user gwasIds
-      const sampleStudies = similarStudies.slice(0, 10).map(s => s.study_accession);
+      const sampleStudies = similarStudies.slice(0, 10).map((s: { study_accession: string }) => s.study_accession);
       const sampleUserGwasIds = allResults.slice(0, 20).map(r => r.gwasId).filter(id => id);
       console.log('[ResultsDB] PostgreSQL studies (first 10):', JSON.stringify(sampleStudies));
       console.log('[ResultsDB] User gwasIds (first 20):', JSON.stringify(sampleUserGwasIds));
 
       // Check for exact match
-      const hasMatch = sampleStudies.some(study => sampleUserGwasIds.includes(study));
+      const hasMatch = sampleStudies.some((study: string) => sampleUserGwasIds.includes(study));
       console.log('[ResultsDB] Any matches in samples?', hasMatch);
 
       // Count unique user studies

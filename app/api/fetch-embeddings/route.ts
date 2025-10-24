@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { validateOrigin } from "@/lib/origin-validator";
 
 /**
@@ -52,7 +52,15 @@ export async function POST(request: NextRequest) {
       WHERE ${conditions}
     `;
 
-    const result = await db.query(query, params);
+    const db = getDb();
+    if (db.type !== 'postgres' || !db.postgres) {
+      return NextResponse.json(
+        { error: "Embeddings are only supported with PostgreSQL" },
+        { status: 503 }
+      );
+    }
+
+    const result = await db.postgres.query(query, params);
 
     // Create lookup map
     const embeddingMap = new Map<string, number[]>();
