@@ -85,6 +85,7 @@ export class ResultsDatabase {
         userGenotype TEXT NOT NULL,
         riskAllele TEXT NOT NULL,
         effectSize TEXT NOT NULL,
+        effectType TEXT,
         riskScore REAL NOT NULL,
         riskLevel TEXT NOT NULL,
         matchedSnp TEXT NOT NULL,
@@ -93,7 +94,8 @@ export class ResultsDatabase {
         pValue TEXT,
         pValueMlog TEXT,
         mappedGene TEXT,
-        sampleSize TEXT
+        sampleSize TEXT,
+        replicationSampleSize TEXT
       );
     `);
 
@@ -128,9 +130,9 @@ export class ResultsDatabase {
     this.db!.run(`
       INSERT OR REPLACE INTO results (
         studyId, gwasId, traitName, studyTitle, userGenotype,
-        riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding,
-        pValue, pValueMlog, mappedGene, sampleSize
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        riskAllele, effectSize, effectType, riskScore, riskLevel, matchedSnp, analysisDate, embedding,
+        pValue, pValueMlog, mappedGene, sampleSize, replicationSampleSize
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       result.studyId,
       result.gwasId || null,
@@ -139,6 +141,7 @@ export class ResultsDatabase {
       result.userGenotype,
       result.riskAllele,
       result.effectSize,
+      result.effectType || null,
       result.riskScore,
       result.riskLevel,
       result.matchedSnp,
@@ -147,7 +150,8 @@ export class ResultsDatabase {
       result.pValue || null,
       result.pValueMlog || null,
       result.mappedGene || null,
-      result.sampleSize || null
+      result.sampleSize || null,
+      result.replicationSampleSize || null
     ]);
   }
 
@@ -164,9 +168,9 @@ export class ResultsDatabase {
       const stmt = this.db!.prepare(`
         INSERT OR REPLACE INTO results (
           studyId, gwasId, traitName, studyTitle, userGenotype,
-          riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding,
-          pValue, pValueMlog, mappedGene, sampleSize
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          riskAllele, effectSize, effectType, riskScore, riskLevel, matchedSnp, analysisDate, embedding,
+          pValue, pValueMlog, mappedGene, sampleSize, replicationSampleSize
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       for (let i = 0; i < results.length; i++) {
@@ -179,6 +183,7 @@ export class ResultsDatabase {
           result.userGenotype,
           result.riskAllele,
           result.effectSize,
+          result.effectType || null,
           result.riskScore,
           result.riskLevel,
           result.matchedSnp,
@@ -187,7 +192,8 @@ export class ResultsDatabase {
           result.pValue || null,
           result.pValueMlog || null,
           result.mappedGene || null,
-          result.sampleSize || null
+          result.sampleSize || null,
+          result.replicationSampleSize || null
         ]);
       }
 
@@ -659,6 +665,7 @@ export class ResultsDatabase {
       userGenotype: obj.userGenotype,
       riskAllele: obj.riskAllele,
       effectSize: obj.effectSize,
+      effectType: obj.effectType || undefined,
       riskScore: obj.riskScore,
       riskLevel: obj.riskLevel,
       matchedSnp: obj.matchedSnp,
@@ -666,7 +673,8 @@ export class ResultsDatabase {
       pValue: obj.pValue || undefined,
       pValueMlog: obj.pValueMlog || undefined,
       mappedGene: obj.mappedGene || undefined,
-      sampleSize: obj.sampleSize || undefined
+      sampleSize: obj.sampleSize || undefined,
+      replicationSampleSize: obj.replicationSampleSize || undefined
     };
   }
 

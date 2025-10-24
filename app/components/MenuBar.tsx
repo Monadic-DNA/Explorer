@@ -84,11 +84,11 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
   const getCustomizationTooltip = () => {
     switch (customizationStatus) {
       case 'not-set':
-        return 'Customize AI analysis with your personal information';
+        return 'Personalize AI analysis with your personal information';
       case 'locked':
-        return 'Customization is locked - click to unlock';
+        return 'Personalization is locked - click to unlock';
       case 'unlocked':
-        return 'Customization is unlocked - click to edit or lock';
+        return 'Personalization is unlocked - click to edit or lock';
     }
   };
 
@@ -197,11 +197,11 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
 
         <div className="utility-section menu-group">
           <button
-            className={`control-button customize-button ${customizationStatus}`}
+            className={`control-button personalize-button ${customizationStatus}`}
             onClick={() => setShowCustomizationModal(true)}
             title={getCustomizationTooltip()}
           >
-            {getCustomizationIcon()} Customize
+            {getCustomizationIcon()} Personalize
           </button>
         </div>
 

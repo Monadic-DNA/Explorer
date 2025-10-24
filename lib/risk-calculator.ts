@@ -104,9 +104,9 @@ export function calculateRiskScore(
     }
   } else {
     // Beta coefficient - represents units of trait change, not relative risk
-    // Return the raw beta-based score for display purposes only
+    // Store the actual beta value (effect * alleleCount) for display
     // This should NOT be interpreted as a risk multiplier
-    riskScore = 1 + (effect * riskAlleleCount);
+    riskScore = effect * riskAlleleCount;
     if (riskAlleleCount === 0) {
       riskLevel = 'neutral';
     } else if (effect > 0) {
@@ -116,7 +116,12 @@ export function calculateRiskScore(
     }
   }
 
-  return { score: Math.max(0.1, riskScore), level: riskLevel };
+  // For OR, prevent scores below 0.1; for beta, allow any value including 0
+  if (effectType === 'OR') {
+    return { score: Math.max(0.1, riskScore), level: riskLevel };
+  } else {
+    return { score: riskScore, level: riskLevel };
+  }
 }
 
 export function analyzeStudyClientSide(

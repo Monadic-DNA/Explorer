@@ -80,6 +80,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
     if (success) {
       setIsUnlockMode(false);
       setPassword('');
+      onClose(); // Close modal immediately after successful unlock
     } else {
       setError('Incorrect password');
     }
@@ -151,7 +152,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-content">
-          <h2>⚙️ Customize AI Analysis</h2>
+          <h2>⚙️ Personalize AI Analysis</h2>
 
           <div className="customization-info">
             <p>
@@ -321,10 +322,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                       Delete All
                     </button>
                     <button type="button" className="disclaimer-button secondary" onClick={handleLock}>
-                      Lock & Close
-                    </button>
-                    <button type="button" className="disclaimer-button secondary" onClick={onClose}>
-                      Looks Good
+                      Lock
                     </button>
                   </>
                 )}
@@ -333,6 +331,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                     Cancel
                   </button>
                 )}
+                <button type="button" className="disclaimer-button secondary" onClick={onClose}>
+                  Close
+                </button>
                 <button type="submit" className="disclaimer-button primary" disabled={isSaving}>
                   {isSaving ? 'Saving...' : 'Save & Encrypt'}
                 </button>

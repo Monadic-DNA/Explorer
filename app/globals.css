@@ -3148,32 +3148,32 @@ details[open] .summary-arrow {
   font-size: 0.9rem;
 }
 
-/* Customize Button */
-.customize-button {
+/* Personalize Button */
+.personalize-button {
   position: relative;
 }
 
-.customize-button.locked {
+.personalize-button.locked {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.3);
   color: #991b1b;
 }
 
-.customize-button.locked:hover {
+.personalize-button.locked:hover {
   background: rgba(239, 68, 68, 0.15);
 }
 
-.customize-button.unlocked {
+.personalize-button.unlocked {
   background: rgba(34, 197, 94, 0.1);
   border-color: rgba(34, 197, 94, 0.3);
   color: #065f46;
 }
 
-.customize-button.unlocked:hover {
+.personalize-button.unlocked:hover {
   background: rgba(34, 197, 94, 0.15);
 }
 
-.customize-button.not-set {
+.personalize-button.not-set {
   /* Default button styling */
 }
 
@@ -3195,12 +3195,12 @@ details[open] .summary-arrow {
   color: #fca5a5;
 }
 
-:root[data-theme="dark"] .customize-button.locked {
+:root[data-theme="dark"] .personalize-button.locked {
   background: rgba(239, 68, 68, 0.15);
   color: #fca5a5;
 }
 
-:root[data-theme="dark"] .customize-button.unlocked {
+:root[data-theme="dark"] .personalize-button.unlocked {
   background: rgba(34, 197, 94, 0.15);
   color: #6ee7b7;
 }

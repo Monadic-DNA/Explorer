@@ -119,18 +119,44 @@ export async function runAllAnalysisIndexed(
           // Basic genotype validation
           if (!/^[ACGT]{2}$/.test(userGenotype)) continue;
 
-          // Simple risk score calculation
+          // Calculate risk score using proper logic
           const riskAllele = study.strongest_snp_risk_allele.split('-').pop() || '';
-          const hasRiskAllele = userGenotype.includes(riskAllele);
+          const riskAlleleCount = userGenotype.split('').filter(a => a === riskAllele).length;
+          const effectValue = parseFloat(study.or_or_beta);
+
+          // Detect effect type (beta coefficient vs odds ratio)
+          // Beta coefficients have "increase" or "decrease" in CI text
+          // e.g., "[NR] unit increase", "[0.0068-0.0139] unit increase", "[112.27-112.33] increase"
+          // Odds ratios are just numbers: e.g., "[1.08-1.15]"
+          const ciTextLower = study.ci_text?.toLowerCase() ?? '';
+          const isBeta = ciTextLower.includes('increase') || ciTextLower.includes('decrease');
+          const effectType: 'OR' | 'beta' = isBeta ? 'beta' : 'OR';
+
+          // Debug logging for lentiform nucleus
+          if (study.disease_trait?.toLowerCase().includes('lentiform')) {
+          }
 
           let riskScore = 1.0;
           let riskLevel: 'increased' | 'decreased' | 'neutral' = 'neutral';
 
-          if (hasRiskAllele) {
-            const orValue = parseFloat(study.or_or_beta);
-            if (!isNaN(orValue) && orValue > 0) {
-              riskScore = orValue;
-              riskLevel = orValue > 1 ? 'increased' : orValue < 1 ? 'decreased' : 'neutral';
+          if (!isNaN(effectValue) && effectValue !== 0) {
+            if (effectType === 'OR') {
+              // Odds ratio logic
+              if (riskAlleleCount === 0) {
+                riskScore = 1.0;
+                riskLevel = 'neutral';
+              } else {
+                riskScore = Math.pow(effectValue, riskAlleleCount);
+                riskLevel = effectValue > 1 ? 'increased' : effectValue < 1 ? 'decreased' : 'neutral';
+              }
+            } else {
+              // Beta coefficient logic - store actual beta value
+              riskScore = effectValue * riskAlleleCount;
+              if (riskAlleleCount === 0) {
+                riskLevel = 'neutral';
+              } else {
+                riskLevel = effectValue > 0 ? 'increased' : effectValue < 0 ? 'decreased' : 'neutral';
+              }
             }
           }
 
@@ -143,6 +169,7 @@ export async function runAllAnalysisIndexed(
               userGenotype,
               riskAllele: study.strongest_snp_risk_allele,
               effectSize: study.or_or_beta,
+              effectType,
               riskScore,
               riskLevel,
               matchedSnp: snp,
@@ -151,6 +178,7 @@ export async function runAllAnalysisIndexed(
               pValueMlog: study.pvalue_mlog || undefined,
               mappedGene: study.mapped_gene || undefined,
               sampleSize: study.initial_sample_size || undefined,
+              replicationSampleSize: study.replication_sample_size || undefined,
             });
             totalMatchCount++;
           }

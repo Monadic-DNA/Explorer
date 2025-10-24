@@ -18,6 +18,15 @@ type LLMCommentaryModalProps = {
 
 const CONSENT_STORAGE_KEY = "nilai_ai_consent_accepted";
 
+// Helper function to format risk scores consistently
+function formatRiskScore(score: number, level: string, effectType?: 'OR' | 'beta'): string {
+  if (level === 'neutral') return effectType === 'beta' ? 'baseline' : '1.0x';
+  if (effectType === 'beta') {
+    return `β=${score >= 0 ? '+' : ''}${score.toFixed(3)} units`;
+  }
+  return `${score.toFixed(2)}x`;
+}
+
 export default function LLMCommentaryModal({
   isOpen,
   onClose,
@@ -274,7 +283,7 @@ export default function LLMCommentaryModal({
    - Your genotype: ${r.userGenotype}
    - Risk allele: ${r.riskAllele}
    - Effect size: ${r.effectSize}
-   - Risk score: ${r.riskScore}x (${r.riskLevel})
+   - Risk score: ${formatRiskScore(r.riskScore, r.riskLevel, r.effectType)} (${r.riskLevel})
    - Matched SNP: ${r.matchedSnp}`
         )
         .join('\n\n');
@@ -352,7 +361,7 @@ Study: ${currentResult.studyTitle}
 Your genotype: ${currentResult.userGenotype}
 Risk allele: ${currentResult.riskAllele}
 Effect size: ${currentResult.effectSize}
-Risk score: ${currentResult.riskScore}x (${currentResult.riskLevel})
+Risk score: ${formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} (${currentResult.riskLevel})
 Matched SNP: ${currentResult.matchedSnp}
 Study date: ${currentResult.analysisDate}
 
@@ -465,7 +474,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
         <div style="margin-left: 24px; font-size: 14px; color: #555;">
           <p style="margin: 4px 0;"><strong>Study:</strong> ${result.studyTitle}</p>
           <p style="margin: 4px 0;"><strong>Your genotype:</strong> ${result.userGenotype}</p>
-          <p style="margin: 4px 0;"><strong>Risk score:</strong> <span style="color: ${result.riskLevel === 'increased' ? '#dc3545' : result.riskLevel === 'decreased' ? '#28a745' : '#6c757d'}; font-weight: 600;">${result.riskScore}x (${result.riskLevel})</span></p>
+          <p style="margin: 4px 0;"><strong>Risk score:</strong> <span style="color: ${result.riskLevel === 'increased' ? '#dc3545' : result.riskLevel === 'decreased' ? '#28a745' : '#6c757d'}; font-weight: 600;">${formatRiskScore(result.riskScore, result.riskLevel, result.effectType)} (${result.riskLevel})</span></p>
           <p style="margin: 4px 0;"><strong>SNP:</strong> ${result.matchedSnp}</p>
         </div>
       </div>
@@ -693,7 +702,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
             <p><strong>Your genotype:</strong> ${currentResult.userGenotype}</p>
             <p><strong>Risk allele:</strong> ${currentResult.riskAllele}</p>
             <p><strong>Effect size:</strong> ${currentResult.effectSize}</p>
-            <p><strong>Risk score:</strong> ${currentResult.riskScore}x (${currentResult.riskLevel})</p>
+            <p><strong>Risk score:</strong> ${formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} (${currentResult.riskLevel})</p>
             <p><strong>Matched SNP:</strong> ${currentResult.matchedSnp}</p>
           </div>
 
@@ -869,7 +878,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                 <strong>Your genotype:</strong> {currentResult.userGenotype}
               </span>
               <span>
-                <strong>Risk score:</strong> {currentResult.riskScore}x ({currentResult.riskLevel})
+                <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
               </span>
             </div>
           </div>
@@ -996,7 +1005,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                             <div className="study-detail">
                               <span className="detail-label">Risk score:</span>
                               <span className={`detail-value risk-${result.riskLevel}`}>
-                                {result.riskScore}x ({result.riskLevel})
+                                {formatRiskScore(result.riskScore, result.riskLevel, result.effectType)} ({result.riskLevel})
                               </span>
                             </div>
                             <div className="study-detail">

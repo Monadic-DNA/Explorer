@@ -101,7 +101,7 @@ const defaultFilters: Filters = {
   requireUserSNPs: false,
   sort: "relevance",
   sortDirection: "desc",
-  limit: 75,
+  limit: 200,
   confidenceBand: null,
   offset: 0,
 };
@@ -725,7 +725,7 @@ function MainContent() {
                   value={filters.limit}
                   onChange={(event) => updateFilter("limit", Number(event.target.value))}
                 >
-                  {[25, 50, 75, 100, 150, 200].map((size) => (
+                  {[25, 50, 75, 100, 150, 200, 1000].map((size) => (
                     <option key={size} value={size}>
                       {size}
                     </option>

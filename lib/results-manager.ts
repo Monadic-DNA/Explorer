@@ -6,6 +6,7 @@ export type SavedResult = {
   userGenotype: string;
   riskAllele: string;
   effectSize: string;
+  effectType?: 'OR' | 'beta'; // Effect type
   riskScore: number;
   riskLevel: 'increased' | 'decreased' | 'neutral';
   matchedSnp: string;
@@ -14,6 +15,7 @@ export type SavedResult = {
   pValueMlog?: string; // -log10(p-value) from GWAS catalog
   mappedGene?: string; // Mapped gene from GWAS catalog
   sampleSize?: string; // Initial sample size from GWAS catalog
+  replicationSampleSize?: string; // Replication sample size from GWAS catalog
 };
 
 export type SavedSession = {
@@ -38,6 +40,7 @@ export class ResultsManager {
       'Your Genotype',
       'Risk Allele',
       'Effect Size',
+      'Effect Type',
       'Risk Score',
       'Risk Level',
       'Matched SNP',
@@ -45,7 +48,8 @@ export class ResultsManager {
       'P-Value',
       'P-Value (-log10)',
       'Mapped Gene',
-      'Sample Size'
+      'Sample Size',
+      'Replication Sample Size'
     ];
 
     const tsvRows = [headers.join('\t')];
@@ -59,6 +63,7 @@ export class ResultsManager {
         result.userGenotype || '',
         result.riskAllele || '',
         result.effectSize || '',
+        result.effectType || 'OR',
         result.riskScore,
         result.riskLevel || '',
         result.matchedSnp || '',
@@ -66,7 +71,8 @@ export class ResultsManager {
         result.pValue || '',
         result.pValueMlog || '',
         result.mappedGene || '',
-        result.sampleSize || ''
+        result.sampleSize || '',
+        result.replicationSampleSize || ''
       ];
       tsvRows.push(row.join('\t'));
     }
@@ -151,6 +157,7 @@ export class ResultsManager {
                 userGenotype: cols[headerMap.get('Your Genotype')!] || '',
                 riskAllele: cols[headerMap.get('Risk Allele')!] || '',
                 effectSize: cols[headerMap.get('Effect Size')!] || '',
+                effectType: headerMap.has('Effect Type') ? (cols[headerMap.get('Effect Type')!] as 'OR' | 'beta') || 'OR' : 'OR',
                 riskScore: parseFloat(cols[headerMap.get('Risk Score')!]) || 0,
                 riskLevel: (cols[headerMap.get('Risk Level')!] as 'increased' | 'decreased' | 'neutral') || 'neutral',
                 matchedSnp: cols[headerMap.get('Matched SNP')!] || '',

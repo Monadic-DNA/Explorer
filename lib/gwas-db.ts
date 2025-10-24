@@ -14,10 +14,12 @@ export type GWASStudy = {
   snps: string | null;
   strongest_snp_risk_allele: string | null;
   or_or_beta: string | null;
+  ci_text?: string | null;
   p_value?: string | null;
   pvalue_mlog?: string | null;
   mapped_gene?: string | null;
   initial_sample_size?: string | null;
+  replication_sample_size?: string | null;
 };
 
 export type GWASMetadata = {
@@ -164,7 +166,15 @@ export class GWASDatabase {
     const riskAlleleIdx = colMap['STRONGEST SNP-RISK ALLELE'];
     const orBetaIdx = colMap['OR or BETA'];
 
-    console.log('Column indices:', { snpsIdx, accessionIdx, traitIdx, studyIdx, riskAlleleIdx, orBetaIdx });
+    // Optional metadata columns
+    const ciTextIdx = colMap['95% CI (TEXT)'];
+    const pValueIdx = colMap['P-VALUE'];
+    const pValueMlogIdx = colMap['PVALUE_MLOG'];
+    const mappedGeneIdx = colMap['MAPPED_GENE'];
+    const sampleSizeIdx = colMap['INITIAL SAMPLE SIZE'];
+    const replicationSizeIdx = colMap['REPLICATION SAMPLE SIZE'];
+
+    console.log('Column indices:', { snpsIdx, accessionIdx, traitIdx, studyIdx, riskAlleleIdx, orBetaIdx, ciTextIdx, pValueIdx, pValueMlogIdx, mappedGeneIdx, sampleSizeIdx, replicationSizeIdx });
 
     // Process rest of file in chunks to avoid memory issues
     const batchSize = 5000;
@@ -233,6 +243,12 @@ export class GWASDatabase {
           snps: snps,
           strongest_snp_risk_allele: cols[riskAlleleIdx] || null,
           or_or_beta: cols[orBetaIdx] || null,
+          ci_text: cols[ciTextIdx] || null,
+          p_value: cols[pValueIdx] || null,
+          pvalue_mlog: cols[pValueMlogIdx] || null,
+          mapped_gene: cols[mappedGeneIdx] || null,
+          initial_sample_size: cols[sampleSizeIdx] || null,
+          replication_sample_size: cols[replicationSizeIdx] || null,
         });
 
         // Store batch when it reaches size limit

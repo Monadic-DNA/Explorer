@@ -39,6 +39,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
       userGenotype: result.userGenotype!,
       riskAllele: result.riskAllele!,
       effectSize: result.effectSize!,
+      effectType: result.effectType,
       riskScore: result.riskScore!,
       riskLevel: result.riskLevel!,
       matchedSnp: result.matchedSnp!,
@@ -64,6 +65,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
         userGenotype: savedResult.userGenotype,
         riskAllele: savedResult.riskAllele,
         effectSize: savedResult.effectSize,
+        effectType: savedResult.effectType,
         riskScore: savedResult.riskScore,
         riskLevel: savedResult.riskLevel,
         matchedSnp: savedResult.matchedSnp,
@@ -144,6 +146,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
           userGenotype: analysisResult.userGenotype!,
           riskAllele: analysisResult.riskAllele!,
           effectSize: analysisResult.effectSize!,
+          effectType: analysisResult.effectType,
           riskScore: analysisResult.riskScore!,
           riskLevel: analysisResult.riskLevel!,
           matchedSnp: analysisResult.matchedSnp!,
@@ -161,8 +164,8 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
   const formatRiskScore = (score: number, level: string, effectType?: string) => {
     if (level === 'neutral') return effectType === 'beta' ? 'baseline' : '1.0x';
     if (effectType === 'beta') {
-      // For beta coefficients, show the effect size directly, not as a multiplier
-      return `β=${score > 1 ? '+' : ''}${(score - 1).toFixed(3)}`;
+      // For beta coefficients, show the actual beta value in original units
+      return `β=${score >= 0 ? '+' : ''}${score.toFixed(3)} units`;
     }
     return `${score.toFixed(2)}x`;
   };
