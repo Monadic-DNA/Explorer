@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, createContext, useContext } from "react";
+import { useState, useRef, createContext, useContext, useCallback } from "react";
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
 import {
@@ -28,7 +28,7 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const [genotypeData, setGenotypeData] = useState<Map<string, string> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [onDataLoaded, setOnDataLoaded] = useState<(() => void) | null>(null);
+  const onDataLoadedRef = useRef<(() => void) | null>(null);
   const [fileHash, setFileHash] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
@@ -80,8 +80,8 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       setOriginalFileName(file.name);
 
       // Call the callback if it exists
-      if (onDataLoaded) {
-        onDataLoaded();
+      if (onDataLoadedRef.current) {
+        onDataLoadedRef.current();
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
@@ -104,6 +104,11 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     trackFileCleared();
   };
 
+  const setOnDataLoadedCallback = useCallback((cb: (() => void) | null) => {
+    // Store the callback in a ref to avoid render-phase state updates
+    onDataLoadedRef.current = cb;
+  }, []);
+
   return (
     <GenotypeContext.Provider value={{
       genotypeData,
@@ -112,7 +117,7 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       isUploaded: !!genotypeData,
       isLoading,
       error,
-      setOnDataLoadedCallback: setOnDataLoaded,
+      setOnDataLoadedCallback,
       fileHash,
       originalFileName,
     }}>

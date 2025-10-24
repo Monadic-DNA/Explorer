@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
         strongest_snp_risk_allele,
         or_or_beta,
         ci_text,
-        study_accession
+        study_accession,
+        disease_trait
       FROM gwas_catalog
       WHERE ${idCondition}
       AND snps IS NOT NULL AND snps != ''
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
       or_or_beta: string | null;
       ci_text: string | null;
       study_accession: string | null;
+      disease_trait: string | null;
     }>(query, [studyId]);
 
     if (!study) {
@@ -59,10 +61,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine effect type from ci_text
-    // Beta coefficients have "unit" in CI (e.g., "[0.0068-0.0139] unit increase")
-    // Odds ratios are just numbers (e.g., "[1.08-1.15]")
-    const isBeta = study.ci_text?.toLowerCase().includes('unit') ?? false;
+    // Beta coefficients have "increase" or "decrease" in CI text
+    // e.g., "[NR] unit increase", "[0.0068-0.0139] unit increase", "[112.27-112.33] increase"
+    // Odds ratios are just numbers: e.g., "[1.08-1.15]"
+    const ciTextLower = study.ci_text?.toLowerCase() ?? '';
+    const isBeta = ciTextLower.includes('increase') || ciTextLower.includes('decrease');
     const effectType = isBeta ? 'beta' : 'OR';
+
+    // Debug logging
 
     // Return only study metadata - client will perform the analysis
     return NextResponse.json({
