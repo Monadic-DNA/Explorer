@@ -142,37 +142,46 @@ export default function LLMCommentaryModal({
         console.log(`[fetchCommentary] After excluding duplicates: ${noDuplicates.length}`);
 
         // Step 3: Apply quality filters (only if fields exist)
-        const highRiskResults = noDuplicates
-          .filter(r => {
-            // If pValue exists, apply threshold (genome-wide significance: < 5e-8)
-            if (r.pValue) {
-              const pValue = parseFloat(r.pValue);
-              if (!isNaN(pValue) && pValue >= 5e-8) {
+        const qualityFiltered = noDuplicates.filter(r => {
+          // If pValue exists, apply threshold (genome-wide significance: < 5e-8)
+          if (r.pValue) {
+            const pValue = parseFloat(r.pValue);
+            if (!isNaN(pValue) && pValue >= 5e-8) {
+              return false;
+            }
+          }
+
+          // If sampleSize exists, apply threshold (>= 500 participants)
+          if (r.sampleSize) {
+            // Parse sample size from text like "15,000 European ancestry individuals"
+            const sampleSizeMatch = r.sampleSize.match(/[\d,]+/);
+            if (sampleSizeMatch) {
+              const sampleSize = parseInt(sampleSizeMatch[0].replace(/,/g, ''));
+              if (!isNaN(sampleSize) && sampleSize < 500) {
                 return false;
               }
             }
+          }
 
-            // If sampleSize exists, apply threshold (>= 500 participants)
-            if (r.sampleSize) {
-              // Parse sample size from text like "15,000 European ancestry individuals"
-              const sampleSizeMatch = r.sampleSize.match(/[\d,]+/);
-              if (sampleSizeMatch) {
-                const sampleSize = parseInt(sampleSizeMatch[0].replace(/,/g, ''));
-                if (!isNaN(sampleSize) && sampleSize < 500) {
-                  return false;
-                }
-              }
-            }
+          // If neither field exists (old results), include all results
+          return true;
+        });
 
-            // If neither field exists (old results), include all results
-            return true;
-          })
-          .sort((a, b) => b.riskScore - a.riskScore) // Sort by risk score descending
-          .slice(0, remaining);
+        console.log(`[fetchCommentary] After quality filters: ${qualityFiltered.length}`);
 
-        console.log(`[fetchCommentary] After quality filters and sorting: ${highRiskResults.length}`);
-        topResults = [...topResults, ...highRiskResults];
-        console.log(`[fetchCommentary] Added ${highRiskResults.length} high-risk results. Final total: ${topResults.length}`);
+        // Step 4: Random sampling to avoid bias toward high-risk results
+        // Shuffle using Fisher-Yates algorithm
+        const shuffled = [...qualityFiltered];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        const randomSample = shuffled.slice(0, remaining);
+        console.log(`[fetchCommentary] Randomly sampled ${randomSample.length} results from ${qualityFiltered.length} quality-filtered results`);
+
+        topResults = [...topResults, ...randomSample];
+        console.log(`[fetchCommentary] Added ${randomSample.length} results. Final total: ${topResults.length}`);
       }
 
       // Add current result at the top

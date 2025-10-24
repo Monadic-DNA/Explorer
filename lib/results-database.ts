@@ -513,12 +513,12 @@ export class ResultsDatabase {
         // Find ALL matching user results for this study
         for (const userResult of allResults) {
           if (!userResult.gwasId) continue;
-          if (matchedResultIds.has(userResult.id)) continue; // Skip duplicates
+          if (matchedResultIds.has(userResult.studyId)) continue; // Skip duplicates
 
           // Match on study accession (gwasId)
           if (userResult.gwasId === studyAccession) {
             matchedResults.push(userResult);
-            matchedResultIds.add(userResult.id);
+            matchedResultIds.add(userResult.studyId);
           }
         }
 
