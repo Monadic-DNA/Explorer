@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (limit > 5000) {
+    if (limit > 50000) {
       return NextResponse.json(
-        { error: "Limit cannot exceed 5000" },
+        { error: "Limit cannot exceed 50000" },
         { status: 400 }
       );
     }

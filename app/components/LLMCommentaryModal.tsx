@@ -100,14 +100,20 @@ export default function LLMCommentaryModal({
       // Yield to UI to show loading state
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      console.log(`[fetchCommentary] Fetching top 499 most relevant results from ${totalResults} total using semantic search...`);
+      console.log(`[fetchCommentary] Fetching top relevant results from ${totalResults} total using semantic search (5000 studies from embeddings)...`);
       const startFilter = Date.now();
 
       // Use semantic search to find results most relevant to this trait/study
+      // Query 5000 studies from PostgreSQL to cast a wider net, then filter to top 499 matches
+      // Use only the trait name (condition) for semantic search, not the full study title
       setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
-      const queryText = `${currentResult.traitName} ${currentResult.studyTitle}`;
-      let topResults = await getTopResultsByRelevance(queryText, 499, currentResult.gwasId);
-      console.log('[fetchCommentary] Got top relevant results:', topResults.length);
+      const queryText = currentResult.traitName;
+      let topResults = await getTopResultsByRelevance(queryText, 5000, currentResult.gwasId);
+      console.log(`[fetchCommentary] Got ${topResults.length} results from semantic search (queried 5000 studies)`);
+
+      // Take only top 499 matches for the LLM prompt
+      topResults = topResults.slice(0, 499);
+      console.log(`[fetchCommentary] Using top ${topResults.length} results for LLM prompt`);
 
       // If we have fewer than 499 results, fill remaining slots with highest risk score results
       if (topResults.length < 499) {
@@ -173,7 +179,7 @@ export default function LLMCommentaryModal({
       const resultsForContext = [currentResult, ...topResults];
 
       const filterTime = Date.now() - startFilter;
-      console.log(`Fetched top 500 results in ${filterTime}ms using semantic similarity search`);
+      console.log(`Fetched top 5000 results in ${filterTime}ms using semantic similarity search`);
 
       // Store analysis metadata
       setAnalysisResultsCount(resultsForContext.length);
@@ -429,6 +435,327 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
   const handleRetry = () => {
     fetchCommentary();
+  };
+
+  const handlePrint = () => {
+    // Create a print-friendly version of the content
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to print the analysis');
+      return;
+    }
+
+    // Generate studies list HTML
+    const studiesListHtml = analysisResults.map((result, index) => `
+      <div class="study-item" style="margin-bottom: 20px; padding: 15px; background: ${index === 0 ? '#fff9e6' : '#f8f9fa'}; border-radius: 8px; page-break-inside: avoid;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+          <span style="font-weight: bold; color: #555;">${index + 1}.</span>
+          <span style="font-weight: 600; color: #2c3e50; flex: 1;">${result.traitName}</span>
+          ${index === 0 ? '<span style="background: #ffc107; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">CURRENT</span>' : ''}
+        </div>
+        <div style="margin-left: 24px; font-size: 14px; color: #555;">
+          <p style="margin: 4px 0;"><strong>Study:</strong> ${result.studyTitle}</p>
+          <p style="margin: 4px 0;"><strong>Your genotype:</strong> ${result.userGenotype}</p>
+          <p style="margin: 4px 0;"><strong>Risk score:</strong> <span style="color: ${result.riskLevel === 'increased' ? '#dc3545' : result.riskLevel === 'decreased' ? '#28a745' : '#6c757d'}; font-weight: 600;">${result.riskScore}x (${result.riskLevel})</span></p>
+          <p style="margin: 4px 0;"><strong>SNP:</strong> ${result.matchedSnp}</p>
+        </div>
+      </div>
+    `).join('');
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>AI Analysis - ${currentResult.traitName}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+              line-height: 1.6;
+              max-width: 900px;
+              margin: 0 auto;
+              padding: 30px;
+              color: #1a1a1a;
+              background: white;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px solid #2c5aa0;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 28px;
+              color: #2c5aa0;
+              font-weight: 700;
+            }
+            .header .url {
+              margin: 8px 0 0 0;
+              font-size: 16px;
+              color: #2c5aa0;
+              font-weight: 500;
+            }
+            .powered-by {
+              background: #e8f4f8;
+              padding: 12px 20px;
+              border-radius: 8px;
+              text-align: center;
+              margin: 20px 0;
+              font-size: 13px;
+              color: #2c5aa0;
+            }
+            h2 {
+              color: #2c3e50;
+              font-size: 22px;
+              margin-top: 30px;
+              margin-bottom: 15px;
+              border-bottom: 2px solid #e0e0e0;
+              padding-bottom: 8px;
+            }
+            h3 {
+              color: #2c3e50;
+              font-size: 18px;
+              margin-top: 25px;
+              margin-bottom: 12px;
+            }
+            h4 {
+              color: #2c3e50;
+              font-size: 16px;
+              margin-top: 20px;
+              margin-bottom: 10px;
+            }
+            .result-summary {
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 25px;
+              border-radius: 12px;
+              margin: 25px 0;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .result-summary h2 {
+              color: white;
+              border: none;
+              margin-top: 0;
+              font-size: 24px;
+            }
+            .result-summary p {
+              margin: 8px 0;
+              font-size: 15px;
+            }
+            .result-summary strong {
+              opacity: 0.9;
+            }
+            .quality-indicators {
+              background: #f0f7ff;
+              border-left: 4px solid #2c5aa0;
+              padding: 20px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .quality-indicators h3 {
+              margin-top: 0;
+              color: #2c5aa0;
+            }
+            .quality-indicators p {
+              margin: 8px 0;
+              font-size: 14px;
+            }
+            .analysis-metadata {
+              background: #e8f4f8;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .metadata-item {
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              margin: 10px 0;
+              font-size: 14px;
+            }
+            .metadata-icon {
+              font-size: 18px;
+            }
+            .commentary-section {
+              background: white;
+              padding: 25px;
+              border: 1px solid #e0e0e0;
+              border-radius: 8px;
+              margin: 25px 0;
+            }
+            .commentary-section h3 {
+              margin-top: 0;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .commentary-body {
+              font-size: 15px;
+              line-height: 1.8;
+            }
+            .commentary-body p {
+              margin: 15px 0;
+            }
+            .commentary-body ul {
+              margin: 15px 0;
+              padding-left: 30px;
+            }
+            .commentary-body li {
+              margin: 8px 0;
+            }
+            .commentary-body strong {
+              font-weight: 600;
+              color: #2c3e50;
+            }
+            .commentary-body em {
+              font-style: italic;
+            }
+            .disclaimer {
+              background: #fff3cd;
+              border: 2px solid #ffc107;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 25px 0;
+              page-break-inside: avoid;
+            }
+            .disclaimer strong {
+              color: #856404;
+              font-size: 16px;
+            }
+            .disclaimer p {
+              margin: 10px 0 0 0;
+              color: #856404;
+              font-size: 14px;
+            }
+            .studies-section {
+              margin-top: 40px;
+              page-break-before: always;
+            }
+            .studies-section h2 {
+              color: #2c5aa0;
+            }
+            .study-item strong {
+              color: #2c3e50;
+            }
+            .footer {
+              margin-top: 50px;
+              padding-top: 20px;
+              border-top: 2px solid #e0e0e0;
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+            }
+            .footer p {
+              margin: 5px 0;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 20px;
+              }
+              .header {
+                page-break-after: avoid;
+              }
+              .result-summary {
+                page-break-inside: avoid;
+              }
+              .disclaimer {
+                page-break-inside: avoid;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Monadic DNA Explorer</h1>
+            <div class="url">https://explorer.monadicdna.com/</div>
+          </div>
+
+          <div class="powered-by">
+            🛡️ Powered by <strong>Nillion nilAI</strong> - Privacy-preserving AI in a Trusted Execution Environment
+          </div>
+
+          <h2>🤖 AI Commentary on Your Genetic Result</h2>
+
+          <div class="result-summary">
+            <h2>${currentResult.traitName}</h2>
+            <p><strong>Study:</strong> ${currentResult.studyTitle}</p>
+            <p><strong>Your genotype:</strong> ${currentResult.userGenotype}</p>
+            <p><strong>Risk allele:</strong> ${currentResult.riskAllele}</p>
+            <p><strong>Effect size:</strong> ${currentResult.effectSize}</p>
+            <p><strong>Risk score:</strong> ${currentResult.riskScore}x (${currentResult.riskLevel})</p>
+            <p><strong>Matched SNP:</strong> ${currentResult.matchedSnp}</p>
+          </div>
+
+          ${studyMetadata ? `
+            <div class="quality-indicators">
+              <h3>📊 Study Quality Indicators</h3>
+              <p><strong>Sample Size:</strong> ${studyMetadata.initial_sample_size || 'Not specified'}</p>
+              <p><strong>Replication:</strong> ${studyMetadata.replication_sample_size || 'No independent replication'}</p>
+              <p><strong>P-value:</strong> ${studyMetadata.p_value || 'Not reported'}</p>
+              <p><strong>Publication:</strong> ${studyMetadata.first_author || 'Unknown'}, ${studyMetadata.date || 'Unknown date'}${studyMetadata.journal ? ` in ${studyMetadata.journal}` : ''}</p>
+            </div>
+          ` : ''}
+
+          <div class="analysis-metadata">
+            <h3>Analysis Details</h3>
+            <div class="metadata-item">
+              <span class="metadata-icon">📊</span>
+              <span><strong>Results analyzed:</strong> ${analysisResultsCount.toLocaleString()}</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-icon">👤</span>
+              <span><strong>Personalization:</strong> ${hasCustomization ? 'Enabled' : 'Not configured'}</span>
+            </div>
+            <div class="metadata-item">
+              <span class="metadata-icon">🔍</span>
+              <span><strong>Selection method:</strong> Semantic relevance matching</span>
+            </div>
+          </div>
+
+          <div class="commentary-section">
+            <h3><span class="commentary-icon">🤖</span>AI-Generated Interpretation</h3>
+            <div class="commentary-body">
+              ${commentary}
+            </div>
+          </div>
+
+          <div class="disclaimer">
+            <strong>⚠️ AI-Generated Content Limitations</strong>
+            <p>
+              This commentary is generated by an AI model and may not fully account for study
+              limitations, your specific ancestry, the latest research, or individual medical factors.
+              It should be used for educational purposes only. Always consult a healthcare professional
+              or genetic counselor for personalized medical interpretation and advice.
+            </p>
+          </div>
+
+          <div class="studies-section">
+            <h2>📚 All Studies Used in This Analysis (${analysisResults.length} total)</h2>
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+              The following studies were provided to the AI for context in generating this analysis.
+              The first study (highlighted) is the primary result you selected.
+            </p>
+            ${studiesListHtml}
+          </div>
+
+          <div class="footer">
+            <p><strong>Generated on ${new Date().toLocaleString()}</strong></p>
+            <p>Monadic DNA Explorer • https://explorer.monadicdna.com/</p>
+          </div>
+
+          <script>
+            window.onload = () => {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   const handlePersonalizationPromptClose = () => {
@@ -692,6 +1019,11 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
         </div>
 
         <div className="modal-actions">
+          {!isLoading && !error && commentary && (
+            <button className="disclaimer-button primary" onClick={handlePrint}>
+              🖨️ Print Analysis
+            </button>
+          )}
           <button className="disclaimer-button secondary" onClick={onClose}>
             Close
           </button>

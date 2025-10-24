@@ -14,6 +14,10 @@ export type GWASStudy = {
   snps: string | null;
   strongest_snp_risk_allele: string | null;
   or_or_beta: string | null;
+  p_value?: string | null;
+  pvalue_mlog?: string | null;
+  mapped_gene?: string | null;
+  initial_sample_size?: string | null;
 };
 
 export type GWASMetadata = {
