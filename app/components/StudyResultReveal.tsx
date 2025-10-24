@@ -20,7 +20,7 @@ type StudyResultRevealProps = {
 
 export default function StudyResultReveal({ studyId, studyAccession, snps, traitName, studyTitle }: StudyResultRevealProps) {
   const { genotypeData, isUploaded } = useGenotype();
-  const { addResult, hasResult, getResult, getResultByGwasId, savedResults } = useResults();
+  const { addResult, hasResult, getResult, getResultByGwasId, resultsVersion } = useResults();
   const [result, setResult] = useState<UserStudyResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -47,19 +47,18 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
   }, [result, studyId, studyAccession, traitName, studyTitle]);
 
   // Check if we already have a saved result (check by studyAccession for Run All results, fallback to studyId)
+  // Memoize the actual saved result to avoid re-renders when unrelated results change
+  const savedResult = useMemo(() => {
+    // First try to find by studyAccession (gwasId) - used by Run All
+    const byGwasId = studyAccession ? getResultByGwasId(studyAccession) : undefined;
+    if (byGwasId) return byGwasId;
+
+    // Fallback to studyId for individually revealed results
+    return hasResult(studyId) ? getResult(studyId) : undefined;
+  }, [studyId, studyAccession, resultsVersion, hasResult, getResult, getResultByGwasId]);
+
   useEffect(() => {
-    console.log(`[Study ${studyAccession || studyId}] Checking for saved result. Total results: ${savedResults.length}`);
-
-    // First try to find by studyAccession (gwasId) - used by Run All - O(1) lookup
-    let savedResult = studyAccession ? getResultByGwasId(studyAccession) : undefined;
-
-    // Fallback to studyId for individually revealed results - O(1) lookup
-    if (!savedResult && hasResult(studyId)) {
-      savedResult = getResult(studyId);
-    }
-
     if (savedResult) {
-      console.log(`[Study ${studyAccession || studyId}] Found saved result:`, savedResult);
       setResult({
         hasMatch: true,
         userGenotype: savedResult.userGenotype,
@@ -71,12 +70,11 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
       });
       setIsRevealed(true);
     } else {
-      console.log(`[Study ${studyAccession || studyId}] No saved result found`);
       // Reset if result was removed
       setResult(null);
       setIsRevealed(false);
     }
-  }, [studyId, studyAccession, savedResults.length, hasResult, getResult, getResultByGwasId, savedResults]);
+  }, [savedResult]);
 
   const handleRevealClick = () => {
     setShowDisclaimer(true);

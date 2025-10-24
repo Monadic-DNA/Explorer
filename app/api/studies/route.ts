@@ -36,6 +36,7 @@ type RawStudy = {
   risk_allele_frequency: string | null;
   strongest_snp_risk_allele: string | null;
   snps: string | null;
+  similarity?: number; // Semantic search similarity score (0-1)
 };
 
 type Study = RawStudy & {
@@ -416,9 +417,14 @@ export async function GET(request: NextRequest) {
       AND se.strongest_snp_risk_allele = gc.strongest_snp_risk_allele
     )`;
 
-    // Update order by to use embedding distance
+    // Update order by to use embedding distance (ASC = lowest distance first = highest similarity first = descending similarity)
     orderByClause = `ORDER BY se.embedding <=> ${vectorLiteral}`;
   }
+
+  // Add similarity score for semantic search
+  const similarityColumn = useSemanticQuery && dbType === 'postgres'
+    ? `,\n       (1 - (se.embedding <=> ${`'${JSON.stringify(queryEmbedding)}'::vector`})) as similarity`
+    : '';
 
   const baseQuery = `SELECT ${idSelection},
        gc.study_accession,
@@ -439,7 +445,7 @@ export async function GET(request: NextRequest) {
        gc.or_or_beta,
        gc.risk_allele_frequency,
        gc.strongest_snp_risk_allele,
-       gc.snps
+       gc.snps${similarityColumn}
     ${fromClause}
     ${whereClause}
     ${orderByClause}`;
@@ -594,7 +600,7 @@ export async function GET(request: NextRequest) {
   try {
 
   const studies: Study[] = rawRows
-    .map((row) => {
+    .map((row, index) => {
       const sampleSize = parseSampleSize(row.initial_sample_size) ?? parseSampleSize(row.replication_sample_size);
       const pValueNumeric = parsePValue(row.p_value);
       const logPValue = parseLogPValue(row.pvalue_mlog) ?? (pValueNumeric ? -Math.log10(pValueNumeric) : null);

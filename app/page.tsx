@@ -72,6 +72,7 @@ type Study = {
   isLowQuality: boolean;
   confidenceBand: ConfidenceBand;
   publicationDate: number | null;
+  similarity?: number; // Semantic search similarity score (0-1, higher is more similar)
 };
 
 type StudiesResponse = {
@@ -782,6 +783,16 @@ function MainContent() {
                   <span className="sort-indicator">{filters.sortDirection === "asc" ? " ↑" : " ↓"}</span>
                 )}
               </th>
+              {studies.some(s => s.similarity !== undefined) && (
+                <th
+                  scope="col"
+                  title="Semantic similarity score (0-1, higher is more similar). Based on vector embeddings of your search query vs study descriptions. Only shown when using search."
+                  className="sortable sorted"
+                >
+                  Similarity <span className="info-icon">ⓘ</span>
+                  <span className="sort-indicator"> ↓</span>
+                </th>
+              )}
               <th scope="col" title="The health condition, disease, or measurable characteristic that was studied. For example: height, diabetes, or blood pressure.">
                 Trait <span className="info-icon">ⓘ</span>
               </th>
@@ -826,14 +837,14 @@ function MainContent() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="loading-row">
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 9 : 8} className="loading-row">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && studies.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty-row">
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 9 : 8} className="empty-row">
                   No studies found. Try widening your filters.
                 </td>
               </tr>
@@ -890,6 +901,11 @@ function MainContent() {
                         {study.mapped_gene && <span>Gene: {study.mapped_gene}</span>}
                       </div>
                     </td>
+                    {study.similarity !== undefined && (
+                      <td data-label="Similarity">
+                        <span className="metric">{study.similarity.toFixed(3)}</span>
+                      </td>
+                    )}
                     <td data-label="Trait">{trait}</td>
                     <td data-label="Variant & Genotype">
                       <VariantChips snps={study.snps} riskAllele={study.strongest_snp_risk_allele} />

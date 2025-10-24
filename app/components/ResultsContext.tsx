@@ -6,6 +6,7 @@ import { resultsDB } from "@/lib/results-database";
 
 type ResultsContextType = {
   savedResults: SavedResult[];
+  resultsVersion: number; // Increments when results change - more efficient than array length
   addResult: (result: SavedResult) => Promise<void>;
   addResultsBatch: (results: SavedResult[]) => Promise<void>;
   removeResult: (studyId: number) => Promise<void>;
@@ -34,6 +35,7 @@ const ResultsContext = createContext<ResultsContextType | null>(null);
 export function ResultsProvider({ children }: { children: ReactNode }) {
   // SECURITY: Results stored in memory only (in SQL.js in-memory database), cleared on session end
   const [savedResults, setSavedResults] = useState<SavedResult[]>([]);
+  const [resultsVersion, setResultsVersion] = useState(0);
   const [onResultsLoaded, setOnResultsLoaded] = useState<(() => void) | undefined>();
   const [dbInitialized, setDbInitialized] = useState(false);
 
@@ -49,6 +51,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
   const syncFromDatabase = async () => {
     const results = await resultsDB.getAllResults();
     setSavedResults(results);
+    setResultsVersion(v => v + 1); // Increment version for efficient change detection
   };
 
   // No localStorage loading - data is memory-only
@@ -138,6 +141,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
   return (
     <ResultsContext.Provider value={{
       savedResults,
+      resultsVersion,
       addResult,
       addResultsBatch,
       removeResult,
