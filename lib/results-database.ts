@@ -89,7 +89,11 @@ export class ResultsDatabase {
         riskLevel TEXT NOT NULL,
         matchedSnp TEXT NOT NULL,
         analysisDate TEXT NOT NULL,
-        embedding TEXT
+        embedding TEXT,
+        pValue TEXT,
+        pValueMlog TEXT,
+        mappedGene TEXT,
+        sampleSize TEXT
       );
     `);
 
@@ -124,8 +128,9 @@ export class ResultsDatabase {
     this.db!.run(`
       INSERT OR REPLACE INTO results (
         studyId, gwasId, traitName, studyTitle, userGenotype,
-        riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding,
+        pValue, pValueMlog, mappedGene, sampleSize
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       result.studyId,
       result.gwasId || null,
@@ -138,7 +143,11 @@ export class ResultsDatabase {
       result.riskLevel,
       result.matchedSnp,
       result.analysisDate,
-      embeddingJson
+      embeddingJson,
+      result.pValue || null,
+      result.pValueMlog || null,
+      result.mappedGene || null,
+      result.sampleSize || null
     ]);
   }
 
@@ -155,8 +164,9 @@ export class ResultsDatabase {
       const stmt = this.db!.prepare(`
         INSERT OR REPLACE INTO results (
           studyId, gwasId, traitName, studyTitle, userGenotype,
-          riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          riskAllele, effectSize, riskScore, riskLevel, matchedSnp, analysisDate, embedding,
+          pValue, pValueMlog, mappedGene, sampleSize
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       for (let i = 0; i < results.length; i++) {
@@ -173,7 +183,11 @@ export class ResultsDatabase {
           result.riskLevel,
           result.matchedSnp,
           result.analysisDate,
-          embeddings[i]
+          embeddings[i],
+          result.pValue || null,
+          result.pValueMlog || null,
+          result.mappedGene || null,
+          result.sampleSize || null
         ]);
       }
 
@@ -473,26 +487,47 @@ export class ResultsDatabase {
       const allResults = result[0].values.map(row => this.rowToResult(result[0].columns, row));
 
       // Step 4: Match user results with similar studies and preserve similarity order
+      // Note: We match on study_accession only, not the full composite key, because:
+      // - Users may have multiple results per study (different SNPs)
+      // - The embedding is at the study level, not SNP level
       const matchedResults: SavedResult[] = [];
-      const matchedKeys = new Set<string>();
+      const matchedResultIds = new Set<number>();
+
+      // Debug: Sample a few study accessions and user gwasIds
+      const sampleStudies = similarStudies.slice(0, 10).map(s => s.study_accession);
+      const sampleUserGwasIds = allResults.slice(0, 20).map(r => r.gwasId).filter(id => id);
+      console.log('[ResultsDB] PostgreSQL studies (first 10):', JSON.stringify(sampleStudies));
+      console.log('[ResultsDB] User gwasIds (first 20):', JSON.stringify(sampleUserGwasIds));
+
+      // Check for exact match
+      const hasMatch = sampleStudies.some(study => sampleUserGwasIds.includes(study));
+      console.log('[ResultsDB] Any matches in samples?', hasMatch);
+
+      // Count unique user studies
+      const uniqueUserStudies = new Set(allResults.map(r => r.gwasId).filter(id => id));
+      console.log('[ResultsDB] User has results for', uniqueUserStudies.size, 'unique studies');
 
       for (const study of similarStudies) {
-        const key = `${study.study_accession}|${study.snps}|${study.strongest_snp_risk_allele}`;
+        const studyAccession = study.study_accession;
 
-        // Find matching user result
+        // Find ALL matching user results for this study
         for (const userResult of allResults) {
-          if (!userResult.gwasId || !userResult.matchedSnp || !userResult.riskAllele) continue;
+          if (!userResult.gwasId) continue;
+          if (matchedResultIds.has(userResult.id)) continue; // Skip duplicates
 
-          const userKey = `${userResult.gwasId}|${userResult.matchedSnp}|${userResult.riskAllele}`;
-
-          if (userKey === key && !matchedKeys.has(userKey)) {
+          // Match on study accession (gwasId)
+          if (userResult.gwasId === studyAccession) {
             matchedResults.push(userResult);
-            matchedKeys.add(userKey);
-            break; // Found match, move to next study
+            matchedResultIds.add(userResult.id);
           }
         }
 
         if (matchedResults.length >= limit) break;
+      }
+
+      // Debug: If very few matches, log the mismatch
+      if (matchedResults.length < 10 && similarStudies.length > 100) {
+        console.warn(`[ResultsDB] Low match rate: ${matchedResults.length} matches from ${similarStudies.length} studies and ${allResults.length} user results`);
       }
 
       const elapsed = Date.now() - startTime;
@@ -627,7 +662,11 @@ export class ResultsDatabase {
       riskScore: obj.riskScore,
       riskLevel: obj.riskLevel,
       matchedSnp: obj.matchedSnp,
-      analysisDate: obj.analysisDate
+      analysisDate: obj.analysisDate,
+      pValue: obj.pValue || undefined,
+      pValueMlog: obj.pValueMlog || undefined,
+      mappedGene: obj.mappedGene || undefined,
+      sampleSize: obj.sampleSize || undefined
     };
   }
 

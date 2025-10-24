@@ -10,6 +10,10 @@ export type SavedResult = {
   riskLevel: 'increased' | 'decreased' | 'neutral';
   matchedSnp: string;
   analysisDate: string;
+  pValue?: string; // P-value from GWAS catalog
+  pValueMlog?: string; // -log10(p-value) from GWAS catalog
+  mappedGene?: string; // Mapped gene from GWAS catalog
+  sampleSize?: string; // Initial sample size from GWAS catalog
 };
 
 export type SavedSession = {
@@ -37,7 +41,11 @@ export class ResultsManager {
       'Risk Score',
       'Risk Level',
       'Matched SNP',
-      'Analysis Date'
+      'Analysis Date',
+      'P-Value',
+      'P-Value (-log10)',
+      'Mapped Gene',
+      'Sample Size'
     ];
 
     const tsvRows = [headers.join('\t')];
@@ -54,7 +62,11 @@ export class ResultsManager {
         result.riskScore,
         result.riskLevel || '',
         result.matchedSnp || '',
-        result.analysisDate || ''
+        result.analysisDate || '',
+        result.pValue || '',
+        result.pValueMlog || '',
+        result.mappedGene || '',
+        result.sampleSize || ''
       ];
       tsvRows.push(row.join('\t'));
     }
@@ -111,15 +123,19 @@ export class ResultsManager {
 
             const headers = lines[0].split('\t');
 
-            // Validate headers
-            const expectedHeaders = ['Study ID', 'GWAS ID', 'Trait Name', 'Study Title', 'Your Genotype',
+            // Validate headers - check for minimum required headers (backward compatibility)
+            const requiredHeaders = ['Study ID', 'GWAS ID', 'Trait Name', 'Study Title', 'Your Genotype',
                                       'Risk Allele', 'Effect Size', 'Risk Score', 'Risk Level',
                                       'Matched SNP', 'Analysis Date'];
 
-            const headerCheck = expectedHeaders.every(h => headers.includes(h));
+            const headerCheck = requiredHeaders.every(h => headers.includes(h));
             if (!headerCheck) {
               throw new Error('Invalid TSV headers - not a valid results file');
             }
+
+            // Build header index map for flexible column ordering
+            const headerMap = new Map<string, number>();
+            headers.forEach((h, i) => headerMap.set(h, i));
 
             // Parse data rows
             const results: SavedResult[] = [];
@@ -128,17 +144,22 @@ export class ResultsManager {
               if (cols.length < 11) continue; // Skip incomplete rows
 
               results.push({
-                studyId: parseInt(cols[0]) || 0,
-                gwasId: cols[1] || undefined,
-                traitName: cols[2] || '',
-                studyTitle: cols[3] || '',
-                userGenotype: cols[4] || '',
-                riskAllele: cols[5] || '',
-                effectSize: cols[6] || '',
-                riskScore: parseFloat(cols[7]) || 0,
-                riskLevel: (cols[8] as 'increased' | 'decreased' | 'neutral') || 'neutral',
-                matchedSnp: cols[9] || '',
-                analysisDate: cols[10] || '',
+                studyId: parseInt(cols[headerMap.get('Study ID')!]) || 0,
+                gwasId: cols[headerMap.get('GWAS ID')!] || undefined,
+                traitName: cols[headerMap.get('Trait Name')!] || '',
+                studyTitle: cols[headerMap.get('Study Title')!] || '',
+                userGenotype: cols[headerMap.get('Your Genotype')!] || '',
+                riskAllele: cols[headerMap.get('Risk Allele')!] || '',
+                effectSize: cols[headerMap.get('Effect Size')!] || '',
+                riskScore: parseFloat(cols[headerMap.get('Risk Score')!]) || 0,
+                riskLevel: (cols[headerMap.get('Risk Level')!] as 'increased' | 'decreased' | 'neutral') || 'neutral',
+                matchedSnp: cols[headerMap.get('Matched SNP')!] || '',
+                analysisDate: cols[headerMap.get('Analysis Date')!] || '',
+                // Optional new fields (backward compatibility)
+                pValue: headerMap.has('P-Value') ? cols[headerMap.get('P-Value')!] || undefined : undefined,
+                pValueMlog: headerMap.has('P-Value (-log10)') ? cols[headerMap.get('P-Value (-log10)')!] || undefined : undefined,
+                mappedGene: headerMap.has('Mapped Gene') ? cols[headerMap.get('Mapped Gene')!] || undefined : undefined,
+                sampleSize: headerMap.has('Sample Size') ? cols[headerMap.get('Sample Size')!] || undefined : undefined,
               });
             }
 

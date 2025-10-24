@@ -26,12 +26,13 @@ export default function LLMCommentaryModal({
 }: LLMCommentaryModalProps) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
-  const { customization } = useCustomization();
+  const { customization, status: customizationStatus } = useCustomization();
   const [commentary, setCommentary] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [delegationStatus, setDelegationStatus] = useState<string>("");
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
   const [studyMetadata, setStudyMetadata] = useState<any>(null);
   const [loadingPhase, setLoadingPhase] = useState<'query' | 'metadata' | 'token' | 'ai' | 'done'>('query');
@@ -52,12 +53,18 @@ export default function LLMCommentaryModal({
   useEffect(() => {
     console.log('[LLMCommentaryModal] isOpen changed:', isOpen, 'hasConsent:', hasConsent);
     if (isOpen) {
-      // Always show consent modal first, even if consent was previously given
-      // This ensures user explicitly triggers the analysis each time
-      console.log('[LLMCommentaryModal] Showing consent modal');
-      setShowConsentModal(true);
+      // Check if personalization is not set or locked
+      if (customizationStatus === 'not-set' || customizationStatus === 'locked') {
+        console.log('[LLMCommentaryModal] Showing personalization prompt');
+        setShowPersonalizationPrompt(true);
+      } else {
+        // Always show consent modal first, even if consent was previously given
+        // This ensures user explicitly triggers the analysis each time
+        console.log('[LLMCommentaryModal] Showing consent modal');
+        setShowConsentModal(true);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, customizationStatus]);
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {
@@ -97,11 +104,70 @@ export default function LLMCommentaryModal({
       const startFilter = Date.now();
 
       // Use semantic search to find results most relevant to this trait/study
-      // Note: This will lazily generate embeddings if they don't exist yet
       setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
       const queryText = `${currentResult.traitName} ${currentResult.studyTitle}`;
-      const topResults = await getTopResultsByRelevance(queryText, 499, currentResult.gwasId);
+      let topResults = await getTopResultsByRelevance(queryText, 499, currentResult.gwasId);
       console.log('[fetchCommentary] Got top relevant results:', topResults.length);
+
+      // If we have fewer than 499 results, fill remaining slots with highest risk score results
+      if (topResults.length < 499) {
+        const remaining = 499 - topResults.length;
+        console.log(`[fetchCommentary] Only ${topResults.length} semantically relevant results. Filling ${remaining} slots with high-risk results...`);
+        console.log(`[fetchCommentary] Total savedResults available: ${resultsContext.savedResults.length}`);
+
+        // Track existing study IDs to avoid duplicates
+        const existingStudyIds = new Set(topResults.map(r => r.studyId));
+
+        // Debug: Check a sample result structure
+        const sampleResult = resultsContext.savedResults[0];
+        console.log(`[fetchCommentary] Sample result structure:`, {
+          hasGwasId: !!sampleResult?.gwasId,
+          hasPValue: !!sampleResult?.pValue,
+          hasSampleSize: !!sampleResult?.sampleSize,
+          keys: sampleResult ? Object.keys(sampleResult) : []
+        });
+
+        // Step 1: Filter by gwasId
+        const withGwasId = resultsContext.savedResults.filter(r => r.gwasId !== currentResult.gwasId);
+        console.log(`[fetchCommentary] After excluding current gwasId: ${withGwasId.length}`);
+
+        // Step 2: Filter by existing study IDs
+        const noDuplicates = withGwasId.filter(r => !existingStudyIds.has(r.studyId));
+        console.log(`[fetchCommentary] After excluding duplicates: ${noDuplicates.length}`);
+
+        // Step 3: Apply quality filters (only if fields exist)
+        const highRiskResults = noDuplicates
+          .filter(r => {
+            // If pValue exists, apply threshold (genome-wide significance: < 5e-8)
+            if (r.pValue) {
+              const pValue = parseFloat(r.pValue);
+              if (!isNaN(pValue) && pValue >= 5e-8) {
+                return false;
+              }
+            }
+
+            // If sampleSize exists, apply threshold (>= 500 participants)
+            if (r.sampleSize) {
+              // Parse sample size from text like "15,000 European ancestry individuals"
+              const sampleSizeMatch = r.sampleSize.match(/[\d,]+/);
+              if (sampleSizeMatch) {
+                const sampleSize = parseInt(sampleSizeMatch[0].replace(/,/g, ''));
+                if (!isNaN(sampleSize) && sampleSize < 500) {
+                  return false;
+                }
+              }
+            }
+
+            // If neither field exists (old results), include all results
+            return true;
+          })
+          .sort((a, b) => b.riskScore - a.riskScore) // Sort by risk score descending
+          .slice(0, remaining);
+
+        console.log(`[fetchCommentary] After quality filters and sorting: ${highRiskResults.length}`);
+        topResults = [...topResults, ...highRiskResults];
+        console.log(`[fetchCommentary] Added ${highRiskResults.length} high-risk results. Final total: ${topResults.length}`);
+      }
 
       // Add current result at the top
       const resultsForContext = [currentResult, ...topResults];
@@ -365,7 +431,77 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
     fetchCommentary();
   };
 
+  const handlePersonalizationPromptClose = () => {
+    setShowPersonalizationPrompt(false);
+    onClose();
+  };
+
+  const handlePersonalizationPromptContinue = () => {
+    setShowPersonalizationPrompt(false);
+    setShowConsentModal(true);
+  };
+
   if (!isOpen) return null;
+
+  // Show personalization prompt if needed
+  if (showPersonalizationPrompt) {
+    const modalContent = (
+      <div className="modal-overlay" onClick={handlePersonalizationPromptClose}>
+        <div
+          className="modal-dialog consent-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="modal-content">
+            <h2>📋 Personalization Recommended</h2>
+            <div className="consent-content">
+              <p>
+                For the best AI analysis experience, we recommend {customizationStatus === 'not-set' ? 'setting up' : 'unlocking'} your personalization information.
+              </p>
+              <p>
+                Personalized analysis provides more relevant insights based on your:
+              </p>
+              <ul>
+                <li>Ancestry and ethnic background</li>
+                <li>Age and gender</li>
+                <li>Personal medical history</li>
+                <li>Family medical history</li>
+              </ul>
+              {customizationStatus === 'locked' && (
+                <p className="consent-disclaimer">
+                  <strong>How to unlock:</strong> Click "Unlock Personalization" below (this will close this dialog), then click the "🔒 Personalization" button in the menu bar at the top of the page, and enter your password to unlock your data. After unlocking, click AI analysis again.
+                </p>
+              )}
+              {customizationStatus === 'not-set' && (
+                <p className="consent-disclaimer">
+                  <strong>How to set up:</strong> Click "Set Up Personalization" below (this will close this dialog), then click the "👤 Personalization" button in the menu bar at the top of the page to enter your information. After saving, click AI analysis again.
+                </p>
+              )}
+              <p className="consent-disclaimer">
+                You can also continue without personalization, but the AI analysis will be less tailored to your background.
+              </p>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="disclaimer-button secondary"
+                onClick={handlePersonalizationPromptContinue}
+              >
+                Continue Without Personalization
+              </button>
+              <button
+                className="disclaimer-button primary"
+                onClick={handlePersonalizationPromptClose}
+              >
+                {customizationStatus === 'not-set' ? 'Set Up Personalization' : 'Unlock Personalization'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+    return typeof document !== 'undefined'
+      ? createPortal(modalContent, document.body)
+      : null;
+  }
 
   const modalContent = showConsentModal ? (
     <NilAIConsentModal

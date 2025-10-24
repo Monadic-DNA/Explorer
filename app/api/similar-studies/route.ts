@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (limit > 1000) {
+    if (limit > 5000) {
       return NextResponse.json(
-        { error: "Limit cannot exceed 1000" },
+        { error: "Limit cannot exceed 5000" },
         { status: 400 }
       );
     }
@@ -50,16 +50,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Use PostgreSQL's vector similarity search with HNSW index
-    // cosine distance: 1 - cosine similarity (lower is more similar)
+    // Strategy: Aggregate at study level to avoid missing SNPs due to gene context in embeddings
+    // For each study, we take the MAX similarity across all its SNPs
     const sqlQuery = `
-      SELECT
-        study_accession,
-        snps,
-        strongest_snp_risk_allele,
-        1 - (embedding <=> $1::vector) as similarity
-      FROM study_embeddings
-      ORDER BY embedding <=> $1::vector
-      LIMIT $2
+      WITH ranked_studies AS (
+        SELECT
+          study_accession,
+          MAX(1 - (embedding <=> $1::vector)) as max_similarity
+        FROM study_embeddings
+        GROUP BY study_accession
+        ORDER BY max_similarity DESC
+        LIMIT $2
+      )
+      SELECT DISTINCT
+        rs.study_accession,
+        rs.max_similarity as similarity
+      FROM ranked_studies rs
+      ORDER BY rs.max_similarity DESC
     `;
 
     const result = await dbConn.postgres.query(sqlQuery, [JSON.stringify(queryEmbedding), limit]);

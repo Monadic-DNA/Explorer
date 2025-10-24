@@ -147,6 +147,10 @@ export async function runAllAnalysisIndexed(
               riskLevel,
               matchedSnp: snp,
               analysisDate: new Date().toISOString(),
+              pValue: study.p_value || undefined,
+              pValueMlog: study.pvalue_mlog || undefined,
+              mappedGene: study.mapped_gene || undefined,
+              sampleSize: study.initial_sample_size || undefined,
             });
             totalMatchCount++;
           }

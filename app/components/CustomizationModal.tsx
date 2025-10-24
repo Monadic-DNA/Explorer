@@ -323,6 +323,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                     <button type="button" className="disclaimer-button secondary" onClick={handleLock}>
                       Lock & Close
                     </button>
+                    <button type="button" className="disclaimer-button secondary" onClick={onClose}>
+                      Looks Good
+                    </button>
                   </>
                 )}
                 {status !== 'unlocked' && (
