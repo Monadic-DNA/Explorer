@@ -27,6 +27,14 @@ const EXAMPLE_QUESTIONS = [
   "What traits should I pay attention to?"
 ];
 
+const FOLLOWUP_SUGGESTIONS = [
+  "Give me film, TV and music recommendations based on these results!",
+  "Is there anything fun in the results?",
+  "Tell me more about the science of my results.",
+  "Any supplements or vitamins I should consider?",
+  "How should I adjust my diet and lifestyle?"
+];
+
 export default function AIChatInline() {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
@@ -41,10 +49,23 @@ export default function AIChatInline() {
   const [hasConsent, setHasConsent] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
+
+  // Smart default: checked for first message, unchecked for follow-ups
   const [includeContext, setIncludeContext] = useState(true);
+  const isFirstMessageRef = useRef(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Update checkbox default after assistant responds
+  useEffect(() => {
+    // Only uncheck after we have both user and assistant messages (not just user)
+    const assistantMessages = messages.filter(m => m.role === 'assistant');
+    if (assistantMessages.length > 0 && isFirstMessageRef.current) {
+      isFirstMessageRef.current = false;
+      setIncludeContext(false); // Uncheck for follow-ups after first exchange
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -57,12 +78,12 @@ export default function AIChatInline() {
     // Check if personalization is not set or locked on mount only
     if (customizationStatus === 'not-set' || customizationStatus === 'locked') {
       setShowPersonalizationPrompt(true);
+    } else if (customizationStatus === 'unlocked') {
+      setShowPersonalizationPrompt(false);
     }
   }, [customizationStatus]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Removed auto-scroll so user doesn't have to scroll up to read responses
 
   useEffect(() => {
     if (!showConsentModal && !showPersonalizationPrompt) {
@@ -133,7 +154,7 @@ export default function AIChatInline() {
       let relevantResults: SavedResult[] = [];
 
       if (includeContext) {
-        setLoadingStatus("🔍 Searching your results for relevant studies...");
+        setLoadingStatus("🔍 Searching your results for relevant traits...");
         console.log(`[AI Chat] Finding relevant results for query: "${query}"`);
         relevantResults = await getTopResultsByRelevance(query, MAX_CONTEXT_RESULTS);
         console.log(`[AI Chat] Found ${relevantResults.length} relevant results`);
@@ -166,7 +187,7 @@ export default function AIChatInline() {
       const { delegationToken } = await tokenResponse.json();
       client.updateDelegation(delegationToken);
 
-      setLoadingStatus(`🤖 Analyzing ${relevantResults.length} studies with AI...`);
+      setLoadingStatus(`🤖 Analyzing ${relevantResults.length} traits with AI...`);
 
       const contextResults = relevantResults
         .map((r: SavedResult, idx: number) =>
@@ -208,6 +229,11 @@ export default function AIChatInline() {
         if (customization.medications && customization.medications.length > 0) {
           parts.push(`Current medications/supplements: ${customization.medications.join(', ')}`);
         }
+        if (customization.diet) {
+          const dietLabel = customization.diet === 'regular' ? 'Regular diet (no restrictions)' :
+                           customization.diet.charAt(0).toUpperCase() + customization.diet.slice(1) + ' diet';
+          parts.push(`Dietary preferences: ${dietLabel}`);
+        }
         if (customization.personalConditions && customization.personalConditions.length > 0) {
           parts.push(`Personal medical history: ${customization.personalConditions.join(', ')}`);
         }
@@ -221,7 +247,7 @@ export default function AIChatInline() {
 USER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):
 ${parts.join('\n')}
 
-Consider how this user's background, lifestyle factors (smoking, alcohol), and current medications may affect their risk profile and the applicability of these study findings.`;
+Consider how this user's background, lifestyle factors (smoking, alcohol, diet), and current medications may affect their risk profile and the applicability of these study findings.`;
         }
       }
 
@@ -230,15 +256,21 @@ Consider how this user's background, lifestyle factors (smoking, alcohol), and c
         content: m.content
       }));
 
-      const systemPrompt = `You are an expert genetic counselor AI assistant providing personalized, holistic insights about GWAS results.
+      const systemPrompt = `You are an expert genetic counselor AI assistant providing personalized, holistic insights about GWAS results. You are powered by Nillion's nilAI using the gpt-oss-20b model in a secure TEE (Trusted Execution Environment).
 
 IMPORTANT CONTEXT:
 - The user has uploaded their DNA file and analyzed it against thousands of GWAS studies
 - They have ${resultsContext.savedResults.length.toLocaleString()} total results in memory
-- You will be provided with the top ${relevantResults.length} most relevant results for each query based on semantic similarity${userContext}
+- You will be provided with the top ${relevantResults.length} most relevant results for each query based on semantic similarity
+- CONFIDENTIAL USER INFO (DO NOT restate this in your response - the user already knows it):${userContext}
 
 YOUR MOST RELEVANT RESULTS FOR THIS QUERY:
 ${contextResults}
+
+USER'S SPECIFIC QUESTION:
+"${query}"
+
+⚠️ CRITICAL: Focus your entire response on answering THIS specific question. Do not provide general health advice unrelated to what they asked. If they ask about cardiovascular health, focus on that. If they ask about diabetes, focus on that. Stay on topic!
 
 CRITICAL INSTRUCTIONS - COMPLETE RESPONSES:
 1. You MUST ALWAYS finish your complete response - NEVER stop mid-sentence, mid-paragraph, or mid-section
@@ -251,6 +283,7 @@ HOW TO PRESENT FINDINGS - AVOID STUDY-BY-STUDY LISTS:
 ❌ DO NOT create tables listing individual SNPs/studies one by one
 ❌ DO NOT list rs numbers with individual interpretations
 ❌ DO NOT organize findings by individual genetic variants
+❌ DO NOT restate the user's personal information (age, ethnicity, medical history, smoking, alcohol, diet, etc.) - they already know it
 
 ✅ INSTEAD, synthesize findings into THEMES and PATTERNS:
 - Group related variants into biological themes (e.g., "Cardiovascular Protection", "Metabolic Risk", "Inflammatory Response")
@@ -259,12 +292,32 @@ HOW TO PRESENT FINDINGS - AVOID STUDY-BY-STUDY LISTS:
 - Mention specific genes/pathways only when illustrating a broader point
 
 PERSONALIZED HOLISTIC ADVICE FRAMEWORK:
-1. Acknowledge the user's specific background (ethnicity, age, medical history)
-2. Synthesize ALL findings into a coherent story about their health landscape
-3. Explain how their genetic profile interacts with their background and conditions
-4. Identify both strengths (protective factors) and areas to monitor (risk factors)
-5. Connect different body systems (e.g., how cardiovascular + metabolic + inflammatory factors relate)
-6. Provide specific, actionable recommendations tailored to THEIR situation
+1. Synthesize ALL findings into a coherent story about their health landscape
+2. Explain how their genetic profile interacts with their background factors (without restating what those factors are)
+3. Identify both strengths (protective factors) and areas to monitor (risk factors)
+4. Connect different body systems (e.g., how cardiovascular + metabolic + inflammatory factors relate)
+5. Provide specific, actionable recommendations tailored to THEIR situation
+
+⚠️ CRITICAL GWAS LIMITATIONS & MEDICAL RECOMMENDATIONS:
+
+UNDERSTANDING GWAS LIMITATIONS:
+- GWAS studies show STATISTICAL ASSOCIATIONS, not direct causation
+- These are POPULATION-LEVEL findings - individual risk varies dramatically
+- Genetic variants explain only a SMALL FRACTION of disease risk (typically 5-30%)
+- Environment, lifestyle, and chance play MUCH LARGER roles than genetics
+- This app is for EDUCATIONAL PURPOSES ONLY - not clinical diagnosis
+- Results should NEVER be used to make medical decisions without professional consultation
+
+MEDICAL REFERRAL THRESHOLD - EXTREMELY HIGH BAR:
+- Focus 95% of recommendations on lifestyle, diet, exercise, sleep, stress management, and self-monitoring
+- ONLY suggest medical consultation if MULTIPLE high-risk variants + family history + existing symptoms align
+- NEVER routinely say "consult a genetic counselor" or "see your doctor" or "get tested"
+- Do NOT recommend medical tests, lab work, or screening unless findings are TRULY exceptional (e.g., multiple high-risk variants for serious hereditary conditions)
+- Remember: We want to REDUCE burden on healthcare system, not increase it with worried-well patients
+- Empower users with actionable self-care steps they can implement immediately
+- Frame genetics as informative guidance for optimization, not deterministic outcomes requiring intervention
+
+WHEN IN DOUBT: Recommend lifestyle changes and self-monitoring. Do NOT refer to medical professionals.
 
 RESPONSE STRUCTURE (Complete Each Section Fully):
 
@@ -362,6 +415,141 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
     setError(null);
   };
 
+  const handlePrintChat = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Convert markdown to HTML for each message
+    const chatContent = messages.map(m => {
+      let content = m.content;
+
+      if (m.role === 'assistant') {
+        // Basic markdown to HTML conversion for printing
+        content = content
+          // Headers
+          .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+          .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+          .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+          // Bold
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+          // Italic
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+          .replace(/_([^_]+)_/g, '<em>$1</em>')
+          // Lists
+          .replace(/^\* (.+)$/gim, '<li>$1</li>')
+          .replace(/^- (.+)$/gim, '<li>$1</li>')
+          .replace(/^\d+\. (.+)$/gim, '<li>$1</li>')
+          // Line breaks
+          .replace(/\n\n/g, '</p><p>')
+          .replace(/\n/g, '<br>');
+
+        // Wrap consecutive list items in ul tags
+        content = content.replace(/(<li>.*?<\/li>(?:\s*<li>.*?<\/li>)*)/g, '<ul>$1</ul>');
+
+        // Wrap in paragraph if not already wrapped
+        if (!content.startsWith('<h') && !content.startsWith('<ul') && !content.startsWith('<p>')) {
+          content = '<p>' + content + '</p>';
+        }
+      } else {
+        content = content.replace(/\n/g, '<br>');
+      }
+
+      return `
+        <div style="margin: 1.5rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; page-break-inside: avoid;">
+          <div style="font-weight: bold; margin-bottom: 0.75rem; color: ${m.role === 'user' ? '#3B82F6' : '#10B981'};">
+            ${m.role === 'user' ? '👤 You' : '🤖 AI Assistant (gpt-oss-20b via Nillion nilAI)'}
+          </div>
+          <div style="line-height: 1.6;">${content}</div>
+          <div style="font-size: 0.8rem; color: #666; margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
+            ${m.timestamp.toLocaleString()}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>AI Chat - Genetic Results</title>
+          <style>
+            body {
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              padding: 2rem;
+              max-width: 800px;
+              margin: 0 auto;
+              color: #333;
+            }
+            h1 {
+              color: #111;
+              border-bottom: 3px solid #3B82F6;
+              padding-bottom: 0.75rem;
+              margin-bottom: 1rem;
+            }
+            h2 {
+              color: #222;
+              margin-top: 1.5rem;
+              margin-bottom: 0.75rem;
+              font-size: 1.4rem;
+            }
+            h3 {
+              color: #333;
+              margin-top: 1.25rem;
+              margin-bottom: 0.5rem;
+              font-size: 1.2rem;
+            }
+            p {
+              margin: 0.5rem 0;
+              line-height: 1.6;
+            }
+            ul, ol {
+              margin: 0.75rem 0;
+              padding-left: 2rem;
+            }
+            li {
+              margin: 0.4rem 0;
+              line-height: 1.5;
+            }
+            strong {
+              color: #111;
+              font-weight: 600;
+            }
+            .disclaimer {
+              background: #FEF3C7;
+              border: 2px solid #F59E0B;
+              border-radius: 8px;
+              padding: 1rem;
+              margin: 1.5rem 0;
+            }
+            @media print {
+              body { padding: 1rem; }
+              @page { margin: 1.5cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>🤖 AI Chat: Your Genetic Results</h1>
+          <p style="color: #666; margin-bottom: 1rem;">
+            Chat session from ${new Date().toLocaleString()}<br>
+            Powered by Nillion nilAI (gpt-oss-20b) in a secure TEE
+          </p>
+          <div class="disclaimer">
+            <strong>⚠️ Important Disclaimer:</strong> This chat is for educational purposes only.
+            GWAS results show statistical associations, not deterministic outcomes.
+            Always consult healthcare professionals for medical decisions.
+          </div>
+          ${chatContent}
+          <div style="margin-top: 3rem; padding-top: 1rem; border-top: 2px solid #ddd; color: #666; font-size: 0.9rem; text-align: center;">
+            Generated by GWASifier • For Educational Purposes Only
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   if (showPersonalizationPrompt) {
     return (
       <div className="ai-chat-inline-blocked">
@@ -407,7 +595,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="chat-header">
           <h2>🤖 AI Chat: Your Genetic Results</h2>
           <p className="powered-by">
-            🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> with TEE (Trusted Execution Environment) -
+            🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> using <strong>gpt-oss-20b</strong> model in TEE (Trusted Execution Environment) -
             Your data never leaves the secure enclave
           </p>
         </div>
@@ -415,19 +603,16 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="chat-info">
           <div className="chat-info-left">
             <span>💬 Ask questions about your {resultsContext.savedResults.length.toLocaleString()} genetic results</span>
-            <label className="context-toggle">
-              <input
-                type="checkbox"
-                checked={includeContext}
-                onChange={(e) => setIncludeContext(e.target.checked)}
-              />
-              <span>Include relevant results in prompts</span>
-            </label>
           </div>
           {messages.length > 0 && (
-            <button className="clear-chat-button" onClick={handleClearChat}>
-              Clear Chat
-            </button>
+            <div className="chat-actions">
+              <button className="chat-action-button" onClick={handlePrintChat}>
+                🖨️ Print
+              </button>
+              <button className="chat-action-button" onClick={handleClearChat}>
+                🗑️ Clear
+              </button>
+            </div>
           )}
         </div>
 
@@ -435,6 +620,18 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           {messages.length === 0 && (
             <div className="chat-welcome">
               <h3>Welcome to AI Chat!</h3>
+
+              {resultsContext.savedResults.length < 1000 && (
+                <div className="chat-warning">
+                  <p><strong>⚠️ Limited Results ({resultsContext.savedResults.length} studies)</strong></p>
+                  <p>
+                    You currently have fewer than 1,000 analyzed results. For the best AI chat experience,
+                    we recommend running "Run All" to analyze your DNA against all available studies.
+                  </p>
+                  <p>This will give the AI more comprehensive data to provide personalized insights.</p>
+                </div>
+              )}
+
               <p>Ask me anything about your genetic results. For example:</p>
               <ul className="example-questions">
                 {EXAMPLE_QUESTIONS.map((question, idx) => (
@@ -465,13 +662,31 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   )}
                 </div>
                 {message.role === 'assistant' && (
-                  <button
-                    className="copy-button"
-                    onClick={() => handleCopyMessage(message.content)}
-                    title="Copy to clipboard"
-                  >
-                    📋 Copy
-                  </button>
+                  <>
+                    <button
+                      className="copy-button"
+                      onClick={() => handleCopyMessage(message.content)}
+                      title="Copy to clipboard"
+                    >
+                      📋 Copy
+                    </button>
+                    {idx === messages.length - 1 && !isLoading && (
+                      <div className="followup-suggestions">
+                        <div className="followup-header">💡 Try asking:</div>
+                        <div className="followup-buttons">
+                          {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
+                            <button
+                              key={sidx}
+                              className="followup-button"
+                              onClick={() => handleExampleClick(suggestion)}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 {message.role === 'assistant' && message.studiesUsed && message.studiesUsed.length > 0 && (
                   <div className="studies-used">
@@ -538,13 +753,23 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             rows={2}
             disabled={isLoading}
           />
-          <button
-            className="chat-send-button"
-            onClick={handleSendMessage}
-            disabled={isLoading || !inputValue.trim()}
-          >
-            {isLoading ? '⏳' : '➤'} Send
-          </button>
+          <div className="chat-input-controls">
+            <label className="context-toggle-inline">
+              <input
+                type="checkbox"
+                checked={includeContext}
+                onChange={(e) => setIncludeContext(e.target.checked)}
+              />
+              <span>Include relevant traits</span>
+            </label>
+            <button
+              className="chat-send-button"
+              onClick={handleSendMessage}
+              disabled={isLoading || !inputValue.trim()}
+            >
+              {isLoading ? '⏳' : '➤'} Send
+            </button>
+          </div>
         </div>
 
         <div className="chat-footer-disclaimer">

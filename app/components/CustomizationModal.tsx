@@ -29,6 +29,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
   const [smokingHistory, setSmokingHistory] = useState('');
   const [alcoholUse, setAlcoholUse] = useState('');
   const [medications, setMedications] = useState('');
+  const [diet, setDiet] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +61,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         setSmokingHistory(customization.smokingHistory || '');
         setAlcoholUse(customization.alcoholUse || '');
         setMedications((customization.medications || []).join(', '));
+        setDiet(customization.diet || '');
       } else {
         setIsUnlockMode(false);
         // Reset form for new customization
@@ -73,6 +75,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         setSmokingHistory('');
         setAlcoholUse('');
         setMedications('');
+        setDiet('');
       }
     }
   }, [isOpen, status, customization]);
@@ -130,16 +133,32 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         smokingHistory: smokingHistory as any,
         alcoholUse: alcoholUse as any,
         medications: medications.split(',').map(s => s.trim()).filter(Boolean),
+        diet: diet as any,
       };
 
       await saveCustomization(data, password);
-      setPassword('');
-      setConfirmPassword('');
-      onClose();
+      // Don't close - let user decide with buttons
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save customization');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndClose = async () => {
+    // Trigger form submission first
+    const formEvent = new Event('submit', { bubbles: true, cancelable: true });
+    const form = document.querySelector('form');
+    if (form) {
+      form.dispatchEvent(formEvent);
+      // Wait a bit for save to complete, then close if no errors
+      setTimeout(() => {
+        if (!error) {
+          setPassword('');
+          setConfirmPassword('');
+          onClose();
+        }
+      }, 100);
     }
   };
 
@@ -325,6 +344,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                 >
                   <option value="">Select...</option>
                   <option value="none">None</option>
+                  <option value="rare">Rare (occasional)</option>
                   <option value="mild">Mild (1-2 drinks/week)</option>
                   <option value="moderate">Moderate (3-7 drinks/week)</option>
                   <option value="heavy">Heavy (8+ drinks/week)</option>
@@ -343,6 +363,30 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                   placeholder="e.g., metformin, vitamin D, aspirin"
                   rows={2}
                 />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="diet">
+                  Dietary Preferences
+                  <span className="field-hint">Select your typical diet</span>
+                </label>
+                <select
+                  id="diet"
+                  value={diet}
+                  onChange={(e) => setDiet(e.target.value)}
+                >
+                  <option value="">Select...</option>
+                  <option value="regular">Regular (No restrictions)</option>
+                  <option value="vegetarian">Vegetarian</option>
+                  <option value="vegan">Vegan</option>
+                  <option value="pescatarian">Pescatarian</option>
+                  <option value="mediterranean">Mediterranean</option>
+                  <option value="keto">Ketogenic (Keto)</option>
+                  <option value="paleo">Paleo</option>
+                  <option value="carnivore">Carnivore</option>
+                  <option value="low-carb">Low-Carb</option>
+                  <option value="gluten-free">Gluten-Free</option>
+                </select>
               </div>
 
               <div className="form-group password-section">
@@ -392,11 +436,11 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                     Cancel
                   </button>
                 )}
-                <button type="button" className="disclaimer-button secondary" onClick={onClose}>
-                  Close
-                </button>
                 <button type="submit" className="disclaimer-button primary" disabled={isSaving}>
                   {isSaving ? 'Saving...' : 'Save & Encrypt'}
+                </button>
+                <button type="button" className="disclaimer-button primary" onClick={handleSaveAndClose} disabled={isSaving}>
+                  Save & Close
                 </button>
               </div>
             </form>

@@ -12,8 +12,9 @@ export interface UserCustomization {
   personalConditions: string[];
   familyConditions: string[];
   smokingHistory?: 'still-smoking' | 'past-smoker' | 'never-smoked' | '';
-  alcoholUse?: 'none' | 'mild' | 'moderate' | 'heavy' | '';
+  alcoholUse?: 'none' | 'rare' | 'mild' | 'moderate' | 'heavy' | '';
   medications?: string[];
+  diet?: 'regular' | 'vegetarian' | 'vegan' | 'pescatarian' | 'keto' | 'paleo' | 'carnivore' | 'mediterranean' | 'low-carb' | 'gluten-free' | '';
 }
 
 type CustomizationStatus = 'not-set' | 'locked' | 'unlocked';
@@ -41,6 +42,7 @@ const defaultCustomization: UserCustomization = {
   smokingHistory: '',
   alcoholUse: '',
   medications: [],
+  diet: '',
 };
 
 export function CustomizationProvider({ children }: { children: ReactNode }) {
