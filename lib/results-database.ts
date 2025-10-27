@@ -448,11 +448,13 @@ export class ResultsDatabase {
 
     try {
       // Step 1: Use PostgreSQL vector similarity to find top N most similar studies
-      console.log(`[ResultsDB] Querying PostgreSQL for ${limit} most similar studies...`);
+      // Fetch more studies (10x) to increase chances of finding matching user results
+      const studyLimit = Math.max(limit * 10, 1000);
+      console.log(`[ResultsDB] Querying PostgreSQL for ${studyLimit} most similar studies (to find ${limit} matching user results)...`);
       const response = await fetch('/api/similar-studies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, limit }),
+        body: JSON.stringify({ query, limit: studyLimit }),
       });
 
       if (!response.ok) {

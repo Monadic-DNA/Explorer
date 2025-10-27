@@ -90,6 +90,78 @@ export class ResultsManager {
     URL.revokeObjectURL(link.href);
   }
 
+  static parseResultsFile(content: string, fileName: string = 'results.tsv'): SavedSession {
+    // Try to parse as JSON first (for backward compatibility)
+    if (fileName.endsWith('.json')) {
+      const session = JSON.parse(content) as SavedSession;
+
+      // Validate the structure
+      if (!session.results || !Array.isArray(session.results)) {
+        throw new Error('Invalid file format');
+      }
+
+      return session;
+    }
+
+    // Parse TSV format
+    const lines = content.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+      throw new Error('File is empty or has no data rows');
+    }
+
+    const headers = lines[0].split('\t');
+
+    // Validate headers - check for minimum required headers (backward compatibility)
+    const requiredHeaders = ['Study ID', 'GWAS ID', 'Trait Name', 'Study Title', 'Your Genotype',
+                              'Risk Allele', 'Effect Size', 'Risk Score', 'Risk Level',
+                              'Matched SNP', 'Analysis Date'];
+
+    const headerCheck = requiredHeaders.every(h => headers.includes(h));
+    if (!headerCheck) {
+      throw new Error('Invalid TSV headers - not a valid results file');
+    }
+
+    // Build header index map for flexible column ordering
+    const headerMap = new Map<string, number>();
+    headers.forEach((h, i) => headerMap.set(h, i));
+
+    // Parse data rows
+    const results: SavedResult[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split('\t');
+      if (cols.length < 11) continue; // Skip incomplete rows
+
+      results.push({
+        studyId: parseInt(cols[headerMap.get('Study ID')!]) || 0,
+        gwasId: cols[headerMap.get('GWAS ID')!] || undefined,
+        traitName: cols[headerMap.get('Trait Name')!] || '',
+        studyTitle: cols[headerMap.get('Study Title')!] || '',
+        userGenotype: cols[headerMap.get('Your Genotype')!] || '',
+        riskAllele: cols[headerMap.get('Risk Allele')!] || '',
+        effectSize: cols[headerMap.get('Effect Size')!] || '',
+        effectType: headerMap.has('Effect Type') ? (cols[headerMap.get('Effect Type')!] as 'OR' | 'beta') || 'OR' : 'OR',
+        riskScore: parseFloat(cols[headerMap.get('Risk Score')!]) || 0,
+        riskLevel: (cols[headerMap.get('Risk Level')!] as 'increased' | 'decreased' | 'neutral') || 'neutral',
+        matchedSnp: cols[headerMap.get('Matched SNP')!] || '',
+        analysisDate: cols[headerMap.get('Analysis Date')!] || '',
+        // Optional new fields (backward compatibility)
+        pValue: headerMap.has('P-Value') ? cols[headerMap.get('P-Value')!] || undefined : undefined,
+        pValueMlog: headerMap.has('P-Value (-log10)') ? cols[headerMap.get('P-Value (-log10)')!] || undefined : undefined,
+        mappedGene: headerMap.has('Mapped Gene') ? cols[headerMap.get('Mapped Gene')!] || undefined : undefined,
+        sampleSize: headerMap.has('Sample Size') ? cols[headerMap.get('Sample Size')!] || undefined : undefined,
+      });
+    }
+
+    const session: SavedSession = {
+      fileName: fileName,
+      createdDate: new Date().toISOString(),
+      totalVariants: 0, // Not stored in TSV
+      results
+    };
+
+    return session;
+  }
+
   static loadResultsFromFile(): Promise<SavedSession> {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input');
@@ -107,76 +179,7 @@ export class ResultsManager {
         reader.onload = (e) => {
           try {
             const content = e.target?.result as string;
-
-            // Try to parse as JSON first (for backward compatibility)
-            if (file.name.endsWith('.json')) {
-              const session = JSON.parse(content) as SavedSession;
-
-              // Validate the structure
-              if (!session.results || !Array.isArray(session.results)) {
-                throw new Error('Invalid file format');
-              }
-
-              resolve(session);
-              return;
-            }
-
-            // Parse TSV format
-            const lines = content.split('\n').filter(line => line.trim());
-            if (lines.length < 2) {
-              throw new Error('File is empty or has no data rows');
-            }
-
-            const headers = lines[0].split('\t');
-
-            // Validate headers - check for minimum required headers (backward compatibility)
-            const requiredHeaders = ['Study ID', 'GWAS ID', 'Trait Name', 'Study Title', 'Your Genotype',
-                                      'Risk Allele', 'Effect Size', 'Risk Score', 'Risk Level',
-                                      'Matched SNP', 'Analysis Date'];
-
-            const headerCheck = requiredHeaders.every(h => headers.includes(h));
-            if (!headerCheck) {
-              throw new Error('Invalid TSV headers - not a valid results file');
-            }
-
-            // Build header index map for flexible column ordering
-            const headerMap = new Map<string, number>();
-            headers.forEach((h, i) => headerMap.set(h, i));
-
-            // Parse data rows
-            const results: SavedResult[] = [];
-            for (let i = 1; i < lines.length; i++) {
-              const cols = lines[i].split('\t');
-              if (cols.length < 11) continue; // Skip incomplete rows
-
-              results.push({
-                studyId: parseInt(cols[headerMap.get('Study ID')!]) || 0,
-                gwasId: cols[headerMap.get('GWAS ID')!] || undefined,
-                traitName: cols[headerMap.get('Trait Name')!] || '',
-                studyTitle: cols[headerMap.get('Study Title')!] || '',
-                userGenotype: cols[headerMap.get('Your Genotype')!] || '',
-                riskAllele: cols[headerMap.get('Risk Allele')!] || '',
-                effectSize: cols[headerMap.get('Effect Size')!] || '',
-                effectType: headerMap.has('Effect Type') ? (cols[headerMap.get('Effect Type')!] as 'OR' | 'beta') || 'OR' : 'OR',
-                riskScore: parseFloat(cols[headerMap.get('Risk Score')!]) || 0,
-                riskLevel: (cols[headerMap.get('Risk Level')!] as 'increased' | 'decreased' | 'neutral') || 'neutral',
-                matchedSnp: cols[headerMap.get('Matched SNP')!] || '',
-                analysisDate: cols[headerMap.get('Analysis Date')!] || '',
-                // Optional new fields (backward compatibility)
-                pValue: headerMap.has('P-Value') ? cols[headerMap.get('P-Value')!] || undefined : undefined,
-                pValueMlog: headerMap.has('P-Value (-log10)') ? cols[headerMap.get('P-Value (-log10)')!] || undefined : undefined,
-                mappedGene: headerMap.has('Mapped Gene') ? cols[headerMap.get('Mapped Gene')!] || undefined : undefined,
-                sampleSize: headerMap.has('Sample Size') ? cols[headerMap.get('Sample Size')!] || undefined : undefined,
-              });
-            }
-
-            const session: SavedSession = {
-              fileName: file.name,
-              createdDate: new Date().toISOString(),
-              totalVariants: 0, // Not stored in TSV
-              results
-            };
-
+            const session = ResultsManager.parseResultsFile(content, file.name);
             resolve(session);
           } catch (error) {
             reject(new Error('Failed to parse file: ' + (error as Error).message));

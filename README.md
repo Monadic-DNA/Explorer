@@ -34,6 +34,47 @@ npm run dev
 
 The development server defaults to http://localhost:3000. You can override the database location by exporting `GWAS_DB_PATH` before starting the server.
 
+### Dev Mode Auto-Loading (Development Only)
+
+When running `npm run dev` on localhost, the app automatically enables dev mode to speed up your development workflow:
+
+**What Auto-Loads:**
+- **Genotype file** - After uploading once, auto-loads on next session
+- **Results file** - After loading/exporting once, auto-loads on next session
+- **Personalization password** - Auto-unlocks encrypted personal data
+
+**How It Works:**
+
+1. **Chrome/Edge (Full Auto-Load)**:
+   - Uses File System Access API to store persistent file handles in IndexedDB
+   - Files load automatically with zero interaction
+   - Password stored in IndexedDB to auto-unlock personalization
+
+2. **Brave/Firefox (Fallback Mode)**:
+   - Brave disables File System Access API by default for privacy
+   - File pickers appear automatically on app load
+   - Just select your files - still faster than manual navigation
+   - Password auto-unlock works in all browsers
+
+**First-Time Setup:**
+```bash
+npm run dev
+# 1. Upload your genotype file (saves handle/marker)
+# 2. Load or export results (saves handle/marker)
+# 3. Set up personalization (saves password)
+# Next load: Everything restores automatically!
+```
+
+**Security Note:**
+- Dev mode ONLY activates when `NODE_ENV==='development'` AND `hostname==='localhost'`
+- Password stored in plain text in IndexedDB (local only, never sent to server)
+- Clear dev data: `indexedDB.deleteDatabase('gwasifier_dev_mode')` in browser console
+
+**Enable Full Auto-Load in Brave:**
+1. Open `brave://settings/`
+2. **Privacy and security** → **Site and Shields Settings** → **File System Access**
+3. Add exception for `http://localhost:3000`
+
 ## Production Deployment
 
 ### Using PostgreSQL in Production

@@ -5,7 +5,8 @@ import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
-import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
+import AIChatModal from "./AIChatModal";
+import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon, AIIcon } from "./Icons";
 
 type MenuBarProps = {
   onRunAll?: () => void;
@@ -19,6 +20,7 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
   const { status: customizationStatus } = useCustomization();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [showAIChatModal, setShowAIChatModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
 
@@ -92,11 +94,39 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
     }
   };
 
+  const handleAIChatClick = () => {
+    // Warn if no results
+    if (savedResults.length === 0) {
+      const shouldContinue = window.confirm(
+        '⚠️ No results in memory\n\n' +
+        'You haven\'t analyzed any studies yet. The AI chat works best when you have results to discuss.\n\n' +
+        'Would you like to run "Run All" first to analyze your DNA against all studies?'
+      );
+      if (!shouldContinue) return;
+    }
+
+    // Encourage running all if results are low
+    if (savedResults.length > 0 && savedResults.length < 100) {
+      const shouldRunAll = window.confirm(
+        `📊 Limited results (${savedResults.length} studies)\n\n` +
+        'You only have a small number of results. For the best AI chat experience, we recommend running "Run All" to analyze more studies.\n\n' +
+        'Would you like to open AI chat anyway?'
+      );
+      if (!shouldRunAll) return;
+    }
+
+    setShowAIChatModal(true);
+  };
+
   return (
     <>
       <CustomizationModal
         isOpen={showCustomizationModal}
         onClose={() => setShowCustomizationModal(false)}
+      />
+      <AIChatModal
+        isOpen={showAIChatModal}
+        onClose={() => setShowAIChatModal(false)}
       />
     <div className="menu-bar">
       <div className="menu-left">
@@ -196,6 +226,14 @@ export default function MenuBar({ onRunAll, isRunningAll, runAllProgress }: Menu
         <div className="menu-separator" />
 
         <div className="utility-section menu-group">
+          <button
+            className="control-button ai-chat-button"
+            onClick={handleAIChatClick}
+            title="Chat with AI about your genetic results"
+          >
+            <AIIcon size={14} /> AI Chat
+          </button>
+
           <button
             className={`control-button personalize-button ${customizationStatus}`}
             onClick={() => setShowCustomizationModal(true)}

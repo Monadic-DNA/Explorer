@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { encryptData, decryptData, EncryptedData } from "@/lib/encryption-utils";
+import { isDevModeEnabled, getPersonalizationPassword, savePersonalizationPassword } from "@/lib/dev-mode";
 
 export interface UserCustomization {
   ethnicities: string[];
@@ -39,6 +40,7 @@ const defaultCustomization: UserCustomization = {
 export function CustomizationProvider({ children }: { children: ReactNode }) {
   const [customization, setCustomization] = useState<UserCustomization | null>(null);
   const [status, setStatus] = useState<CustomizationStatus>('not-set');
+  const [devModeAutoUnlockAttempted, setDevModeAutoUnlockAttempted] = useState(false);
 
   useEffect(() => {
     // Check if encrypted data exists in localStorage
@@ -52,6 +54,40 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Dev mode: Auto-unlock personalization on mount
+  useEffect(() => {
+    if (devModeAutoUnlockAttempted || status !== 'locked') return;
+
+    const autoUnlock = async () => {
+      if (!isDevModeEnabled()) {
+        setDevModeAutoUnlockAttempted(true);
+        return;
+      }
+
+      console.log('[Dev Mode] 🚀 Attempting to auto-unlock personalization...');
+
+      try {
+        const savedPassword = await getPersonalizationPassword();
+        if (savedPassword) {
+          const success = await unlockCustomization(savedPassword);
+          if (success) {
+            console.log('[Dev Mode] ✓ Personalization auto-unlocked successfully');
+          } else {
+            console.log('[Dev Mode] Failed to unlock - password may have changed');
+          }
+        } else {
+          console.log('[Dev Mode] No saved password found. Unlock once to enable auto-unlock.');
+        }
+      } catch (error) {
+        console.error('[Dev Mode] Failed to auto-unlock personalization:', error);
+      } finally {
+        setDevModeAutoUnlockAttempted(true);
+      }
+    };
+
+    autoUnlock();
+  }, [status, devModeAutoUnlockAttempted]);
+
   const saveCustomization = async (data: UserCustomization, password: string) => {
     if (!password || password.length < 6) {
       throw new Error('Password must be at least 6 characters');
@@ -62,6 +98,11 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
 
     setCustomization(data);
     setStatus('unlocked');
+
+    // Dev mode: Save password for auto-unlock
+    if (isDevModeEnabled()) {
+      await savePersonalizationPassword(password);
+    }
   };
 
   const unlockCustomization = async (password: string): Promise<boolean> => {
@@ -77,6 +118,12 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
 
       setCustomization(data);
       setStatus('unlocked');
+
+      // Dev mode: Save password for auto-unlock
+      if (isDevModeEnabled()) {
+        await savePersonalizationPassword(password);
+      }
+
       return true;
     } catch (error) {
       return false;
