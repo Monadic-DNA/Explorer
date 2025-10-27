@@ -11,8 +11,10 @@ import Footer from "./components/Footer";
 import DisclaimerModal from "./components/DisclaimerModal";
 import TermsAcceptanceModal from "./components/TermsAcceptanceModal";
 import RunAllModal from "./components/RunAllModal";
+import AIChatInline from "./components/AIChatInline";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
+import { isDevModeEnabled } from "@/lib/dev-mode";
 import {
   trackSearch,
   trackFilterChange,
@@ -190,9 +192,27 @@ function buildQuery(filters: Filters): string {
   return params.toString();
 }
 
+type ActiveTab = "explore" | "premium";
+
 function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
+
+  // Initialize active tab from dev-mode storage if available
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== 'undefined' && isDevModeEnabled()) {
+      const saved = localStorage.getItem('activeTab');
+      return (saved === 'premium' ? 'premium' : 'explore') as ActiveTab;
+    }
+    return 'explore';
+  });
+
+  // Persist active tab in dev-mode
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isDevModeEnabled()) {
+      localStorage.setItem('activeTab', activeTab);
+    }
+  }, [activeTab]);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
   const scrollPositionRef = useRef<number>(0);
@@ -614,12 +634,26 @@ function MainContent() {
         isOpen={showTermsModal}
         onAccept={() => setShowTermsModal(false)}
       />
-      <MenuBar
-        onRunAll={handleRunAll}
-        isRunningAll={isRunningAll}
-        runAllProgress={runAllProgress}
-      />
-      <main className="page">
+      <MenuBar />
+
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button
+          className={`tab-button ${activeTab === "explore" ? "active" : ""}`}
+          onClick={() => setActiveTab("explore")}
+        >
+          Explore
+        </button>
+        <button
+          className={`tab-button ${activeTab === "premium" ? "active" : ""}`}
+          onClick={() => setActiveTab("premium")}
+        >
+          Premium
+        </button>
+      </div>
+
+      <main className="page">{activeTab === "explore" ? (
+        <>
         <section className={`panel ${sectionCollapsed ? "collapsed" : ""}`}>
         <div className="panel-header">
           <div className="hero-title-section">
@@ -1006,6 +1040,33 @@ function MainContent() {
           </div>
         )}
       </section>
+        </>
+      ) : (
+        /* Premium Tab - AI Chat */
+        <section className="premium-section">
+          {isUploaded && (
+            <div className="premium-actions">
+              <button
+                className="control-button run-all"
+                onClick={handleRunAll}
+                disabled={isRunningAll}
+                title={
+                  isRunningAll && runAllProgress
+                    ? `Analyzing study ${runAllProgress.current.toLocaleString()} of ${runAllProgress.total.toLocaleString()}`
+                    : "Analyze all studies in database where you have matching SNPs"
+                }
+              >
+                {isRunningAll && runAllProgress ? (
+                  <>⏳ Running...</>
+                ) : (
+                  <>▶ Run All</>
+                )}
+              </button>
+            </div>
+          )}
+          <AIChatInline />
+        </section>
+      )}
       </main>
       <Footer />
       <DisclaimerModal

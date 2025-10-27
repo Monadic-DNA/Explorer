@@ -26,6 +26,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
   const [age, setAge] = useState('');
   const [personalConditions, setPersonalConditions] = useState('');
   const [familyConditions, setFamilyConditions] = useState('');
+  const [smokingHistory, setSmokingHistory] = useState('');
+  const [alcoholUse, setAlcoholUse] = useState('');
+  const [medications, setMedications] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -54,6 +57,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         // Handle backward compatibility with old data structure
         setPersonalConditions((customization.personalConditions || []).join(', '));
         setFamilyConditions((customization.familyConditions || []).join(', '));
+        setSmokingHistory(customization.smokingHistory || '');
+        setAlcoholUse(customization.alcoholUse || '');
+        setMedications((customization.medications || []).join(', '));
       } else {
         setIsUnlockMode(false);
         // Reset form for new customization
@@ -64,6 +70,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         setAge('');
         setPersonalConditions('');
         setFamilyConditions('');
+        setSmokingHistory('');
+        setAlcoholUse('');
+        setMedications('');
       }
     }
   }, [isOpen, status, customization]);
@@ -118,6 +127,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         age: age ? parseInt(age) : null,
         personalConditions: personalConditions.split(',').map(s => s.trim()).filter(Boolean),
         familyConditions: familyConditions.split(',').map(s => s.trim()).filter(Boolean),
+        smokingHistory: smokingHistory as any,
+        alcoholUse: alcoholUse as any,
+        medications: medications.split(',').map(s => s.trim()).filter(Boolean),
       };
 
       await saveCustomization(data, password);
@@ -280,6 +292,55 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                   value={familyConditions}
                   onChange={(e) => setFamilyConditions(e.target.value)}
                   placeholder="e.g., heart disease, cancer, Alzheimer's"
+                  rows={2}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="smoking-history">
+                  Smoking History
+                  <span className="field-hint">Select your smoking status</span>
+                </label>
+                <select
+                  id="smoking-history"
+                  value={smokingHistory}
+                  onChange={(e) => setSmokingHistory(e.target.value)}
+                >
+                  <option value="">Select...</option>
+                  <option value="never-smoked">Never Smoked</option>
+                  <option value="past-smoker">Smoked in the Past</option>
+                  <option value="still-smoking">Still Smoking</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="alcohol-use">
+                  Alcohol Use
+                  <span className="field-hint">Select your alcohol consumption level</span>
+                </label>
+                <select
+                  id="alcohol-use"
+                  value={alcoholUse}
+                  onChange={(e) => setAlcoholUse(e.target.value)}
+                >
+                  <option value="">Select...</option>
+                  <option value="none">None</option>
+                  <option value="mild">Mild (1-2 drinks/week)</option>
+                  <option value="moderate">Moderate (3-7 drinks/week)</option>
+                  <option value="heavy">Heavy (8+ drinks/week)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="medications">
+                  Current Medications & Supplements
+                  <span className="field-hint">Comma-separated list</span>
+                </label>
+                <textarea
+                  id="medications"
+                  value={medications}
+                  onChange={(e) => setMedications(e.target.value)}
+                  placeholder="e.g., metformin, vitamin D, aspirin"
                   rows={2}
                 />
               </div>

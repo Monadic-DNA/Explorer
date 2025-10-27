@@ -11,6 +11,9 @@ export interface UserCustomization {
   age: number | null;
   personalConditions: string[];
   familyConditions: string[];
+  smokingHistory?: 'still-smoking' | 'past-smoker' | 'never-smoked' | '';
+  alcoholUse?: 'none' | 'mild' | 'moderate' | 'heavy' | '';
+  medications?: string[];
 }
 
 type CustomizationStatus = 'not-set' | 'locked' | 'unlocked';
@@ -35,6 +38,9 @@ const defaultCustomization: UserCustomization = {
   age: null,
   personalConditions: [],
   familyConditions: [],
+  smokingHistory: '',
+  alcoholUse: '',
+  medications: [],
 };
 
 export function CustomizationProvider({ children }: { children: ReactNode }) {
