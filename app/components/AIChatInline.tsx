@@ -50,22 +50,10 @@ export default function AIChatInline() {
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
 
-  // Smart default: checked for first message, unchecked for follow-ups
-  const [includeContext, setIncludeContext] = useState(true);
-  const isFirstMessageRef = useRef(true);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Update checkbox default after assistant responds
-  useEffect(() => {
-    // Only uncheck after we have both user and assistant messages (not just user)
-    const assistantMessages = messages.filter(m => m.role === 'assistant');
-    if (assistantMessages.length > 0 && isFirstMessageRef.current) {
-      isFirstMessageRef.current = false;
-      setIncludeContext(false); // Uncheck for follow-ups after first exchange
-    }
-  }, [messages]);
+  // Determine if this is the first message or a follow-up
+  const isFirstMessage = messages.length === 0;
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -153,13 +141,16 @@ export default function AIChatInline() {
     try {
       let relevantResults: SavedResult[] = [];
 
-      if (includeContext) {
+      // Only include context for the FIRST message, not follow-ups
+      const shouldIncludeContext = messages.length === 0;
+
+      if (shouldIncludeContext) {
         setLoadingStatus("🔍 Searching your results for relevant traits...");
         console.log(`[AI Chat] Finding relevant results for query: "${query}"`);
         relevantResults = await getTopResultsByRelevance(query, MAX_CONTEXT_RESULTS);
         console.log(`[AI Chat] Found ${relevantResults.length} relevant results`);
       } else {
-        console.log(`[AI Chat] Skipping context search (user disabled)`);
+        console.log(`[AI Chat] Follow-up question - skipping RAG context search`);
       }
 
       setLoadingStatus("🔐 Retrieving secure AI token...");
@@ -270,7 +261,14 @@ ${contextResults}
 USER'S SPECIFIC QUESTION:
 "${query}"
 
-⚠️ CRITICAL: Focus your entire response on answering THIS specific question. Do not provide general health advice unrelated to what they asked. If they ask about cardiovascular health, focus on that. If they ask about diabetes, focus on that. Stay on topic!
+⚠️ CRITICAL - STAY ON TOPIC:
+- Answer ONLY the specific trait/condition the user asked about in their question
+- Do NOT discuss other traits or conditions from the RAG context unless directly relevant to their question
+- If they ask about "heart disease", focus ONLY on cardiovascular traits - ignore diabetes, cancer, etc.
+- If they ask about "diabetes", focus ONLY on metabolic/diabetes traits - ignore heart, cancer, etc.
+- If this is a follow-up question, continue the conversation about the SAME topic from previous messages
+- Do NOT use the RAG context to go off on tangents about unrelated health topics
+- The RAG context is provided for reference, but answer ONLY what the user specifically asked about
 
 CRITICAL INSTRUCTIONS - COMPLETE RESPONSES:
 1. You MUST ALWAYS finish your complete response - NEVER stop mid-sentence, mid-paragraph, or mid-section
@@ -738,8 +736,6 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               <p>❌ {error}</p>
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
 
         <div className="chat-input-area">
@@ -754,14 +750,15 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             disabled={isLoading}
           />
           <div className="chat-input-controls">
-            <label className="context-toggle-inline">
-              <input
-                type="checkbox"
-                checked={includeContext}
-                onChange={(e) => setIncludeContext(e.target.checked)}
-              />
-              <span>Include relevant traits</span>
-            </label>
+            {isFirstMessage ? (
+              <div className="rag-info">
+                ✓ Will search relevant traits for context
+              </div>
+            ) : (
+              <div className="rag-info-followup">
+                💬 Follow-up question (no RAG)
+              </div>
+            )}
             <button
               className="chat-send-button"
               onClick={handleSendMessage}

@@ -436,10 +436,10 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                     Cancel
                   </button>
                 )}
-                <button type="submit" className="disclaimer-button primary" disabled={isSaving}>
+                <button type="submit" className="disclaimer-button primary" disabled={isSaving || !password}>
                   {isSaving ? 'Saving...' : 'Save & Encrypt'}
                 </button>
-                <button type="button" className="disclaimer-button primary" onClick={handleSaveAndClose} disabled={isSaving}>
+                <button type="button" className="disclaimer-button primary" onClick={handleSaveAndClose} disabled={isSaving || !password}>
                   Save & Close
                 </button>
               </div>
