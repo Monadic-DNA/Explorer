@@ -197,19 +197,31 @@ type ActiveTab = "explore" | "premium";
 function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
+  const resultsContext = useResults();
 
-  // Initialize active tab from dev-mode storage if available
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
-    if (typeof window !== 'undefined' && isDevModeEnabled()) {
+  // Track client-side mounting to prevent hydration errors
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Initialize active tab (always start with 'explore' to avoid hydration issues)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('explore');
+
+  // Load saved tab from localStorage after mount (dev mode only)
+  useEffect(() => {
+    if (isDevModeEnabled()) {
       const saved = localStorage.getItem('activeTab');
-      return (saved === 'premium' ? 'premium' : 'explore') as ActiveTab;
+      if (saved === 'premium') {
+        setActiveTab('premium');
+      }
     }
-    return 'explore';
-  });
+  }, []);
 
   // Persist active tab in dev-mode
   useEffect(() => {
-    if (typeof window !== 'undefined' && isDevModeEnabled()) {
+    if (isDevModeEnabled()) {
       localStorage.setItem('activeTab', activeTab);
     }
   }, [activeTab]);
@@ -1042,28 +1054,53 @@ function MainContent() {
       </section>
         </>
       ) : (
-        /* Premium Tab - AI Chat */
+        /* Premium Tab - 3 Features with AI Chat Primary */
         <section className="premium-section">
-          {isUploaded && (
-            <div className="premium-actions">
+          {/* Feature Overview Cards - Compact 3-column */}
+          <div className="premium-features-overview">
+            {/* AI Chat Card */}
+            <div className="feature-overview-card primary">
+              <div className="feature-icon">🤖</div>
+              <h3>AI Chat</h3>
+              <p>Ask a private LLM questions about your genetic data</p>
+            </div>
+
+            {/* Run All Card */}
+            <div className="feature-overview-card">
+              <div className="feature-icon">▶</div>
+              <h3>Run All</h3>
+              <p>
+                {!mounted ? 'Loading...' :
+                 !isUploaded ? 'Upload DNA data first' :
+                 resultsContext.savedResults.length > 0
+                  ? `${resultsContext.savedResults.length.toLocaleString()} traits analyzed`
+                  : 'Analyze all GWAS studies'}
+              </p>
               <button
-                className="control-button run-all"
+                className="feature-quick-action"
                 onClick={handleRunAll}
-                disabled={isRunningAll}
-                title={
-                  isRunningAll && runAllProgress
-                    ? `Analyzing study ${runAllProgress.current.toLocaleString()} of ${runAllProgress.total.toLocaleString()}`
-                    : "Analyze all studies in database where you have matching SNPs"
-                }
+                disabled={isRunningAll || !mounted || !isUploaded}
               >
-                {isRunningAll && runAllProgress ? (
-                  <>⏳ Running...</>
-                ) : (
-                  <>▶ Run All</>
-                )}
+                {isRunningAll ? '⏳ Running...' :
+                 !isUploaded ? '⚠️ Need DNA' :
+                 resultsContext.savedResults.length > 0 ? '🔄 Run Again' : '▶ Start'}
               </button>
             </div>
-          )}
+
+            {/* Overview Report Card */}
+            <div className="feature-overview-card disabled">
+              <div className="feature-icon">📊</div>
+              <div className="coming-soon-badge-small">Soon</div>
+              <h3>Overview Report</h3>
+              <p>AI-powered comprehensive health report</p>
+              <button className="feature-quick-action" disabled>Coming Soon</button>
+            </div>
+          </div>
+
+          {/* Separator */}
+          <div className="premium-separator"></div>
+
+          {/* AI Chat - Full Interface */}
           <AIChatInline />
         </section>
       )}

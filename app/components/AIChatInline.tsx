@@ -40,6 +40,7 @@ export default function AIChatInline() {
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
 
+  const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +52,10 @@ export default function AIChatInline() {
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Determine if this is the first message or a follow-up
   const isFirstMessage = messages.length === 0;
@@ -600,7 +605,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
 
         <div className="chat-info">
           <div className="chat-info-left">
-            <span>💬 Ask questions about your {resultsContext.savedResults.length.toLocaleString()} genetic results</span>
+            <span>💬 Ask questions about your {mounted ? resultsContext.savedResults.length.toLocaleString() : '...'} genetic results</span>
           </div>
           {messages.length > 0 && (
             <div className="chat-actions">
@@ -619,7 +624,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             <div className="chat-welcome">
               <h3>Welcome to AI Chat!</h3>
 
-              {resultsContext.savedResults.length < 1000 && (
+              {mounted && resultsContext.savedResults.length < 1000 && (
                 <div className="chat-warning">
                   <p><strong>⚠️ Limited Results ({resultsContext.savedResults.length} studies)</strong></p>
                   <p>
