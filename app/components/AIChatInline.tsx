@@ -50,9 +50,10 @@ export default function AIChatInline() {
   const [hasConsent, setHasConsent] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
+  const [usingOpenAIFallback, setUsingOpenAIFallback] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  
+
   // Cache the Nilai client and token across messages
   const nilaiClientRef = useRef<NilaiOpenAIClient | null>(null);
   const tokenExpiryRef = useRef<number>(0);
@@ -383,36 +384,162 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('Relevant Results Count:', relevantResults.length);
       console.log('=====================');
 
-      const response = await client.chat.completions.create({
-        model: "openai/gpt-oss-20b",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          ...conversationHistory,
-          {
-            role: "user",
-            content: query
-          }
-        ],
-        max_tokens: 3000,
-        temperature: 0.7,
-      });
+      let assistantContent: string | undefined;
+      let usedOpenAIFallback = false;
 
-      const assistantContent = response.choices?.[0]?.message?.content;
+      try {
+        // Try nilAI first
+        const response = await client.chat.completions.create({
+          model: "openai/gpt-oss-20b",
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            ...conversationHistory,
+            {
+              role: "user",
+              content: query
+            }
+          ],
+          max_tokens: 3000,
+          temperature: 0.7,
+        });
+
+        assistantContent = response.choices?.[0]?.message?.content;
+
+        if (!assistantContent) {
+          throw new Error("No response generated from AI");
+        }
+      } catch (nilaiError) {
+        console.error('[AI Chat] nilAI failed:', nilaiError);
+
+        // Attempt OpenAI fallback (only works in dev mode on server)
+        console.log('[AI Chat] Attempting OpenAI fallback via API route with streaming');
+        setLoadingStatus("⚠️ Switching to OpenAI fallback...");
+
+        try {
+          const openaiResponse = await fetch("/api/openai-chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: "system",
+                  content: systemPrompt
+                },
+                ...conversationHistory,
+                {
+                  role: "user",
+                  content: query
+                }
+              ],
+              model: "gpt-5-nano",
+              max_completion_tokens: 16000,
+            }),
+          });
+
+          if (!openaiResponse.ok) {
+            const errorText = await openaiResponse.text();
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { error: errorText };
+            }
+            throw new Error(errorData.error || "Failed to get OpenAI response");
+          }
+
+          // Set fallback state immediately
+          setUsingOpenAIFallback(true);
+          usedOpenAIFallback = true;
+          console.log('[AI Chat] Successfully switched to OpenAI fallback, streaming response');
+
+          // Handle streaming response
+          const reader = openaiResponse.body?.getReader();
+          const decoder = new TextDecoder();
+          let streamedContent = '';
+
+          if (!reader) {
+            throw new Error("No response body reader available");
+          }
+
+          // Create initial message with notification
+          const notificationPrefix = `⚠️ **Note:** nilAI is temporarily unavailable. This response was generated using OpenAI's gpt-5-nano as a fallback in development mode.\n\n---\n\n`;
+          streamedContent = notificationPrefix;
+
+          // Add assistant message that will be updated as content streams
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: streamedContent,
+            timestamp: new Date(),
+            studiesUsed: relevantResults
+          };
+          setMessages(prev => [...prev, assistantMessage]);
+
+          // Read the stream
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              break;
+            }
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+
+                if (data === '[DONE]') {
+                  break;
+                }
+
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.content) {
+                    streamedContent += parsed.content;
+                    // Update the last message with accumulated content
+                    setMessages(prev => {
+                      const updated = [...prev];
+                      updated[updated.length - 1] = {
+                        ...updated[updated.length - 1],
+                        content: streamedContent
+                      };
+                      return updated;
+                    });
+                  }
+                } catch (e) {
+                  console.error('[AI Chat] Error parsing streaming chunk:', e);
+                }
+              }
+            }
+          }
+
+          assistantContent = streamedContent;
+        } catch (openaiError) {
+          console.error('[AI Chat] OpenAI fallback also failed:', openaiError);
+          throw new Error(`nilAI failed and OpenAI fallback unavailable: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`);
+        }
+      }
 
       if (!assistantContent) {
         throw new Error("No response generated from AI");
       }
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: assistantContent,
-        timestamp: new Date(),
-        studiesUsed: relevantResults
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+      // Only add the message if it wasn't already added during streaming (OpenAI fallback)
+      if (!usedOpenAIFallback) {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: assistantContent,
+          timestamp: new Date(),
+          studiesUsed: relevantResults
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+      }
 
     } catch (err) {
       console.error('[AI Chat] Error:', err);
@@ -631,10 +758,16 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       <div className="ai-chat-inline">
         <div className="chat-header">
           <h2>🤖 AI Chat: Your Genetic Results</h2>
-          <p className="powered-by">
-            🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> using <strong>gpt-oss-20b</strong> model in TEE (Trusted Execution Environment) -
-            Your data never leaves the secure enclave
-          </p>
+          {usingOpenAIFallback ? (
+            <p className="powered-by" style={{ backgroundColor: '#FEF3C7', padding: '8px', borderRadius: '6px', border: '1px solid #F59E0B' }}>
+              ⚠️ Using <strong>OpenAI gpt-5-nano</strong> fallback (nilAI temporarily unavailable in dev mode)
+            </p>
+          ) : (
+            <p className="powered-by">
+              🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> using <strong>gpt-oss-20b</strong> model in TEE (Trusted Execution Environment) -
+              Your data never leaves the secure enclave
+            </p>
+          )}
         </div>
 
         <div className="chat-info">
