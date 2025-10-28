@@ -81,12 +81,7 @@ export default function AIChatInline() {
   }, [customizationStatus]);
 
   // Removed auto-scroll so user doesn't have to scroll up to read responses
-
-  useEffect(() => {
-    if (!showConsentModal && !showPersonalizationPrompt) {
-      inputRef.current?.focus();
-    }
-  }, [showConsentModal, showPersonalizationPrompt]);
+  // Also removed auto-focus to prevent scrolling to bottom on tab load
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {
@@ -668,9 +663,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   <p><strong>⚠️ Limited Results ({resultsContext.savedResults.length} studies)</strong></p>
                   <p>
                     You currently have fewer than 1,000 analyzed results. For the best AI chat experience,
-                    we recommend running "Run All" to analyze your DNA against all available studies.
+                    you can either:
                   </p>
-                  <p>This will give the AI more comprehensive data to provide personalized insights.</p>
+                  <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
+                    <li>Run "Run All" to analyze your DNA against all available studies, or</li>
+                    <li>Load results from a prior run if you've previously completed analysis</li>
+                  </ul>
+                  <p style={{ marginTop: '0.5rem' }}>This will give the AI more comprehensive data to provide personalized insights.</p>
                 </div>
               )}
 

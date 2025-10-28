@@ -209,6 +209,9 @@ function MainContent() {
   // Initialize active tab (always start with 'explore' to avoid hydration issues)
   const [activeTab, setActiveTab] = useState<ActiveTab>('explore');
 
+  // Premium features overview collapsed state
+  const [featuresOverviewCollapsed, setFeaturesOverviewCollapsed] = useState(false);
+
   // Load saved tab from localStorage after mount (dev mode only)
   useEffect(() => {
     if (isDevModeEnabled()) {
@@ -1056,46 +1059,70 @@ function MainContent() {
       ) : (
         /* Premium Tab - 3 Features with AI Chat Primary */
         <section className="premium-section">
-          {/* Feature Overview Cards - Compact 3-column */}
-          <div className="premium-features-overview">
-            {/* AI Chat Card */}
-            <div className="feature-overview-card primary">
-              <div className="feature-icon">🤖</div>
-              <h3>AI Chat</h3>
-              <p>Ask a private LLM questions about your genetic data</p>
-            </div>
-
-            {/* Run All Card */}
-            <div className="feature-overview-card">
-              <div className="feature-icon">▶</div>
-              <h3>Run All</h3>
-              <p>
-                {!mounted ? 'Loading...' :
-                 !isUploaded ? 'Upload DNA data first' :
-                 resultsContext.savedResults.length > 0
-                  ? `${resultsContext.savedResults.length.toLocaleString()} traits analyzed`
-                  : 'Analyze all GWAS studies'}
-              </p>
-              <button
-                className="feature-quick-action"
-                onClick={handleRunAll}
-                disabled={isRunningAll || !mounted || !isUploaded}
-              >
-                {isRunningAll ? '⏳ Running...' :
-                 !isUploaded ? '⚠️ Need DNA' :
-                 resultsContext.savedResults.length > 0 ? '🔄 Run Again' : '▶ Start'}
-              </button>
-            </div>
-
-            {/* Overview Report Card */}
-            <div className="feature-overview-card disabled">
-              <div className="feature-icon">📊</div>
-              <div className="coming-soon-badge-small">Soon</div>
-              <h3>Overview Report</h3>
-              <p>AI-powered comprehensive health report</p>
-              <button className="feature-quick-action" disabled>Coming Soon</button>
-            </div>
+          {/* Feature Overview Cards - Compact 3-column with collapse button */}
+          <div className="premium-features-header">
+            <button
+              className="collapse-button"
+              onClick={() => setFeaturesOverviewCollapsed(!featuresOverviewCollapsed)}
+              title={featuresOverviewCollapsed ? "Show features" : "Hide features"}
+            >
+              {featuresOverviewCollapsed ? "Show Features ↓" : "Hide Features ↑"}
+            </button>
           </div>
+
+          {!featuresOverviewCollapsed && (
+            <div className="premium-features-overview">
+              {/* Run All Card - First */}
+              <div className="feature-overview-card">
+                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <h3>Run All</h3>
+                <p>
+                  {!mounted ? 'Loading...' :
+                   !isUploaded ? 'Upload DNA data first' :
+                   resultsContext.savedResults.length > 0
+                    ? `${resultsContext.savedResults.length.toLocaleString()} traits analyzed`
+                    : 'Analyze all GWAS studies'}
+                </p>
+                <button
+                  className="feature-quick-action"
+                  onClick={handleRunAll}
+                  disabled={isRunningAll || !mounted || !isUploaded}
+                >
+                  {isRunningAll ? 'Running...' :
+                   !isUploaded ? 'Upload DNA File' :
+                   resultsContext.savedResults.length > 0 ? 'Run Again' : 'Start'}
+                </button>
+              </div>
+
+              {/* LLM Chat Card - Primary */}
+              <div className="feature-overview-card primary">
+                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <circle cx="9" cy="10" r="1"/>
+                  <circle cx="15" cy="10" r="1"/>
+                  <path d="M9 14c.5.5 1.5 1 3 1s2.5-.5 3-1"/>
+                </svg>
+                <h3>LLM Chat</h3>
+                <p>Ask a private LLM questions about your genetic data</p>
+              </div>
+
+              {/* Overview Report Card */}
+              <div className="feature-overview-card disabled">
+                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 3v18h18"/>
+                  <path d="M18 17V9"/>
+                  <path d="M13 17V5"/>
+                  <path d="M8 17v-3"/>
+                </svg>
+                <div className="coming-soon-badge-small">Soon</div>
+                <h3>Overview Report</h3>
+                <p>AI-powered comprehensive health report</p>
+                <button className="feature-quick-action" disabled>Coming Soon</button>
+              </div>
+            </div>
+          )}
 
           {/* Separator */}
           <div className="premium-separator"></div>

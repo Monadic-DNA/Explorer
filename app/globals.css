@@ -370,6 +370,11 @@ body {
   transition: all 0.2s ease;
 }
 
+.social-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .social-link:hover {
   background: var(--accent-blue);
   border-color: var(--accent-blue);
@@ -3590,24 +3595,61 @@ details[open] .summary-arrow {
   gap: 1.5rem;
 }
 
+/* Premium Features Header */
+.premium-features-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.premium-features-header .collapse-button {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.premium-features-header .collapse-button:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
 /* Premium Features Overview - Compact 3-column cards */
 .premium-features-overview {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   margin-bottom: 1rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .feature-overview-card {
   background: var(--surface-bg);
   border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   transition: all 0.2s ease;
   position: relative;
 }
@@ -3628,44 +3670,51 @@ details[open] .summary-arrow {
 }
 
 .feature-icon {
-  font-size: 2.5rem;
-  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  color: var(--accent-blue);
+  stroke-width: 2;
+}
+
+.feature-overview-card.disabled .feature-icon {
+  color: var(--text-secondary);
+  opacity: 0.6;
 }
 
 .feature-overview-card h3 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   color: var(--text-primary);
   font-weight: 600;
 }
 
 .feature-overview-card p {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  line-height: 1.4;
-  min-height: 2.8em;
+  line-height: 1.3;
+  min-height: 2.4em;
 }
 
 .coming-soon-badge-small {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
+  top: 0.5rem;
+  right: 0.5rem;
   background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
   color: white;
-  padding: 0.2rem 0.5rem;
-  border-radius: 8px;
-  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.6rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .feature-quick-action {
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.875rem;
   border-radius: 6px;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   cursor: pointer;
   border: none;
   transition: all 0.2s ease;
