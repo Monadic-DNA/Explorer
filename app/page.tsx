@@ -12,6 +12,8 @@ import DisclaimerModal from "./components/DisclaimerModal";
 import TermsAcceptanceModal from "./components/TermsAcceptanceModal";
 import RunAllModal from "./components/RunAllModal";
 import AIChatInline from "./components/AIChatInline";
+import { AuthButton } from "./components/AuthProvider";
+import { PremiumPaywall } from "./components/PremiumPaywall";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -650,6 +652,9 @@ function MainContent() {
         onAccept={() => setShowTermsModal(false)}
       />
       <MenuBar />
+      <div style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 1000 }}>
+        <AuthButton />
+      </div>
 
       {/* Tab Navigation */}
       <div className="tab-navigation">
@@ -1058,6 +1063,7 @@ function MainContent() {
         </>
       ) : (
         /* Premium Tab - 3 Features with AI Chat Primary */
+        <PremiumPaywall>
         <section className="premium-section">
           {/* Feature Overview Cards - Compact 3-column with collapse button */}
           <div className="premium-features-header">
@@ -1130,6 +1136,7 @@ function MainContent() {
           {/* AI Chat - Full Interface */}
           <AIChatInline />
         </section>
+        </PremiumPaywall>
       )}
       </main>
       <Footer />

@@ -4290,3 +4290,267 @@ details[open] .summary-arrow {
 .chat-warning strong {
   color: var(--accent-yellow);
 }
+
+/* ========================================
+ * Premium Paywall Styles
+ * ======================================== */
+
+.premium-paywall {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.paywall-container {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 3rem;
+  text-align: center;
+  backdrop-filter: blur(20px);
+}
+
+.paywall-container h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.paywall-container > p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.pricing-card {
+  background: var(--primary-bg);
+  border: 2px solid var(--accent-blue);
+  border-radius: 8px;
+  padding: 2rem;
+  margin: 2rem 0;
+}
+
+.price {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.price .amount {
+  font-size: 3rem;
+  font-weight: bold;
+  color: var(--accent-blue);
+}
+
+.price .period {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+}
+
+.features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.features-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.features-list li:last-child {
+  border-bottom: none;
+}
+
+.auth-required {
+  padding: 2rem;
+  background: var(--surface-bg);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+}
+
+.auth-required p {
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+}
+
+.auth-required .hint {
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.payment-options {
+  margin-top: 2rem;
+}
+
+.payment-options h3 {
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.payment-button {
+  width: 100%;
+  padding: 1rem 2rem;
+  margin: 0.75rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+}
+
+.paddle-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.paddle-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+}
+
+.paddle-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.crypto-button {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.crypto-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(240, 147, 251, 0.3);
+}
+
+.crypto-instructions {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.crypto-instructions h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.crypto-instructions p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0.75rem 0;
+}
+
+.conversion-note {
+  background: var(--primary-bg);
+  padding: 0.75rem;
+  border-radius: 4px;
+  border-left: 3px solid var(--accent-blue);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.chain-selector {
+  margin: 1.5rem 0;
+}
+
+.chain-selector label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chain-selector select {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.payment-address {
+  margin: 1.5rem 0;
+}
+
+.payment-address label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.address-box {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.address-box code {
+  flex: 1;
+  padding: 0.75rem;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  overflow-x: auto;
+}
+
+.copy-button {
+  padding: 0.75rem 1rem;
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+  background: #2563eb;
+  transform: scale(1.05);
+}
+
+.crypto-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid var(--accent-yellow);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+}
+
+.crypto-warning p {
+  margin: 0 0 0.5rem 0;
+  color: var(--accent-yellow);
+  font-weight: 600;
+}
+
+.crypto-warning ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.5rem;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+.crypto-warning li {
+  margin: 0.25rem 0;
+}

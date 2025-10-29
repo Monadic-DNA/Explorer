@@ -4,14 +4,27 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 
 **🔗 Repository:** [github.com/Monadic-DNA/Explorer](https://github.com/Monadic-DNA/Explorer)
 
+## Table of Contents
+
+- [Features](#features)
+- [Development](#development)
+  - [Quick Start](#running-the-monadic-dna-explorer)
+  - [Environment Variables](#environment-variables)
+- [Production Deployment](#production-deployment)
+- [Semantic Search Setup](#semantic-search-setup)
+- [Premium Features & Crypto Payments](#premium-features--crypto-payments)
+- [License](#license)
+
 ## Features
 
 - **Semantic Search**: LLM-powered semantic search understands the meaning of your queries (e.g., "memory loss" finds "cognitive decline" studies)
 - **Interactive exploration** of GWAS Catalog studies with quality-aware filtering
 - **Upload and analyze** your personal genetic data (23andMe, AncestryDNA, Monadic DNA)
 - **Private LLM analysis** powered by Nillion's nilAI - your data is processed in a Trusted Execution Environment
+- **Premium Features**: AI-powered genetic analysis chat, Run All analysis, comprehensive reports
+- **Crypto payments**: Database-free subscription system using ETH/USDC on EVM chains (Ethereum, Base, Arbitrum, Optimism)
 - **Save and export** your results
-- **Privacy-focused**: All semantic search processing happens on our servers (no third-party APIs)
+- **Privacy-focused**: All processing happens on your infrastructure (no third-party APIs for search)
 
 ## Development
 
@@ -99,9 +112,24 @@ npm start
 
 ### Environment Variables
 
+**GWAS Database (Required):**
 - `POSTGRES_DB`: PostgreSQL connection string (if set, takes precedence over SQLite)
 - `GWAS_DB_PATH`: Path to SQLite database file (only used if `POSTGRES_DB` is not set)
-- `NILLION_API_KEY`: (Optional) API key for Nillion's nilAI to enable private AI analysis of results
+
+**AI Features (Optional):**
+- `NILLION_API_KEY`: API key for Nillion's nilAI to enable private AI analysis of results
+- `OPENAI_API_KEY`: Fallback API key for development mode when nilAI is unavailable
+
+**Authentication (Required for Premium):**
+- `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID`: Dynamic.xyz environment ID for wallet connection
+
+**Crypto Payments (Required for Premium):**
+- `ALCHEMY_API_KEY`: Alchemy API key for blockchain indexer queries
+- `NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS`: EVM wallet address where users send ETH/USDC payments
+- `NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS`: Cache duration in hours (default: 1)
+- `COINGECKO_API_KEY`: (Optional) CoinGecko Pro API key for historical price lookups
+
+See `.env.local.example` for complete configuration details.
 
 ### Database Schema
 
@@ -333,6 +361,48 @@ WHERE accessed_at < NOW() - INTERVAL '90 days'
 **Poor search quality:**
 - Semantic search only works with PostgreSQL + pgvector (SQLite falls back to keyword search)
 - Ensure HNSW index created: `\d+ study_embeddings` should show `idx_study_embeddings_embedding`
+
+## Premium Features & Crypto Payments
+
+GWASifier offers premium features including AI-powered genetic analysis chat, Run All analysis, and comprehensive reports.
+
+### Payment System
+
+The app uses a **database-free, crypto-only payment system**:
+- **No database required** - Subscription status verified on-chain
+- **Supported chains**: Ethereum, Base (recommended), Arbitrum, Optimism
+- **Accepted tokens**: ETH and USDC
+- **Pricing**: $4.99/month (prorated: $10 = ~60 days, $2.50 = ~15 days)
+- **Minimum payment**: $1 USD
+
+### How It Works
+
+1. User connects wallet via Dynamic.xyz
+2. User sends ETH or USDC to payment wallet from connected wallet
+3. App queries Alchemy indexer to find all payments from user's wallet
+4. App uses CoinGecko API to get historical prices at transaction time
+5. App calculates subscription: `days = (amountUSD / 4.99) * 30`
+6. Subscription status cached in localStorage for 1 hour
+
+### Setup
+
+See `CRYPTO_PAYMENTS.md` for detailed setup instructions.
+
+**Quick Start:**
+```bash
+# Set required environment variables in .env.local
+ALCHEMY_API_KEY=your_alchemy_api_key
+NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS=0xYourWalletAddress
+NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=your_dynamic_environment_id
+```
+
+### Benefits
+
+- ✅ Zero infrastructure costs (no database)
+- ✅ No personal data storage (GDPR-friendly)
+- ✅ Transparent (all payments verifiable on-chain)
+- ✅ Flexible (users can top up anytime)
+- ✅ Free tier API usage sufficient for 5,000+ daily active users
 
 ## License
 
