@@ -54,10 +54,6 @@ export default function AIChatInline() {
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Cache the Nilai client and token across messages
-  const nilaiClientRef = useRef<NilaiOpenAIClient | null>(null);
-  const tokenExpiryRef = useRef<number>(0);
-
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -158,48 +154,38 @@ export default function AIChatInline() {
         console.log(`[AI Chat] Follow-up question - skipping RAG context search`);
       }
 
-      // Check if we need to refresh the token (expires after ~50 minutes, refresh after 45)
-      const now = Date.now();
-      const TOKEN_LIFETIME_MS = 45 * 60 * 1000; // 45 minutes
-      const needsNewToken = !nilaiClientRef.current || now > tokenExpiryRef.current;
+      // Fetch a fresh delegation token for each message
+      // Note: Despite tokenMaxUses setting, delegation tokens appear to be consumed per API call
+      setLoadingStatus("🔐 Retrieving secure AI token...");
+      console.log('[AI Chat] Fetching fresh delegation token for this message');
 
-      let client = nilaiClientRef.current;
+      const client = new NilaiOpenAIClient({
+        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
+        authType: AuthType.DELEGATION_TOKEN,
+        nilauthInstance: NilAuthInstance.PRODUCTION,
+      });
 
-      if (needsNewToken) {
-        setLoadingStatus("🔐 Retrieving secure AI token...");
-        console.log('[AI Chat] Token expired or missing, fetching new delegation token');
+      const delegationRequest = client.getDelegationRequest();
+      console.log('[AI Chat] Generated delegation request');
 
-        client = new NilaiOpenAIClient({
-          baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-          authType: AuthType.DELEGATION_TOKEN,
-          nilauthInstance: NilAuthInstance.PRODUCTION,
-        });
+      const tokenResponse = await fetch("/api/nilai-delegation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ delegationRequest }),
+      });
 
-        const delegationRequest = client.getDelegationRequest();
-
-        const tokenResponse = await fetch("/api/nilai-delegation", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ delegationRequest }),
-        });
-
-        if (!tokenResponse.ok) {
-          const errorData = await tokenResponse.json();
-          throw new Error(errorData.error || "Failed to get delegation token");
-        }
-
-        const { delegationToken } = await tokenResponse.json();
-        client.updateDelegation(delegationToken);
-
-        // Cache the client and set expiry
-        nilaiClientRef.current = client;
-        tokenExpiryRef.current = now + TOKEN_LIFETIME_MS;
-        console.log('[AI Chat] New token cached, expires in 45 minutes');
-      } else {
-        console.log('[AI Chat] Reusing cached delegation token');
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json();
+        throw new Error(errorData.error || "Failed to get delegation token");
       }
+
+      const { delegationToken } = await tokenResponse.json();
+      console.log('[AI Chat] Received fresh delegation token from server');
+
+      client.updateDelegation(delegationToken);
+      console.log('[AI Chat] Updated client with delegation token');
 
       setLoadingStatus(`🤖 Analyzing ${relevantResults.length} traits with AI...`);
 
@@ -389,6 +375,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
 
       try {
         // Try nilAI first
+        console.log('[AI Chat] Making nilAI API request...');
         const response = await client.chat.completions.create({
           model: "openai/gpt-oss-20b",
           messages: [
@@ -407,12 +394,17 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         });
 
         assistantContent = response.choices?.[0]?.message?.content;
+        console.log('[AI Chat] nilAI request successful');
 
         if (!assistantContent) {
           throw new Error("No response generated from AI");
         }
       } catch (nilaiError) {
-        console.error('[AI Chat] nilAI failed:', nilaiError);
+        console.error('[AI Chat] nilAI request failed:', nilaiError);
+        console.error('[AI Chat] Error details:', {
+          message: nilaiError instanceof Error ? nilaiError.message : 'Unknown error',
+          stack: nilaiError instanceof Error ? nilaiError.stack : undefined
+        });
 
         // Attempt OpenAI fallback (only works in dev mode on server)
         console.log('[AI Chat] Attempting OpenAI fallback via API route with streaming');
@@ -549,14 +541,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       // Handle specific error cases
       if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
         errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
-        // Clear cached token on rate limit to force refresh on next attempt
-        nilaiClientRef.current = null;
-        tokenExpiryRef.current = 0;
       } else if (errorMessage.includes('expired') || errorMessage.includes('Delegation token')) {
-        errorMessage = "Session expired. Please try sending your message again.";
-        // Clear cached token to force refresh
-        nilaiClientRef.current = null;
-        tokenExpiryRef.current = 0;
+        errorMessage = "Token error. Please try sending your message again.";
+        console.log('[AI Chat] Delegation token error detected');
       } else if (errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch')) {
         errorMessage = "Network error. Please check your connection and try again.";
       }
