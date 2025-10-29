@@ -64,10 +64,10 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
           </div>
         ) : (
           <div className="payment-options">
-            <h3>Pay with Crypto</h3>
+            <h3>Pay with ETH or USDC</h3>
 
-            {/* Show crypto instructions */}
-            <div className="crypto-instructions">
+            {/* Show blockchain payment instructions */}
+            <div className="blockchain-payment-instructions">
               <h4>Send ETH or USDC</h4>
               <p>Send ETH or USDC to the address below from your connected wallet.</p>
               <p className="conversion-note">
@@ -109,7 +109,7 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
                 </div>
               </div>
 
-              <div className="crypto-warning">
+              <div className="payment-instructions-warning">
                 <p>⚠️ Important:</p>
                 <ul>
                   <li><strong>Send from your connected wallet</strong> ({user?.verifiedCredentials?.[0]?.address || user?.walletPublicKey || 'Connect wallet first'})</li>

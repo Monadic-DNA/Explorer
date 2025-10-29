@@ -12,7 +12,7 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
   - [Environment Variables](#environment-variables)
 - [Production Deployment](#production-deployment)
 - [Semantic Search Setup](#semantic-search-setup)
-- [Premium Features & Crypto Payments](#premium-features--crypto-payments)
+- [Premium Features & Blockchain Payments](#premium-features--crypto-payments)
 - [License](#license)
 
 ## Features
@@ -22,7 +22,7 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 - **Upload and analyze** your personal genetic data (23andMe, AncestryDNA, Monadic DNA)
 - **Private LLM analysis** powered by Nillion's nilAI - your data is processed in a Trusted Execution Environment
 - **Premium Features**: AI-powered genetic analysis chat, Run All analysis, comprehensive reports
-- **Crypto payments**: Database-free subscription system using ETH/USDC on EVM chains (Ethereum, Base, Arbitrum, Optimism)
+- **Blockchain payments**: Database-free subscription system using ETH/USDC on EVM chains (Ethereum, Base, Arbitrum, Optimism)
 - **Save and export** your results
 - **Privacy-focused**: All processing happens on your infrastructure (no third-party APIs for search)
 
@@ -123,7 +123,7 @@ npm start
 **Authentication (Required for Premium):**
 - `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID`: Dynamic.xyz environment ID for wallet connection
 
-**Crypto Payments (Required for Premium):**
+**Blockchain Payments (Required for Premium):**
 - `ALCHEMY_API_KEY`: Alchemy API key for blockchain indexer queries
 - `NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS`: EVM wallet address where users send ETH/USDC payments
 - `NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS`: Cache duration in hours (default: 1)
@@ -362,13 +362,13 @@ WHERE accessed_at < NOW() - INTERVAL '90 days'
 - Semantic search only works with PostgreSQL + pgvector (SQLite falls back to keyword search)
 - Ensure HNSW index created: `\d+ study_embeddings` should show `idx_study_embeddings_embedding`
 
-## Premium Features & Crypto Payments
+## Premium Features & Blockchain Payments
 
 GWASifier offers premium features including AI-powered genetic analysis chat, Run All analysis, and comprehensive reports.
 
 ### Payment System
 
-The app uses a **database-free, crypto-only payment system**:
+The app uses a **database-free, blockchain-based payment system**:
 - **No database required** - Subscription status verified on-chain
 - **Supported chains**: Ethereum, Base (recommended), Arbitrum, Optimism
 - **Accepted tokens**: ETH and USDC
@@ -386,7 +386,7 @@ The app uses a **database-free, crypto-only payment system**:
 
 ### Setup
 
-See `CRYPTO_PAYMENTS.md` for detailed setup instructions.
+See `BLOCKCHAIN_PAYMENTS.md` for detailed setup instructions.
 
 **Quick Start:**
 ```bash

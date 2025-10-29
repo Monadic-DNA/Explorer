@@ -19,7 +19,7 @@ export interface SubscriptionStatus {
 export interface PaymentRecord {
   transactionHash: string;
   timestamp: number;
-  amount: number; // Crypto amount
+  amount: number; // Token amount (ETH or USDC)
   currency: 'ETH' | 'USDC';
   usdValue: number;
   daysPurchased: number;

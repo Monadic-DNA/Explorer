@@ -1,8 +1,8 @@
-# Crypto-Only Payment System
+# Blockchain Payment System (EVM Chains)
 
 ## Overview
 
-GWASifier Premium now uses a **database-free, crypto-only payment system**. Users pay with ETH or USDC from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API + CoinGecko historical prices.
+GWASifier Premium now uses a **database-free, blockchain-based payment system**. Users pay with ETH or USDC from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API + CoinGecko historical prices.
 
 ## How It Works
 
@@ -242,7 +242,7 @@ Potential improvements:
 - [ ] Add email notifications when subscription expires
 - [ ] Add QR code for mobile wallet payments
 - [ ] Support more chains (Polygon, Avalanche, etc.)
-- [ ] Add cryptocurrency price charts in UI
+- [ ] Add token price charts in UI
 - [ ] Add refund mechanism (for accidental overpayments)
 
 ## Support

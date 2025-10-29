@@ -1,5 +1,5 @@
 /**
- * CoinGecko API integration for historical cryptocurrency prices
+ * CoinGecko API integration for historical token prices (ETH, USDC)
  * Free tier: 10-30 calls/minute
  * Docs: https://www.coingecko.com/en/api/documentation
  */
@@ -16,7 +16,7 @@ const priceCache: PriceCache = {};
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours (historical prices don't change)
 
 /**
- * Get historical price for a cryptocurrency at a specific timestamp
+ * Get historical price for a token at a specific timestamp
  * @param coinId - CoinGecko coin ID ('ethereum' or 'usd-coin')
  * @param timestamp - Unix timestamp in seconds
  * @returns Price in USD
@@ -86,7 +86,7 @@ export async function getHistoricalPrice(
 }
 
 /**
- * Get current price for a cryptocurrency (fallback)
+ * Get current price for a token (fallback when historical data unavailable)
  * @param coinId - CoinGecko coin ID
  * @returns Current price in USD
  */
@@ -124,9 +124,9 @@ async function getCurrentPrice(coinId: 'ethereum' | 'usd-coin'): Promise<number>
 }
 
 /**
- * Convert crypto amount to USD
- * @param amount - Amount in crypto (ETH or USDC)
- * @param currency - Currency type
+ * Convert token amount to USD
+ * @param amount - Amount in tokens (ETH or USDC)
+ * @param currency - Currency type ('ETH' or 'USDC')
  * @param timestamp - Unix timestamp in seconds
  * @returns USD value
  */
