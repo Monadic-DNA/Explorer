@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
+import { verifyPromoCode } from '@/lib/prime-verification';
 
 interface PremiumPaywallProps {
   children: React.ReactNode;
@@ -11,6 +12,9 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
   const { isAuthenticated, user, hasActiveSubscription, checkingSubscription, subscriptionData, refreshSubscription } = useAuth();
   const [showCryptoInstructions, setShowCryptoInstructions] = useState(false);
   const [selectedChain, setSelectedChain] = useState<'ethereum' | 'base' | 'arbitrum' | 'optimism'>('base');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
+  const [hasPromoAccess, setHasPromoAccess] = useState(false);
 
   const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
 
@@ -19,6 +23,43 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     base: { name: 'Base', rpc: 'https://mainnet.base.org' },
     arbitrum: { name: 'Arbitrum', rpc: 'https://arb1.arbitrum.io/rpc' },
     optimism: { name: 'Optimism', rpc: 'https://mainnet.optimism.io' },
+  };
+
+  // Check localStorage for existing promo access on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('promo_access');
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        // Re-verify the code (in case logic changed)
+        const result = verifyPromoCode(data.code);
+        if (result.valid && result.discount === 0) {
+          setHasPromoAccess(true);
+          setPromoCode(data.code);
+          setPromoMessage({ type: 'success', text: '✓ Promo code active' });
+        } else {
+          // Code no longer valid, clear storage
+          localStorage.removeItem('promo_access');
+        }
+      } catch (err) {
+        localStorage.removeItem('promo_access');
+      }
+    }
+  }, []);
+
+  const handlePromoSubmit = () => {
+    const result = verifyPromoCode(promoCode);
+
+    if (result.valid && result.discount === 0) {
+      // Free access granted!
+      setPromoMessage({ type: 'success', text: result.message });
+      setHasPromoAccess(true);
+      // Store in localStorage for persistence
+      localStorage.setItem('promo_access', JSON.stringify({ code: promoCode, granted: Date.now() }));
+    } else {
+      setPromoMessage({ type: 'error', text: result.message });
+      setHasPromoAccess(false);
+    }
   };
 
   // Show loading state while checking subscription
@@ -32,8 +73,8 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     );
   }
 
-  // If user has active subscription, show content
-  if (hasActiveSubscription) {
+  // If user has active subscription OR promo access, show content
+  if (hasActiveSubscription || hasPromoAccess) {
     return <>{children}</>;
   }
 
@@ -57,6 +98,64 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
           </ul>
         </div>
 
+        {/* Promo Code Section */}
+        <div className="promo-code-section" style={{
+          marginTop: '1.5rem',
+          padding: '1rem',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem' }}>Have a promo code?</h3>
+          <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', color: '#6b7280' }}>
+            Enter a delicate prime for free access
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePromoSubmit()}
+              placeholder="e.g., 294001"
+              style={{
+                flex: 1,
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                fontSize: '1rem'
+              }}
+            />
+            <button
+              onClick={handlePromoSubmit}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: '500'
+              }}
+            >
+              Verify
+            </button>
+          </div>
+          {promoMessage.text && (
+            <div style={{
+              marginTop: '0.75rem',
+              padding: '0.5rem',
+              borderRadius: '4px',
+              fontSize: '0.875rem',
+              backgroundColor: promoMessage.type === 'success' ? '#d1fae5' : '#fee2e2',
+              color: promoMessage.type === 'success' ? '#065f46' : '#991b1b',
+              border: `1px solid ${promoMessage.type === 'success' ? '#6ee7b7' : '#fca5a5'}`
+            }}>
+              {promoMessage.text}
+            </div>
+          )}
+        </div>
+
         {!isAuthenticated ? (
           <div className="auth-required">
             <p>Please connect your wallet to subscribe</p>
@@ -64,7 +163,7 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
           </div>
         ) : (
           <div className="payment-options">
-            <h3>Pay with ETH or USDC</h3>
+            <h3>Or pay with ETH or USDC</h3>
 
             {/* Show blockchain payment instructions */}
             <div className="blockchain-payment-instructions">
