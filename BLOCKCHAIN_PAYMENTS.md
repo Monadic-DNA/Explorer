@@ -2,7 +2,7 @@
 
 ## Overview
 
-GWASifier Premium now uses a **database-free, blockchain-based payment system**. Users pay with ETH or USDC from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API + CoinGecko historical prices.
+GWASifier Premium now uses a **database-free, blockchain-based payment system**. Users pay with ETH or USDC from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API + Alchemy Prices API historical prices.
 
 ## How It Works
 
@@ -35,7 +35,7 @@ GWASifier Premium now uses a **database-free, blockchain-based payment system**.
        │
        ▼
 ┌─────────────┐
-│  CoinGecko  │ Historical price API
+│  Alchemy Prices API  │ Historical price API
 │   API       │ Get ETH/USDC price at transaction timestamp
 └──────┬──────┘
        │
@@ -66,8 +66,8 @@ ALCHEMY_API_KEY=your_alchemy_api_key
 # NEXT_PUBLIC_ prefix needed because it's displayed in the browser UI
 NEXT_PUBLIC_# NEXT_PUBLIC_ prefix needed because it's displayed in the browser UI
 
-# Optional: CoinGecko Pro API key (free tier usually sufficient)
-# COINGECKO_API_KEY=your_coingecko_pro_api_key
+# Optional: Alchemy Prices API Pro API key (free tier usually sufficient)
+# COINGECKO_API_KEY=your_alchemy-prices_pro_api_key
 
 # Optional: Cache duration in hours (default: 1)
 NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS=1
@@ -138,13 +138,13 @@ Response:
 - **Cache hit rate**: ~80-90% (users don't refresh constantly)
 
 ### In-Memory Price Cache
-- **CoinGecko historical prices** are cached in memory for 24 hours
+- **Alchemy Prices API historical prices** are cached in memory for 24 hours
 - Prices don't change after the fact, so cache can be long-lived
-- Reduces CoinGecko API calls by ~95%
+- Reduces Alchemy Prices API API calls by ~95%
 
 ### Performance
 - **Cache hit**: <1ms (localStorage read)
-- **Cache miss**: 2-5 seconds (Alchemy + CoinGecko API calls)
+- **Cache miss**: 2-5 seconds (Alchemy + Alchemy Prices API API calls)
 - **Average**: <100ms (with 80% cache hit rate)
 
 ## API Rate Limits & Costs
@@ -154,7 +154,7 @@ Response:
 | Service | Free Tier | Usage Pattern | Sufficient For |
 |---------|-----------|---------------|----------------|
 | **Alchemy** | 300M compute units/month | ~2-5 CU per subscription check | ~5,000 daily active users |
-| **CoinGecko** | 10-30 calls/minute | ~0.5 calls per new payment | ~20k payments/month |
+| **Alchemy Prices API** | 10-30 calls/minute | ~0.5 calls per new payment | ~20k payments/month |
 
 ### Upgrade Path
 
@@ -162,7 +162,7 @@ Response:
 - 1.5B compute units/month
 - Handles ~25,000 daily active users
 
-**CoinGecko Pro ($129/mo)**
+**Alchemy Prices API Pro ($129/mo)**
 - 500 calls/minute
 - Only needed if processing >100k payments/month
 

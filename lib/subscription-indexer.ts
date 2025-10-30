@@ -5,7 +5,7 @@
  */
 
 import { Alchemy, Network, AssetTransfersCategory } from 'alchemy-sdk';
-import { convertToUsd } from './coingecko';
+import { convertToUsd } from './alchemy-prices';
 
 export interface SubscriptionStatus {
   isActive: boolean;
@@ -97,7 +97,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         const timestamp = block.timestamp;
 
         // Convert to USD
-        const usdValue = await convertToUsd(transfer.value, 'ETH', timestamp);
+        const usdValue = await convertToUsd(transfer.value, 'ETH', timestamp, network);
 
         // Skip payments under $1
         if (usdValue < 1) continue;
@@ -125,7 +125,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         const timestamp = block.timestamp;
 
         // Convert to USD (USDC uses 6 decimals, not 18)
-        const usdValue = await convertToUsd(transfer.value, 'USDC', timestamp);
+        const usdValue = await convertToUsd(transfer.value, 'USDC', timestamp, network);
 
         // Skip payments under $1
         if (usdValue < 1) continue;

@@ -127,7 +127,6 @@ npm start
 - `ALCHEMY_API_KEY`: Alchemy API key for blockchain indexer queries
 - `NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS`: EVM wallet address where users send ETH/USDC payments
 - `NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS`: Cache duration in hours (default: 1)
-- `COINGECKO_API_KEY`: (Optional) CoinGecko Pro API key for historical price lookups
 
 See `.env.local.example` for complete configuration details.
 
@@ -380,7 +379,7 @@ The app uses a **database-free, blockchain-based payment system**:
 1. User connects wallet via Dynamic.xyz
 2. User sends ETH or USDC to payment wallet from connected wallet
 3. App queries Alchemy indexer to find all payments from user's wallet
-4. App uses CoinGecko API to get historical prices at transaction time
+4. App uses Alchemy Prices API API to get historical prices at transaction time
 5. App calculates subscription: `days = (amountUSD / 4.99) * 30`
 6. Subscription status cached in localStorage for 1 hour
 
