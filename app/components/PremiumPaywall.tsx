@@ -3,27 +3,19 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { verifyPromoCode } from '@/lib/prime-verification';
+import PaymentModal from './PaymentModal';
 
 interface PremiumPaywallProps {
   children: React.ReactNode;
 }
 
 export function PremiumPaywall({ children }: PremiumPaywallProps) {
-  const { isAuthenticated, user, hasActiveSubscription, checkingSubscription, subscriptionData, refreshSubscription } = useAuth();
-  const [showCryptoInstructions, setShowCryptoInstructions] = useState(false);
-  const [selectedChain, setSelectedChain] = useState<'ethereum' | 'base' | 'arbitrum' | 'optimism'>('base');
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, refreshSubscription } = useAuth();
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
 
-  const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '0x0000000000000000000000000000000000000000';
-
-  const chainInfo = {
-    ethereum: { name: 'Ethereum', rpc: 'https://mainnet.infura.io/v3/YOUR_KEY' },
-    base: { name: 'Base', rpc: 'https://mainnet.base.org' },
-    arbitrum: { name: 'Arbitrum', rpc: 'https://arb1.arbitrum.io/rpc' },
-    optimism: { name: 'Optimism', rpc: 'https://mainnet.optimism.io' },
-  };
 
   // Check localStorage for existing promo access on mount
   useEffect(() => {
@@ -62,200 +54,153 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     }
   };
 
-  // Show loading state while checking subscription
-  if (checkingSubscription) {
-    return (
-      <div className="premium-paywall">
-        <div className="paywall-container">
-          <p>Checking subscription status...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleRemovePromoCode = () => {
+    localStorage.removeItem('promo_access');
+    setHasPromoAccess(false);
+    setPromoCode('');
+    setPromoMessage({ type: '', text: '' });
+  };
 
-  // If user has active subscription OR promo access, show content
-  if (hasActiveSubscription || hasPromoAccess) {
-    return <>{children}</>;
-  }
-
-  // Show paywall
+  // Always show content, with subscription banner if needed
   return (
-    <div className="premium-paywall">
-      <div className="paywall-container">
-        <h2>🔒 Premium Features</h2>
-        <p>Subscribe to access premium features including AI Chat, Run All Analysis, and more.</p>
+    <>
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={() => {
+          setTimeout(() => refreshSubscription(), 5000);
+        }}
+      />
 
-        <div className="pricing-card">
-          <div className="price">
-            <span className="amount">$4.99</span>
-            <span className="period">/month</span>
-          </div>
-          <ul className="features-list">
-            <li>✓ AI-powered genetic analysis chat</li>
-            <li>✓ Run all GWAS studies at once</li>
-            <li>✓ Comprehensive health reports</li>
-            <li>✓ Priority support</li>
-          </ul>
-        </div>
-
-        {/* Promo Code Section */}
-        <div className="promo-code-section" style={{
-          marginTop: '1.5rem',
-          padding: '1rem',
-          backgroundColor: '#f9fafb',
-          borderRadius: '8px',
-          border: '1px solid #e5e7eb'
+      {!hasActiveSubscription && !hasPromoAccess && (
+        <div style={{
+          padding: '0.75rem 1rem',
+          marginBottom: '1rem',
+          backgroundColor: '#fef3c7',
+          border: '1px solid #f59e0b',
+          borderRadius: '6px',
+          fontSize: '0.875rem',
+          color: '#92400e',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '1rem'
         }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem' }}>Have a promo code?</h3>
-          <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', color: '#6b7280' }}>
-            Enter a delicate prime for free access
-          </p>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input
-              type="text"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handlePromoSubmit()}
-              placeholder="e.g., 294001"
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '4px',
-                fontSize: '1rem'
-              }}
-            />
-            <button
-              onClick={handlePromoSubmit}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: '500'
-              }}
-            >
-              Verify
-            </button>
-          </div>
-          {promoMessage.text && (
-            <div style={{
-              marginTop: '0.75rem',
-              padding: '0.5rem',
-              borderRadius: '4px',
+          <span>
+            <strong>Premium subscription required</strong> — Subscribe for $4.99/month to access AI Chat, Run All Analysis, and more.
+          </span>
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#f59e0b',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
               fontSize: '0.875rem',
-              backgroundColor: promoMessage.type === 'success' ? '#d1fae5' : '#fee2e2',
-              color: promoMessage.type === 'success' ? '#065f46' : '#991b1b',
-              border: `1px solid ${promoMessage.type === 'success' ? '#6ee7b7' : '#fca5a5'}`
-            }}>
-              {promoMessage.text}
-            </div>
-          )}
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Subscribe
+          </button>
         </div>
+      )}
 
-        {!isAuthenticated ? (
-          <div className="auth-required">
-            <p>Please connect your wallet to subscribe</p>
-            <p className="hint">Click the "Connect" button in the top right</p>
-          </div>
-        ) : (
-          <div className="payment-options">
-            <h3>Or pay with ETH or USDC</h3>
+      {hasPromoAccess && (
+        <div style={{
+          padding: '0.75rem 1rem',
+          marginBottom: '1rem',
+          backgroundColor: '#d1fae5',
+          border: '1px solid #10b981',
+          borderRadius: '6px',
+          fontSize: '0.875rem',
+          color: '#065f46',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <span>✓ Premium access active (promo code: {promoCode})</span>
+          <button
+            onClick={handleRemovePromoCode}
+            style={{
+              padding: '0.25rem 0.5rem',
+              backgroundColor: '#059669',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: '500'
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      )}
 
-            {/* Show blockchain payment instructions */}
-            <div className="blockchain-payment-instructions">
-              <h4>Send ETH or USDC</h4>
-              <p>Send ETH or USDC to the address below from your connected wallet.</p>
-              <p className="conversion-note">
-                Your payment will be converted to subscription days based on USD value at the time of payment.
-                <br />
-                <strong>$4.99 = 30 days</strong> (e.g., $10 = ~60 days, $2.50 = ~15 days)
+      {children}
+
+      {/* Promo Code Section - Always available */}
+      <div style={{ marginTop: '2rem', maxWidth: '500px', margin: '2rem auto 0' }}>
+        <div style={{
+              marginTop: '1.5rem',
+              padding: '1rem',
+              backgroundColor: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem' }}>Have a promo code?</h3>
+              <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', color: '#6b7280' }}>
+                Enter your promotional code to unlock premium access
               </p>
-
-              <div className="chain-selector">
-                <label>Select Chain:</label>
-                <select
-                  value={selectedChain}
-                  onChange={(e) => setSelectedChain(e.target.value as any)}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePromoSubmit()}
+                  placeholder="Enter code"
                   style={{
+                    flex: 1,
                     padding: '0.5rem',
+                    border: '1px solid #d1d5db',
                     borderRadius: '4px',
-                    border: '1px solid #ccc',
+                    fontSize: '1rem'
+                  }}
+                />
+                <button
+                  onClick={handlePromoSubmit}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
                     fontSize: '1rem',
-                    width: '100%',
+                    fontWeight: '500'
                   }}
                 >
-                  <option value="base">Base (Recommended - Low fees)</option>
-                  <option value="optimism">Optimism</option>
-                  <option value="arbitrum">Arbitrum</option>
-                  <option value="ethereum">Ethereum</option>
-                </select>
+                  Apply
+                </button>
               </div>
-
-              <div className="payment-address">
-                <label>Payment Address:</label>
-                <div className="address-box">
-                  <code>{paymentWallet}</code>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(paymentWallet)}
-                    className="copy-button"
-                  >
-                    📋 Copy
-                  </button>
-                </div>
-              </div>
-
-              <div className="payment-instructions-warning">
-                <p>⚠️ Important:</p>
-                <ul>
-                  <li><strong>Send from your connected wallet</strong> ({user?.verifiedCredentials?.[0]?.address || user?.walletPublicKey || 'Connect wallet first'})</li>
-                  <li>Only send ETH or USDC on supported chains (Ethereum, Base, Arbitrum, Optimism)</li>
-                  <li>Minimum payment: $1 USD</li>
-                  <li>Subscription activates automatically after blockchain confirmation (~1-2 minutes)</li>
-                  <li>Refresh the page after payment to update your subscription status</li>
-                </ul>
-              </div>
-
-              {subscriptionData && subscriptionData.paymentCount > 0 && (
-                <div className="payment-history" style={{
-                  marginTop: '1.5rem',
-                  padding: '1rem',
-                  backgroundColor: '#f0f9ff',
-                  borderRadius: '8px',
-                  border: '1px solid #0ea5e9'
+              {promoMessage.text && (
+                <div style={{
+                  marginTop: '0.75rem',
+                  padding: '0.5rem',
+                  borderRadius: '4px',
+                  fontSize: '0.875rem',
+                  backgroundColor: promoMessage.type === 'success' ? '#d1fae5' : '#fee2e2',
+                  color: promoMessage.type === 'success' ? '#065f46' : '#991b1b',
+                  border: `1px solid ${promoMessage.type === 'success' ? '#6ee7b7' : '#fca5a5'}`
                 }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0' }}>📊 Your Subscription History</h4>
-                  <p style={{ margin: '0.25rem 0' }}>Total paid: <strong>${subscriptionData.totalPaid.toFixed(2)}</strong></p>
-                  <p style={{ margin: '0.25rem 0' }}>Total days purchased: <strong>{subscriptionData.totalDaysPurchased}</strong></p>
-                  <p style={{ margin: '0.25rem 0' }}>Payments made: <strong>{subscriptionData.paymentCount}</strong></p>
-                  {subscriptionData.expiresAt && (
-                    <p style={{ margin: '0.25rem 0' }}>
-                      Expires: <strong>{new Date(subscriptionData.expiresAt).toLocaleDateString()}</strong>
-                    </p>
-                  )}
-                  <button
-                    onClick={refreshSubscription}
-                    style={{
-                      marginTop: '0.75rem',
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#0ea5e9',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    🔄 Refresh Status
-                  </button>
+                  {promoMessage.text}
                 </div>
               )}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

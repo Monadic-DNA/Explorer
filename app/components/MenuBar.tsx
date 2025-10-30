@@ -6,6 +6,7 @@ import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
+import { AuthButton } from "./AuthProvider";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
@@ -242,6 +243,12 @@ export default function MenuBar() {
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
+        </div>
+
+        <div className="menu-separator" />
+
+        <div className="auth-section menu-group">
+          <AuthButton />
         </div>
       </div>
     </div>

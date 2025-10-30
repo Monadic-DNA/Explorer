@@ -1,8 +1,8 @@
 "use client";
 
-import { DynamicContextProvider, DynamicWidget } from '@dynamic-labs/sdk-react-core';
+import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 
 interface SubscriptionData {
   isActive: boolean;
@@ -41,6 +41,45 @@ export const useAuth = () => useContext(AuthContext);
 // Cache duration: 1 hour (configurable via env var)
 const CACHE_DURATION_MS = parseInt(process.env.NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS || '1') * 60 * 60 * 1000;
 
+// Inner component to sync Dynamic context with Auth context
+function AuthStateSync({
+  onAuthStateChange,
+  onCheckSubscription,
+}: {
+  onAuthStateChange: (isAuth: boolean, user: any) => void;
+  onCheckSubscription: (walletAddress: string) => Promise<void>;
+}) {
+  const { user: dynamicUser, isAuthenticated: dynamicIsAuthenticated } = useDynamicContext();
+
+  useEffect(() => {
+    console.log('[AuthStateSync] Dynamic state:', {
+      isAuthenticated: dynamicIsAuthenticated,
+      hasUser: !!dynamicUser,
+      userAddress: dynamicUser?.verifiedCredentials?.[0]?.address || dynamicUser?.walletPublicKey
+    });
+
+    // If we have a user with a wallet, treat them as authenticated
+    // Dynamic sometimes returns undefined for isAuthenticated initially
+    const isAuth = dynamicUser ? true : (dynamicIsAuthenticated || false);
+
+    // Sync Dynamic's auth state with our context
+    onAuthStateChange(isAuth, dynamicUser);
+
+    // If we have a user with wallet address, check subscription
+    if (dynamicUser) {
+      const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address || dynamicUser?.walletPublicKey;
+      if (walletAddress) {
+        console.log('[AuthStateSync] Checking subscription for wallet:', walletAddress);
+        onCheckSubscription(walletAddress);
+      } else {
+        console.warn('[AuthStateSync] User exists but no wallet address found');
+      }
+    }
+  }, [dynamicIsAuthenticated, dynamicUser, onAuthStateChange, onCheckSubscription]);
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -48,8 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
-  const checkSubscription = async (walletAddress: string) => {
+  const checkSubscription = useCallback(async (walletAddress: string) => {
     try {
+      console.log('[AuthProvider] Checking subscription for:', walletAddress);
       setCheckingSubscription(true);
 
       // Check localStorage cache first
@@ -110,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setCheckingSubscription(false);
     }
-  };
+  }, []);
 
   const refreshSubscription = async () => {
     // Get wallet address from user object (Dynamic.xyz provides this)
@@ -123,34 +163,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // On mount, if no user is authenticated, stop checking subscription
+  useEffect(() => {
+    if (!isAuthenticated && !user) {
+      setCheckingSubscription(false);
+    }
+  }, [isAuthenticated, user]);
+
+  const handleAuthStateChange = useCallback((isAuth: boolean, dynamicUser: any) => {
+    console.log('[AuthProvider] Auth state changed:', { isAuth, hasUser: !!dynamicUser, userAddress: dynamicUser?.verifiedCredentials?.[0]?.address });
+    setIsAuthenticated(isAuth);
+    setUser(dynamicUser);
+
+    if (!isAuth) {
+      // User logged out
+      setHasActiveSubscription(false);
+      setSubscriptionData(null);
+      setCheckingSubscription(false);
+    }
+  }, []);
+
   return (
     <DynamicContextProvider
       settings={{
         environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || '',
         walletConnectors: [EthereumWalletConnectors],
         events: {
-          onAuthSuccess: async (args) => {
-            setIsAuthenticated(true);
-            setUser(args.user);
-            // Get wallet address from authenticated user
-            const walletAddress = args.user?.verifiedCredentials?.[0]?.address || args.user?.walletPublicKey;
-            if (walletAddress) {
-              await checkSubscription(walletAddress);
-            } else {
-              // No wallet connected yet, mark as not subscribed
-              setCheckingSubscription(false);
-            }
-          },
           onLogout: () => {
             setIsAuthenticated(false);
             setUser(null);
             setHasActiveSubscription(false);
             setSubscriptionData(null);
-            setCheckingSubscription(true);
+            setCheckingSubscription(false);
           },
         },
       }}
     >
+      <AuthStateSync
+        onAuthStateChange={handleAuthStateChange}
+        onCheckSubscription={checkSubscription}
+      />
       <AuthContext.Provider
         value={{
           isAuthenticated,
