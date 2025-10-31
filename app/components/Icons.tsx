@@ -235,3 +235,23 @@ export function ClockIcon({ className = "", size = 16 }: IconProps) {
     </svg>
   );
 }
+
+export function AIIcon({ className = "", size = 16 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <circle cx="5.5" cy="6.5" r="1" fill="currentColor" />
+      <circle cx="10.5" cy="6.5" r="1" fill="currentColor" />
+      <path d="M5 10C5 10 6 11.5 8 11.5C10 11.5 11 10 11 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3 3L5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M13 3L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}

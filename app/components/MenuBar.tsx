@@ -3,13 +3,19 @@
 import { useState, useEffect } from "react";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
+import { useCustomization } from "./CustomizationContext";
+import CustomizationModal from "./CustomizationModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
+import { AuthButton } from "./AuthProvider";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
+  const { status: customizationStatus } = useCustomization();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
 
   useEffect(() => {
     // Detect system preference on mount
@@ -20,6 +26,20 @@ export default function MenuBar() {
     // Apply initial theme
     document.documentElement.setAttribute("data-theme", initialTheme);
     document.documentElement.style.colorScheme = initialTheme;
+
+    // Load cache info
+    const loadCacheInfo = async () => {
+      const { gwasDB } = await import('@/lib/gwas-db');
+      const metadata = await gwasDB.getMetadata();
+      if (metadata) {
+        const size = await gwasDB.getStorageSize();
+        setCacheInfo({
+          studies: metadata.totalStudies,
+          sizeMB: Math.round(size / 1024 / 1024)
+        });
+      }
+    };
+    loadCacheInfo();
   }, []);
 
   useEffect(() => {
@@ -35,7 +55,9 @@ export default function MenuBar() {
   const handleLoadFromFile = async () => {
     setIsLoadingFile(true);
     try {
-      await loadFromFile(fileHash);
+      // Allow loading results even without DNA file loaded
+      // fileHash will be null/undefined if no DNA file is loaded
+      await loadFromFile(fileHash || null);
     } catch (error) {
       alert('Failed to load results file: ' + (error as Error).message);
     } finally {
@@ -43,7 +65,34 @@ export default function MenuBar() {
     }
   };
 
+  const getCustomizationIcon = () => {
+    switch (customizationStatus) {
+      case 'not-set':
+        return '⚙️';
+      case 'locked':
+        return '🔒';
+      case 'unlocked':
+        return '🔓';
+    }
+  };
+
+  const getCustomizationTooltip = () => {
+    switch (customizationStatus) {
+      case 'not-set':
+        return 'Personalize AI analysis with your personal information';
+      case 'locked':
+        return 'Personalization is locked - click to unlock';
+      case 'unlocked':
+        return 'Personalization is unlocked - click to edit or lock';
+    }
+  };
+
   return (
+    <>
+      <CustomizationModal
+        isOpen={showCustomizationModal}
+        onClose={() => setShowCustomizationModal(false)}
+      />
     <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
@@ -70,58 +119,112 @@ export default function MenuBar() {
           <UserDataUpload />
         </div>
 
-        {isUploaded && (
-          <>
-            <div className="menu-separator" />
-            <div className="results-section menu-group">
-              {savedResults.length > 0 && (
-                <span className="stat-item">
-                  {savedResults.length} result{savedResults.length !== 1 ? 's' : ''} cached
-                </span>
+        <div className="menu-separator" />
+        <div className="results-section menu-group">
+          {savedResults.length > 0 && (
+            <span className="stat-item">
+              {savedResults.length} result{savedResults.length !== 1 ? 's' : ''} cached
+            </span>
+          )}
+          <div className="results-controls">
+            <button
+              className="control-button load"
+              onClick={handleLoadFromFile}
+              disabled={isLoadingFile}
+              title="Load results from a file"
+            >
+              {isLoadingFile ? (
+                <>
+                  <ClockIcon size={14} /> Loading...
+                </>
+              ) : (
+                <>
+                  <FileIcon size={14} /> Load
+                </>
               )}
-              <div className="results-controls">
+            </button>
+            {savedResults.length > 0 && (
+              <>
                 <button
-                  className="control-button load"
-                  onClick={handleLoadFromFile}
-                  disabled={isLoadingFile}
-                  title="Load results from a file"
+                  className="control-button save"
+                  onClick={() => saveToFile(genotypeData?.size, fileHash || undefined)}
+                  title="Export your results to a TSV file"
                 >
-                  {isLoadingFile ? (
-                    <>
-                      <ClockIcon size={14} /> Loading...
-                    </>
-                  ) : (
-                    <>
-                      <FileIcon size={14} /> Load
-                    </>
-                  )}
+                  <SaveIcon size={14} /> Export
                 </button>
-                {savedResults.length > 0 && (
-                  <>
-                    <button
-                      className="control-button save"
-                      onClick={() => saveToFile(genotypeData?.size, fileHash || undefined)}
-                      title="Export your results to a JSON file"
-                    >
-                      <SaveIcon size={14} /> Export
-                    </button>
-                    <button
-                      className="control-button clear"
-                      onClick={clearResults}
-                      title="Clear all saved results"
-                    >
-                      <TrashIcon size={14} /> Clear
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+                <button
+                  className="control-button clear"
+                  onClick={clearResults}
+                  title="Clear all saved results"
+                >
+                  <TrashIcon size={14} /> Clear
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
         <div className="menu-separator" />
 
         <div className="utility-section menu-group">
+          <button
+            className={`control-button personalize-button ${customizationStatus}`}
+            onClick={() => setShowCustomizationModal(true)}
+            title={getCustomizationTooltip()}
+          >
+            {getCustomizationIcon()} Personalize
+          </button>
+        </div>
+
+        <div className="menu-separator" />
+
+        <div className="utility-section menu-group">
+          {cacheInfo && (
+            <>
+              <span className="stat-item">
+                {cacheInfo.studies.toLocaleString()} studies cached ({cacheInfo.sizeMB} MB)
+              </span>
+              <button
+                className="control-button"
+                onClick={async () => {
+                  const confirmed = window.confirm(
+                    `Clear cached GWAS Catalog data?\n\n` +
+                    `${cacheInfo.studies.toLocaleString()} studies (${cacheInfo.sizeMB} MB)\n\n` +
+                    `Data will be re-downloaded on next Run All.`
+                  );
+                  if (confirmed) {
+                    try {
+                      // Show loading state
+                      const button = document.activeElement as HTMLButtonElement;
+                      const originalText = button?.innerHTML;
+                      if (button) {
+                        button.disabled = true;
+                        button.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; margin-right: 6px;"></div> Clearing...';
+                      }
+
+                      const { gwasDB } = await import('@/lib/gwas-db');
+                      await gwasDB.clearDatabase();
+                      setCacheInfo(null);
+
+                      // Restore button and show success
+                      if (button && originalText) {
+                        button.disabled = false;
+                        button.innerHTML = originalText;
+                      }
+                      alert('✓ Cache cleared successfully!');
+                    } catch (error) {
+                      console.error('Failed to clear cache:', error);
+                      alert('Failed to clear cache. Please try again.');
+                    }
+                  }
+                }}
+                title="Clear locally cached GWAS catalog data"
+              >
+                <TrashIcon size={14} /> Clear Cache
+              </button>
+            </>
+          )}
+
           <a
             href="https://recherche.discourse.group/c/public/monadic-dna/30"
             target="_blank"
@@ -141,7 +244,14 @@ export default function MenuBar() {
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
         </div>
+
+        <div className="menu-separator" />
+
+        <div className="auth-section menu-group">
+          <AuthButton />
+        </div>
       </div>
     </div>
+    </>
   );
 }

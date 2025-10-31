@@ -100,7 +100,11 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
           className="disclaimer-button primary"
           onClick={() => {
             trackModalClose('disclaimer_initial', 'accept');
-            onClose();
+            if (onAccept) {
+              onAccept();
+            } else {
+              onClose();
+            }
           }}
           disabled={!hasScrolledToBottom}
         >
