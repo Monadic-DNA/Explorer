@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseEther, parseUnits, encodeFunctionData } from 'viem';
+import { verifyPromoCode } from '@/lib/prime-verification';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -11,16 +12,19 @@ interface PaymentModalProps {
 }
 
 type Currency = 'ETH' | 'USDC';
+type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing';
 
 export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModalProps) {
   const { primaryWallet } = useDynamicContext();
-  const [step, setStep] = useState<'amount' | 'currency' | 'confirm' | 'processing'>('amount');
+  const [step, setStep] = useState<Step>('choice');
   const [amount, setAmount] = useState('4.99');
   const [currency, setCurrency] = useState<Currency>('USDC');
   const [connectedChain, setConnectedChain] = useState<string>('');
   const [ethPrice, setEthPrice] = useState<number>(3000);
   const [loadingPrice, setLoadingPrice] = useState(true);
   const [error, setError] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
 
   const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '';
 
@@ -69,12 +73,41 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setStep('amount');
+      setStep('choice');
       setAmount('4.99');
       setCurrency('USDC');
       setError('');
+      setPromoCode('');
+      setPromoMessage({ type: '', text: '' });
     }
   }, [isOpen]);
+
+  // Detect wallet disconnect and close modal
+  useEffect(() => {
+    if (isOpen && !primaryWallet && step !== 'choice' && step !== 'promo') {
+      // User disconnected wallet during payment flow
+      setError('Wallet disconnected. Please reconnect to continue.');
+      setStep('choice');
+    }
+  }, [primaryWallet, isOpen, step]);
+
+  const handlePromoSubmit = () => {
+    const result = verifyPromoCode(promoCode);
+
+    if (result.valid && result.discount === 0) {
+      // Free access granted!
+      localStorage.setItem('promo_access', JSON.stringify({ code: promoCode, granted: Date.now() }));
+      setPromoMessage({ type: 'success', text: result.message });
+
+      // Success - trigger callback and close modal
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1500);
+    } else {
+      setPromoMessage({ type: 'error', text: result.message });
+    }
+  };
 
   const handleSendPayment = async () => {
     if (!primaryWallet) {
@@ -180,6 +213,82 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
           <p>Get AI Chat, Run All Analysis, and more</p>
         </div>
 
+        {step === 'choice' && (
+          <div className="payment-step">
+            <h3>How would you like to subscribe?</h3>
+            <p className="step-description">Choose payment method or use a promo code</p>
+
+            {error && (
+              <div className="error-message">
+                ⚠️ {error}
+              </div>
+            )}
+
+            <div className="choice-options">
+              <button
+                className="choice-option"
+                onClick={() => setStep('amount')}
+              >
+                <div className="choice-icon">💳</div>
+                <div className="choice-details">
+                  <div className="choice-title">Pay with Crypto</div>
+                  <div className="choice-description">Use ETH or USDC to subscribe</div>
+                </div>
+              </button>
+
+              <div className="choice-divider">
+                <span>OR</span>
+              </div>
+
+              <button
+                className="choice-option"
+                onClick={() => setStep('promo')}
+              >
+                <div className="choice-icon">🎟️</div>
+                <div className="choice-details">
+                  <div className="choice-title">Use Promo Code</div>
+                  <div className="choice-description">Have a promotional code? Enter it here</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'promo' && (
+          <div className="payment-step">
+            <button className="back-button" onClick={() => setStep('choice')}>← Back</button>
+
+            <h3>Enter Promo Code</h3>
+            <p className="step-description">Enter your promotional code to unlock premium access</p>
+
+            <div className="promo-input-group">
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handlePromoSubmit()}
+                placeholder="Enter promo code"
+                className="promo-input"
+                autoFocus
+              />
+            </div>
+
+            {promoMessage.text && (
+              <div className={`message-box ${promoMessage.type}`}>
+                {promoMessage.text}
+              </div>
+            )}
+
+            <button
+              className="btn-primary"
+              onClick={handlePromoSubmit}
+              disabled={!promoCode.trim()}
+            >
+              Apply Promo Code
+            </button>
+          </div>
+        )}
+
         {step === 'amount' && (
           <div className="payment-step">
             <div className="step-indicator">
@@ -189,6 +298,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
               <div className="step-line"></div>
               <div className="step">3</div>
             </div>
+
+            <button className="back-button" onClick={() => setStep('choice')}>← Back</button>
 
             <h3>How much would you like to pay?</h3>
             <p className="step-description">$4.99 = 30 days of access</p>
@@ -792,6 +903,121 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             border-radius: 8px;
             margin-bottom: 1.5rem;
             font-size: 0.875rem;
+          }
+
+          .choice-options {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+          }
+
+          .choice-option {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.5rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            width: 100%;
+          }
+
+          .choice-option:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+          }
+
+          .choice-icon {
+            font-size: 2.5rem;
+            flex-shrink: 0;
+          }
+
+          .choice-details {
+            flex: 1;
+          }
+
+          .choice-title {
+            font-weight: 600;
+            font-size: 1.125rem;
+            color: #111;
+            margin-bottom: 0.25rem;
+          }
+
+          .choice-description {
+            color: #6b7280;
+            font-size: 0.875rem;
+          }
+
+          .choice-divider {
+            text-align: center;
+            position: relative;
+            margin: 0.5rem 0;
+          }
+
+          .choice-divider span {
+            background: white;
+            padding: 0 1rem;
+            color: #9ca3af;
+            font-size: 0.875rem;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+          }
+
+          .choice-divider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 1px;
+            background: #e5e7eb;
+            z-index: 0;
+          }
+
+          .promo-input-group {
+            margin-bottom: 1.5rem;
+          }
+
+          .promo-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            transition: all 0.2s;
+            text-align: center;
+            font-weight: 500;
+          }
+
+          .promo-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          }
+
+          .message-box {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+          }
+
+          .message-box.success {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #065f46;
+          }
+
+          .message-box.error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
           }
         `}</style>
       </div>

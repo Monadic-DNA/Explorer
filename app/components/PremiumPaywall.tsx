@@ -12,10 +12,8 @@ interface PremiumPaywallProps {
 export function PremiumPaywall({ children }: PremiumPaywallProps) {
   const { isAuthenticated, hasActiveSubscription, subscriptionData, refreshSubscription } = useAuth();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [promoCode, setPromoCode] = useState('');
-  const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
-
+  const [promoCode, setPromoCode] = useState('');
 
   // Check localStorage for existing promo access on mount
   useEffect(() => {
@@ -28,7 +26,6 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
         if (result.valid && result.discount === 0) {
           setHasPromoAccess(true);
           setPromoCode(data.code);
-          setPromoMessage({ type: 'success', text: '✓ Promo code active' });
         } else {
           // Code no longer valid, clear storage
           localStorage.removeItem('promo_access');
@@ -39,26 +36,26 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     }
   }, []);
 
-  const handlePromoSubmit = () => {
-    const result = verifyPromoCode(promoCode);
-
-    if (result.valid && result.discount === 0) {
-      // Free access granted!
-      setPromoMessage({ type: 'success', text: result.message });
-      setHasPromoAccess(true);
-      // Store in localStorage for persistence
-      localStorage.setItem('promo_access', JSON.stringify({ code: promoCode, granted: Date.now() }));
-    } else {
-      setPromoMessage({ type: 'error', text: result.message });
-      setHasPromoAccess(false);
-    }
-  };
-
   const handleRemovePromoCode = () => {
     localStorage.removeItem('promo_access');
     setHasPromoAccess(false);
     setPromoCode('');
-    setPromoMessage({ type: '', text: '' });
+  };
+
+  const handleModalSuccess = () => {
+    // Refresh promo access state
+    const stored = localStorage.getItem('promo_access');
+    if (stored) {
+      try {
+        const data = JSON.parse(stored);
+        setHasPromoAccess(true);
+        setPromoCode(data.code);
+      } catch (err) {
+        // Ignore
+      }
+    }
+    // Also refresh subscription
+    setTimeout(() => refreshSubscription(), 5000);
   };
 
   // Always show content, with subscription banner if needed
@@ -67,9 +64,7 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
       <PaymentModal
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
-        onSuccess={() => {
-          setTimeout(() => refreshSubscription(), 5000);
-        }}
+        onSuccess={handleModalSuccess}
       />
 
       {!hasActiveSubscription && !hasPromoAccess && (
@@ -141,66 +136,6 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
       )}
 
       {children}
-
-      {/* Promo Code Section - Always available */}
-      <div style={{ marginTop: '2rem', maxWidth: '500px', margin: '2rem auto 0' }}>
-        <div style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              backgroundColor: '#f9fafb',
-              borderRadius: '8px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem' }}>Have a promo code?</h3>
-              <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.875rem', color: '#6b7280' }}>
-                Enter your promotional code to unlock premium access
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handlePromoSubmit()}
-                  placeholder="Enter code"
-                  style={{
-                    flex: 1,
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '4px',
-                    fontSize: '1rem'
-                  }}
-                />
-                <button
-                  onClick={handlePromoSubmit}
-                  style={{
-                    padding: '0.5rem 1rem',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '1rem',
-                    fontWeight: '500'
-                  }}
-                >
-                  Apply
-                </button>
-              </div>
-              {promoMessage.text && (
-                <div style={{
-                  marginTop: '0.75rem',
-                  padding: '0.5rem',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem',
-                  backgroundColor: promoMessage.type === 'success' ? '#d1fae5' : '#fee2e2',
-                  color: promoMessage.type === 'success' ? '#065f46' : '#991b1b',
-                  border: `1px solid ${promoMessage.type === 'success' ? '#6ee7b7' : '#fca5a5'}`
-                }}>
-                  {promoMessage.text}
-                </div>
-              )}
-        </div>
-      </div>
     </>
   );
 }
