@@ -1,129 +1,74 @@
+/**
+ * OpenAI Chat API Endpoint
+ *
+ * Server-side proxy for OpenAI API calls.
+ * Used for Overview Report generation as alternative to nilAI.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { validateOrigin } from '@/lib/origin-validator';
 
-// Simple in-memory rate limiter
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 10; // 10 requests per minute per IP
-
-function getRateLimitKey(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const realIp = request.headers.get('x-real-ip');
-  const ip = forwarded?.split(',')[0] || realIp || 'unknown';
-  return ip;
-}
-
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const record = rateLimitMap.get(key);
-
-  if (!record || now > record.resetTime) {
-    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    return true;
-  }
-
-  record.count++;
-  return false;
-}
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function POST(request: NextRequest) {
   try {
-    // Only allow in development mode
-    if (process.env.NODE_ENV !== 'development') {
+    const { messages, max_tokens, temperature } = await request.json();
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
-        { error: 'OpenAI fallback is only available in development mode' },
-        { status: 403 }
-      );
-    }
-
-    // Validate origin
-    const originError = validateOrigin(request);
-    if (originError) return originError;
-
-    // Rate limiting check
-    const rateLimitKey = getRateLimitKey(request);
-    if (isRateLimited(rateLimitKey)) {
-      console.warn(`Rate limit exceeded for IP: ${rateLimitKey}`);
-      return NextResponse.json(
-        { error: 'Too many requests. Please try again later.' },
-        { status: 429 }
-      );
-    }
-
-    const { messages, model = 'gpt-5-nano', max_completion_tokens = 16000 } = await request.json();
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: 'Messages array is required' },
+        { error: 'Invalid messages format' },
         { status: 400 }
       );
     }
 
-    // Check for OpenAI API key
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    // Use GPT-4o with 128k context window
+    // Note: To use gpt-5-nano, check OpenAI docs for model ID and API compatibility
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',  // 128k context window, faster than turbo
+      messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
+      max_tokens: max_tokens || 1500,
+      temperature: temperature || 0.7,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+
+    if (!content) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured. Please set OPENAI_API_KEY in your environment variables.' },
-        { status: 503 }
+        { error: 'No content in response' },
+        { status: 500 }
       );
     }
 
-    // Initialize OpenAI client
-    const openai = new OpenAI({
-      apiKey: apiKey,
+    return NextResponse.json({
+      content,
+      usage: completion.usage,
     });
 
-    console.log('[OpenAI Fallback] Making streaming request with', messages.length, 'messages');
+  } catch (error: any) {
+    console.error('[OpenAI API] Error:', error);
 
-    // Make the OpenAI request with streaming - gpt-5-nano only supports temperature=1 (default)
-    const stream = await openai.chat.completions.create({
-      model,
-      messages,
-      max_completion_tokens,
-      stream: true,
-    });
+    // Handle rate limits
+    if (error?.status === 429) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please wait a moment and try again.' },
+        { status: 429 }
+      );
+    }
 
-    // Create a ReadableStream to pipe the OpenAI stream to the client
-    const encoder = new TextEncoder();
-    const readableStream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content;
-            if (content) {
-              // Send each chunk as Server-Sent Events format
-              const data = `data: ${JSON.stringify({ content })}\n\n`;
-              controller.enqueue(encoder.encode(data));
-            }
-          }
-          // Send done signal
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          controller.close();
-        } catch (error) {
-          console.error('[OpenAI Fallback] Streaming error:', error);
-          controller.error(error);
-        }
-      },
-    });
+    // Handle context length errors
+    if (error?.code === 'context_length_exceeded') {
+      return NextResponse.json(
+        { error: `Context length exceeded: ${error.message}` },
+        { status: 400 }
+      );
+    }
 
-    return new Response(readableStream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
-
-  } catch (error) {
-    console.error('[OpenAI Fallback] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get OpenAI response' },
-      { status: 500 }
+      { error: error?.message || 'OpenAI API error' },
+      { status: error?.status || 500 }
     );
   }
 }

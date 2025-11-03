@@ -5,6 +5,7 @@ import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
+import OverviewReportModal from "./OverviewReportModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
 import { AuthButton } from "./AuthProvider";
 
@@ -14,6 +15,7 @@ export default function MenuBar() {
   const { status: customizationStatus } = useCustomization();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
 
@@ -92,6 +94,10 @@ export default function MenuBar() {
       <CustomizationModal
         isOpen={showCustomizationModal}
         onClose={() => setShowCustomizationModal(false)}
+      />
+      <OverviewReportModal
+        isOpen={showOverviewReportModal}
+        onClose={() => setShowOverviewReportModal(false)}
       />
     <div className="menu-bar">
       <div className="menu-left">
@@ -174,6 +180,16 @@ export default function MenuBar() {
           >
             {getCustomizationIcon()} Personalize
           </button>
+
+          {savedResults.length >= 1000 && (
+            <button
+              className="control-button overview-button"
+              onClick={() => setShowOverviewReportModal(true)}
+              title="Generate comprehensive overview report of all your results"
+            >
+              📊 Overview Report
+            </button>
+          )}
         </div>
 
         <div className="menu-separator" />

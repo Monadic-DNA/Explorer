@@ -4554,3 +4554,98 @@ details[open] .summary-arrow {
 .crypto-warning li {
   margin: 0.25rem 0;
 }
+
+/* Overview Report Modal Styles */
+.large-modal {
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.overview-report-intro {
+  padding: 1rem 0;
+}
+
+.overview-report-intro h4 {
+  margin-top: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.overview-report-intro ul {
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.overview-report-result {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--surface-bg);
+  border-radius: 8px;
+}
+
+.markdown-content {
+  line-height: 1.7;
+}
+
+.markdown-content h1 {
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--accent-blue);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.markdown-content h2 {
+  color: var(--text-primary);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.markdown-content h3 {
+  color: var(--text-primary);
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.25rem;
+}
+
+.markdown-content p {
+  margin: 1rem 0;
+  color: var(--text-secondary);
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin: 1rem 0;
+  padding-left: 2rem;
+  color: var(--text-secondary);
+}
+
+.markdown-content li {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.markdown-content strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.generation-progress {
+  min-height: 300px;
+}
+
+.overview-button {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+  color: white;
+  font-weight: 600;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.overview-button:hover {
+  opacity: 0.9;
+}
