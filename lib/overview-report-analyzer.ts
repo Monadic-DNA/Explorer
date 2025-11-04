@@ -190,7 +190,7 @@ export function generateMapPrompt(
 ): string {
   return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am${userContext}
 
-This is batch ${groupNumber} of ${totalGroups}. For now, only analyze data and produce a 3,000 word intermediate report.
+This is batch ${groupNumber} of ${totalGroups}. For now, only analyze data and produce a 5,000 word intermediate report.
 
 Analysis from all batches will be aggregated and recommendations and advice will be handled later. The overall analysis will only have access to these reports and no other data source.
 

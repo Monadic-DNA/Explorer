@@ -1,15 +1,15 @@
 /**
- * Overview Report Service - OpenAI Version (CLIENT-SIDE ONLY)
+ * Overview Report Service (CLIENT-SIDE ONLY)
  *
  * Generates comprehensive genetic overview reports entirely in the browser.
- * Uses OpenAI gpt-5-mini for high-quality analysis.
+ * Uses local gpt-oss:20b model via Ollama for private, free analysis.
  *
  * Architecture for ~92k high-confidence results:
- * 1. Partition into 30 groups of ~3,067 each (pipe-delimited format)
- * 2. Map phase: Analyze in parallel batches of 5 with 3,000-word intermediate reports (6 rounds)
+ * 1. Partition into 20 groups of ~4,600 each (pipe-delimited format)
+ * 2. Map phase: Analyze serially with 3,000-word intermediate reports (20 calls, one at a time)
  * 3. Reduce phase: Synthesize intermediate reports into 5,000-word final report (1 call)
- * Total: 31 LLM calls (completes in ~5-7 minutes with real-time progress)
- * Includes appendix with all 30 detailed batch analyses for full context
+ * Total: 21 LLM calls (completes in ~60-90 minutes with real-time progress)
+ * Includes appendix with all 20 detailed batch analyses for full context
  * Format: "Trait Name|Effect Size|Effect Type|Risk Score|Risk Level|Matched SNP|P-Value|Mapped Gene"
  */
 
@@ -59,8 +59,8 @@ export interface ProgressUpdate {
 
 export type ProgressCallback = (update: ProgressUpdate) => void;
 
-// Parallel processing: Process 5 batches at a time (avoids rate limits)
-const PARALLEL_BATCH_SIZE = 5;
+// Serial processing for local model (one at a time to avoid GPU memory issues)
+const PARALLEL_BATCH_SIZE = 1;
 
 /**
  * Filter to high-confidence results only
@@ -89,11 +89,11 @@ export async function generateOverviewReport(
   customization: any,
   onProgress: ProgressCallback
 ): Promise<string> {
-  // 30 groups with pipe-delimited format
-  // With ~92k results: 92k/30 = ~3,067 results per group
-  // At ~60 chars/result (pipe-delimited): 3,067 * 60 = 184,000 chars = ~46,000 tokens
-  // Plus prompt (~3k tokens) = ~49,000 tokens per call (under 128k limit)
-  const NUM_GROUPS = 30;
+  // 20 groups with pipe-delimited format
+  // With ~92k results: 92k/20 = ~4,600 results per group
+  // At ~60 chars/result (pipe-delimited): 4,600 * 60 = 276,000 chars = ~69,000 tokens
+  // Plus prompt (~3k tokens) = ~72,000 tokens per call (under 128k limit)
+  const NUM_GROUPS = 20;
 
   try {
     onProgress({
@@ -149,7 +149,7 @@ export async function generateOverviewReport(
 
       onProgress({
         phase: 'map',
-        message: `Analyzing batches ${batchStart + 1}-${batchEnd} of ${NUM_GROUPS} (processing ${batchIndices.length} in parallel)...`,
+        message: `Analyzing batch ${batchStart + 1} of ${NUM_GROUPS}...`,
         progress: 5 + Math.floor((batchStart / groups.length) * 75),
         currentGroup: batchStart + 1,
         totalGroups: NUM_GROUPS,
@@ -179,24 +179,29 @@ export async function generateOverviewReport(
           userContext
         );
 
-        console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Calling OpenAI...`);
+        console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Calling local model...`);
         console.log(`[Overview Report] Prompt length: ${mapPrompt.length} chars, ~${Math.ceil(mapPrompt.length / 4)} tokens`);
 
-        // Call OpenAI via server endpoint
-        // Request 3,000-word intermediate report
-        // For reasoning models: need tokens for reasoning + output
+        // Call local Ollama via server endpoint
+        // Request 5,000-word intermediate report
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1200000); // 20 minute timeout
+
         const response = await fetch('/api/openai-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: [{ role: 'user', content: mapPrompt }],
-            max_tokens: 16000,  // Reasoning models need more: ~4k reasoning + ~4k output
+            max_tokens: 10000,  // 5,000 words (~7k tokens) + reasoning (~3k)
           }),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeout);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(`OpenAI API error: ${errorData.error || response.statusText}`);
+          throw new Error(`Local model API error: ${errorData.error || response.statusText}`);
         }
 
         const data = await response.json();
@@ -258,21 +263,26 @@ export async function generateOverviewReport(
 
     console.log(`[Overview Report] Reduce prompt length: ${reducePrompt.length} chars, ~${Math.ceil(reducePrompt.length / 4)} tokens`);
 
-    // Call OpenAI for final synthesis
+    // Call local Ollama for final synthesis
     // Request 5,000-word comprehensive final report
-    // For reasoning models: need tokens for reasoning + output
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1200000); // 20 minute timeout
+
     const response = await fetch('/api/openai-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [{ role: 'user', content: reducePrompt }],
-        max_tokens: 20000,  // Reasoning models need more: reasoning + ~6.5k output
+        max_tokens: 10000,  // 5,000 words (~7k tokens) + reasoning (~3k)
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(`OpenAI API error: ${errorData.error || response.statusText}`);
+      throw new Error(`Local model API error: ${errorData.error || response.statusText}`);
     }
 
     const data = await response.json();

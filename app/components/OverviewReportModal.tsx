@@ -540,10 +540,43 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   </p>
                 ) : (
                   <p style={{ fontSize: '0.75rem', color: '#999', marginTop: '1.5rem' }}>
-                    Analyzing your genetic data... This typically takes 2-4 minutes.
+                    Analyzing your genetic data... This may take 60-90 minutes.
                   </p>
                 )}
               </div>
+
+              {/* Show intermediate reports as they come in */}
+              {progress.groupSummaries.length > 0 && (
+                <div style={{
+                  marginTop: '2rem',
+                  padding: '1.5rem',
+                  background: '#F9FAFB',
+                  borderRadius: '8px',
+                  maxHeight: '500px',
+                  overflowY: 'auto',
+                  border: '1px solid #E5E7EB'
+                }}>
+                  <h4 style={{ margin: '0 0 1rem 0', color: '#374151' }}>
+                    📝 Intermediate Analysis ({progress.groupSummaries.length} batches completed)
+                  </h4>
+                  <div className="markdown-content" style={{ fontSize: '0.9rem' }}>
+                    {progress.groupSummaries.map((gs, idx) => (
+                      <div key={idx} style={{
+                        marginBottom: '1.5rem',
+                        paddingBottom: '1.5rem',
+                        borderBottom: idx < progress.groupSummaries.length - 1 ? '1px solid #E5E7EB' : 'none'
+                      }}>
+                        <h5 style={{ color: '#3B82F6', marginBottom: '0.5rem' }}>
+                          Batch {gs.groupNumber}
+                        </h5>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {gs.summary}
+                        </ReactMarkdown>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
