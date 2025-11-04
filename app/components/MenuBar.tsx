@@ -5,8 +5,10 @@ import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
+import AIConfigModal from "./AIConfigModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
 import { AuthButton } from "./AuthProvider";
+import { getAIConfig, getProviderDisplayName } from "@/lib/ai-config";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
@@ -14,8 +16,10 @@ export default function MenuBar() {
   const { status: customizationStatus } = useCustomization();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [showAIConfigModal, setShowAIConfigModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
+  const [aiProvider, setAiProvider] = useState<string>('');
 
   useEffect(() => {
     // Detect system preference on mount
@@ -26,6 +30,10 @@ export default function MenuBar() {
     // Apply initial theme
     document.documentElement.setAttribute("data-theme", initialTheme);
     document.documentElement.style.colorScheme = initialTheme;
+
+    // Load AI config
+    const config = getAIConfig();
+    setAiProvider(getProviderDisplayName(config.provider));
 
     // Load cache info
     const loadCacheInfo = async () => {
@@ -87,11 +95,22 @@ export default function MenuBar() {
     }
   };
 
+  const handleAIConfigSave = () => {
+    // Reload AI provider display name
+    const config = getAIConfig();
+    setAiProvider(getProviderDisplayName(config.provider));
+  };
+
   return (
     <>
       <CustomizationModal
         isOpen={showCustomizationModal}
         onClose={() => setShowCustomizationModal(false)}
+      />
+      <AIConfigModal
+        isOpen={showAIConfigModal}
+        onClose={() => setShowAIConfigModal(false)}
+        onSave={handleAIConfigSave}
       />
     <div className="menu-bar">
       <div className="menu-left">
@@ -175,6 +194,13 @@ export default function MenuBar() {
             {getCustomizationIcon()} Personalize
           </button>
 
+          <button
+            className="control-button ai-config-button"
+            onClick={() => setShowAIConfigModal(true)}
+            title="Configure AI provider and model"
+          >
+            🤖 AI: {aiProvider || 'Loading...'}
+          </button>
         </div>
 
         <div className="menu-separator" />

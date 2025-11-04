@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { SavedResult } from "@/lib/results-manager";
-import {NilaiOpenAIClient, AuthType, NilAuthInstance} from "@nillion/nilai-ts";
 import NilAIConsentModal from "./NilAIConsentModal";
 import StudyQualityIndicators from "./StudyQualityIndicators";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
+import { callLLM, getLLMDescription } from "@/lib/llm-client";
 
 type LLMCommentaryModalProps = {
   isOpen: boolean;
@@ -234,44 +234,10 @@ export default function LLMCommentaryModal({
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Phase 3: Initialize NilAI client and get secure token
+      // Phase 3: Prepare AI analysis
       setLoadingPhase('token');
-      setDelegationStatus("Initializing secure AI connection...");
+      setDelegationStatus("Preparing AI analysis...");
       await new Promise(resolve => setTimeout(resolve, 50));
-
-      // Initialize NilAI client with delegation token authentication
-      const client = new NilaiOpenAIClient({
-        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-        authType: AuthType.DELEGATION_TOKEN,
-        nilauthInstance: NilAuthInstance.PRODUCTION,
-      });
-
-      // Get delegation request from client
-      const delegationRequest = client.getDelegationRequest();
-
-      setDelegationStatus("Requesting delegation token from server...");
-
-      // Request delegation token from server
-      const tokenResponse = await fetch("/api/nilai-delegation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ delegationRequest }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        throw new Error(errorData.error || "Failed to get delegation token");
-      }
-
-      const { delegationToken } = await tokenResponse.json();
-
-      // Update client with delegation token
-      client.updateDelegation(delegationToken);
-
-      setDelegationStatus("✓ Secure token received — connecting to private AI...");
-      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Phase 4: Generate AI commentary
       setLoadingPhase('ai');
@@ -378,24 +344,22 @@ Please provide:
 
 Keep your response concise (400-600 words), educational, and reassuring where appropriate. Use clear, accessible language suitable for someone with no scientific background. Avoid jargon, and when technical terms are necessary, explain them simply.`;
 
-      // Make request directly to NilAI (data never touches our server!)
-      const response = await client.chat.completions.create({
-        model: "openai/gpt-oss-20b",
-        messages: [
-          {
-            role: "system",
-            content: "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 1200, // Increased to prevent cutoff
+      // Make request using centralized client
+      const response = await callLLM([
+        {
+          role: "system",
+          content: "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ], {
+        maxTokens: 1200,
         temperature: 0.7,
       });
 
-      const commentaryText = response.choices?.[0]?.message?.content;
+      const commentaryText = response.content;
 
       if (!commentaryText) {
         throw new Error("No commentary generated from LLM");
@@ -865,8 +829,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
           <div className="commentary-powered-by-header">
             <p className="powered-by">
-              🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> -
-              Privacy-preserving AI in a Trusted Execution Environment
+              {getLLMDescription()}
             </p>
           </div>
 

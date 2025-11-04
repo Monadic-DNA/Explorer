@@ -12,8 +12,8 @@
  * Total: 4 LLM calls (3 map + 1 reduce), ~5 minutes
  */
 
-import { NilaiOpenAIClient, AuthType, NilAuthInstance } from '@nillion/nilai-ts';
 import type { SavedResult } from './results-manager';
+import { callLLM } from './llm-client';
 
 const DELAY_BETWEEN_CALLS_MS = 5000; // 5 seconds between calls to avoid rate limits
 
@@ -128,34 +128,13 @@ Identify 3-5 major themes and patterns. Be concise (400 words). Focus on signifi
 
       console.log(`[Overview] Group ${groupNum}: ${prompt.length} chars, ~${Math.ceil(prompt.length / 4)} tokens`);
 
-      // Get delegation token
-      const client = new NilaiOpenAIClient({
-        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-        authType: AuthType.DELEGATION_TOKEN,
-        nilauthInstance: NilAuthInstance.PRODUCTION,
-      });
-
-      const delegationRequest = client.getDelegationRequest();
-      const tokenRes = await fetch('/api/nilai-delegation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delegationRequest }),
-      });
-
-      if (!tokenRes.ok) throw new Error('Failed to get delegation token');
-
-      const { delegationToken } = await tokenRes.json();
-      client.updateDelegation(delegationToken);
-
-      // Call nilAI
-      const response = await client.chat.completions.create({
-        model: 'openai/gpt-oss-20b',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
+      // Call LLM using centralized client
+      const response = await callLLM([{ role: 'user', content: prompt }], {
+        maxTokens: 800,
         temperature: 0.7,
       });
 
-      const summary = response.choices?.[0]?.message?.content;
+      const summary = response.content;
       if (!summary) throw new Error(`Group ${groupNum} produced no summary`);
 
       groupSummaries.push(summary);
@@ -204,33 +183,13 @@ Use markdown formatting. Be encouraging and actionable.`;
 
     console.log(`[Overview] Reduce: ${reducePrompt.length} chars, ~${Math.ceil(reducePrompt.length / 4)} tokens`);
 
-    // Get fresh delegation token
-    const client = new NilaiOpenAIClient({
-      baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-      authType: AuthType.DELEGATION_TOKEN,
-      nilauthInstance: NilAuthInstance.PRODUCTION,
-    });
-
-    const delegationRequest = client.getDelegationRequest();
-    const tokenRes = await fetch('/api/nilai-delegation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delegationRequest }),
-    });
-
-    if (!tokenRes.ok) throw new Error('Failed to get delegation token');
-
-    const { delegationToken } = await tokenRes.json();
-    client.updateDelegation(delegationToken);
-
-    const response = await client.chat.completions.create({
-      model: 'openai/gpt-oss-20b',
-      messages: [{ role: 'user', content: reducePrompt }],
-      max_tokens: 3000,
+    // Call LLM using centralized client
+    const response = await callLLM([{ role: 'user', content: reducePrompt }], {
+      maxTokens: 3000,
       temperature: 0.7,
     });
 
-    const finalReport = response.choices?.[0]?.message?.content;
+    const finalReport = response.content;
     if (!finalReport) throw new Error('Reduce phase produced no report');
 
     console.log(`[Overview] Success! Report length: ${finalReport.length} chars`);

@@ -4649,3 +4649,101 @@ details[open] .summary-arrow {
 .overview-button:hover {
   opacity: 0.9;
 }
+
+/* AI Config Modal Styles */
+.ai-config-modal {
+  max-width: 500px;
+}
+
+.config-section {
+  margin-bottom: 1.5rem;
+}
+
+.config-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.config-select,
+.config-input {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.config-select:focus,
+.config-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+}
+
+.config-input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.config-input-group .config-input {
+  flex: 1;
+}
+
+.config-toggle-button {
+  padding: 0.75rem 1rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: background-color 0.2s;
+}
+
+.config-toggle-button:hover {
+  background: var(--border-color);
+}
+
+.config-help {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.config-help a {
+  color: var(--accent-blue);
+  text-decoration: none;
+}
+
+.config-help a:hover {
+  text-decoration: underline;
+}
+
+.config-info {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 4px;
+}
+
+.config-info p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.ai-config-button {
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* AI Config Modal - Add padding to content */
+.ai-config-modal .modal-content {
+  padding: 2rem;
+}

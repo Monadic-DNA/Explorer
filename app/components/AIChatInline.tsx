@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import { SavedResult } from "@/lib/results-manager";
-import { NilaiOpenAIClient, AuthType, NilAuthInstance } from "@nillion/nilai-ts";
 import NilAIConsentModal from "./NilAIConsentModal";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { callLLM, getLLMDescription } from "@/lib/llm-client";
+import { getAIConfig } from "@/lib/ai-config";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -53,7 +54,6 @@ export default function AIChatInline() {
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
-  const [usingOpenAIFallback, setUsingOpenAIFallback] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -176,39 +176,7 @@ export default function AIChatInline() {
         console.log(`[AI Chat] Follow-up question - skipping RAG context search`);
       }
 
-      // Fetch a fresh delegation token for each message
-      // Note: Despite tokenMaxUses setting, delegation tokens appear to be consumed per API call
-      setLoadingStatus("🔐 Retrieving secure AI token...");
-      console.log('[AI Chat] Fetching fresh delegation token for this message');
-
-      const client = new NilaiOpenAIClient({
-        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-        authType: AuthType.DELEGATION_TOKEN,
-        nilauthInstance: NilAuthInstance.PRODUCTION,
-      });
-
-      const delegationRequest = client.getDelegationRequest();
-      console.log('[AI Chat] Generated delegation request');
-
-      const tokenResponse = await fetch("/api/nilai-delegation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ delegationRequest }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        throw new Error(errorData.error || "Failed to get delegation token");
-      }
-
-      const { delegationToken } = await tokenResponse.json();
-      console.log('[AI Chat] Received fresh delegation token from server');
-
-      client.updateDelegation(delegationToken);
-      console.log('[AI Chat] Updated client with delegation token');
-
+      // Prepare to call LLM
       setLoadingStatus(`🤖 Analyzing ${relevantResults.length} traits with AI...`);
 
       const contextResults = relevantResults
@@ -278,7 +246,8 @@ Consider how this user's background, lifestyle factors (smoking, alcohol, diet),
         content: m.content
       }));
 
-      const systemPrompt = `You are an expert genetic counselor AI assistant providing personalized, holistic insights about GWAS results. You are powered by Nillion's nilAI using the gpt-oss-20b model in a secure TEE (Trusted Execution Environment).
+      const aiDescription = getLLMDescription();
+      const systemPrompt = `You are an expert genetic counselor AI assistant providing personalized, holistic insights about GWAS results. ${aiDescription}
 
 IMPORTANT CONTEXT:
 - The user has uploaded their DNA file and analyzed it against thousands of GWAS studies
@@ -392,168 +361,38 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('Relevant Results Count:', relevantResults.length);
       console.log('=====================');
 
-      let assistantContent: string | undefined;
-      let usedOpenAIFallback = false;
-
-      try {
-        // Try nilAI first
-        console.log('[AI Chat] Making nilAI API request...');
-        const response = await client.chat.completions.create({
-          model: "openai/gpt-oss-20b",
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
-            },
-            ...conversationHistory,
-            {
-              role: "user",
-              content: query
-            }
-          ],
-          max_tokens: 3000,
-          temperature: 0.7,
-        });
-
-        assistantContent = response.choices?.[0]?.message?.content;
-        console.log('[AI Chat] nilAI request successful');
-
-        if (!assistantContent) {
-          throw new Error("No response generated from AI");
+      // Call LLM using centralized client
+      const response = await callLLM([
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        ...conversationHistory.map(m => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content
+        })),
+        {
+          role: "user",
+          content: query
         }
-      } catch (nilaiError) {
-        console.error('[AI Chat] nilAI request failed:', nilaiError);
-        console.error('[AI Chat] Error details:', {
-          message: nilaiError instanceof Error ? nilaiError.message : 'Unknown error',
-          stack: nilaiError instanceof Error ? nilaiError.stack : undefined
-        });
+      ], {
+        maxTokens: 3000,
+        temperature: 0.7,
+      });
 
-        // Attempt OpenAI fallback (only works in dev mode on server)
-        console.log('[AI Chat] Attempting OpenAI fallback via API route with streaming');
-        setLoadingStatus("⚠️ Switching to OpenAI fallback...");
-
-        try {
-          const openaiResponse = await fetch("/api/openai-chat", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              messages: [
-                {
-                  role: "system",
-                  content: systemPrompt
-                },
-                ...conversationHistory,
-                {
-                  role: "user",
-                  content: query
-                }
-              ],
-              model: "gpt-5-nano",
-              max_completion_tokens: 16000,
-            }),
-          });
-
-          if (!openaiResponse.ok) {
-            const errorText = await openaiResponse.text();
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch {
-              errorData = { error: errorText };
-            }
-            throw new Error(errorData.error || "Failed to get OpenAI response");
-          }
-
-          // Set fallback state immediately
-          setUsingOpenAIFallback(true);
-          usedOpenAIFallback = true;
-          console.log('[AI Chat] Successfully switched to OpenAI fallback, streaming response');
-
-          // Handle streaming response
-          const reader = openaiResponse.body?.getReader();
-          const decoder = new TextDecoder();
-          let streamedContent = '';
-
-          if (!reader) {
-            throw new Error("No response body reader available");
-          }
-
-          // Create initial message with notification
-          const notificationPrefix = `⚠️ **Note:** nilAI is temporarily unavailable. This response was generated using OpenAI's gpt-5-nano as a fallback in development mode.\n\n---\n\n`;
-          streamedContent = notificationPrefix;
-
-          // Add assistant message that will be updated as content streams
-          const assistantMessage: Message = {
-            role: 'assistant',
-            content: streamedContent,
-            timestamp: new Date(),
-            studiesUsed: relevantResults
-          };
-          setMessages(prev => [...prev, assistantMessage]);
-
-          // Read the stream
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) {
-              break;
-            }
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-
-                if (data === '[DONE]') {
-                  break;
-                }
-
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.content) {
-                    streamedContent += parsed.content;
-                    // Update the last message with accumulated content
-                    setMessages(prev => {
-                      const updated = [...prev];
-                      updated[updated.length - 1] = {
-                        ...updated[updated.length - 1],
-                        content: streamedContent
-                      };
-                      return updated;
-                    });
-                  }
-                } catch (e) {
-                  console.error('[AI Chat] Error parsing streaming chunk:', e);
-                }
-              }
-            }
-          }
-
-          assistantContent = streamedContent;
-        } catch (openaiError) {
-          console.error('[AI Chat] OpenAI fallback also failed:', openaiError);
-          throw new Error(`nilAI failed and OpenAI fallback unavailable: ${openaiError instanceof Error ? openaiError.message : 'Unknown error'}`);
-        }
-      }
+      const assistantContent = response.content;
 
       if (!assistantContent) {
         throw new Error("No response generated from AI");
       }
 
-      // Only add the message if it wasn't already added during streaming (OpenAI fallback)
-      if (!usedOpenAIFallback) {
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: assistantContent,
-          timestamp: new Date(),
-          studiesUsed: relevantResults
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      }
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: assistantContent,
+        timestamp: new Date(),
+        studiesUsed: relevantResults
+      };
+      setMessages(prev => [...prev, assistantMessage]);
 
     } catch (err) {
       console.error('[AI Chat] Error:', err);
@@ -705,7 +544,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           <h1>🤖 AI Chat: Your Genetic Results</h1>
           <p style="color: #666; margin-bottom: 1rem;">
             Chat session from ${new Date().toLocaleString()}<br>
-            Powered by Nillion nilAI (gpt-oss-20b) in a secure TEE
+            ${getLLMDescription()}
           </p>
           <div class="disclaimer">
             <strong>⚠️ Important Disclaimer:</strong> This chat is for educational purposes only.
@@ -800,16 +639,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         )}
         <div className="chat-header">
           <h2>🤖 AI Chat: Your Genetic Results</h2>
-          {usingOpenAIFallback ? (
-            <p className="powered-by" style={{ backgroundColor: '#FEF3C7', padding: '8px', borderRadius: '6px', border: '1px solid #F59E0B' }}>
-              ⚠️ Using <strong>OpenAI gpt-5-nano</strong> fallback (nilAI temporarily unavailable in dev mode)
-            </p>
-          ) : (
-            <p className="powered-by">
-              🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> using <strong>gpt-oss-20b</strong> model in TEE (Trusted Execution Environment) -
-              Your data never leaves the secure enclave
-            </p>
-          )}
+          <p className="powered-by">
+            {getLLMDescription()} - Your data is processed securely
+          </p>
         </div>
 
         <div className="chat-info">

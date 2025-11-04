@@ -66,8 +66,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
     try {
       // Dynamic import to ensure client-side only
-      // Using OpenAI version temporarily while nilAI issues are resolved
-      const { generateOverviewReport } = await import('@/lib/overview-report-service-openai');
+      const { generateOverviewReport } = await import('@/lib/overview-report-service');
 
       // Call client-side service with progress callback
       await generateOverviewReport(

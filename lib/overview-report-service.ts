@@ -12,7 +12,6 @@
  * Rate limits respected: 10/min, 100/hour, 500/day
  */
 
-import { NilaiOpenAIClient, AuthType, NilAuthInstance } from '@nillion/nilai-ts';
 import type { SavedResult } from './results-manager';
 import {
   partitionResultsForAnalysis,
@@ -22,6 +21,7 @@ import {
   generateReducePrompt,
   type OverviewStatistics,
 } from './overview-report-analyzer';
+import { callLLM } from './llm-client';
 
 /**
  * Ultra-compact format to fit within context window
@@ -108,7 +108,7 @@ export async function generateOverviewReport(
   customization: any,
   onProgress: ProgressCallback
 ): Promise<string> {
-  const NUM_GROUPS = 4;  // Optimized for ~23k results per group
+  const NUM_GROUPS = 50;  // 50 groups for more granular analysis (~2k results per group)
 
   try {
     onProgress({
@@ -175,40 +175,16 @@ export async function generateOverviewReport(
         userContext
       );
 
-      console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Calling nilAI...`);
+      console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Calling LLM...`);
       console.log(`[Overview Report] Prompt length: ${mapPrompt.length} chars, ~${Math.ceil(mapPrompt.length / 4)} tokens`);
 
-      // Get delegation token
-      const client = new NilaiOpenAIClient({
-        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-        authType: AuthType.DELEGATION_TOKEN,
-        nilauthInstance: NilAuthInstance.PRODUCTION,
-      });
-
-      const delegationRequest = client.getDelegationRequest();
-
-      const tokenResponse = await fetch('/api/nilai-delegation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delegationRequest }),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to get delegation token');
-      }
-
-      const { delegationToken } = await tokenResponse.json();
-      client.updateDelegation(delegationToken);
-
-      // Call nilAI
-      const response = await client.chat.completions.create({
-        model: 'openai/gpt-oss-20b',
-        messages: [{ role: 'user', content: mapPrompt }],
-        max_tokens: 1500,
+      // Call LLM using centralized client
+      const response = await callLLM([{ role: 'user', content: mapPrompt }], {
+        maxTokens: 1500,
         temperature: 0.7,
       });
 
-      const summary = response.choices?.[0]?.message?.content;
+      const summary = response.content;
 
       if (!summary) {
         throw new Error(`Map phase ${groupNumber} produced no summary`);
@@ -258,37 +234,13 @@ export async function generateOverviewReport(
 
     console.log(`[Overview Report] Reduce prompt length: ${reducePrompt.length} chars, ~${Math.ceil(reducePrompt.length / 4)} tokens`);
 
-    // Get fresh delegation token
-    const client = new NilaiOpenAIClient({
-      baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-      authType: AuthType.DELEGATION_TOKEN,
-      nilauthInstance: NilAuthInstance.PRODUCTION,
-    });
-
-    const delegationRequest = client.getDelegationRequest();
-
-    const tokenResponse = await fetch('/api/nilai-delegation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ delegationRequest }),
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to get delegation token');
-    }
-
-    const { delegationToken } = await tokenResponse.json();
-    client.updateDelegation(delegationToken);
-
-    // Call nilAI for final synthesis
-    const response = await client.chat.completions.create({
-      model: 'openai/gpt-oss-20b',
-      messages: [{ role: 'user', content: reducePrompt }],
-      max_tokens: 4000,
+    // Call LLM for final synthesis using centralized client
+    const response = await callLLM([{ role: 'user', content: reducePrompt }], {
+      maxTokens: 4000,
       temperature: 0.7,
     });
 
-    const finalReport = response.choices?.[0]?.message?.content;
+    const finalReport = response.content;
 
     if (!finalReport) {
       throw new Error('Reduce phase produced no final report');

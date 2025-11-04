@@ -3,10 +3,10 @@
 import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { SavedResult } from "@/lib/results-manager";
-import { NilaiOpenAIClient, AuthType, NilAuthInstance } from "@nillion/nilai-ts";
 import NilAIConsentModal from "./NilAIConsentModal";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
+import { callLLM, getLLMDescription } from "@/lib/llm-client";
 
 type AIChatModalProps = {
   isOpen: boolean;
@@ -124,34 +124,7 @@ export default function AIChatModal({ isOpen, onClose }: AIChatModalProps) {
       const relevantResults = await getTopResultsByRelevance(query, MAX_CONTEXT_RESULTS);
       console.log(`[AI Chat] Found ${relevantResults.length} relevant results`);
 
-      // Initialize NilAI client with delegation token authentication
-      const client = new NilaiOpenAIClient({
-        baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
-        authType: AuthType.DELEGATION_TOKEN,
-        nilauthInstance: NilAuthInstance.PRODUCTION,
-      });
-
-      // Get delegation request from client
-      const delegationRequest = client.getDelegationRequest();
-
-      // Request delegation token from server
-      const tokenResponse = await fetch("/api/nilai-delegation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ delegationRequest }),
-      });
-
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json();
-        throw new Error(errorData.error || "Failed to get delegation token");
-      }
-
-      const { delegationToken } = await tokenResponse.json();
-
-      // Update client with delegation token
-      client.updateDelegation(delegationToken);
+      // Use centralized LLM client
 
       // Build context from ALL relevant results (no slicing - use everything we found)
       const contextResults = relevantResults
@@ -227,25 +200,26 @@ IMPORTANT GUIDELINES:
 
 Keep your responses concise (200-400 words), conversational, and accessible to someone without a scientific background.`;
 
-      // Make request to NilAI
-      const response = await client.chat.completions.create({
-        model: "openai/gpt-oss-20b",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          ...conversationHistory,
-          {
-            role: "user",
-            content: query
-          }
-        ],
-        max_tokens: 800,
+      // Make request using centralized client
+      const response = await callLLM([
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        ...conversationHistory.map(m => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content
+        })),
+        {
+          role: "user",
+          content: query
+        }
+      ], {
+        maxTokens: 800,
         temperature: 0.7,
       });
 
-      const assistantContent = response.choices?.[0]?.message?.content;
+      const assistantContent = response.content;
 
       if (!assistantContent) {
         throw new Error("No response generated from AI");
@@ -352,8 +326,7 @@ Keep your responses concise (200-400 words), conversational, and accessible to s
           <div className="chat-header">
             <h2>🤖 AI Chat: Your Genetic Results</h2>
             <p className="powered-by">
-              🛡️ Powered by <a href="https://nillion.com" target="_blank" rel="noopener noreferrer">Nillion nilAI</a> -
-              Privacy-preserving AI
+              {getLLMDescription()}
             </p>
           </div>
 

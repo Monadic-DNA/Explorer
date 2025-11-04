@@ -116,9 +116,16 @@ npm start
 - `POSTGRES_DB`: PostgreSQL connection string (if set, takes precedence over SQLite)
 - `GWAS_DB_PATH`: Path to SQLite database file (only used if `POSTGRES_DB` is not set)
 
-**AI Features (Optional):**
-- `NILLION_API_KEY`: API key for Nillion's nilAI to enable private AI analysis of results
-- `OPENAI_API_KEY`: Fallback API key for development mode when nilAI is unavailable
+**AI Features:**
+- **AI Provider Selection**: Configure in the UI (Menu Bar > AI Settings button)
+  - **Nillion nilAI** (Default): Privacy-preserving AI in Trusted Execution Environment
+    - Requires `NILLION_API_KEY` environment variable
+  - **Ollama** (Local): Run AI models on your own machine
+    - Requires Ollama installation with gpt-oss-20b model
+    - Configure address and port in UI settings
+  - **HuggingFace** (Cloud): Cloud-based AI via HuggingFace Router
+    - Configure API key directly in UI settings (stored in browser localStorage)
+- **Privacy**: All providers send data directly from browser to AI service - never through our servers
 
 **Authentication (Required for Premium):**
 - `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID`: Dynamic.xyz environment ID for wallet connection
