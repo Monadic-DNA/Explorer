@@ -35,6 +35,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   const [isGenerating, setIsGenerating] = useState(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState<number | null>(null);
   const [progress, setProgress] = useState<ProgressState>({
     phase: 'idle',
     message: '',
@@ -84,12 +85,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             totalGroups: update.totalGroups,
             estimatedTimeRemaining: update.estimatedTimeRemaining,
             averageTimePerGroup: update.averageTimePerGroup,
-            groupSummaries: update.groupSummary
-              ? [
-                  ...prev.groupSummaries,
-                  { groupNumber: update.currentGroup || 0, summary: update.groupSummary },
-                ]
-              : prev.groupSummaries,
+            groupSummaries: update.groupSummaries || [],
           }));
 
           if (update.phase === 'complete') {
@@ -552,28 +548,116 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   padding: '1.5rem',
                   background: '#F9FAFB',
                   borderRadius: '8px',
-                  maxHeight: '500px',
-                  overflowY: 'auto',
                   border: '1px solid #E5E7EB'
                 }}>
                   <h4 style={{ margin: '0 0 1rem 0', color: '#374151' }}>
                     📝 Intermediate Analysis ({progress.groupSummaries.length} batches completed)
                   </h4>
-                  <div className="markdown-content" style={{ fontSize: '0.9rem' }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                    gap: '0.5rem',
+                    maxHeight: '300px',
+                    overflowY: 'auto'
+                  }}>
                     {progress.groupSummaries.map((gs, idx) => (
-                      <div key={idx} style={{
-                        marginBottom: '1.5rem',
-                        paddingBottom: '1.5rem',
-                        borderBottom: idx < progress.groupSummaries.length - 1 ? '1px solid #E5E7EB' : 'none'
-                      }}>
-                        <h5 style={{ color: '#3B82F6', marginBottom: '0.5rem' }}>
-                          Batch {gs.groupNumber}
-                        </h5>
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedBatchIndex(idx)}
+                        style={{
+                          padding: '0.75rem',
+                          background: '#FFFFFF',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.875rem',
+                          color: '#374151',
+                          transition: 'all 0.2s',
+                          fontWeight: '500'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.background = '#F3F4F6';
+                          e.currentTarget.style.borderColor = '#3B82F6';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = '#FFFFFF';
+                          e.currentTarget.style.borderColor = '#D1D5DB';
+                        }}
+                      >
+                        Batch {gs.groupNumber}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Batch Detail Modal */}
+              {selectedBatchIndex !== null && progress.groupSummaries[selectedBatchIndex] && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000,
+                    padding: '2rem'
+                  }}
+                  onClick={() => setSelectedBatchIndex(null)}
+                >
+                  <div
+                    style={{
+                      background: 'white',
+                      borderRadius: '12px',
+                      maxWidth: '900px',
+                      width: '100%',
+                      maxHeight: '80vh',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div style={{
+                      padding: '1.5rem',
+                      borderBottom: '1px solid #E5E7EB',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <h3 style={{ margin: 0, color: '#3B82F6' }}>
+                        Batch {progress.groupSummaries[selectedBatchIndex].groupNumber} Analysis
+                      </h3>
+                      <button
+                        onClick={() => setSelectedBatchIndex(null)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          fontSize: '1.5rem',
+                          cursor: 'pointer',
+                          color: '#6B7280',
+                          padding: '0.25rem 0.5rem'
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div style={{
+                      padding: '1.5rem',
+                      overflowY: 'auto',
+                      flex: 1
+                    }}>
+                      <div className="markdown-content">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {gs.summary}
+                          {progress.groupSummaries[selectedBatchIndex].summary}
                         </ReactMarkdown>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
               )}

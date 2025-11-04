@@ -10,14 +10,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-// Check if we should use local Ollama
-const USE_LOCAL_MODEL = process.env.USE_LOCAL_MODEL === 'true';
+// Model provider configuration
+const MODEL_PROVIDER = process.env.MODEL_PROVIDER || 'openai'; // 'openai', 'ollama', or 'huggingface'
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+const HUGGINGFACE_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
-// Initialize OpenAI client (used only if not using local model)
-const openai = USE_LOCAL_MODEL ? null : new OpenAI({
+// Initialize OpenAI client (used only for OpenAI provider)
+const openai = MODEL_PROVIDER === 'openai' ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-});
+}) : null;
 
 // Increase API route timeout to 20 minutes for long-running local model inference
 export const maxDuration = 1200; // 20 minutes in seconds
@@ -33,9 +34,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Route to local Ollama or OpenAI based on config
-    if (USE_LOCAL_MODEL) {
-      console.log('[Local Model] Calling gpt-oss:latest via Ollama with max_tokens:', max_tokens || 16000);
+    // Route based on MODEL_PROVIDER
+    if (MODEL_PROVIDER === 'huggingface') {
+      console.log('[HuggingFace] Calling openai/gpt-oss-20b:together via HF Router with max_tokens:', max_tokens);
+
+      if (!HUGGINGFACE_API_KEY) {
+        return NextResponse.json(
+          { error: 'HUGGINGFACE_API_KEY not configured' },
+          { status: 500 }
+        );
+      }
+
+      // Call HuggingFace Router (OpenAI-compatible endpoint) with extended timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1200000); // 20 minute timeout
+
+      try {
+        const hfResponse = await fetch('https://router.huggingface.co/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${HUGGINGFACE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'openai/gpt-oss-20b:together',
+            messages: messages,
+            max_tokens: max_tokens,
+            stream: false,
+          }),
+          signal: controller.signal,
+          // @ts-ignore - Node.js undici specific options
+          headersTimeout: 1200000, // 20 minutes in ms
+          bodyTimeout: 1200000, // 20 minutes in ms
+        });
+
+        clearTimeout(timeout);
+
+        if (!hfResponse.ok) {
+          const errorText = await hfResponse.text();
+          throw new Error(`HuggingFace API error: ${hfResponse.statusText} - ${errorText}`);
+        }
+
+        const hfData = await hfResponse.json();
+
+        // OpenAI-compatible response format
+        const content = hfData.choices?.[0]?.message?.content || '';
+
+        if (!content) {
+          console.error('[HuggingFace] No content in response:', JSON.stringify(hfData, null, 2));
+          return NextResponse.json(
+            { error: 'No content in response from HuggingFace' },
+            { status: 500 }
+          );
+        }
+
+        console.log('[HuggingFace] Success, content length:', content.length);
+        if (hfData.usage?.completion_tokens_details?.reasoning_tokens) {
+          console.log('[HuggingFace] Reasoning tokens used:', hfData.usage.completion_tokens_details.reasoning_tokens);
+        }
+
+        return NextResponse.json({
+          content,
+          usage: hfData.usage || {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+          },
+        });
+      } catch (fetchError: any) {
+        clearTimeout(timeout);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('HuggingFace request timed out after 20 minutes');
+        }
+        throw fetchError;
+      }
+    } else if (MODEL_PROVIDER === 'ollama') {
+      console.log('[Ollama] Calling gpt-oss:latest via Ollama with max_tokens:', max_tokens);
 
       // Extract the user message content
       const userMessage = messages[messages.length - 1];
@@ -117,11 +191,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Use OpenAI
-    console.log('[OpenAI API] Calling model: gpt-5-mini with max_completion_tokens:', max_tokens || 16000);
+    // Use OpenAI (default)
+    console.log('[OpenAI] Calling model: gpt-4o with max_completion_tokens:', max_tokens || 16000);
 
     const completion = await openai!.chat.completions.create({
-      model: 'gpt-5-mini',
+      model: 'gpt-4o',
       messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
       max_completion_tokens: max_tokens || 16000,
     });

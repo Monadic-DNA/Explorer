@@ -44,13 +44,18 @@ function formatResultsPipeDelimited(results: SavedResult[]): string {
     .join('\n');
 }
 
+export interface GroupSummary {
+  groupNumber: number;
+  summary: string;
+}
+
 export interface ProgressUpdate {
   phase: 'map' | 'reduce' | 'complete' | 'error';
   message: string;
   progress: number;  // 0-100
   currentGroup?: number;
   totalGroups?: number;
-  groupSummary?: string;
+  groupSummaries: GroupSummary[];  // All completed batch summaries
   finalReport?: string;
   error?: string;
   estimatedTimeRemaining?: number;  // seconds
@@ -89,11 +94,12 @@ export async function generateOverviewReport(
   customization: any,
   onProgress: ProgressCallback
 ): Promise<string> {
-  // 20 groups with pipe-delimited format
-  // With ~92k results: 92k/20 = ~4,600 results per group
-  // At ~60 chars/result (pipe-delimited): 4,600 * 60 = 276,000 chars = ~69,000 tokens
-  // Plus prompt (~3k tokens) = ~72,000 tokens per call (under 128k limit)
-  const NUM_GROUPS = 20;
+  // 50 groups with pipe-delimited format
+  // With ~85k results: 85k/50 = ~1,700 results per group
+  // At ~95 chars/result (pipe-delimited): 1,700 * 95 = 161,500 chars = ~40,375 tokens
+  // Plus prompt (~3k tokens) = ~43,375 tokens input per call
+  // Plus max_tokens (10k) = ~53,375 tokens total per call (under 131k limit)
+  const NUM_GROUPS = 50;
 
   try {
     onProgress({
@@ -101,6 +107,7 @@ export async function generateOverviewReport(
       message: 'Filtering to high-confidence results...',
       progress: 2,
       totalGroups: NUM_GROUPS,
+      groupSummaries: [],
     });
 
     // Filter to high-confidence results only
@@ -116,6 +123,7 @@ export async function generateOverviewReport(
       message: `Analyzing ${highConfResults.length.toLocaleString()} high-confidence results...`,
       progress: 5,
       totalGroups: NUM_GROUPS,
+      groupSummaries: [],
     });
 
     // Partition high-confidence results
@@ -130,6 +138,7 @@ export async function generateOverviewReport(
 
     // MAP PHASE: Analyze each group in parallel batches
     const groupSummaries: string[] = new Array(groups.length);  // Pre-allocate to maintain order
+    const completedSummaries: GroupSummary[] = [];  // Track completed summaries for real-time display
     const groupTimings: number[] = [];  // Track timing for ETA calculation
     const startTime = Date.now();
 
@@ -155,6 +164,7 @@ export async function generateOverviewReport(
         totalGroups: NUM_GROUPS,
         estimatedTimeRemaining,
         averageTimePerGroup,
+        groupSummaries: completedSummaries,
       });
 
       // Process this batch in parallel with real-time progress updates
@@ -221,6 +231,12 @@ export async function generateOverviewReport(
         groupSummaries[i] = summary;
         groupTimings.push(groupDuration);
 
+        // Add to completed summaries for real-time display
+        completedSummaries.push({
+          groupNumber: groupNumber,
+          summary: summary,
+        });
+
         // Update progress immediately after this batch completes
         const completedCount = groupTimings.length;
         const avgTime = groupTimings.reduce((a, b) => a + b, 0) / groupTimings.length / 1000; // seconds
@@ -235,6 +251,7 @@ export async function generateOverviewReport(
           totalGroups: NUM_GROUPS,
           estimatedTimeRemaining: eta,
           averageTimePerGroup: avgTime,
+          groupSummaries: [...completedSummaries],  // Send copy of all completed summaries
         });
 
         return { index: i, summary, duration: groupDuration };
@@ -249,6 +266,7 @@ export async function generateOverviewReport(
       phase: 'reduce',
       message: 'Synthesizing comprehensive report...',
       progress: 85,
+      groupSummaries: completedSummaries,
     });
 
     console.log('[Overview Report] Reduce phase: Starting synthesis...');
@@ -306,6 +324,7 @@ export async function generateOverviewReport(
       message: 'Report generated successfully!',
       progress: 100,
       finalReport: completeReport,
+      groupSummaries: completedSummaries,
     });
 
     return completeReport;
@@ -319,6 +338,7 @@ export async function generateOverviewReport(
       message: 'Generation failed',
       progress: 0,
       error: errorMessage,
+      groupSummaries: [],
     });
 
     throw error;
