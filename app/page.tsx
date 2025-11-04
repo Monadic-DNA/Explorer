@@ -12,6 +12,7 @@ import DisclaimerModal from "./components/DisclaimerModal";
 import TermsAcceptanceModal from "./components/TermsAcceptanceModal";
 import RunAllModal from "./components/RunAllModal";
 import AIChatInline from "./components/AIChatInline";
+import OverviewReportModal from "./components/OverviewReportModal";
 import { PremiumPaywall } from "./components/PremiumPaywall";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
@@ -248,6 +249,7 @@ function MainContent() {
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
   const [showRunAllModal, setShowRunAllModal] = useState(false);
+  const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
     phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
@@ -1111,17 +1113,28 @@ function MainContent() {
               </div>
 
               {/* Overview Report Card */}
-              <div className="feature-overview-card disabled">
+              <div className="feature-overview-card">
                 <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 3v18h18"/>
-                  <path d="M18 17V9"/>
-                  <path d="M13 17V5"/>
-                  <path d="M8 17v-3"/>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
                 </svg>
-                <div className="coming-soon-badge-small">Soon</div>
                 <h3>Overview Report</h3>
-                <p>AI-powered comprehensive health report</p>
-                <button className="feature-quick-action" disabled>Coming Soon</button>
+                <p>
+                  {!mounted ? 'Loading...' :
+                   resultsContext.savedResults.length < 1000
+                    ? 'Analyze 1,000+ traits first'
+                    : 'Generate comprehensive AI report'}
+                </p>
+                <button
+                  className="feature-quick-action"
+                  onClick={() => setShowOverviewReportModal(true)}
+                  disabled={!mounted || resultsContext.savedResults.length < 1000}
+                >
+                  {resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
+                </button>
               </div>
             </div>
           )}
@@ -1146,6 +1159,10 @@ function MainContent() {
         isOpen={showRunAllModal}
         onClose={() => setShowRunAllModal(false)}
         status={runAllStatus}
+      />
+      <OverviewReportModal
+        isOpen={showOverviewReportModal}
+        onClose={() => setShowOverviewReportModal(false)}
       />
     </div>
   );

@@ -16,6 +16,10 @@ interface ProgressState {
   groupSummaries: Array<{ groupNumber: number; summary: string }>;
   finalReport: string | null;
   error: string | null;
+  currentGroup?: number;
+  totalGroups?: number;
+  estimatedTimeRemaining?: number;
+  averageTimePerGroup?: number;
 }
 
 interface OverviewReportModalProps {
@@ -29,6 +33,8 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   const { hasActiveSubscription } = useAuth();
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const [progress, setProgress] = useState<ProgressState>({
     phase: 'idle',
     message: '',
@@ -40,6 +46,9 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    const start = Date.now();
+    setStartTime(start);
+    setElapsedTime(0);
     setProgress({
       phase: 'map',
       message: 'Initializing analysis...',
@@ -48,6 +57,11 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
       finalReport: null,
       error: null,
     });
+
+    // Timer to update elapsed time every second
+    const timerInterval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
 
     try {
       // Dynamic import to ensure client-side only
@@ -66,6 +80,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             progress: update.progress,
             finalReport: update.finalReport || prev.finalReport,
             error: update.error || prev.error,
+            currentGroup: update.currentGroup,
+            totalGroups: update.totalGroups,
+            estimatedTimeRemaining: update.estimatedTimeRemaining,
+            averageTimePerGroup: update.averageTimePerGroup,
             groupSummaries: update.groupSummary
               ? [
                   ...prev.groupSummaries,
@@ -75,8 +93,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
           }));
 
           if (update.phase === 'complete') {
+            clearInterval(timerInterval);
             setIsGenerating(false);
           } else if (update.phase === 'error') {
+            clearInterval(timerInterval);
             setIsGenerating(false);
           }
         }
@@ -85,6 +105,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
       console.log('[Overview Report] Generation complete');
     } catch (error) {
       console.error('[Overview Report] Generation error:', error);
+      clearInterval(timerInterval);
       setProgress(prev => ({
         ...prev,
         phase: 'error',
@@ -94,15 +115,105 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
     }
   };
 
+  // Format time as MM:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Convert markdown to HTML for printing
+  const markdownToHTML = (markdown: string): string => {
+    let html = markdown
+      // Headers (process from most to least specific)
+      .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      // Bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Italic
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // Code blocks
+      .replace(/```[\s\S]*?```/g, (match) => `<pre><code>${match.slice(3, -3)}</code></pre>`)
+      // Inline code
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Links
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+    // Process lists and paragraphs line by line
+    const lines = html.split('\n');
+    const processed: string[] = [];
+    let inList = false;
+    let listType: 'ul' | 'ol' | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      if (!line) {
+        if (inList) {
+          processed.push(listType === 'ul' ? '</ul>' : '</ol>');
+          inList = false;
+          listType = null;
+        }
+        processed.push('');
+        continue;
+      }
+
+      // Unordered list
+      if (line.match(/^[-*+] /)) {
+        if (!inList) {
+          processed.push('<ul>');
+          inList = true;
+          listType = 'ul';
+        }
+        processed.push(`<li>${line.substring(2)}</li>`);
+      }
+      // Ordered list
+      else if (line.match(/^\d+\. /)) {
+        if (!inList) {
+          processed.push('<ol>');
+          inList = true;
+          listType = 'ol';
+        }
+        processed.push(`<li>${line.replace(/^\d+\. /, '')}</li>`);
+      }
+      // Regular content
+      else {
+        if (inList) {
+          processed.push(listType === 'ul' ? '</ul>' : '</ol>');
+          inList = false;
+          listType = null;
+        }
+
+        // Don't wrap headers or existing HTML tags in paragraphs
+        if (!line.startsWith('<')) {
+          processed.push(`<p>${line}</p>`);
+        } else {
+          processed.push(line);
+        }
+      }
+    }
+
+    if (inList) {
+      processed.push(listType === 'ul' ? '</ul>' : '</ol>');
+    }
+
+    return processed.join('\n');
+  };
+
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow || !progress.finalReport) return;
+
+    const htmlContent = markdownToHTML(progress.finalReport);
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <title>Comprehensive Genetic Overview Report</title>
+          <meta charset="UTF-8">
           <style>
             body {
               font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -123,12 +234,20 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               margin-top: 2rem;
               margin-bottom: 1rem;
               font-size: 1.5rem;
+              border-bottom: 1px solid #ddd;
+              padding-bottom: 0.5rem;
             }
             h3 {
               color: #333;
               margin-top: 1.5rem;
               margin-bottom: 0.75rem;
               font-size: 1.25rem;
+            }
+            h4 {
+              color: #444;
+              margin-top: 1rem;
+              margin-bottom: 0.5rem;
+              font-size: 1.1rem;
             }
             p {
               margin: 1rem 0;
@@ -143,6 +262,29 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             strong {
               color: #111;
               font-weight: 600;
+            }
+            em {
+              font-style: italic;
+            }
+            code {
+              background: #f5f5f5;
+              padding: 0.2rem 0.4rem;
+              border-radius: 3px;
+              font-family: 'Monaco', 'Menlo', monospace;
+              font-size: 0.9em;
+            }
+            pre {
+              background: #f5f5f5;
+              padding: 1rem;
+              border-radius: 6px;
+              overflow-x: auto;
+            }
+            a {
+              color: #3B82F6;
+              text-decoration: none;
+            }
+            a:hover {
+              text-decoration: underline;
             }
             .header-info {
               color: #666;
@@ -169,9 +311,9 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
           <div class="header-info">
             <strong>Generated:</strong> ${new Date().toLocaleString()}<br>
             <strong>Results Analyzed:</strong> ${savedResults.length.toLocaleString()} high-confidence genetic variants<br>
-            <strong>Powered by:</strong> Nillion nilAI (gpt-oss-20b) in secure TEE
+            <strong>Powered by:</strong> OpenAI GPT-4o
           </div>
-          ${progress.finalReport}
+          ${htmlContent}
           <div style="margin-top: 3rem; padding-top: 1rem; border-top: 2px solid #ddd; color: #666; font-size: 0.9rem; text-align: center;">
             Generated by GWASifier • For Educational Purposes Only
           </div>
@@ -193,6 +335,23 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
     }
   };
 
+  const handleClose = () => {
+    // Reset state when closing modal to avoid showing stale data
+    if (!isGenerating) {
+      setProgress({
+        phase: 'idle',
+        message: '',
+        progress: 0,
+        groupSummaries: [],
+        finalReport: null,
+        error: null,
+      });
+      setElapsedTime(0);
+      setStartTime(null);
+    }
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   // Check subscription
@@ -200,11 +359,11 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   const isBlocked = !hasActiveSubscription && !hasPromoAccess;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content large-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>📊 Comprehensive Genetic Overview Report</h2>
-          <button className="close-button" onClick={onClose}>×</button>
+          <button className="close-button" onClick={handleClose}>×</button>
         </div>
 
         <div className="modal-body">
@@ -355,19 +514,35 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   }} />
                 </div>
 
-                <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#3B82F6' }}>
-                  {progress.progress}%
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#3B82F6' }}>
+                    {progress.progress}%
+                  </p>
+                  <p style={{ fontSize: '1.2rem', fontWeight: '600', color: '#10B981' }}>
+                    ⏱️ {formatTime(elapsedTime)}
+                  </p>
+                </div>
 
-                {progress.groupSummaries.length > 0 && (
+                {progress.currentGroup && progress.totalGroups && (
                   <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '1rem' }}>
-                    Completed {progress.groupSummaries.length} of 5 analysis groups
+                    Batch {progress.currentGroup} of {progress.totalGroups}
                   </p>
                 )}
 
-                <p style={{ fontSize: '0.75rem', color: '#999', marginTop: '1.5rem' }}>
-                  This may take 3-4 minutes. Please don't close this window.
-                </p>
+                {progress.estimatedTimeRemaining !== undefined && progress.estimatedTimeRemaining > 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: '#3B82F6', marginTop: '0.5rem', fontWeight: '600' }}>
+                    ETA: {formatTime(progress.estimatedTimeRemaining)} remaining
+                    {progress.averageTimePerGroup && (
+                      <span style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginTop: '0.25rem' }}>
+                        (~{progress.averageTimePerGroup.toFixed(0)}s per batch)
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '0.75rem', color: '#999', marginTop: '1.5rem' }}>
+                    Analyzing your genetic data... This typically takes 2-4 minutes.
+                  </p>
+                )}
               </div>
             </div>
           )}

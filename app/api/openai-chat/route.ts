@@ -15,7 +15,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, max_tokens, temperature } = await request.json();
+    const { messages, max_tokens } = await request.json();
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -24,23 +24,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use GPT-4o with 128k context window
-    // Note: To use gpt-5-nano, check OpenAI docs for model ID and API compatibility
+    console.log('[OpenAI API] Calling model: gpt-5-mini with max_completion_tokens:', max_tokens || 1500);
+
+    // Use gpt-5-mini for fast, high-quality analysis
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',  // 128k context window, faster than turbo
+      model: 'gpt-5-mini',
       messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
-      max_tokens: max_tokens || 1500,
-      temperature: temperature || 0.7,
+      max_completion_tokens: max_tokens || 1500,  // gpt-5 uses max_completion_tokens, no temperature parameter
     });
+
+    console.log('[OpenAI API] Response received, choices:', completion.choices?.length);
 
     const content = completion.choices[0]?.message?.content;
 
     if (!content) {
+      console.error('[OpenAI API] No content in response. Full completion:', JSON.stringify(completion, null, 2));
       return NextResponse.json(
         { error: 'No content in response' },
         { status: 500 }
       );
     }
+
+    console.log('[OpenAI API] Success, content length:', content.length);
 
     return NextResponse.json({
       content,
@@ -48,7 +53,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('[OpenAI API] Error:', error);
+    console.error('[OpenAI API] CAUGHT ERROR');
+    console.error('[OpenAI API] Error type:', error?.constructor?.name);
+    console.error('[OpenAI API] Error message:', error?.message);
+    console.error('[OpenAI API] Error status:', error?.status);
+    console.error('[OpenAI API] Error code:', error?.code);
+    console.error('[OpenAI API] Full error object:', error);
 
     // Handle rate limits
     if (error?.status === 429) {
@@ -66,8 +76,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Handle invalid model errors
+    if (error?.code === 'model_not_found' || error?.message?.includes('model')) {
+      return NextResponse.json(
+        { error: `Model error: ${error.message}` },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
-      { error: error?.message || 'OpenAI API error' },
+      { error: error?.message || error?.error?.message || 'OpenAI API error' },
       { status: error?.status || 500 }
     );
   }

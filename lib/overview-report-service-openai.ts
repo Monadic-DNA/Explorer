@@ -2,13 +2,15 @@
  * Overview Report Service - OpenAI Version (CLIENT-SIDE ONLY)
  *
  * Generates comprehensive genetic overview reports entirely in the browser.
- * Uses OpenAI API directly instead of nilAI for testing/debugging.
+ * Uses OpenAI gpt-5-mini for high-quality analysis.
  *
- * Architecture for 92,041 high-quality results:
- * 1. Partition into 15 groups of ~6,133 each (ultra-compact format: ~12 chars/result)
- * 2. Map phase: Analyze each group sequentially with delays (15 OpenAI calls)
- * 3. Reduce phase: Synthesize summaries (1 OpenAI call)
- * Total: 16 LLM calls (~18-24k tokens per call, well under 128k limit)
+ * Architecture for ~92k high-confidence results:
+ * 1. Partition into 30 groups of ~3,067 each (pipe-delimited format)
+ * 2. Map phase: Analyze in parallel batches of 5 with 3,000-word intermediate reports (6 rounds)
+ * 3. Reduce phase: Synthesize intermediate reports into 5,000-word final report (1 call)
+ * Total: 31 LLM calls (completes in ~5-7 minutes with real-time progress)
+ * Includes appendix with all 30 detailed batch analyses for full context
+ * Format: "Trait Name|Effect Size|Effect Type|Risk Score|Risk Level|Matched SNP|P-Value|Mapped Gene"
  */
 
 import type { SavedResult } from './results-manager';
@@ -22,36 +24,22 @@ import {
 } from './overview-report-analyzer';
 
 /**
- * Ultra-compact format to fit within context window
- * Format: "TraitAbbrev|L|score" where L = i/d/n (increased/decreased/neutral)
- * Target: ~10 chars per result = ~2.5 tokens per result
- * This allows ~48,000 results per call at 120k token budget
+ * Format results in pipe-delimited format with selected columns
+ * Format: "Trait Name|Effect Size|Effect Type|Risk Score|Risk Level|Matched SNP|P-Value|Mapped Gene"
  */
-function formatResultsUltraCompact(results: SavedResult[]): string {
+function formatResultsPipeDelimited(results: SavedResult[]): string {
   return results
     .map(r => {
-      // Ultra-aggressive abbreviation - max 15 chars
-      const trait = r.traitName
-        .replace(/\b(and|or|the|of|in|for|with|disease|type|risk|syndrome)\b/gi, '')
-        .replace(/\s+/g, '')  // Remove ALL spaces
-        .substring(0, 15)
-        .trim();
+      const traitName = r.traitName;
+      const effectSize = r.effectType === 'beta' ? r.riskScore.toFixed(3) : r.riskScore.toFixed(2);
+      const effectType = r.effectType || 'OR';
+      const riskScore = r.riskScore.toFixed(3);
+      const riskLevel = r.riskLevel;
+      const matchedSnp = r.matchedSnp || 'N/A';
+      const pValue = r.pValueMlog || 'N/A';
+      const mappedGene = r.mappedGene || 'Unknown';
 
-      // Single letter risk level
-      const level = r.riskLevel === 'increased' ? 'i' :
-                    r.riskLevel === 'decreased' ? 'd' : 'n';
-
-      // Format score compactly - handle both small (OR ~0.5-2.0) and large (beta coefficients)
-      let score: string;
-      if (Math.abs(r.riskScore) < 10) {
-        // Small values (OR): Use 2 decimals, remove leading 0
-        score = r.riskScore.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.');
-      } else {
-        // Large values (beta): Use scientific notation or truncate
-        score = r.riskScore >= 1000 ? r.riskScore.toExponential(1) : r.riskScore.toFixed(0);
-      }
-
-      return `${trait}|${level}|${score}`;
+      return `${traitName}|${effectSize}|${effectType}|${riskScore}|${riskLevel}|${matchedSnp}|${pValue}|${mappedGene}`;
     })
     .join('\n');
 }
@@ -65,19 +53,14 @@ export interface ProgressUpdate {
   groupSummary?: string;
   finalReport?: string;
   error?: string;
+  estimatedTimeRemaining?: number;  // seconds
+  averageTimePerGroup?: number;  // seconds
 }
 
 export type ProgressCallback = (update: ProgressUpdate) => void;
 
-// Rate limiting: Conservative delay for API
-const DELAY_BETWEEN_CALLS_MS = 2000; // 2 seconds
-
-/**
- * Sleep utility for rate limiting
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+// Parallel processing: Process 5 batches at a time (avoids rate limits)
+const PARALLEL_BATCH_SIZE = 5;
 
 /**
  * Filter to high-confidence results only
@@ -106,11 +89,11 @@ export async function generateOverviewReport(
   customization: any,
   onProgress: ProgressCallback
 ): Promise<string> {
-  // Increased to 15 groups to stay under 128k token limit
-  // With ~92k results: 92k/15 = ~6,133 results per group
-  // At ~12 chars/result: 6,133 * 12 = 73,596 chars = ~18,400 tokens
-  // Plus prompt (~5k tokens) = ~23,400 tokens per call
-  const NUM_GROUPS = 15;
+  // 30 groups with pipe-delimited format
+  // With ~92k results: 92k/30 = ~3,067 results per group
+  // At ~60 chars/result (pipe-delimited): 3,067 * 60 = 184,000 chars = ~46,000 tokens
+  // Plus prompt (~3k tokens) = ~49,000 tokens per call (under 128k limit)
+  const NUM_GROUPS = 30;
 
   try {
     onProgress({
@@ -145,87 +128,115 @@ export async function generateOverviewReport(
     // Build user context
     const userContext = buildUserContextString(customization);
 
-    // MAP PHASE: Analyze each group
-    const groupSummaries: string[] = [];
+    // MAP PHASE: Analyze each group in parallel batches
+    const groupSummaries: string[] = new Array(groups.length);  // Pre-allocate to maintain order
+    const groupTimings: number[] = [];  // Track timing for ETA calculation
+    const startTime = Date.now();
 
-    for (let i = 0; i < groups.length; i++) {
-      const group = groups[i];
-      const groupNumber = i + 1;
-      const progressPercent = 5 + Math.floor((i / groups.length) * 75); // 5-80%
+    // Process groups in parallel batches of PARALLEL_BATCH_SIZE
+    for (let batchStart = 0; batchStart < groups.length; batchStart += PARALLEL_BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + PARALLEL_BATCH_SIZE, groups.length);
+      const batchIndices = Array.from({ length: batchEnd - batchStart }, (_, i) => batchStart + i);
+
+      // Calculate ETA based on completed groups
+      let estimatedTimeRemaining: number | undefined;
+      let averageTimePerGroup: number | undefined;
+      if (groupTimings.length > 0) {
+        averageTimePerGroup = groupTimings.reduce((a, b) => a + b, 0) / groupTimings.length / 1000; // seconds
+        const remainingGroups = groups.length - batchStart;
+        estimatedTimeRemaining = Math.ceil(averageTimePerGroup * remainingGroups);
+      }
 
       onProgress({
         phase: 'map',
-        message: `Analyzing group ${groupNumber} of ${NUM_GROUPS} (${group.length.toLocaleString()} traits)...`,
-        progress: progressPercent,
-        currentGroup: groupNumber,
+        message: `Analyzing batches ${batchStart + 1}-${batchEnd} of ${NUM_GROUPS} (processing ${batchIndices.length} in parallel)...`,
+        progress: 5 + Math.floor((batchStart / groups.length) * 75),
+        currentGroup: batchStart + 1,
         totalGroups: NUM_GROUPS,
+        estimatedTimeRemaining,
+        averageTimePerGroup,
       });
 
-      // Format in ultra-compact format
-      const compactResults = formatResultsUltraCompact(group);
+      // Process this batch in parallel with real-time progress updates
+      const batchPromises = batchIndices.map(async (i) => {
+        const group = groups[i];
+        const groupNumber = i + 1;
+        const groupStartTime = Date.now();
 
-      console.log(`[Overview Report] Compact results sample (first 200 chars): ${compactResults.substring(0, 200)}`);
-      console.log(`[Overview Report] Compact results length: ${compactResults.length} chars for ${group.length} results = ${(compactResults.length / group.length).toFixed(1)} chars/result`);
+        // Format in pipe-delimited format
+        const pipeDelimitedResults = formatResultsPipeDelimited(group);
 
-      // Generate map prompt
-      const mapPrompt = generateMapPrompt(
-        groupNumber,
-        NUM_GROUPS,
-        group.length,
-        highConfResults.length,
-        compactResults,
-        userContext
-      );
+        console.log(`[Overview Report] Group ${groupNumber}: Pipe-delimited sample (first 300 chars): ${pipeDelimitedResults.substring(0, 300)}`);
+        console.log(`[Overview Report] Group ${groupNumber}: Data length: ${pipeDelimitedResults.length} chars for ${group.length} results = ${(pipeDelimitedResults.length / group.length).toFixed(1)} chars/result`);
 
-      console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Calling OpenAI...`);
-      console.log(`[Overview Report] Prompt length: ${mapPrompt.length} chars, ~${Math.ceil(mapPrompt.length / 4)} tokens`);
+        // Generate map prompt
+        const mapPrompt = generateMapPrompt(
+          groupNumber,
+          NUM_GROUPS,
+          group.length,
+          highConfResults.length,
+          pipeDelimitedResults,
+          userContext
+        );
 
-      // Call OpenAI via server endpoint
-      const response = await fetch('/api/openai-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: mapPrompt }],
-          max_tokens: 1500,
-          temperature: 0.7,
-        }),
-      });
+        console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Calling OpenAI...`);
+        console.log(`[Overview Report] Prompt length: ${mapPrompt.length} chars, ~${Math.ceil(mapPrompt.length / 4)} tokens`);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(`OpenAI API error: ${errorData.error || response.statusText}`);
-      }
+        // Call OpenAI via server endpoint
+        // Request 3,000-word intermediate report
+        // For reasoning models: need tokens for reasoning + output
+        const response = await fetch('/api/openai-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: mapPrompt }],
+            max_tokens: 16000,  // Reasoning models need more: ~4k reasoning + ~4k output
+          }),
+        });
 
-      const data = await response.json();
-      const summary = data.content;
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(`OpenAI API error: ${errorData.error || response.statusText}`);
+        }
 
-      if (!summary) {
-        throw new Error(`Map phase ${groupNumber} produced no summary`);
-      }
+        const data = await response.json();
+        const summary = data.content;
 
-      console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Success (${summary.length} chars)`);
-      groupSummaries.push(summary);
+        if (!summary) {
+          throw new Error(`Map phase ${groupNumber} produced no summary`);
+        }
 
-      onProgress({
-        phase: 'map',
-        message: `Completed group ${groupNumber} of ${NUM_GROUPS}`,
-        progress: progressPercent + Math.floor(75 / NUM_GROUPS),
-        currentGroup: groupNumber,
-        totalGroups: NUM_GROUPS,
-        groupSummary: summary,
-      });
+        // Track timing for this group
+        const groupEndTime = Date.now();
+        const groupDuration = groupEndTime - groupStartTime;
 
-      // Rate limiting: Wait before next call (except after last group)
-      if (i < groups.length - 1) {
+        console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Success (${summary.length} chars, ${(groupDuration / 1000).toFixed(1)}s)`);
+
+        // Store result immediately
+        groupSummaries[i] = summary;
+        groupTimings.push(groupDuration);
+
+        // Update progress immediately after this batch completes
+        const completedCount = groupTimings.length;
+        const avgTime = groupTimings.reduce((a, b) => a + b, 0) / groupTimings.length / 1000; // seconds
+        const remainingGroups = groups.length - completedCount;
+        const eta = remainingGroups > 0 ? Math.ceil(avgTime * remainingGroups) : 0;
+
         onProgress({
           phase: 'map',
-          message: `Waiting 2 seconds...`,
-          progress: progressPercent + Math.floor(75 / NUM_GROUPS),
-          currentGroup: groupNumber,
+          message: `Completed batch ${groupNumber} of ${NUM_GROUPS}`,
+          progress: 5 + Math.floor((completedCount / groups.length) * 75),
+          currentGroup: completedCount,
           totalGroups: NUM_GROUPS,
+          estimatedTimeRemaining: eta,
+          averageTimePerGroup: avgTime,
         });
-        await sleep(DELAY_BETWEEN_CALLS_MS);
-      }
+
+        return { index: i, summary, duration: groupDuration };
+      });
+
+      // Wait for all in this batch to complete
+      await Promise.all(batchPromises);
     }
 
     // REDUCE PHASE: Synthesize all summaries
@@ -248,13 +259,14 @@ export async function generateOverviewReport(
     console.log(`[Overview Report] Reduce prompt length: ${reducePrompt.length} chars, ~${Math.ceil(reducePrompt.length / 4)} tokens`);
 
     // Call OpenAI for final synthesis
+    // Request 5,000-word comprehensive final report
+    // For reasoning models: need tokens for reasoning + output
     const response = await fetch('/api/openai-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [{ role: 'user', content: reducePrompt }],
-        max_tokens: 4000,
-        temperature: 0.7,
+        max_tokens: 20000,  // Reasoning models need more: reasoning + ~6.5k output
       }),
     });
 
@@ -272,14 +284,21 @@ export async function generateOverviewReport(
 
     console.log(`[Overview Report] Reduce phase: Success (${finalReport.length} chars)`);
 
+    // Append intermediate batch reports to final report for full context
+    const appendix = groupSummaries
+      .map((summary, i) => `\n\n---\n\n## BATCH ${i + 1} DETAILED ANALYSIS\n\n${summary}`)
+      .join('\n');
+
+    const completeReport = `${finalReport}\n\n---\n\n# APPENDIX: DETAILED BATCH ANALYSES\n\nThe following sections contain the detailed intermediate analyses for each of the ${NUM_GROUPS} batches. These provide granular insights into specific subsets of your genetic data.\n${appendix}`;
+
     onProgress({
       phase: 'complete',
       message: 'Report generated successfully!',
       progress: 100,
-      finalReport,
+      finalReport: completeReport,
     });
 
-    return finalReport;
+    return completeReport;
   } catch (error) {
     console.error('[Overview Report] Error:', error);
 
