@@ -151,16 +151,14 @@ async function callOllama(
 
   const data = await response.json();
   
-  // gpt-oss is a reasoning model that puts output in 'thinking' field
-  // Use thinking if response is empty, or combine them if both exist
-  let content = data.response || '';
-  if (data.thinking) {
-    content = data.thinking + (content ? '\n\n' + content : '');
-  }
+  // ONLY use the response field - this contains the actual output
+  // The thinking field contains internal reasoning and should be ignored
+  const content = data.response || '';
 
   if (!content) {
     console.error('[Ollama] Response data:', data);
-    throw new Error('No response from Ollama (both response and thinking fields empty)');
+    console.error('[Ollama] Thinking field length:', data.thinking?.length || 0);
+    throw new Error('No response from Ollama - response field is empty (thinking field is ignored)');
   }
 
   console.log(`[Ollama] Response length: ${content.length} chars, done_reason: ${data.done_reason || 'none'}`);

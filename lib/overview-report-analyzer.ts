@@ -188,18 +188,33 @@ export function generateMapPrompt(
   compactResults: string,
   userContext: string
 ): string {
-  return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am${userContext}
+  return `Analyze these genetic variants and write a comprehensive medical genetics report.
 
-This is batch ${groupNumber} of ${totalGroups}. For now, only analyze data and produce a 5,000 word intermediate report.
+USER:${userContext}
 
-Analysis from all batches will be aggregated and recommendations and advice will be handled later. The overall analysis will only have access to these reports and no other data source.
+BATCH: ${groupNumber} of ${totalGroups} (${resultsInGroup} variants)
 
-DATA FORMAT:
-Trait Name|Effect Size|Effect Type|Risk Score|Risk Level|Matched SNP|P-Value|Mapped Gene
+DATA: "Trait|Risk|Score" where Risk: i=increased/d=decreased/n=neutral
 
 ${compactResults}
 
-`;
+WRITE YOUR ANALYSIS REPORT NOW (3000-5000 words):
+
+# Batch ${groupNumber} Genetic Analysis Report
+
+## Executive Summary
+
+## Cardiovascular System
+
+## Metabolic & Endocrine System
+
+## Neurological System
+
+## Immune System
+
+## Other Systems
+
+## Key Risk Factors`;
 }
 
 /**

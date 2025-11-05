@@ -84,7 +84,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             totalGroups: update.totalGroups,
             estimatedTimeRemaining: update.estimatedTimeRemaining,
             averageTimePerGroup: update.averageTimePerGroup,
-            groupSummaries: update.groupSummaries || [],
+            groupSummaries: update.groupSummaries !== undefined ? update.groupSummaries : prev.groupSummaries,
           }));
 
           if (update.phase === 'complete') {

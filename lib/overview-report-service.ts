@@ -116,7 +116,7 @@ export async function generateOverviewReport(
   customization: any,
   onProgress: ProgressCallback
 ): Promise<string> {
-  const NUM_GROUPS = 50;  // 50 groups for more granular analysis (~2k results per group)
+  const NUM_GROUPS = 32;  // 32 groups to give reasoning model enough tokens for both thinking + output (~25 min with Ollama)
 
   try {
     onProgress({
@@ -153,11 +153,23 @@ export async function generateOverviewReport(
 
     // MAP PHASE: Analyze each group
     const groupSummaries: string[] = [];
+    const completedSummaries: GroupSummary[] = [];
+    const groupTimings: number[] = []; // Track timing for ETA calculation
 
     for (let i = 0; i < groups.length; i++) {
       const group = groups[i];
       const groupNumber = i + 1;
+      const groupStartTime = Date.now();
       const progressPercent = 5 + Math.floor((i / groups.length) * 75); // 5-80%
+
+      // Calculate ETA based on completed groups
+      let estimatedTimeRemaining: number | undefined;
+      let averageTimePerGroup: number | undefined;
+      if (groupTimings.length > 0) {
+        averageTimePerGroup = groupTimings.reduce((a, b) => a + b, 0) / groupTimings.length / 1000; // seconds
+        const remainingGroups = groups.length - i;
+        estimatedTimeRemaining = Math.ceil(averageTimePerGroup * remainingGroups);
+      }
 
       onProgress({
         phase: 'map',
@@ -165,6 +177,8 @@ export async function generateOverviewReport(
         progress: progressPercent,
         currentGroup: groupNumber,
         totalGroups: NUM_GROUPS,
+        estimatedTimeRemaining,
+        averageTimePerGroup,
       });
 
       // Format in ultra-compact format
@@ -187,8 +201,11 @@ export async function generateOverviewReport(
       console.log(`[Overview Report] Prompt length: ${mapPrompt.length} chars, ~${Math.ceil(mapPrompt.length / 4)} tokens`);
 
       // Call LLM using centralized client
+      // With 32 batches, limit output to fit in reduce phase
+      // 32 × 3,500 = 112k tokens (safe for reduce phase)
+      // Allows for reasoning + ~2,000 word summary per batch
       const response = await callLLM([{ role: 'user', content: mapPrompt }], {
-        maxTokens: 1500,
+        maxTokens: 3500,
         temperature: 0.7,
       });
 
@@ -198,8 +215,24 @@ export async function generateOverviewReport(
         throw new Error(`Map phase ${groupNumber} produced no summary`);
       }
 
-      console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Success (${summary.length} chars)`);
+      // Track timing for this group
+      const groupEndTime = Date.now();
+      const groupDuration = groupEndTime - groupStartTime;
+      groupTimings.push(groupDuration);
+
+      console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Success (${summary.length} chars, ${(groupDuration / 1000).toFixed(1)}s)`);
       groupSummaries.push(summary);
+      
+      // Track completed summaries for display to user
+      completedSummaries.push({
+        groupNumber: groupNumber,
+        summary: summary,
+      });
+
+      // Calculate updated ETA based on all completed groups
+      const avgTime = groupTimings.reduce((a, b) => a + b, 0) / groupTimings.length / 1000; // seconds
+      const remainingGroups = groups.length - groupNumber;
+      const eta = remainingGroups > 0 ? Math.ceil(avgTime * remainingGroups) : 0;
 
       onProgress({
         phase: 'map',
@@ -208,19 +241,12 @@ export async function generateOverviewReport(
         currentGroup: groupNumber,
         totalGroups: NUM_GROUPS,
         groupSummary: summary,
+        groupSummaries: [...completedSummaries], // Send copy of all completed summaries
+        estimatedTimeRemaining: eta,
+        averageTimePerGroup: avgTime,
       });
 
-      // Rate limiting: Wait 6 seconds before next call (except after last group)
-      if (i < groups.length - 1) {
-        onProgress({
-          phase: 'map',
-          message: `Waiting 6 seconds (rate limit)...`,
-          progress: progressPercent + Math.floor(75 / NUM_GROUPS),
-          currentGroup: groupNumber,
-          totalGroups: NUM_GROUPS,
-        });
-        await sleep(DELAY_BETWEEN_CALLS_MS);
-      }
+      // No rate limiting needed for local Ollama - process next batch immediately
     }
 
     // REDUCE PHASE: Synthesize all summaries
@@ -244,7 +270,7 @@ export async function generateOverviewReport(
 
     // Call LLM for final synthesis using centralized client
     const response = await callLLM([{ role: 'user', content: reducePrompt }], {
-      maxTokens: 4000,
+      maxTokens: 8000,
       temperature: 0.7,
     });
 
