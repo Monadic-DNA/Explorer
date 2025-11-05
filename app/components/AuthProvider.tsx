@@ -49,25 +49,23 @@ function AuthStateSync({
   onAuthStateChange: (isAuth: boolean, user: any) => void;
   onCheckSubscription: (walletAddress: string) => Promise<void>;
 }) {
-  const { user: dynamicUser, isAuthenticated: dynamicIsAuthenticated } = useDynamicContext();
+  const { user: dynamicUser } = useDynamicContext();
 
   useEffect(() => {
     console.log('[AuthStateSync] Dynamic state:', {
-      isAuthenticated: dynamicIsAuthenticated,
       hasUser: !!dynamicUser,
-      userAddress: dynamicUser?.verifiedCredentials?.[0]?.address || dynamicUser?.walletPublicKey
+      userAddress: dynamicUser?.verifiedCredentials?.[0]?.address
     });
 
     // If we have a user with a wallet, treat them as authenticated
-    // Dynamic sometimes returns undefined for isAuthenticated initially
-    const isAuth = dynamicUser ? true : (dynamicIsAuthenticated || false);
+    const isAuth = !!dynamicUser;
 
     // Sync Dynamic's auth state with our context
     onAuthStateChange(isAuth, dynamicUser);
 
     // If we have a user with wallet address, check subscription
     if (dynamicUser) {
-      const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address || dynamicUser?.walletPublicKey;
+      const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address;
       if (walletAddress) {
         console.log('[AuthStateSync] Checking subscription for wallet:', walletAddress);
         onCheckSubscription(walletAddress);
@@ -75,7 +73,7 @@ function AuthStateSync({
         console.warn('[AuthStateSync] User exists but no wallet address found');
       }
     }
-  }, [dynamicIsAuthenticated, dynamicUser, onAuthStateChange, onCheckSubscription]);
+  }, [dynamicUser, onAuthStateChange, onCheckSubscription]);
 
   return null;
 }
@@ -154,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshSubscription = async () => {
     // Get wallet address from user object (Dynamic.xyz provides this)
-    const walletAddress = user?.verifiedCredentials?.[0]?.address || user?.walletPublicKey;
+    const walletAddress = user?.verifiedCredentials?.[0]?.address;
     if (walletAddress) {
       // Clear cache to force fresh fetch
       const cacheKey = `subscription_${walletAddress.toLowerCase()}`;

@@ -58,7 +58,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     const detectChain = async () => {
       if (primaryWallet) {
         try {
-          const walletClient = await primaryWallet.getWalletClient();
+          // Type assertion for getWalletClient which exists at runtime but not in types
+          const walletClient = await (primaryWallet as any).getWalletClient?.();
           if (walletClient && 'chain' in walletClient && walletClient.chain) {
             setConnectedChain(walletClient.chain.name);
           }
@@ -125,7 +126,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     setError('');
 
     try {
-      const walletClient = await primaryWallet.getWalletClient();
+      // Type assertion for getWalletClient which exists at runtime but not in types
+      const walletClient = await (primaryWallet as any).getWalletClient?.();
       if (!walletClient || !('sendTransaction' in walletClient)) {
         throw new Error('Wallet client not available');
       }

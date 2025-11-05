@@ -4,7 +4,7 @@
  * Calculates subscription status without database
  */
 
-import { Alchemy, Network, AssetTransfersCategory } from 'alchemy-sdk';
+import { Alchemy, Network, AssetTransfersCategory, SortingOrder } from 'alchemy-sdk';
 import { convertToUsd } from './alchemy-prices';
 
 export interface SubscriptionStatus {
@@ -76,7 +76,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         fromAddress: walletAddress,
         toAddress: paymentWallet,
         category: [AssetTransfersCategory.EXTERNAL],
-        order: 'asc',
+        order: SortingOrder.ASCENDING,
       });
 
       // Get USDC transfers
@@ -85,7 +85,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         toAddress: paymentWallet,
         category: [AssetTransfersCategory.ERC20],
         contractAddresses: [USDC_CONTRACTS[chainName]],
-        order: 'asc',
+        order: SortingOrder.ASCENDING,
       });
 
       // Process ETH transfers

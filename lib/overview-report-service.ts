@@ -58,6 +58,11 @@ function formatResultsUltraCompact(results: SavedResult[]): string {
     .join('\n');
 }
 
+export interface GroupSummary {
+  groupNumber: number;
+  summary: string;
+}
+
 export interface ProgressUpdate {
   phase: 'map' | 'reduce' | 'complete' | 'error';
   message: string;
@@ -65,8 +70,11 @@ export interface ProgressUpdate {
   currentGroup?: number;
   totalGroups?: number;
   groupSummary?: string;
+  groupSummaries?: GroupSummary[];
   finalReport?: string;
   error?: string;
+  estimatedTimeRemaining?: number;  // seconds
+  averageTimePerGroup?: number;  // seconds
 }
 
 export type ProgressCallback = (update: ProgressUpdate) => void;

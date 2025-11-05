@@ -119,7 +119,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
   // Convert markdown to HTML for printing
   const markdownToHTML = (markdown: string): string => {
-    let html = markdown
+    const html = markdown
       // Headers (process from most to least specific)
       .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
