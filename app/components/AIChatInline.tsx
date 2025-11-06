@@ -362,6 +362,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('=====================');
 
       // Call LLM using centralized client
+      // Use MEDIUM reasoning effort for balanced quality and speed
       const response = await callLLM([
         {
           role: "system",
@@ -376,8 +377,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           content: query
         }
       ], {
-        maxTokens: 3000,
+        maxTokens: 5000,
         temperature: 0.7,
+        reasoningEffort: 'medium',
       });
 
       const assistantContent = response.content;

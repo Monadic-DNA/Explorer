@@ -19,12 +19,14 @@ export interface LLMResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    reasoning_tokens?: number;  // For reasoning models
   };
 }
 
 export interface LLMOptions {
   maxTokens?: number;
   temperature?: number;
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 /**
@@ -35,31 +37,105 @@ export async function callLLM(
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
   const config = getAIConfig();
-  const { maxTokens = 1000, temperature = 0.7 } = options;
+  const { maxTokens = 1000, temperature = 0.7, reasoningEffort = 'medium' } = options;
 
-  console.log(`[LLM Client] Using provider: ${config.provider}, model: ${config.model}`);
-  
-  // Log first 20 lines of the prompt
+  // Estimate input tokens (rough approximation: 1 token ≈ 4 characters)
   const fullPrompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
+  const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
+
+  // Log comprehensive request details
+  console.log(`
+╔═══════════════════════════════════════════════════════════════
+║ LLM REQUEST START
+╠═══════════════════════════════════════════════════════════════
+║ Provider: ${config.provider}
+║ Model: ${config.model}
+║ Max Output Tokens: ${maxTokens}
+║ Reasoning Effort: ${reasoningEffort}
+║ Temperature: ${temperature}
+║ Estimated Input Tokens: ${estimatedInputTokens.toLocaleString()}
+╠═══════════════════════════════════════════════════════════════
+║ PROMPT PREVIEW (First 50 lines):
+╠═══════════════════════════════════════════════════════════════`);
+
   const promptLines = fullPrompt.split('\n');
-  const previewLines = promptLines.slice(0, 20);
-  console.log(`[LLM Client] Prompt preview (first 20 lines):\n${previewLines.join('\n')}`);
+  const previewLines = promptLines.slice(0, 50);
+  previewLines.forEach(line => {
+    console.log(`║ ${line}`);
+  });
 
-  switch (config.provider) {
-    case 'nilai':
-      return await callNilAI(messages, maxTokens, temperature);
+  if (promptLines.length > 50) {
+    console.log(`║ ... (${promptLines.length - 50} more lines omitted)`);
+  }
 
-    case 'ollama':
-      return await callOllama(messages, maxTokens, temperature, config.ollamaAddress, config.ollamaPort, config.model);
+  console.log(`╚═══════════════════════════════════════════════════════════════`);
 
-    case 'huggingface':
-      if (!config.huggingfaceApiKey) {
-        throw new Error('HuggingFace API key not configured');
-      }
-      return await callHuggingFace(messages, maxTokens, temperature, config.huggingfaceApiKey);
+  // Start timing
+  const startTime = Date.now();
 
-    default:
-      throw new Error(`Unknown provider: ${config.provider}`);
+  let response: LLMResponse;
+
+  try {
+    switch (config.provider) {
+      case 'nilai':
+        response = await callNilAI(messages, maxTokens, temperature, reasoningEffort);
+        break;
+
+      case 'ollama':
+        response = await callOllama(messages, maxTokens, temperature, reasoningEffort, config.ollamaAddress, config.ollamaPort, config.model);
+        break;
+
+      case 'huggingface':
+        if (!config.huggingfaceApiKey) {
+          throw new Error('HuggingFace API key not configured');
+        }
+        response = await callHuggingFace(messages, maxTokens, temperature, reasoningEffort, config.huggingfaceApiKey);
+        break;
+
+      default:
+        throw new Error(`Unknown provider: ${config.provider}`);
+    }
+
+    // Calculate elapsed time
+    const elapsedMs = Date.now() - startTime;
+    const elapsedSeconds = (elapsedMs / 1000).toFixed(2);
+
+    // Log comprehensive response details
+    console.log(`
+╔═══════════════════════════════════════════════════════════════
+║ LLM RESPONSE SUCCESS
+╠═══════════════════════════════════════════════════════════════
+║ Provider: ${config.provider}
+║ Model: ${config.model}
+║ Time Taken: ${elapsedSeconds}s (${elapsedMs}ms)
+║ Reasoning Effort: ${reasoningEffort}
+╠═══════════════════════════════════════════════════════════════
+║ TOKEN USAGE:
+║   Input Tokens: ${response.usage?.prompt_tokens?.toLocaleString() || 'N/A'}
+║   Output Tokens: ${response.usage?.completion_tokens?.toLocaleString() || 'N/A'}
+║   Total Tokens: ${response.usage?.total_tokens?.toLocaleString() || 'N/A'}
+║   Reasoning Tokens: ${(response.usage as any)?.reasoning_tokens?.toLocaleString() || 'Not reported'}
+╠═══════════════════════════════════════════════════════════════
+║ Response Length: ${response.content.length.toLocaleString()} characters
+║ Tokens/Second: ${response.usage?.completion_tokens ? (response.usage.completion_tokens / (elapsedMs / 1000)).toFixed(2) : 'N/A'}
+╚═══════════════════════════════════════════════════════════════`);
+
+    return response;
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    const elapsedSeconds = (elapsedMs / 1000).toFixed(2);
+
+    console.error(`
+╔═══════════════════════════════════════════════════════════════
+║ LLM REQUEST FAILED
+╠═══════════════════════════════════════════════════════════════
+║ Provider: ${config.provider}
+║ Model: ${config.model}
+║ Time Taken: ${elapsedSeconds}s before failure
+║ Error: ${error instanceof Error ? error.message : String(error)}
+╚═══════════════════════════════════════════════════════════════`);
+
+    throw error;
   }
 }
 
@@ -69,7 +145,8 @@ export async function callLLM(
 async function callNilAI(
   messages: LLMMessage[],
   maxTokens: number,
-  temperature: number
+  temperature: number,
+  reasoningEffort: 'low' | 'medium' | 'high'
 ): Promise<LLMResponse> {
   // Initialize client
   const client = new NilaiOpenAIClient({
@@ -101,6 +178,7 @@ async function callNilAI(
     messages: messages as any,
     max_tokens: maxTokens,
     temperature,
+    reasoning_effort: reasoningEffort,
   });
 
   const content = response.choices?.[0]?.message?.content;
@@ -121,6 +199,7 @@ async function callOllama(
   messages: LLMMessage[],
   maxTokens: number,
   temperature: number,
+  reasoningEffort: 'low' | 'medium' | 'high',
   address?: string,
   port?: number,
   model?: string
@@ -141,6 +220,7 @@ async function callOllama(
       options: {
         num_predict: maxTokens,
         temperature,
+        reasoning_effort: reasoningEffort,
       },
     }),
   });
@@ -150,7 +230,7 @@ async function callOllama(
   }
 
   const data = await response.json();
-  
+
   // ONLY use the response field - this contains the actual output
   // The thinking field contains internal reasoning and should be ignored
   const content = data.response || '';
@@ -161,7 +241,8 @@ async function callOllama(
     throw new Error('No response from Ollama - response field is empty (thinking field is ignored)');
   }
 
-  console.log(`[Ollama] Response length: ${content.length} chars, done_reason: ${data.done_reason || 'none'}`);
+  // Calculate reasoning tokens if thinking field is present
+  const reasoningTokens = data.thinking ? Math.ceil(data.thinking.length / 4) : undefined;
 
   return {
     content,
@@ -169,6 +250,7 @@ async function callOllama(
       prompt_tokens: data.prompt_eval_count || 0,
       completion_tokens: data.eval_count || 0,
       total_tokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
+      reasoning_tokens: reasoningTokens,
     },
   };
 }
@@ -180,6 +262,7 @@ async function callHuggingFace(
   messages: LLMMessage[],
   maxTokens: number,
   temperature: number,
+  reasoningEffort: 'low' | 'medium' | 'high',
   apiKey: string
 ): Promise<LLMResponse> {
   const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
@@ -193,6 +276,7 @@ async function callHuggingFace(
       messages,
       max_tokens: maxTokens,
       temperature,
+      reasoning_effort: reasoningEffort,
       stream: false,
     }),
   });

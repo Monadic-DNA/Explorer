@@ -29,31 +29,21 @@ import { callLLM } from './llm-client';
  * Target: ~10 chars per result = ~2.5 tokens per result
  * This allows ~48,000 results per call at 120k token budget
  */
-function formatResultsUltraCompact(results: SavedResult[]): string {
+/**
+ * Format results in optimized format for LLM analysis
+ * Format: Trait Name|Risk Score|Risk Level|SNP|Gene
+ * Includes essential medical context with efficient encoding
+ */
+function formatResultsOptimized(results: SavedResult[]): string {
   return results
     .map(r => {
-      // Ultra-aggressive abbreviation - max 15 chars
-      const trait = r.traitName
-        .replace(/\b(and|or|the|of|in|for|with|disease|type|risk|syndrome)\b/gi, '')
-        .replace(/\s+/g, '')  // Remove ALL spaces
-        .substring(0, 15)
-        .trim();
+      const trait = r.traitName.substring(0, 60); // Keep reasonable length
+      const riskScore = r.riskScore;
+      const riskLevel = r.riskLevel.charAt(0); // i/d/n encoding
+      const snp = r.matchedSnp;
+      const gene = r.mappedGene || 'Unknown';
 
-      // Single letter risk level
-      const level = r.riskLevel === 'increased' ? 'i' :
-                    r.riskLevel === 'decreased' ? 'd' : 'n';
-
-      // Format score compactly - handle both small (OR ~0.5-2.0) and large (beta coefficients)
-      let score: string;
-      if (Math.abs(r.riskScore) < 10) {
-        // Small values (OR): Use 2 decimals, remove leading 0
-        score = r.riskScore.toFixed(2).replace(/^0\./, '.').replace(/^-0\./, '-.');
-      } else {
-        // Large values (beta): Use scientific notation or truncate
-        score = r.riskScore >= 1000 ? r.riskScore.toExponential(1) : r.riskScore.toFixed(0);
-      }
-
-      return `${trait}|${level}|${score}`;
+      return `${trait}|${riskScore}|${riskLevel}|${snp}|${gene}`;
     })
     .join('\n');
 }
@@ -94,6 +84,53 @@ function sleep(ms: number): Promise<void> {
  * All processing happens in the browser for privacy
  */
 /**
+ * Calculate optimal batch count based on dataset size and token constraints.
+ * Ensures reduce phase stays well under token limit with 15k buffer.
+ */
+function calculateOptimalBatches(highConfResultCount: number): number {
+  // Token budget for reduce phase (with reasoning model, low effort)
+  const CONTEXT_WINDOW = 131072;
+  const REASONING_TOKENS_LOW = 5000;
+  const OUTPUT_TOKENS = 20000;  // Increased for comprehensive final reports
+  const TARGET_BUFFER = 10000;  // Tightened for maximum context utilization
+  const SUMMARY_TOKENS_PER_BATCH = 6400;  // Maxed out for rich per-batch summaries
+
+  // Calculate max safe batches based on token budget
+  const availableForSummaries =
+    CONTEXT_WINDOW - REASONING_TOKENS_LOW - OUTPUT_TOKENS - TARGET_BUFFER;
+  const maxSafeBatches = Math.floor(availableForSummaries / SUMMARY_TOKENS_PER_BATCH);
+  // Result: 28 batches max
+
+  // Quality constraints
+  const MIN_BATCHES = 16;  // Need thematic diversity
+  const MAX_BATCHES = maxSafeBatches;
+
+  // Target results per batch for optimal quality
+  const MIN_RESULTS_PER_BATCH = 800;
+  const MAX_RESULTS_PER_BATCH = 4000;
+
+  // Calculate batches to stay in quality range
+  const batchesForMinResults = Math.ceil(highConfResultCount / MAX_RESULTS_PER_BATCH);
+  const batchesForMaxResults = Math.ceil(highConfResultCount / MIN_RESULTS_PER_BATCH);
+
+  // Use middle of range
+  const targetBatches = Math.floor((batchesForMinResults + batchesForMaxResults) / 2);
+
+  // Clamp to valid range
+  const optimalBatches = Math.max(MIN_BATCHES, Math.min(MAX_BATCHES, targetBatches));
+
+  console.log(`[Overview Report] Dynamic batch calculation:
+    High-confidence results: ${highConfResultCount.toLocaleString()}
+    Target batches: ${targetBatches}
+    Optimal batches: ${optimalBatches}
+    Results per batch: ${Math.ceil(highConfResultCount / optimalBatches).toLocaleString()}
+    Estimated reduce tokens: ${optimalBatches * SUMMARY_TOKENS_PER_BATCH + REASONING_TOKENS_LOW + OUTPUT_TOKENS}
+    Token buffer: ${CONTEXT_WINDOW - (optimalBatches * SUMMARY_TOKENS_PER_BATCH + REASONING_TOKENS_LOW + OUTPUT_TOKENS)}`);
+
+  return optimalBatches;
+}
+
+/**
  * Filter to high-confidence results only
  * Criteria: sample size >= 5,000 AND -log10(p-value) >= 9 (p <= 1e-9)
  */
@@ -116,14 +153,11 @@ export async function generateOverviewReport(
   customization: any,
   onProgress: ProgressCallback
 ): Promise<string> {
-  const NUM_GROUPS = 32;  // 32 groups to give reasoning model enough tokens for both thinking + output (~25 min with Ollama)
-
   try {
     onProgress({
       phase: 'map',
       message: 'Filtering to high-confidence results...',
       progress: 2,
-      totalGroups: NUM_GROUPS,
     });
 
     // Filter to high-confidence results only
@@ -134,9 +168,12 @@ export async function generateOverviewReport(
       throw new Error('No high-confidence results found (sample size ≥5,000 and p-value ≤1e-9)');
     }
 
+    // Calculate optimal batch count dynamically based on result count
+    const NUM_GROUPS = calculateOptimalBatches(highConfResults.length);
+
     onProgress({
       phase: 'map',
-      message: `Analyzing ${highConfResults.length.toLocaleString()} high-confidence results...`,
+      message: `Analyzing ${highConfResults.length.toLocaleString()} high-confidence results in ${NUM_GROUPS} batches...`,
       progress: 5,
       totalGroups: NUM_GROUPS,
     });
@@ -181,8 +218,8 @@ export async function generateOverviewReport(
         averageTimePerGroup,
       });
 
-      // Format in ultra-compact format
-      const compactResults = formatResultsUltraCompact(group);
+      // Format in optimized format
+      const compactResults = formatResultsOptimized(group);
 
       console.log(`[Overview Report] Compact results sample (first 200 chars): ${compactResults.substring(0, 200)}`);
       console.log(`[Overview Report] Compact results length: ${compactResults.length} chars for ${group.length} results = ${(compactResults.length / group.length).toFixed(1)} chars/result`);
@@ -201,12 +238,13 @@ export async function generateOverviewReport(
       console.log(`[Overview Report] Prompt length: ${mapPrompt.length} chars, ~${Math.ceil(mapPrompt.length / 4)} tokens`);
 
       // Call LLM using centralized client
-      // With 32 batches, limit output to fit in reduce phase
-      // 32 × 3,500 = 112k tokens (safe for reduce phase)
-      // Allows for reasoning + ~2,000 word summary per batch
+      // Use HIGH reasoning effort for complex pattern recognition across variants
+      // Dynamic batching ensures summaries fit in reduce phase token budget
+      // 6,400 tokens allows rich, detailed per-batch summaries
       const response = await callLLM([{ role: 'user', content: mapPrompt }], {
-        maxTokens: 3500,
+        maxTokens: 6400,
         temperature: 0.7,
+        reasoningEffort: 'high',
       });
 
       const summary = response.content;
@@ -269,9 +307,12 @@ export async function generateOverviewReport(
     console.log(`[Overview Report] Reduce prompt length: ${reducePrompt.length} chars, ~${Math.ceil(reducePrompt.length / 4)} tokens`);
 
     // Call LLM for final synthesis using centralized client
+    // Use LOW reasoning effort to stay under token limit
+    // 20k tokens for comprehensive final reports (maxed out!)
     const response = await callLLM([{ role: 'user', content: reducePrompt }], {
-      maxTokens: 8000,
+      maxTokens: 20000,
       temperature: 0.7,
+      reasoningEffort: 'low',
     });
 
     const finalReport = response.content;

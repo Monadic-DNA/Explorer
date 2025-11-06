@@ -70,15 +70,21 @@ export function partitionResultsForAnalysis(
 }
 
 /**
- * Format results in compact format for LLM context
- * Format: "TraitName|RiskLevel|RiskScore|SNP"
- * Reduces token usage while preserving essential information
+ * Format results in optimized format for LLM context
+ * Format: "TraitName|RiskScore|RiskLevel|SNP|Gene"
+ * Includes essential medical context (genes, SNPs) with efficient encoding
+ * Risk Level encoded as: i=increased, d=decreased, n=neutral
  */
-export function formatResultsCompact(results: SavedResult[]): string {
+export function formatResultsOptimized(results: SavedResult[]): string {
   return results
     .map(r => {
-      const trait = r.traitName.substring(0, 80); // Truncate very long trait names
-      return `${trait}|${r.riskLevel}|${r.riskScore}|${r.matchedSnp}`;
+      const trait = r.traitName.substring(0, 60); // Keep reasonable length
+      const riskScore = r.riskScore;
+      const riskLevel = r.riskLevel.charAt(0); // i/d/n encoding
+      const snp = r.matchedSnp;
+      const gene = r.mappedGene || 'Unknown';
+
+      return `${trait}|${riskScore}|${riskLevel}|${snp}|${gene}`;
     })
     .join('\n');
 }
@@ -194,7 +200,21 @@ USER:${userContext}
 
 BATCH: ${groupNumber} of ${totalGroups} (${resultsInGroup} variants)
 
-DATA: "Trait|Risk|Score" where Risk: i=increased/d=decreased/n=neutral
+DATA FORMAT (one variant per line):
+Format: Trait Name|Risk Score|Risk Level|SNP|Gene
+
+Where:
+  - Trait Name: Full name of the genetic trait/condition
+  - Risk Score: Numerical risk score (e.g., 1100 = 1.1× risk)
+  - Risk Level: i=increased, d=decreased, n=neutral
+  - SNP: The specific genetic variant (rs number)
+  - Gene: The associated gene name
+
+Examples:
+  Cortical surface area|1100|i|rs12345678|NFILZ
+  Type 2 diabetes|850|d|rs7903146|TCF7L2
+
+DATA:
 
 ${compactResults}
 

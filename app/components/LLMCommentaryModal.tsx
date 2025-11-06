@@ -345,6 +345,7 @@ Please provide:
 Keep your response concise (400-600 words), educational, and reassuring where appropriate. Use clear, accessible language suitable for someone with no scientific background. Avoid jargon, and when technical terms are necessary, explain them simply.`;
 
       // Make request using centralized client
+      // Use LOW reasoning effort for fast individual result explanations
       const response = await callLLM([
         {
           role: "system",
@@ -355,8 +356,9 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
           content: prompt
         }
       ], {
-        maxTokens: 1200,
+        maxTokens: 1800,
         temperature: 0.7,
+        reasoningEffort: 'low',
       });
 
       const commentaryText = response.content;
