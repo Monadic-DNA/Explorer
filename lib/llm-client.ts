@@ -37,11 +37,21 @@ export async function callLLM(
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
   const config = getAIConfig();
-  const { maxTokens = 1000, temperature = 0.7, reasoningEffort = 'medium' } = options;
+  const { maxTokens, temperature = 0.7, reasoningEffort = 'medium' } = options;
 
-  // Estimate input tokens (rough approximation: 1 token ≈ 4 characters)
+  // Calculate prompt length for logging
+  // NOTE: Token-to-character ratio varies significantly by content type:
+  //   - Structured genetic data (pipe-delimited, SNP IDs, gene names): ~10 chars/token
+  //   - English prose output: ~3 chars/token
+  //   - General rule for this app: ~6-8 chars/token (mixed content)
+  // We log actual token counts from the model rather than estimating, and show
+  // the actual chars/token ratio in the response logs for transparency.
+  //
+  // IMPORTANT: If you see extremely high chars/token ratios (>20), the input is likely
+  // being truncated due to context window limits. For Ollama, ensure num_ctx is set
+  // to the model's full context window (131072 for gpt-oss-20b).
   const fullPrompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
-  const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
+  const promptChars = fullPrompt.length;
 
   // Log comprehensive request details
   console.log(`
@@ -50,10 +60,10 @@ export async function callLLM(
 ╠═══════════════════════════════════════════════════════════════
 ║ Provider: ${config.provider}
 ║ Model: ${config.model}
-║ Max Output Tokens: ${maxTokens}
+║ Max Output Tokens: ${maxTokens !== undefined ? maxTokens.toLocaleString() : 'unlimited (model max)'}
 ║ Reasoning Effort: ${reasoningEffort}
 ║ Temperature: ${temperature}
-║ Estimated Input Tokens: ${estimatedInputTokens.toLocaleString()}
+║ Prompt Size: ${promptChars.toLocaleString()} characters
 ╠═══════════════════════════════════════════════════════════════
 ║ PROMPT PREVIEW (First 50 lines):
 ╠═══════════════════════════════════════════════════════════════`);
@@ -100,6 +110,10 @@ export async function callLLM(
     const elapsedMs = Date.now() - startTime;
     const elapsedSeconds = (elapsedMs / 1000).toFixed(2);
 
+    // Calculate token ratios
+    const inputTokenRatio = response.usage?.prompt_tokens ? (promptChars / response.usage.prompt_tokens).toFixed(1) : 'N/A';
+    const outputTokenRatio = response.usage?.completion_tokens ? (response.content.length / response.usage.completion_tokens).toFixed(1) : 'N/A';
+
     // Log comprehensive response details
     console.log(`
 ╔═══════════════════════════════════════════════════════════════
@@ -111,12 +125,11 @@ export async function callLLM(
 ║ Reasoning Effort: ${reasoningEffort}
 ╠═══════════════════════════════════════════════════════════════
 ║ TOKEN USAGE:
-║   Input Tokens: ${response.usage?.prompt_tokens?.toLocaleString() || 'N/A'}
-║   Output Tokens: ${response.usage?.completion_tokens?.toLocaleString() || 'N/A'}
-║   Total Tokens: ${response.usage?.total_tokens?.toLocaleString() || 'N/A'}
-║   Reasoning Tokens: ${(response.usage as any)?.reasoning_tokens?.toLocaleString() || 'Not reported'}
+║   Input: ${response.usage?.prompt_tokens?.toLocaleString() || 'N/A'} tokens (${promptChars.toLocaleString()} chars, ${inputTokenRatio} chars/token)
+║   Output: ${response.usage?.completion_tokens?.toLocaleString() || 'N/A'} tokens (${response.content.length.toLocaleString()} chars, ${outputTokenRatio} chars/token)
+║   Reasoning: ${(response.usage as any)?.reasoning_tokens?.toLocaleString() || 'Not reported'} tokens
+║   Total: ${response.usage?.total_tokens?.toLocaleString() || 'N/A'} tokens
 ╠═══════════════════════════════════════════════════════════════
-║ Response Length: ${response.content.length.toLocaleString()} characters
 ║ Tokens/Second: ${response.usage?.completion_tokens ? (response.usage.completion_tokens / (elapsedMs / 1000)).toFixed(2) : 'N/A'}
 ╚═══════════════════════════════════════════════════════════════`);
 
@@ -144,7 +157,7 @@ export async function callLLM(
  */
 async function callNilAI(
   messages: LLMMessage[],
-  maxTokens: number,
+  maxTokens: number | undefined,
   temperature: number,
   reasoningEffort: 'low' | 'medium' | 'high'
 ): Promise<LLMResponse> {
@@ -176,7 +189,7 @@ async function callNilAI(
   const response = await client.chat.completions.create({
     model: 'openai/gpt-oss-20b',
     messages: messages as any,
-    max_tokens: maxTokens,
+    max_tokens: maxTokens || 131072, // Default to model max if not specified
     temperature,
     reasoning_effort: reasoningEffort,
   });
@@ -197,7 +210,7 @@ async function callNilAI(
  */
 async function callOllama(
   messages: LLMMessage[],
-  maxTokens: number,
+  maxTokens: number | undefined,
   temperature: number,
   reasoningEffort: 'low' | 'medium' | 'high',
   address?: string,
@@ -218,7 +231,8 @@ async function callOllama(
       prompt,
       stream: false,
       options: {
-        num_predict: maxTokens,
+        num_ctx: 131072, // Context window size (CRITICAL: Ollama defaults to 2048, must set to model max)
+        num_predict: maxTokens || 131072, // Max output tokens (default to model max if not specified)
         temperature,
         reasoning_effort: reasoningEffort,
       },
@@ -260,7 +274,7 @@ async function callOllama(
  */
 async function callHuggingFace(
   messages: LLMMessage[],
-  maxTokens: number,
+  maxTokens: number | undefined,
   temperature: number,
   reasoningEffort: 'low' | 'medium' | 'high',
   apiKey: string
@@ -274,7 +288,7 @@ async function callHuggingFace(
     body: JSON.stringify({
       model: 'openai/gpt-oss-20b:together',
       messages,
-      max_tokens: maxTokens,
+      max_tokens: maxTokens || 131072, // Default to model max if not specified
       temperature,
       reasoning_effort: reasoningEffort,
       stream: false,

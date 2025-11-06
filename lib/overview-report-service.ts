@@ -239,10 +239,8 @@ export async function generateOverviewReport(
 
       // Call LLM using centralized client
       // Use HIGH reasoning effort for complex pattern recognition across variants
-      // Dynamic batching ensures summaries fit in reduce phase token budget
-      // 6,400 tokens allows rich, detailed per-batch summaries
+      // No maxTokens limit - let model generate as much as needed
       const response = await callLLM([{ role: 'user', content: mapPrompt }], {
-        maxTokens: 6400,
         temperature: 0.7,
         reasoningEffort: 'high',
       });
@@ -308,9 +306,8 @@ export async function generateOverviewReport(
 
     // Call LLM for final synthesis using centralized client
     // Use LOW reasoning effort to stay under token limit
-    // 20k tokens for comprehensive final reports (maxed out!)
+    // No maxTokens limit - let model generate comprehensive reports
     const response = await callLLM([{ role: 'user', content: reducePrompt }], {
-      maxTokens: 20000,
       temperature: 0.7,
       reasoningEffort: 'low',
     });
