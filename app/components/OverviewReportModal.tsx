@@ -119,33 +119,34 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
   // Convert markdown to HTML for printing
   const markdownToHTML = (markdown: string): string => {
-    const html = markdown
-      // Headers (process from most to least specific)
-      .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      // Bold
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // Italic
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      // Code blocks
-      .replace(/```[\s\S]*?```/g, (match) => `<pre><code>${match.slice(3, -3)}</code></pre>`)
-      // Inline code
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      // Links
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    // First pass: Handle code blocks (to protect them from other processing)
+    const codeBlocks: string[] = [];
+    let workingText = markdown.replace(/```([\s\S]*?)```/g, (match, code) => {
+      const placeholder = `__CODEBLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(`<pre><code>${code.trim()}</code></pre>`);
+      return placeholder;
+    });
 
-    // Process lists and paragraphs line by line
-    const lines = html.split('\n');
+    // Second pass: Handle inline code (protect from bold/italic processing)
+    const inlineCodes: string[] = [];
+    workingText = workingText.replace(/`([^`]+)`/g, (match, code) => {
+      const placeholder = `__INLINECODE_${inlineCodes.length}__`;
+      inlineCodes.push(`<code>${code}</code>`);
+      return placeholder;
+    });
+
+    // Third pass: Process line by line for structure (headers, lists, paragraphs)
+    const lines = workingText.split('\n');
     const processed: string[] = [];
     let inList = false;
     let listType: 'ul' | 'ol' | null = null;
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
+      let line = lines[i];
+      const trimmedLine = line.trim();
 
-      if (!line) {
+      // Empty lines
+      if (!trimmedLine) {
         if (inList) {
           processed.push(listType === 'ul' ? '</ul>' : '</ol>');
           inList = false;
@@ -155,53 +156,107 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
         continue;
       }
 
-      // Unordered list
-      if (line.match(/^[-*+] /)) {
-        if (!inList) {
-          processed.push('<ul>');
-          inList = true;
-          listType = 'ul';
-        }
-        processed.push(`<li>${line.substring(2)}</li>`);
-      }
-      // Ordered list
-      else if (line.match(/^\d+\. /)) {
-        if (!inList) {
-          processed.push('<ol>');
-          inList = true;
-          listType = 'ol';
-        }
-        processed.push(`<li>${line.replace(/^\d+\. /, '')}</li>`);
-      }
-      // Regular content
-      else {
+      // Horizontal rules
+      if (trimmedLine.match(/^(---+|\*\*\*+|___+)$/)) {
         if (inList) {
           processed.push(listType === 'ul' ? '</ul>' : '</ol>');
           inList = false;
           listType = null;
         }
-
-        // Don't wrap headers or existing HTML tags in paragraphs
-        if (!line.startsWith('<')) {
-          processed.push(`<p>${line}</p>`);
-        } else {
-          processed.push(line);
-        }
+        processed.push('<hr>');
+        continue;
       }
+
+      // Headers (must be at start of line with space after #)
+      if (trimmedLine.match(/^#{1,6} /)) {
+        if (inList) {
+          processed.push(listType === 'ul' ? '</ul>' : '</ol>');
+          inList = false;
+          listType = null;
+        }
+        const level = trimmedLine.match(/^(#{1,6}) /)![1].length;
+        const text = trimmedLine.substring(level + 1);
+        processed.push(`<h${level}>${text}</h${level}>`);
+        continue;
+      }
+
+      // Unordered list items
+      if (trimmedLine.match(/^[-*+] /)) {
+        if (!inList || listType !== 'ul') {
+          if (inList) processed.push('</ol>');
+          processed.push('<ul>');
+          inList = true;
+          listType = 'ul';
+        }
+        processed.push(`<li>${trimmedLine.substring(2)}</li>`);
+        continue;
+      }
+
+      // Ordered list items
+      if (trimmedLine.match(/^\d+\. /)) {
+        if (!inList || listType !== 'ol') {
+          if (inList) processed.push('</ul>');
+          processed.push('<ol>');
+          inList = true;
+          listType = 'ol';
+        }
+        processed.push(`<li>${trimmedLine.replace(/^\d+\. /, '')}</li>`);
+        continue;
+      }
+
+      // Regular paragraphs
+      if (inList) {
+        processed.push(listType === 'ul' ? '</ul>' : '</ol>');
+        inList = false;
+        listType = null;
+      }
+      processed.push(`<p>${trimmedLine}</p>`);
     }
 
+    // Close any open lists
     if (inList) {
       processed.push(listType === 'ul' ? '</ul>' : '</ol>');
     }
 
-    return processed.join('\n');
+    let html = processed.join('\n');
+
+    // Fourth pass: Inline formatting (bold, italic, links)
+    // Bold (must come before italic to handle ** before *)
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+    // Fifth pass: Restore code blocks and inline code
+    html = html.replace(/__CODEBLOCK_(\d+)__/g, (match, index) => codeBlocks[parseInt(index)]);
+    html = html.replace(/__INLINECODE_(\d+)__/g, (match, index) => inlineCodes[parseInt(index)]);
+
+    return html;
   };
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow || !progress.finalReport) return;
 
-    const htmlContent = markdownToHTML(progress.finalReport);
+    // Convert markdown to HTML for both final report and batch summaries
+    const finalReportHTML = markdownToHTML(progress.finalReport);
+
+    // Append map reports to the final report
+    let mapReportsHTML = '';
+    if (progress.groupSummaries.length > 0) {
+      mapReportsHTML = '<div style="page-break-before: always; margin-top: 3rem;"><h1>Appendix: Detailed Batch Analysis</h1>';
+      mapReportsHTML += '<p style="color: #666; margin-bottom: 2rem;">The following sections contain the detailed analysis from each batch of genetic variants that were synthesized into the main report above.</p>';
+
+      progress.groupSummaries.forEach((gs) => {
+        mapReportsHTML += `<div style="margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 2px solid #E5E7EB;">`;
+        mapReportsHTML += `<h2 style="color: #3B82F6;">Batch ${gs.groupNumber}</h2>`;
+        mapReportsHTML += markdownToHTML(gs.summary);
+        mapReportsHTML += `</div>`;
+      });
+
+      mapReportsHTML += '</div>';
+    }
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -274,6 +329,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               border-radius: 6px;
               overflow-x: auto;
             }
+            pre code {
+              background: none;
+              padding: 0;
+            }
             a {
               color: #3B82F6;
               text-decoration: none;
@@ -296,6 +355,11 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               padding: 1.5rem;
               margin: 2rem 0;
             }
+            hr {
+              border: none;
+              border-top: 2px solid #ddd;
+              margin: 2rem 0;
+            }
             @media print {
               body { padding: 1rem; }
               @page { margin: 1.5cm; }
@@ -306,9 +370,11 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
           <div class="header-info">
             <strong>Generated:</strong> ${new Date().toLocaleString()}<br>
             <strong>Results Analyzed:</strong> ${savedResults.length.toLocaleString()} high-confidence genetic variants<br>
+            <strong>Batches Processed:</strong> ${progress.groupSummaries.length}<br>
             <strong>Powered by:</strong> OpenAI GPT-4o
           </div>
-          ${htmlContent}
+          ${finalReportHTML}
+          ${mapReportsHTML}
           <div style="margin-top: 3rem; padding-top: 1rem; border-top: 2px solid #ddd; color: #666; font-size: 0.9rem; text-align: center;">
             Generated by GWASifier • For Educational Purposes Only
           </div>
