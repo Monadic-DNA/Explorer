@@ -35,7 +35,10 @@ import { callLLM } from './llm-client';
  * Includes essential medical context with efficient encoding
  */
 function formatResultsOptimized(results: SavedResult[]): string {
-  return results
+  // TESTING: Temporarily limit to first 1,000 studies per batch
+  const limitedResults = results.slice(0, 1000);
+
+  return limitedResults
     .map(r => {
       const trait = r.traitName.substring(0, 60); // Keep reasonable length
       const riskScore = r.riskScore;
@@ -239,10 +242,11 @@ export async function generateOverviewReport(
 
       // Call LLM using centralized client
       // Use HIGH reasoning effort for complex pattern recognition across variants
-      // No maxTokens limit - let model generate as much as needed
+      // TESTING: Temporarily limit max tokens to 13,000
       const response = await callLLM([{ role: 'user', content: mapPrompt }], {
         temperature: 0.7,
         reasoningEffort: 'high',
+        maxTokens: 13000,
       });
 
       const summary = response.content;

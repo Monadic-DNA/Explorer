@@ -76,7 +76,10 @@ export function partitionResultsForAnalysis(
  * Risk Level encoded as: i=increased, d=decreased, n=neutral
  */
 export function formatResultsOptimized(results: SavedResult[]): string {
-  return results
+  // TESTING: Temporarily limit to first 1,000 studies per batch
+  const limitedResults = results.slice(0, 1000);
+
+  return limitedResults
     .map(r => {
       const trait = r.traitName.substring(0, 60); // Keep reasonable length
       const riskScore = r.riskScore;
@@ -194,7 +197,8 @@ export function generateMapPrompt(
   compactResults: string,
   userContext: string
 ): string {
-  return `Analyze these genetic variants and write a comprehensive medical genetics report.
+  return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase. 
+  Please flag the results most relevant for the reduce phase. 
 
 USER:${userContext}
 
@@ -218,23 +222,7 @@ DATA:
 
 ${compactResults}
 
-WRITE YOUR ANALYSIS REPORT NOW (3000-5000 words):
-
-# Batch ${groupNumber} Genetic Analysis Report
-
-## Executive Summary
-
-## Cardiovascular System
-
-## Metabolic & Endocrine System
-
-## Neurological System
-
-## Immune System
-
-## Other Systems
-
-## Key Risk Factors`;
+Now pick out the 100 most relevant results for the reduce phase and leave a summary indicating why you picked those. `;
 }
 
 /**
