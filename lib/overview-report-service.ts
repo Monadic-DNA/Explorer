@@ -242,10 +242,10 @@ export async function generateOverviewReport(
 
       // Call LLM using centralized client
       // Use HIGH reasoning effort for complex pattern recognition across variants
-      // TESTING: Temporarily limit max tokens to 13,000
+      // TESTING: Temporarily limit max tokens to 1,300
       const response = await callLLM([{ role: 'user', content: mapPrompt }], {
         temperature: 0.7,
-        reasoningEffort: 'high',
+        reasoningEffort: 'low',
         maxTokens: 13000,
       });
 
@@ -262,7 +262,7 @@ export async function generateOverviewReport(
 
       console.log(`[Overview Report] Map phase ${groupNumber}/${NUM_GROUPS}: Success (${summary.length} chars, ${(groupDuration / 1000).toFixed(1)}s)`);
       groupSummaries.push(summary);
-      
+
       // Track completed summaries for display to user
       completedSummaries.push({
         groupNumber: groupNumber,
