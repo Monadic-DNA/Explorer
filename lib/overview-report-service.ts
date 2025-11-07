@@ -313,7 +313,8 @@ export async function generateOverviewReport(
     // No maxTokens limit - let model generate comprehensive reports
     const response = await callLLM([{ role: 'user', content: reducePrompt }], {
       temperature: 0.7,
-      reasoningEffort: 'low',
+      reasoningEffort: 'high',
+      maxTokens: 13000,
     });
 
     const finalReport = response.content;

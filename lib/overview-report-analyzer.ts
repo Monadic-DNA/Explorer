@@ -77,9 +77,9 @@ export function partitionResultsForAnalysis(
  */
 export function formatResultsOptimized(results: SavedResult[]): string {
   // TESTING: Temporarily limit to first 1,000 studies per batch
-  const limitedResults = results.slice(0, 1000);
+  //const limitedResults = results.slice(0, 1000);
 
-  return limitedResults
+  return results
     .map(r => {
       const trait = r.traitName.substring(0, 60); // Keep reasonable length
       const riskScore = r.riskScore;
@@ -222,7 +222,7 @@ DATA:
 
 ${compactResults}
 
-Now pick out the 100 most relevant results for the reduce phase and leave a summary indicating why you picked those. `;
+Now pick out the 200 most relevant results (health, lifestyle, personality, fun facts) for the reduce phase and leave a summary indicating why you picked those. `;
 }
 
 /**
@@ -239,9 +239,11 @@ export function generateReducePrompt(
     .map((summary, i) => `--- BATCH ${i + 1} ANALYSIS ---\n${summary}`)
     .join('\n\n');
 
-  return `Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am${userContext}
+  return `Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am ${userContext}
 
-Please analyze and produce a comprehensive 5,000 word report. Refrain from providing specific medical advice.
+Please analyze and produce a 5,000 word report (health, lifestyle, personality, fun facts) suitable for regular people. 
+
+Minimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. 
 
 ${summariesText}`;
 }
