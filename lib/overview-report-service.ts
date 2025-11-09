@@ -105,7 +105,7 @@ function calculateOptimalBatches(highConfResultCount: number): number {
   // Result: 28 batches max
 
   // Quality constraints
-  const MIN_BATCHES = 16;  // Need thematic diversity
+  const MIN_BATCHES = 4;  // Need thematic diversity
   const MAX_BATCHES = maxSafeBatches;
 
   // Target results per batch for optimal quality

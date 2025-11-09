@@ -222,7 +222,9 @@ DATA:
 
 ${compactResults}
 
-Now pick out the 200 most relevant results (health, lifestyle, personality, fun facts) for the reduce phase and leave a summary indicating why you picked those. `;
+Now pick out the 200 most relevant results (health, lifestyle, appearance, personality, fun facts) for the reduce phase and leave a summary indicating why you picked those. 
+Remember to base relevance regardless of risk increase or decrease so the user gets a holistic picture. 
+`;
 }
 
 /**
@@ -241,7 +243,7 @@ export function generateReducePrompt(
 
   return `Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am ${userContext}
 
-Please analyze and produce a 5,000 word report (health, lifestyle, personality, fun facts) suitable for regular people. 
+Please analyze and produce a 5,000 word report (health, lifestyle, appearance, personality, fun facts) suitable for regular people. 
 
 Minimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. 
 
