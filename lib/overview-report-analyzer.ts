@@ -198,7 +198,9 @@ export function generateMapPrompt(
   userContext: string
 ): string {
   return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase. 
-  Please flag the results most relevant for the reduce phase. 
+  Please create a list of the 200 most relevant results  (health, lifestyle, appearance, personality, fun facts) with trait name, risk score, risk level, SNP and gene for the reduce phase. 
+  Add a summary paragraph indicating why you picked those. 
+  Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture. 
 
 USER:${userContext}
 
@@ -221,9 +223,6 @@ Examples:
 DATA:
 
 ${compactResults}
-
-Now list the 200 most relevant results  (health, lifestyle, appearance, personality, fun facts) with trait name, risk score, risk level, SNP and gene for the reduce phase and leave a summary indicating why you picked those. 
-Remember to base relevance regardless of risk increase or decrease so the user gets a holistic picture. 
 `;
 }
 
@@ -243,7 +242,9 @@ export function generateReducePrompt(
 
   return `Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am ${userContext}
 
-Please analyze and produce a 5,000 word report (health, lifestyle, appearance, personality, fun facts) suitable for regular people. 
+Please analyze and produce a report (health, lifestyle, appearance, personality, fun facts) suitable for personal genomics users. 
+
+Make sure you mention the most salient SNPs and genes. 
 
 Minimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. 
 

@@ -107,7 +107,7 @@ function calculateOptimalBatches(highConfResultCount: number): number {
 
   // Target results per batch for optimal quality
   // Map phase token budget: 137k context - 13k output - 16k buffer = 108k tokens
-  // Measured: ~24 tokens/result → ~4,500 results max per batch
+  // Measured: ~24 tokens/result → ~5,000 results max per batch
   const MIN_RESULTS_PER_BATCH = 800;
   const MAX_RESULTS_PER_BATCH = 4500;
 
