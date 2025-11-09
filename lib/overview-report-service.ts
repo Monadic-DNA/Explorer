@@ -35,10 +35,7 @@ import { callLLM } from './llm-client';
  * Includes essential medical context with efficient encoding
  */
 function formatResultsOptimized(results: SavedResult[]): string {
-  // TESTING: Temporarily limit to first 1,000 studies per batch
-  const limitedResults = results.slice(0, 1000);
-
-  return limitedResults
+  return results
     .map(r => {
       const trait = r.traitName.substring(0, 60); // Keep reasonable length
       const riskScore = r.riskScore;
@@ -106,27 +103,28 @@ function calculateOptimalBatches(highConfResultCount: number): number {
 
   // Quality constraints
   const MIN_BATCHES = 4;  // Need thematic diversity
-  const MAX_BATCHES = maxSafeBatches;
+  const MAX_BATCHES = 32;
 
   // Target results per batch for optimal quality
+  // Map phase token budget: 137k context - 13k output - 16k buffer = 108k tokens
+  // Measured: ~24 tokens/result → ~4,500 results max per batch
   const MIN_RESULTS_PER_BATCH = 800;
-  const MAX_RESULTS_PER_BATCH = 4000;
+  const MAX_RESULTS_PER_BATCH = 4500;
 
-  // Calculate batches to stay in quality range
-  const batchesForMinResults = Math.ceil(highConfResultCount / MAX_RESULTS_PER_BATCH);
-  const batchesForMaxResults = Math.ceil(highConfResultCount / MIN_RESULTS_PER_BATCH);
+  // Calculate batches to maximize results per batch (minimize total API calls)
+  const optimalBatches = Math.max(
+    MIN_BATCHES,
+    Math.min(MAX_BATCHES, Math.ceil(highConfResultCount / MAX_RESULTS_PER_BATCH))
+  );
 
-  // Use middle of range
-  const targetBatches = Math.floor((batchesForMinResults + batchesForMaxResults) / 2);
-
-  // Clamp to valid range
-  const optimalBatches = Math.max(MIN_BATCHES, Math.min(MAX_BATCHES, targetBatches));
+  const resultsPerBatch = Math.ceil(highConfResultCount / optimalBatches);
+  const estimatedTokensPerBatch = resultsPerBatch * 24 + 5000; // 24 tokens/result + 5k overhead
 
   console.log(`[Overview Report] Dynamic batch calculation:
     High-confidence results: ${highConfResultCount.toLocaleString()}
-    Target batches: ${targetBatches}
     Optimal batches: ${optimalBatches}
-    Results per batch: ${Math.ceil(highConfResultCount / optimalBatches).toLocaleString()}
+    Results per batch: ${resultsPerBatch.toLocaleString()}
+    Estimated map tokens/batch: ${estimatedTokensPerBatch.toLocaleString()} (~${Math.round(estimatedTokensPerBatch / 137000 * 100)}% of 137k context)
     Estimated reduce tokens: ${optimalBatches * SUMMARY_TOKENS_PER_BATCH + REASONING_TOKENS_LOW + OUTPUT_TOKENS}
     Token buffer: ${CONTEXT_WINDOW - (optimalBatches * SUMMARY_TOKENS_PER_BATCH + REASONING_TOKENS_LOW + OUTPUT_TOKENS)}`);
 

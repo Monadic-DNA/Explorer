@@ -1,9 +1,15 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from './AuthProvider';
 import { verifyPromoCode } from '@/lib/prime-verification';
-import PaymentModal from './PaymentModal';
+
+// Lazy load PaymentModal to reduce initial bundle size (viem + @dynamic-labs = ~86MB)
+const PaymentModal = dynamic(() => import('./PaymentModal'), {
+  loading: () => <div>Loading payment options...</div>,
+  ssr: false
+});
 
 interface PremiumPaywallProps {
   children: React.ReactNode;

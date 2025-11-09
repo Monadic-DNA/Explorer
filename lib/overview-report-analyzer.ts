@@ -222,7 +222,7 @@ DATA:
 
 ${compactResults}
 
-Now pick out the 200 most relevant results (health, lifestyle, appearance, personality, fun facts) for the reduce phase and leave a summary indicating why you picked those. 
+Now list the 200 most relevant results  (health, lifestyle, appearance, personality, fun facts) with trait name, risk score, risk level, SNP and gene for the reduce phase and leave a summary indicating why you picked those. 
 Remember to base relevance regardless of risk increase or decrease so the user gets a holistic picture. 
 `;
 }

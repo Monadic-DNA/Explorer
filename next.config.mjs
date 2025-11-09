@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   compress: true, // Enable gzip compression for API responses
   experimental: {
-    optimizePackageImports: ["react", "react-dom"],
+    optimizePackageImports: ["react", "react-dom", "viem", "react-markdown"],
     serverComponentsExternalPackages: ['onnxruntime-node', 'sharp']
   },
   async rewrites() {
