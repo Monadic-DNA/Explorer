@@ -198,7 +198,7 @@ export function generateMapPrompt(
   userContext: string
 ): string {
   return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase. 
-  Please create a list of the 200 most relevant results  (health, lifestyle, appearance, personality, fun facts) with trait name, risk score, risk level, SNP and gene for the reduce phase. 
+  Please create a numbered list of the 200 most relevant results  (health, lifestyle, appearance, personality, fun facts) with trait name, risk score, risk level, SNP and gene for the reduce phase. 
   Add a summary paragraph indicating why you picked those. 
   Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture. 
 
