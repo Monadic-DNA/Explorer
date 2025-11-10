@@ -243,11 +243,12 @@ export function generateReducePrompt(
 
   return `Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am ${userContext}
 
-Please analyze and produce a report (health, lifestyle, appearance, personality, fun facts) suitable for personal genomics users. 
+Please analyze and produce a five page report (health, lifestyle, appearance, personality, fun facts) suitable for personal genomics users. 
 
 Make sure you mention the most salient SNPs and genes. 
 
 Minimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. 
 
+Output text with no tables. Do not comment on SNPs and genes I do not have. 
 ${summariesText}`;
 }
