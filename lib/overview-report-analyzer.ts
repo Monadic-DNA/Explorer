@@ -216,19 +216,20 @@ Format: Trait Name|Risk Score|Risk Level|Effect Type|SNP|Gene
 
 Where:
   - Trait Name: Full name of the genetic trait/condition
-  - Risk Score: Numerical risk score (e.g., 1100 = 1.1× risk for OR, or actual beta coefficient value)
+  - Risk Score: Numerical risk score (actual OR value or beta coefficient)
   - Risk Level: i=increased, d=decreased, n=neutral
   - Effect Type: OR (odds ratio) or beta (beta coefficient)
   - SNP: The specific genetic variant (rs number)
   - Gene: The associated gene name
 
 IMPORTANT: Effect Type tells you how to interpret Risk Score:
-  - OR: Odds ratio (1000 = 1.0 = neutral, >1000 = increased risk, <1000 = protective)
+  - OR: Odds ratio (1.0 = neutral, >1.0 = increased risk, <1.0 = protective)
+       Example: 1.12 = 12% increased risk, 0.85 = 15% decreased risk
   - beta: Beta coefficient (context-dependent, sign indicates direction)
 
 Examples:
-  Cortical surface area|1100|i|OR|rs12345678|NFILZ
-  Type 2 diabetes|850|d|OR|rs7903146|TCF7L2
+  Cortical surface area|1.15|i|OR|rs12345678|NFILZ
+  Type 2 diabetes|0.85|d|OR|rs7903146|TCF7L2
   Body mass index|0.05|i|beta|rs9939609|FTO
 
 DATA:

@@ -108,9 +108,9 @@ function calculateOptimalBatches(highConfResultCount: number): number {
 
   // Target results per batch for optimal quality
   // Map phase token budget: 137k context - 13k output - 16k buffer = 108k tokens
-  // Measured: ~24 tokens/result → ~5,000 results max per batch
+  // Measured: ~26 tokens/result → ~4,200 results max per batch
   const MIN_RESULTS_PER_BATCH = 800;
-  const MAX_RESULTS_PER_BATCH = 4500;
+  const MAX_RESULTS_PER_BATCH = 4200; // Reduced from 4500 due to added effectType column
 
   // Calculate batches to maximize results per batch (minimize total API calls)
   const optimalBatches = Math.max(
@@ -119,7 +119,7 @@ function calculateOptimalBatches(highConfResultCount: number): number {
   );
 
   const resultsPerBatch = Math.ceil(highConfResultCount / optimalBatches);
-  const estimatedTokensPerBatch = resultsPerBatch * 24 + 5000; // 24 tokens/result + 5k overhead
+  const estimatedTokensPerBatch = resultsPerBatch * 26 + 5000; // 26 tokens/result (was 24) + 5k overhead
 
   console.log(`[Overview Report] Dynamic batch calculation:
     High-confidence results: ${highConfResultCount.toLocaleString()}
