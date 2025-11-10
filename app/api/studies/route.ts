@@ -237,7 +237,8 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search")?.trim();
   const trait = searchParams.get("trait")?.trim();
-  const useSemanticSearch = searchParams.get("semantic") !== "false"; // Default true
+  const searchMode = searchParams.get("searchMode") ?? "similarity"; // "similarity" or "exact"
+  const useSemanticSearch = searchMode === "similarity"; // Use semantic search only for similarity mode
 
   // Special parameter for "Run All" - fetches all studies with SNPs
   const fetchAll = searchParams.get("fetchAll") === "true";
@@ -285,9 +286,9 @@ export async function GET(request: NextRequest) {
     // Keyword search (fallback or when semantic is disabled)
     const wildcard = `%${search}%`;
     filters.push(
-      "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ?)",
+      "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
     );
-    params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+    params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
   } else if (useSemanticQuery) {
     // Semantic search: Use separate study_embeddings table
     const dbType = getDbType();
@@ -302,9 +303,9 @@ export async function GET(request: NextRequest) {
       console.warn(`[Semantic Search] SQLite doesn't support vector similarity, falling back to keyword search`);
       const wildcard = `%${search}%`;
       filters.push(
-        "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ?)",
+        "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
       );
-      params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+      params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
       useSemanticQuery = false;
     }
   }
@@ -495,9 +496,9 @@ export async function GET(request: NextRequest) {
       if (search) {
         const wildcard = `%${search}%`;
         fallbackFilters.push(
-          "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ?)",
+          "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
         );
-        fallbackParams.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+        fallbackParams.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
       }
 
       if (trait) {

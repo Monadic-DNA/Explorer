@@ -33,6 +33,7 @@ type ConfidenceBand = "high" | "medium" | "low";
 
 type Filters = {
   search: string;
+  searchMode: "similarity" | "exact";
   trait: string;
   minSampleSize: string;
   maxPValue: string;
@@ -97,6 +98,7 @@ type QualitySummary = {
 
 const defaultFilters: Filters = {
   search: "",
+  searchMode: "similarity",
   trait: "",
   minSampleSize: "500",
   maxPValue: "5e-8",
@@ -178,6 +180,7 @@ function buildQuery(filters: Filters): string {
   params.set("excludeMissingGenotype", String(filters.excludeMissingGenotype));
   if (filters.search.trim()) {
     params.set("search", filters.search.trim());
+    params.set("searchMode", filters.searchMode);
   }
   if (filters.trait) {
     params.set("trait", filters.trait);
@@ -713,6 +716,28 @@ function MainContent() {
                   value={filters.search}
                   onChange={(event) => updateFilter("search", event.target.value)}
                 />
+                <div style={{ marginTop: "0.5rem", display: "flex", gap: "1rem" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
+                    <input
+                      type="radio"
+                      name="searchMode"
+                      value="similarity"
+                      checked={filters.searchMode === "similarity"}
+                      onChange={(event) => updateFilter("searchMode", event.target.value as "similarity" | "exact")}
+                    />
+                    Similarity
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
+                    <input
+                      type="radio"
+                      name="searchMode"
+                      value="exact"
+                      checked={filters.searchMode === "exact"}
+                      onChange={(event) => updateFilter("searchMode", event.target.value as "similarity" | "exact")}
+                    />
+                    Exact match
+                  </label>
+                </div>
               </div>
               <div className="panel-field">
                 <label htmlFor="trait">

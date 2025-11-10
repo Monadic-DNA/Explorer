@@ -199,9 +199,11 @@ export function generateMapPrompt(
 ): string {
   return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase. 
   Please analyze health, lifestyle, appearance, personality and fun facts for the reduce phase.  
+  Fun facts should actually be fun and not serious medical stuff. 
   Do not include tutorial, recommendations, next steps. The output is not meant for the user. Rather, the next reduce phase will be handled by an LLM. 
   Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture. 
-  Output text with no tables. 
+  Output text with no tables or any fancy formatting. 
+  Do not comment on SNPs and genes I do not have.
 
 USER:${userContext}
 
@@ -245,10 +247,12 @@ export function generateReducePrompt(
 
 Please analyze and produce a five page report (health, lifestyle, appearance, personality, fun facts) suitable for personal genomics users. 
 
+Fun facts should actually be fun and not serious medical stuff. 
+
 Make sure you mention the most salient SNPs and genes. 
 
 Minimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. 
 
-Output text with no tables. Do not comment on SNPs and genes I do not have. 
+Output text with no tables or any fancy formatting. Do not comment on SNPs and genes I do not have. 
 ${summariesText}`;
 }
