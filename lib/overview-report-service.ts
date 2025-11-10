@@ -26,12 +26,12 @@ import { callLLM } from './llm-client';
 /**
  * Ultra-compact format to fit within context window
  * Format: "TraitAbbrev|L|score" where L = i/d/n (increased/decreased/neutral)
- * Target: ~10 chars per result = ~2.5 tokens per result
- * This allows ~48,000 results per call at 120k token budget
+ * Target: ~12 chars per result = ~3 tokens per result
+ * This allows ~40,000 results per call at 120k token budget
  */
 /**
  * Format results in optimized format for LLM analysis
- * Format: Trait Name|Risk Score|Risk Level|SNP|Gene
+ * Format: Trait Name|Risk Score|Risk Level|Effect Type|SNP|Gene
  * Includes essential medical context with efficient encoding
  */
 function formatResultsOptimized(results: SavedResult[]): string {
@@ -40,10 +40,11 @@ function formatResultsOptimized(results: SavedResult[]): string {
       const trait = r.traitName.substring(0, 60); // Keep reasonable length
       const riskScore = r.riskScore;
       const riskLevel = r.riskLevel.charAt(0); // i/d/n encoding
+      const effectType = r.effectType || 'OR'; // Default to OR if not specified
       const snp = r.matchedSnp;
       const gene = r.mappedGene || 'Unknown';
 
-      return `${trait}|${riskScore}|${riskLevel}|${snp}|${gene}`;
+      return `${trait}|${riskScore}|${riskLevel}|${effectType}|${snp}|${gene}`;
     })
     .join('\n');
 }

@@ -71,9 +71,10 @@ export function partitionResultsForAnalysis(
 
 /**
  * Format results in optimized format for LLM context
- * Format: "TraitName|RiskScore|RiskLevel|SNP|Gene"
+ * Format: "TraitName|RiskScore|RiskLevel|EffectType|SNP|Gene"
  * Includes essential medical context (genes, SNPs) with efficient encoding
  * Risk Level encoded as: i=increased, d=decreased, n=neutral
+ * Effect Type: OR (odds ratio) or beta (beta coefficient)
  */
 export function formatResultsOptimized(results: SavedResult[]): string {
   // TESTING: Temporarily limit to first 1,000 studies per batch
@@ -84,10 +85,11 @@ export function formatResultsOptimized(results: SavedResult[]): string {
       const trait = r.traitName.substring(0, 60); // Keep reasonable length
       const riskScore = r.riskScore;
       const riskLevel = r.riskLevel.charAt(0); // i/d/n encoding
+      const effectType = r.effectType || 'OR'; // Default to OR if not specified
       const snp = r.matchedSnp;
       const gene = r.mappedGene || 'Unknown';
 
-      return `${trait}|${riskScore}|${riskLevel}|${snp}|${gene}`;
+      return `${trait}|${riskScore}|${riskLevel}|${effectType}|${snp}|${gene}`;
     })
     .join('\n');
 }
@@ -197,12 +199,12 @@ export function generateMapPrompt(
   compactResults: string,
   userContext: string
 ): string {
-  return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase. 
-  Please analyze health, lifestyle, appearance, personality and fun facts for the reduce phase.  
-  Fun facts should actually be fun and not serious medical stuff. 
-  Do not include tutorial, recommendations, next steps. The output is not meant for the user. Rather, the next reduce phase will be handled by an LLM. 
-  Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture. 
-  Output text with no tables or any fancy formatting. 
+  return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase.
+  Please analyze health, lifestyle, appearance, personality and fun facts for the reduce phase.
+  Fun facts should actually be fun and not serious medical stuff.
+  Do not include tutorial, recommendations, next steps. The output is not meant for the user. Rather, the next reduce phase will be handled by an LLM.
+  Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture.
+  Output text with no tables or any fancy formatting.
   Do not comment on SNPs and genes I do not have.
 
 USER:${userContext}
@@ -210,18 +212,24 @@ USER:${userContext}
 BATCH: ${groupNumber} of ${totalGroups} (${resultsInGroup} variants)
 
 DATA FORMAT (one variant per line):
-Format: Trait Name|Risk Score|Risk Level|SNP|Gene
+Format: Trait Name|Risk Score|Risk Level|Effect Type|SNP|Gene
 
 Where:
   - Trait Name: Full name of the genetic trait/condition
-  - Risk Score: Numerical risk score (e.g., 1100 = 1.1× risk)
+  - Risk Score: Numerical risk score (e.g., 1100 = 1.1× risk for OR, or actual beta coefficient value)
   - Risk Level: i=increased, d=decreased, n=neutral
+  - Effect Type: OR (odds ratio) or beta (beta coefficient)
   - SNP: The specific genetic variant (rs number)
   - Gene: The associated gene name
 
+IMPORTANT: Effect Type tells you how to interpret Risk Score:
+  - OR: Odds ratio (1000 = 1.0 = neutral, >1000 = increased risk, <1000 = protective)
+  - beta: Beta coefficient (context-dependent, sign indicates direction)
+
 Examples:
-  Cortical surface area|1100|i|rs12345678|NFILZ
-  Type 2 diabetes|850|d|rs7903146|TCF7L2
+  Cortical surface area|1100|i|OR|rs12345678|NFILZ
+  Type 2 diabetes|850|d|OR|rs7903146|TCF7L2
+  Body mass index|0.05|i|beta|rs9939609|FTO
 
 DATA:
 
