@@ -12,7 +12,7 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
   - [Environment Variables](#environment-variables)
 - [Production Deployment](#production-deployment)
 - [Semantic Search Setup](#semantic-search-setup)
-- [Premium Features & Blockchain Payments](#premium-features--crypto-payments)
+- [Premium Features & Payments](#premium-features--payments)
 - [License](#license)
 
 ## Features
@@ -22,7 +22,7 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 - **Upload and analyze** your personal genetic data (23andMe, AncestryDNA, Monadic DNA)
 - **Private LLM analysis** powered by Nillion's nilAI - your data is processed in a Trusted Execution Environment
 - **Premium Features**: AI-powered genetic analysis chat, Run All analysis, comprehensive reports
-- **Blockchain payments**: Database-free subscription system using ETH/USDC on EVM chains (Ethereum, Base, Arbitrum, Optimism)
+- **Dual payment system**: Credit/debit cards (Stripe) or crypto (ETH/USDC on Ethereum, Base, Arbitrum, Optimism)
 - **Save and export** your results
 - **Privacy-focused**: All processing happens on your infrastructure (no third-party APIs for search)
 
@@ -368,31 +368,64 @@ WHERE accessed_at < NOW() - INTERVAL '90 days'
 - Semantic search only works with PostgreSQL + pgvector (SQLite falls back to keyword search)
 - Ensure HNSW index created: `\d+ study_embeddings` should show `idx_study_embeddings_embedding`
 
-## Premium Features & Blockchain Payments
+## Premium Features & Payments
 
 GWASifier offers premium features including AI-powered genetic analysis chat, Run All analysis, and comprehensive reports.
 
-### Payment System
+### Dual Payment System
 
-The app uses a **database-free, blockchain-based payment system**:
-- **No database required** - Subscription status verified on-chain
+The app supports **two payment methods** for premium subscriptions:
+
+#### 1. Credit/Debit Card Payments (Stripe) - Recurring Subscription
+- **Fixed $4.99/month** - Standard recurring subscription
+- **Auto-renewal** - Automatically renews monthly
+- **Instant activation** - Subscription activates immediately
+- **Managed via Stripe** - Cancel anytime through customer portal
+- **Setup**: See `STRIPE_INTEGRATION.md` for detailed instructions
+
+#### 2. Crypto Payments (Blockchain) - Flexible Prepaid
+- **Flexible amounts** - Pay any amount ($1+ USD equivalent)
+- **One-time payment** - No auto-renewal, top up when needed
 - **Supported chains**: Ethereum, Base (recommended), Arbitrum, Optimism
 - **Accepted tokens**: ETH and USDC
-- **Pricing**: $4.99/month (prorated: $10 = ~60 days, $2.50 = ~15 days)
-- **Minimum payment**: $1 USD
+- **Examples**: $4.99 = 30 days, $10 = 60 days, $50 = 300 days
+- **Setup**: See `BLOCKCHAIN_PAYMENTS.md` for detailed instructions
+
+**Key Difference:**
+- **Stripe**: Fixed recurring subscription ($4.99/month, auto-renews)
+- **Crypto**: Flexible prepaid (choose your amount, no auto-renewal)
+
+**Payment Stacking:**
+Users can combine both! Subscribe with card for recurring billing, then add extra months with crypto payments as needed.
+
+**See `PAYMENT_METHODS.md` for detailed comparison.**
 
 ### How It Works
 
+**Stripe Card Payments (Recurring):**
+1. User connects wallet via Dynamic.xyz (for identity)
+2. User selects "Pay with Card" (fixed $4.99/month)
+3. Redirected to Stripe Checkout for secure payment
+4. Subscription created, payments recorded in PostgreSQL
+5. Auto-renews monthly, cancel anytime via Stripe portal
+
+**Blockchain Crypto Payments:**
 1. User connects wallet via Dynamic.xyz
 2. User sends ETH or USDC to payment wallet from connected wallet
 3. App queries Alchemy indexer to find all payments from user's wallet
-4. App uses Alchemy Prices API API to get historical prices at transaction time
+4. App uses Alchemy Prices API to get historical prices at transaction time
 5. App calculates subscription: `days = (amountUSD / 4.99) * 30`
-6. Subscription status cached in localStorage for 1 hour
+
+**Combined Subscription:**
+- Both payment sources are checked and combined
+- Total days = blockchain days + Stripe days
+- Subscription status cached in localStorage for 1 hour
 
 ### Setup
 
-See `BLOCKCHAIN_PAYMENTS.md` for detailed setup instructions.
+See detailed setup guides:
+- **Stripe Payments**: `STRIPE_INTEGRATION.md`
+- **Blockchain Payments**: `BLOCKCHAIN_PAYMENTS.md`
 
 **Quick Start:**
 ```bash

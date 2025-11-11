@@ -114,3 +114,9 @@ CREATE INDEX idx_embedding_cache_access_count ON embedding_cache(access_count DE
 --
 -- Access tracking for embedding_cache is handled in application code
 -- (SQLite doesn't support the same trigger functionality as PostgreSQL)
+
+-- ========================================
+-- Payment Verification
+-- ========================================
+-- Stripe subscriptions: Verified via direct Stripe API queries (no database storage needed)
+-- Blockchain payments: Verified via Alchemy API indexer (no database storage needed)

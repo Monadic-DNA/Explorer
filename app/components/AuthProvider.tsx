@@ -13,11 +13,6 @@ interface SubscriptionData {
   paymentCount: number;
 }
 
-interface CachedSubscription {
-  data: SubscriptionData;
-  timestamp: number;
-}
-
 interface AuthContextType {
   isAuthenticated: boolean;
   user: any | null;
@@ -37,9 +32,6 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const useAuth = () => useContext(AuthContext);
-
-// Cache duration: 1 hour (configurable via env var)
-const CACHE_DURATION_MS = parseInt(process.env.NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS || '1') * 60 * 60 * 1000;
 
 // Inner component to sync Dynamic context with Auth context
 function AuthStateSync({
@@ -90,30 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[AuthProvider] Checking subscription for:', walletAddress);
       setCheckingSubscription(true);
 
-      // Check localStorage cache first
-      const cacheKey = `subscription_${walletAddress.toLowerCase()}`;
-      const cached = localStorage.getItem(cacheKey);
-
-      if (cached) {
-        try {
-          const parsedCache: CachedSubscription = JSON.parse(cached);
-          const cacheAge = Date.now() - parsedCache.timestamp;
-
-          // If cache is fresh, use it
-          if (cacheAge < CACHE_DURATION_MS) {
-            setHasActiveSubscription(parsedCache.data.isActive);
-            setSubscriptionData(parsedCache.data);
-            setCheckingSubscription(false);
-            console.log(`Using cached subscription status (age: ${Math.round(cacheAge / 60000)} minutes)`);
-            return;
-          }
-        } catch (err) {
-          console.warn('Failed to parse cached subscription data:', err);
-        }
-      }
-
-      // Cache miss or stale - query API
-      console.log('Fetching fresh subscription status from blockchain...');
+      // Query API directly - no caching
       const response = await fetch('/api/check-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,15 +103,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHasActiveSubscription(subData.isActive);
       setSubscriptionData(subData);
 
-      // Update cache
-      const cacheData: CachedSubscription = {
-        data: subData,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      console.log('[AuthProvider] Subscription check complete:', {
+        isActive: subData.isActive,
+        daysRemaining: subData.daysRemaining,
+      });
 
     } catch (error) {
-      console.error('Failed to check subscription:', error);
+      console.error('[AuthProvider] Failed to check subscription:', error);
       setHasActiveSubscription(false);
       setSubscriptionData(null);
     } finally {
@@ -151,12 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshSubscription = async () => {
-    // Get wallet address from user object (Dynamic.xyz provides this)
     const walletAddress = user?.verifiedCredentials?.[0]?.address;
     if (walletAddress) {
-      // Clear cache to force fresh fetch
-      const cacheKey = `subscription_${walletAddress.toLowerCase()}`;
-      localStorage.removeItem(cacheKey);
       await checkSubscription(walletAddress);
     }
   };

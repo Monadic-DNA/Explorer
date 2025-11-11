@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkSubscription } from '@/lib/subscription-indexer';
+import { checkCombinedSubscription } from '@/lib/subscription-manager';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,8 +20,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Query blockchain for subscription status
-    const subscription = await checkSubscription(walletAddress);
+    // Query both blockchain (Alchemy) and Stripe payments
+    // Combined subscription includes payments from both sources
+    console.log('[Subscription Check] Checking combined subscription (blockchain + Stripe)');
+    const subscription = await checkCombinedSubscription(walletAddress);
 
     return NextResponse.json({
       success: true,

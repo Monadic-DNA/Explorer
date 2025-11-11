@@ -4,8 +4,19 @@
  * Calculates subscription status without database
  */
 
-import { Alchemy, Network, AssetTransfersCategory, SortingOrder } from 'alchemy-sdk';
+import { Alchemy, Network, AssetTransfersCategory, SortingOrder, AlchemyConfig } from 'alchemy-sdk';
 import { convertToUsd } from './alchemy-prices';
+
+// Custom fetch wrapper to fix Next.js + Alchemy SDK compatibility
+// Sets referrer to empty string instead of 'client' which causes errors in Node fetch
+const customFetch = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const options = { ...init };
+  // Set referrer to empty string to avoid "Referrer 'client' is not a valid URL" error
+  if (options) {
+    (options as any).referrer = '';
+  }
+  return fetch(url, options);
+};
 
 export interface SubscriptionStatus {
   isActive: boolean;
@@ -66,10 +77,17 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
   // Query all supported chains
   for (const [chainName, network] of Object.entries(NETWORKS)) {
     try {
-      const alchemy = new Alchemy({
-        apiKey: process.env.ALCHEMY_API_KEY,
+      // Fix for Next.js + Alchemy SDK fetch compatibility
+      const config: AlchemyConfig = {
+        apiKey: process.env.ALCHEMY_API_KEY!,
         network,
-      });
+      };
+
+      // Use custom fetch to avoid referrer issues
+      // @ts-ignore - Alchemy SDK allows custom fetch but types don't reflect it
+      config.fetch = customFetch;
+
+      const alchemy = new Alchemy(config);
 
       // Get ETH transfers
       const ethTransfers = await alchemy.core.getAssetTransfers({

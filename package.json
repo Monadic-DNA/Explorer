@@ -16,6 +16,8 @@
     "@dynamic-labs/ethereum": "^3.6.5",
     "@dynamic-labs/sdk-react-core": "^3.6.5",
     "@nillion/nilai-ts": "^0.0.0-alpha.5",
+    "@stripe/react-stripe-js": "^2.8.0",
+    "@stripe/stripe-js": "^3.5.0",
     "@types/crypto-js": "^4.2.2",
     "@types/pako": "^2.0.4",
     "@types/pg": "^8.15.6",
@@ -34,6 +36,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "sql.js": "^1.13.0",
+    "stripe": "^17.5.0",
     "viem": "^2.38.5"
   },
   "devDependencies": {

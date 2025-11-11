@@ -145,3 +145,9 @@ EXECUTE FUNCTION update_embedding_cache_access();
 -- - Foreign key constraint ensures data integrity
 -- - UNIQUE constraint on gwas_catalog prevents duplicate associations
 -- - Embeddings can be backed up and restored to different databases
+
+-- ========================================
+-- Payment Verification
+-- ========================================
+-- Stripe subscriptions: Verified via direct Stripe API queries (no database storage needed)
+-- Blockchain payments: Verified via Alchemy API indexer (no database storage needed)

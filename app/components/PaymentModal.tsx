@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseEther, parseUnits, encodeFunctionData } from 'viem';
 import { verifyPromoCode } from '@/lib/prime-verification';
+import StripeSubscriptionForm from './StripeSubscriptionForm';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -12,11 +13,13 @@ interface PaymentModalProps {
 }
 
 type Currency = 'ETH' | 'USDC';
-type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing';
+type PaymentType = 'crypto' | 'card' | 'promo';
+type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing' | 'card-payment' | 'card-success';
 
 export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModalProps) {
   const { primaryWallet } = useDynamicContext();
   const [step, setStep] = useState<Step>('choice');
+  const [paymentType, setPaymentType] = useState<PaymentType>('crypto');
   const [amount, setAmount] = useState('4.99');
   const [currency, setCurrency] = useState<Currency>('USDC');
   const [connectedChain, setConnectedChain] = useState<string>('');
@@ -108,6 +111,21 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     } else {
       setPromoMessage({ type: 'error', text: result.message });
     }
+  };
+
+  const handleCardPaymentSuccess = () => {
+    // Clear subscription cache so next check will fetch fresh data
+    if (primaryWallet?.address) {
+      localStorage.removeItem(`subscription_${primaryWallet.address.toLowerCase()}`);
+    }
+    // Show success message
+    setStep('card-success');
+
+    // Close modal after 3 seconds and trigger success callback
+    setTimeout(() => {
+      onClose();
+      onSuccess();
+    }, 3000);
   };
 
   const handleSendPayment = async () => {
@@ -229,9 +247,20 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             <div className="choice-options">
               <button
                 className="choice-option"
-                onClick={() => setStep('amount')}
+                onClick={() => { setPaymentType('card'); setStep('card-payment'); }}
               >
                 <div className="choice-icon">💳</div>
+                <div className="choice-details">
+                  <div className="choice-title">Pay with Card</div>
+                  <div className="choice-description">$4.99/month subscription (Stripe)</div>
+                </div>
+              </button>
+
+              <button
+                className="choice-option"
+                onClick={() => { setPaymentType('crypto'); setStep('amount'); }}
+              >
+                <div className="choice-icon">Ξ</div>
                 <div className="choice-details">
                   <div className="choice-title">Pay with Crypto</div>
                   <div className="choice-description">Use ETH or USDC to subscribe</div>
@@ -244,7 +273,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
               <button
                 className="choice-option"
-                onClick={() => setStep('promo')}
+                onClick={() => { setPaymentType('promo'); setStep('promo'); }}
               >
                 <div className="choice-icon">🎟️</div>
                 <div className="choice-details">
@@ -468,6 +497,36 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             >
               💳 Pay ${amount} in {currency}
             </button>
+          </div>
+        )}
+
+        {step === 'card-payment' && primaryWallet?.address && (
+          <div className="payment-step">
+            <button className="back-button" onClick={() => setStep('choice')}>← Back</button>
+
+            <h3>Subscribe with Card</h3>
+            <p className="step-description">$4.99/month • Recurring subscription via Stripe</p>
+
+            <div className="payment-notes" style={{ marginBottom: '1.5rem' }}>
+              <p style={{ fontSize: '0.9rem', color: '#888' }}>
+                Wallet: {primaryWallet.address.slice(0, 6)}...{primaryWallet.address.slice(-4)}
+              </p>
+            </div>
+
+            <StripeSubscriptionForm
+              walletAddress={primaryWallet.address}
+              onSuccess={handleCardPaymentSuccess}
+              onCancel={() => setStep('choice')}
+            />
+          </div>
+        )}
+
+        {step === 'card-success' && (
+          <div className="payment-step processing">
+            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>✓</div>
+            <h3>Payment Successful!</h3>
+            <p>Your subscription is now active.</p>
+            <p className="processing-note">Thank you for subscribing to Premium!</p>
           </div>
         )}
 
