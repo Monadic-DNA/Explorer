@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshSubscription } = useAuth();
@@ -172,5 +172,13 @@ export default function PaymentSuccessPage() {
         `}</style>
       </div>
     </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }

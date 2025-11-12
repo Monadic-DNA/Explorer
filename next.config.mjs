@@ -7,6 +7,12 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   compress: true, // Enable gzip compression for API responses
+  eslint: {
+    ignoreDuringBuilds: false, // Keep linting during builds but don't fail on warnings
+  },
+  typescript: {
+    ignoreBuildErrors: false, // Keep type checking
+  },
   experimental: {
     optimizePackageImports: ["react", "react-dom", "viem", "react-markdown"],
     serverComponentsExternalPackages: ['onnxruntime-node', 'sharp']

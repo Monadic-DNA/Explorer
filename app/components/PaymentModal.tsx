@@ -161,6 +161,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       } else if (currency === 'DAI') {
         tokenContract = DAI_CONTRACTS[connectedChain];
         decimals = 18;
+      } else {
+        throw new Error(`Unsupported currency: ${currency}`);
       }
 
       if (!tokenContract) {

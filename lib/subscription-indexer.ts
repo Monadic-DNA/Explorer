@@ -10,10 +10,10 @@ import { convertToUsd } from './alchemy-prices';
 // Custom fetch wrapper to fix Next.js + Alchemy SDK compatibility
 // Sets referrer to empty string instead of 'client' which causes errors in Node fetch
 const customFetch = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const options = { ...init };
+  const options = { ...init } as RequestInit & { referrer?: string };
   // Set referrer to empty string to avoid "Referrer 'client' is not a valid URL" error
   if (options) {
-    (options as any).referrer = '';
+    options.referrer = '';
   }
   return fetch(url, options);
 };
@@ -99,13 +99,13 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
   for (const [chainName, network] of Object.entries(NETWORKS)) {
     try {
       // Fix for Next.js + Alchemy SDK fetch compatibility
-      const config: AlchemyConfig = {
+      const config = {
         apiKey: process.env.ALCHEMY_API_KEY!,
         network,
-      };
+      } as AlchemyConfig;
 
       // Use custom fetch to avoid referrer issues
-      // @ts-ignore - Alchemy SDK allows custom fetch but types don't reflect it
+      // @ts-expect-error - Alchemy SDK allows custom fetch but types don't reflect it
       config.fetch = customFetch;
 
       const alchemy = new Alchemy(config);

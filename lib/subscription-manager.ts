@@ -7,8 +7,8 @@
 import Stripe from 'stripe';
 import { checkSubscription as checkBlockchainSubscription, SubscriptionStatus, PaymentRecord } from './subscription-indexer';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
+  apiVersion: '2025-02-24.acacia',
 });
 
 const MONTHLY_PRICE = 4.99; // USD
@@ -107,6 +107,7 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
       usdValue: MONTHLY_PRICE,
       daysPurchased: DAYS_PER_MONTH,
       chain: 'stripe',
+      type: 'payment',
     };
 
     const result = {
