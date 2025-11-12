@@ -4,19 +4,20 @@
  * Calculates subscription status without database
  */
 
-import { Alchemy, Network, AssetTransfersCategory, SortingOrder, AlchemyConfig } from 'alchemy-sdk';
-import { convertToUsd } from './alchemy-prices';
-
-// Custom fetch wrapper to fix Next.js + Alchemy SDK compatibility
-// Sets referrer to empty string instead of 'client' which causes errors in Node fetch
-const customFetch = async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const options = { ...init } as RequestInit & { referrer?: string };
-  // Set referrer to empty string to avoid "Referrer 'client' is not a valid URL" error
-  if (options) {
-    options.referrer = '';
+// Fix Next.js + Alchemy SDK compatibility by polyfilling global fetch
+// This intercepts all fetch calls (including nested ones in ethers.js) to remove invalid referrer
+const originalFetch = global.fetch;
+global.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const options = { ...init };
+  // Remove referrer property that causes "Referrer 'client' is not a valid URL" error in Node.js
+  if (options && 'referrer' in options) {
+    delete options.referrer;
   }
-  return fetch(url, options);
+  return originalFetch(input, options);
 };
+
+import { Alchemy, Network, AssetTransfersCategory, SortingOrder } from 'alchemy-sdk';
+import { convertToUsd } from './alchemy-prices';
 
 export interface SubscriptionStatus {
   isActive: boolean;
@@ -98,17 +99,10 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
   // Query all supported chains
   for (const [chainName, network] of Object.entries(NETWORKS)) {
     try {
-      // Fix for Next.js + Alchemy SDK fetch compatibility
-      const config = {
+      const alchemy = new Alchemy({
         apiKey: process.env.ALCHEMY_API_KEY!,
         network,
-      } as AlchemyConfig;
-
-      // Use custom fetch to avoid referrer issues
-      // @ts-expect-error - Alchemy SDK allows custom fetch but types don't reflect it
-      config.fetch = customFetch;
-
-      const alchemy = new Alchemy(config);
+      });
 
       // Get USDC payments (from user to payment wallet)
       const usdcTransfers = await alchemy.core.getAssetTransfers({
