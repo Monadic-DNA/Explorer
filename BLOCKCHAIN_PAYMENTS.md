@@ -2,14 +2,14 @@
 
 ## Overview
 
-GWASifier Premium now uses a **database-free, blockchain-based payment system**. Users pay with ETH or USDC from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API + Alchemy Prices API historical prices.
+GWASifier Premium now uses a **database-free, blockchain-based payment system**. Users pay with stablecoins (USDC, USDT, or DAI) from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API.
 
 ## How It Works
 
 ### User Flow
 1. User connects wallet via Dynamic.xyz
 2. User navigates to Premium tab
-3. User sends ETH or USDC to payment wallet from their connected wallet
+3. User selects stablecoin (USDC, USDT, or DAI) and sends payment to payment wallet
 4. After blockchain confirmation (~1-2 minutes), subscription activates automatically
 5. Subscription status is cached in localStorage for 1 hour
 
@@ -18,13 +18,13 @@ GWASifier Premium now uses a **database-free, blockchain-based payment system**.
 ```
 ┌─────────────┐
 │   User      │ Connects wallet (Dynamic.xyz)
-│   Wallet    │ Sends ETH/USDC to payment wallet
+│   Wallet    │ Sends stablecoin (USDC/USDT/DAI) to payment wallet
 └──────┬──────┘
        │
        ▼
 ┌─────────────┐
-│ Blockchain  │ Ethereum, Base, Arbitrum, Optimism
-│ Transaction │ ETH or USDC transfer
+│ Blockchain  │ Ethereum, Base, Arbitrum, Optimism, Polygon
+│ Transaction │ Stablecoin transfer
 └──────┬──────┘
        │
        ▼
@@ -35,14 +35,9 @@ GWASifier Premium now uses a **database-free, blockchain-based payment system**.
        │
        ▼
 ┌─────────────┐
-│  Alchemy Prices API  │ Historical price API
-│   API       │ Get ETH/USDC price at transaction timestamp
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
 │Subscription │ Calculate total days purchased
 │ Calculator  │ days = (amountUSD / $4.99) * 30
+│             │ (stablecoins assumed 1:1 with USD)
 └──────┬──────┘
        │
        ▼
@@ -78,13 +73,14 @@ NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=your_dynamic_environment_id
 
 ### 2. Supported Chains
 
-The system supports 4 EVM chains:
-- **Base** (Recommended - lowest fees)
-- **Optimism**
+The system supports 5 EVM chains:
+- **Ethereum**
+- **Base**
 - **Arbitrum**
-- **Ethereum** (highest fees)
+- **Optimism**
+- **Polygon**
 
-Both **ETH** and **USDC** are accepted on all chains.
+**USDC**, **USDT**, and **DAI** are accepted on all chains.
 
 ### 3. Pricing Model
 
@@ -174,6 +170,7 @@ Response:
 4. **Transparent** - All subscription data verifiable on-chain
 5. **Stateless** - Easy to scale horizontally
 6. **Simpler codebase** - ~1,000 lines of code removed
+7. **No price volatility** - Stablecoins maintain 1:1 USD peg
 
 ## Security Considerations
 
@@ -215,14 +212,14 @@ Response:
 
 ### Testnet Testing (Recommended)
 
-1. Get testnet ETH from faucets (Sepolia, Base Sepolia, etc.)
+1. Get testnet stablecoins from faucets (Sepolia, Base Sepolia, etc.)
 2. Configure testnet payment wallet in `.env.local`
 3. Send test transaction
 4. Verify subscription activates
 
 ### Mainnet Testing (Small Amount)
 
-1. Send $1 worth of ETH or USDC from connected wallet
+1. Send $1 worth of USDC, USDT, or DAI from connected wallet
 2. Wait ~2 minutes for blockchain confirmation
 3. Refresh page to check subscription status
 4. Verify 6 days added to subscription

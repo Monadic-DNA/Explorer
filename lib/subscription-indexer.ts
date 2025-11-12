@@ -30,8 +30,8 @@ export interface SubscriptionStatus {
 export interface PaymentRecord {
   transactionHash: string;
   timestamp: number;
-  amount: number; // Token amount (ETH or USDC or USD for Stripe)
-  currency: 'ETH' | 'USDC' | 'USD';
+  amount: number; // Token amount (stablecoin or USD for Stripe)
+  currency: 'USDC' | 'USDT' | 'DAI' | 'USD';
   usdValue: number;
   daysPurchased: number;
   chain: string;
@@ -46,6 +46,7 @@ const NETWORKS: Record<string, Network> = {
   base: Network.BASE_MAINNET,
   arbitrum: Network.ARB_MAINNET,
   optimism: Network.OPT_MAINNET,
+  polygon: Network.MATIC_MAINNET,
 };
 
 // USDC contract addresses for each chain
@@ -54,6 +55,25 @@ const USDC_CONTRACTS: Record<string, string> = {
   base: process.env.USDC_CONTRACT_BASE || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   arbitrum: process.env.USDC_CONTRACT_ARBITRUM || '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   optimism: process.env.USDC_CONTRACT_OPTIMISM || '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+  polygon: process.env.USDC_CONTRACT_POLYGON || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+};
+
+// USDT contract addresses for each chain
+const USDT_CONTRACTS: Record<string, string> = {
+  ethereum: process.env.USDT_CONTRACT_ETHEREUM || '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+  base: process.env.USDT_CONTRACT_BASE || '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+  arbitrum: process.env.USDT_CONTRACT_ARBITRUM || '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+  optimism: process.env.USDT_CONTRACT_OPTIMISM || '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
+  polygon: process.env.USDT_CONTRACT_POLYGON || '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+};
+
+// DAI contract addresses for each chain
+const DAI_CONTRACTS: Record<string, string> = {
+  ethereum: process.env.DAI_CONTRACT_ETHEREUM || '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+  base: process.env.DAI_CONTRACT_BASE || '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
+  arbitrum: process.env.DAI_CONTRACT_ARBITRUM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
+  optimism: process.env.DAI_CONTRACT_OPTIMISM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
+  polygon: process.env.DAI_CONTRACT_POLYGON || '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
 };
 
 /**
@@ -89,14 +109,6 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
 
       const alchemy = new Alchemy(config);
 
-      // Get ETH transfers
-      const ethTransfers = await alchemy.core.getAssetTransfers({
-        fromAddress: walletAddress,
-        toAddress: paymentWallet,
-        category: [AssetTransfersCategory.EXTERNAL],
-        order: SortingOrder.ASCENDING,
-      });
-
       // Get USDC transfers
       const usdcTransfers = await alchemy.core.getAssetTransfers({
         fromAddress: walletAddress,
@@ -106,33 +118,23 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         order: SortingOrder.ASCENDING,
       });
 
-      // Process ETH transfers
-      for (const transfer of ethTransfers.transfers) {
-        if (!transfer.value || transfer.value === 0) continue;
+      // Get USDT transfers
+      const usdtTransfers = await alchemy.core.getAssetTransfers({
+        fromAddress: walletAddress,
+        toAddress: paymentWallet,
+        category: [AssetTransfersCategory.ERC20],
+        contractAddresses: [USDT_CONTRACTS[chainName]],
+        order: SortingOrder.ASCENDING,
+      });
 
-        // Get block timestamp
-        const block = await alchemy.core.getBlock(transfer.blockNum);
-        const timestamp = block.timestamp;
-
-        // Convert to USD
-        const usdValue = await convertToUsd(transfer.value, 'ETH', timestamp, network);
-
-        // Skip payments under $1
-        if (usdValue < 1) continue;
-
-        // Calculate days purchased
-        const daysPurchased = (usdValue / MONTHLY_PRICE) * DAYS_PER_MONTH;
-
-        payments.push({
-          transactionHash: transfer.hash,
-          timestamp,
-          amount: transfer.value,
-          currency: 'ETH',
-          usdValue,
-          daysPurchased,
-          chain: chainName,
-        });
-      }
+      // Get DAI transfers
+      const daiTransfers = await alchemy.core.getAssetTransfers({
+        fromAddress: walletAddress,
+        toAddress: paymentWallet,
+        category: [AssetTransfersCategory.ERC20],
+        contractAddresses: [DAI_CONTRACTS[chainName]],
+        order: SortingOrder.ASCENDING,
+      });
 
       // Process USDC transfers
       for (const transfer of usdcTransfers.transfers) {
@@ -142,7 +144,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         const block = await alchemy.core.getBlock(transfer.blockNum);
         const timestamp = block.timestamp;
 
-        // Convert to USD (USDC uses 6 decimals, not 18)
+        // Convert to USD (USDC = $1, uses 6 decimals)
         const usdValue = await convertToUsd(transfer.value, 'USDC', timestamp, network);
 
         // Skip payments under $1
@@ -156,6 +158,62 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
           timestamp,
           amount: transfer.value,
           currency: 'USDC',
+          usdValue,
+          daysPurchased,
+          chain: chainName,
+        });
+      }
+
+      // Process USDT transfers
+      for (const transfer of usdtTransfers.transfers) {
+        if (!transfer.value || transfer.value === 0) continue;
+
+        // Get block timestamp
+        const block = await alchemy.core.getBlock(transfer.blockNum);
+        const timestamp = block.timestamp;
+
+        // Convert to USD (USDT = $1, uses 6 decimals)
+        const usdValue = await convertToUsd(transfer.value, 'USDT', timestamp, network);
+
+        // Skip payments under $1
+        if (usdValue < 1) continue;
+
+        // Calculate days purchased
+        const daysPurchased = (usdValue / MONTHLY_PRICE) * DAYS_PER_MONTH;
+
+        payments.push({
+          transactionHash: transfer.hash,
+          timestamp,
+          amount: transfer.value,
+          currency: 'USDT',
+          usdValue,
+          daysPurchased,
+          chain: chainName,
+        });
+      }
+
+      // Process DAI transfers
+      for (const transfer of daiTransfers.transfers) {
+        if (!transfer.value || transfer.value === 0) continue;
+
+        // Get block timestamp
+        const block = await alchemy.core.getBlock(transfer.blockNum);
+        const timestamp = block.timestamp;
+
+        // Convert to USD (DAI = $1, uses 18 decimals)
+        const usdValue = await convertToUsd(transfer.value, 'DAI', timestamp, network);
+
+        // Skip payments under $1
+        if (usdValue < 1) continue;
+
+        // Calculate days purchased
+        const daysPurchased = (usdValue / MONTHLY_PRICE) * DAYS_PER_MONTH;
+
+        payments.push({
+          transactionHash: transfer.hash,
+          timestamp,
+          amount: transfer.value,
+          currency: 'DAI',
           usdValue,
           daysPurchased,
           chain: chainName,

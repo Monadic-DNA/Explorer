@@ -22,7 +22,7 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 - **Upload and analyze** your personal genetic data (23andMe, AncestryDNA, Monadic DNA)
 - **Private LLM analysis** powered by Nillion's nilAI - your data is processed in a Trusted Execution Environment
 - **Premium Features**: AI-powered genetic analysis chat, Run All analysis, comprehensive reports
-- **Dual payment system**: Credit/debit cards (Stripe) or crypto (ETH/USDC on Ethereum, Base, Arbitrum, Optimism)
+- **Dual payment system**: Credit/debit cards (Stripe) or stablecoins (USDC/USDT/DAI on Ethereum, Base, Arbitrum, Optimism, Polygon)
 - **Save and export** your results
 - **Privacy-focused**: All processing happens on your infrastructure (no third-party APIs for search)
 

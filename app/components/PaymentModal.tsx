@@ -12,19 +12,17 @@ interface PaymentModalProps {
   onSuccess: () => void;
 }
 
-type Currency = 'ETH' | 'USDC';
-type PaymentType = 'crypto' | 'card' | 'promo';
+type Currency = 'USDC' | 'USDT' | 'DAI';
+type PaymentType = 'stablecoin' | 'card' | 'promo';
 type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing' | 'card-payment' | 'card-success';
 
 export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModalProps) {
   const { primaryWallet } = useDynamicContext();
   const [step, setStep] = useState<Step>('choice');
-  const [paymentType, setPaymentType] = useState<PaymentType>('crypto');
+  const [paymentType, setPaymentType] = useState<PaymentType>('stablecoin');
   const [amount, setAmount] = useState('4.99');
   const [currency, setCurrency] = useState<Currency>('USDC');
   const [connectedChain, setConnectedChain] = useState<string>('');
-  const [ethPrice, setEthPrice] = useState<number>(3000);
-  const [loadingPrice, setLoadingPrice] = useState(true);
   const [error, setError] = useState('');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
@@ -36,25 +34,25 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     'Base': process.env.NEXT_PUBLIC_USDC_CONTRACT_BASE || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     'Arbitrum One': process.env.NEXT_PUBLIC_USDC_CONTRACT_ARBITRUM || '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     'OP Mainnet': process.env.NEXT_PUBLIC_USDC_CONTRACT_OPTIMISM || '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    'Polygon': process.env.NEXT_PUBLIC_USDC_CONTRACT_POLYGON || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
   };
 
-  // Fetch ETH price
-  useEffect(() => {
-    const fetchPrice = async () => {
-      try {
-        const response = await fetch('/api/get-eth-price');
-        if (response.ok) {
-          const data = await response.json();
-          setEthPrice(data.price || 3000);
-        }
-      } catch (err) {
-        console.error('Failed to fetch ETH price:', err);
-      } finally {
-        setLoadingPrice(false);
-      }
-    };
-    fetchPrice();
-  }, []);
+  const USDT_CONTRACTS: Record<string, string> = {
+    'Ethereum': process.env.NEXT_PUBLIC_USDT_CONTRACT_ETHEREUM || '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+    'Base': process.env.NEXT_PUBLIC_USDT_CONTRACT_BASE || '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
+    'Arbitrum One': process.env.NEXT_PUBLIC_USDT_CONTRACT_ARBITRUM || '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+    'OP Mainnet': process.env.NEXT_PUBLIC_USDT_CONTRACT_OPTIMISM || '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
+    'Polygon': process.env.NEXT_PUBLIC_USDT_CONTRACT_POLYGON || '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+  };
+
+  const DAI_CONTRACTS: Record<string, string> = {
+    'Ethereum': process.env.NEXT_PUBLIC_DAI_CONTRACT_ETHEREUM || '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+    'Base': process.env.NEXT_PUBLIC_DAI_CONTRACT_BASE || '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
+    'Arbitrum One': process.env.NEXT_PUBLIC_DAI_CONTRACT_ARBITRUM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
+    'OP Mainnet': process.env.NEXT_PUBLIC_DAI_CONTRACT_OPTIMISM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
+    'Polygon': process.env.NEXT_PUBLIC_DAI_CONTRACT_POLYGON || '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+  };
+
 
   // Detect connected chain
   useEffect(() => {
@@ -150,46 +148,48 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
         throw new Error('Wallet client not available');
       }
 
-      let txHash: string;
+      // Get the appropriate contract address for the selected stablecoin
+      let tokenContract: string | undefined;
+      let decimals: number;
 
-      if (currency === 'ETH') {
-        // Send ETH
-        const ethAmount = (amountNum / ethPrice).toFixed(18);
-        txHash = await walletClient.sendTransaction({
-          to: paymentWallet as `0x${string}`,
-          value: parseEther(ethAmount),
-        });
-      } else {
-        // Send USDC (ERC-20 token)
-        const usdcContract = USDC_CONTRACTS[connectedChain];
-        if (!usdcContract) {
-          throw new Error(`USDC not supported on ${connectedChain}`);
-        }
-
-        // USDC has 6 decimals
-        const usdcAmount = parseUnits(amount, 6);
-
-        // Encode ERC-20 transfer function call properly
-        const transferData = encodeFunctionData({
-          abi: [{
-            name: 'transfer',
-            type: 'function',
-            stateMutability: 'nonpayable',
-            inputs: [
-              { name: 'to', type: 'address' },
-              { name: 'amount', type: 'uint256' }
-            ],
-            outputs: [{ type: 'bool' }]
-          }],
-          functionName: 'transfer',
-          args: [paymentWallet as `0x${string}`, usdcAmount]
-        });
-
-        txHash = await walletClient.sendTransaction({
-          to: usdcContract as `0x${string}`,
-          data: transferData,
-        });
+      if (currency === 'USDC') {
+        tokenContract = USDC_CONTRACTS[connectedChain];
+        decimals = 6;
+      } else if (currency === 'USDT') {
+        tokenContract = USDT_CONTRACTS[connectedChain];
+        decimals = 6;
+      } else if (currency === 'DAI') {
+        tokenContract = DAI_CONTRACTS[connectedChain];
+        decimals = 18;
       }
+
+      if (!tokenContract) {
+        throw new Error(`${currency} not supported on ${connectedChain}`);
+      }
+
+      // Parse token amount with appropriate decimals
+      const tokenAmount = parseUnits(amount, decimals);
+
+      // Encode ERC-20 transfer function call
+      const transferData = encodeFunctionData({
+        abi: [{
+          name: 'transfer',
+          type: 'function',
+          stateMutability: 'nonpayable',
+          inputs: [
+            { name: 'to', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          outputs: [{ type: 'bool' }]
+        }],
+        functionName: 'transfer',
+        args: [paymentWallet as `0x${string}`, tokenAmount]
+      });
+
+      const txHash = await walletClient.sendTransaction({
+        to: tokenContract as `0x${string}`,
+        data: transferData,
+      });
 
       // Success
       setTimeout(() => {
@@ -200,14 +200,14 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     } catch (err: any) {
       console.error('Payment failed:', err);
 
-      // Check if it's a USDC balance issue
-      if (currency === 'USDC' && (
+      // Check if it's a stablecoin balance issue
+      if (
         err.message?.includes('gas required exceeds allowance') ||
         err.message?.includes('insufficient funds') ||
         err.details?.includes('gas required exceeds allowance') ||
         err.shortMessage?.includes('insufficient funds')
-      )) {
-        setError(`Insufficient USDC balance. Please ensure you have at least ${amount} USDC in your wallet, or go back and switch to ETH payment.`);
+      ) {
+        setError(`Insufficient ${currency} balance. Please check your wallet (top right) to transfer or purchase sufficient ${currency}.`);
       } else {
         setError(err.shortMessage || err.message || 'Payment failed. Please try again.');
       }
@@ -217,9 +217,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   };
 
   const daysOfAccess = Math.round((parseFloat(amount || '0') / 4.99) * 30);
-  const tokenAmount = currency === 'ETH'
-    ? (parseFloat(amount || '0') / ethPrice).toFixed(6)
-    : amount;
 
   if (!isOpen) return null;
 
@@ -258,12 +255,12 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
               <button
                 className="choice-option"
-                onClick={() => { setPaymentType('crypto'); setStep('amount'); }}
+                onClick={() => { setPaymentType('stablecoin'); setStep('amount'); }}
               >
-                <div className="choice-icon">Ξ</div>
+                <div className="choice-icon">💵</div>
                 <div className="choice-details">
-                  <div className="choice-title">Pay with Crypto</div>
-                  <div className="choice-description">Use ETH or USDC to subscribe</div>
+                  <div className="choice-title">Pay with Stablecoin</div>
+                  <div className="choice-description">Use USDC, USDT, or DAI to subscribe</div>
                 </div>
               </button>
 
@@ -391,8 +388,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
             <button className="back-button" onClick={() => setStep('amount')}>← Back</button>
 
-            <h3>Choose payment method</h3>
-            <p className="step-description">Select ETH or USDC</p>
+            <h3>Choose stablecoin</h3>
+            <p className="step-description">Select USDC, USDT, or DAI</p>
 
             {connectedChain && (
               <div className="chain-badge">
@@ -402,32 +399,44 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
             <div className="currency-options">
               <button
-                className={`currency-option ${currency === 'ETH' ? 'active' : ''}`}
-                onClick={() => setCurrency('ETH')}
+                className={`currency-option ${currency === 'USDC' ? 'active' : ''}`}
+                onClick={() => setCurrency('USDC')}
               >
-                <div className="currency-icon">Ξ</div>
+                <div className="currency-icon">💵</div>
                 <div className="currency-details">
-                  <div className="currency-name">Ethereum (ETH)</div>
+                  <div className="currency-name">USD Coin (USDC)</div>
                   <div className="currency-amount">
-                    {loadingPrice ? 'Loading...' : `≈ ${tokenAmount} ETH`}
+                    {amount} USDC
                   </div>
-                  {!loadingPrice && (
-                    <div className="currency-rate">1 ETH = ${ethPrice.toLocaleString()}</div>
-                  )}
+                  <div className="currency-rate">1 USDC = $1.00</div>
                 </div>
               </button>
 
               <button
-                className={`currency-option ${currency === 'USDC' ? 'active' : ''}`}
-                onClick={() => setCurrency('USDC')}
+                className={`currency-option ${currency === 'USDT' ? 'active' : ''}`}
+                onClick={() => setCurrency('USDT')}
               >
-                <div className="currency-icon">$</div>
+                <div className="currency-icon">₮</div>
                 <div className="currency-details">
-                  <div className="currency-name">USD Coin (USDC)</div>
+                  <div className="currency-name">Tether (USDT)</div>
                   <div className="currency-amount">
-                    {tokenAmount} USDC
+                    {amount} USDT
                   </div>
-                  <div className="currency-rate">1 USDC = $1.00</div>
+                  <div className="currency-rate">1 USDT = $1.00</div>
+                </div>
+              </button>
+
+              <button
+                className={`currency-option ${currency === 'DAI' ? 'active' : ''}`}
+                onClick={() => setCurrency('DAI')}
+              >
+                <div className="currency-icon">◈</div>
+                <div className="currency-details">
+                  <div className="currency-name">Dai Stablecoin (DAI)</div>
+                  <div className="currency-amount">
+                    {amount} DAI
+                  </div>
+                  <div className="currency-rate">1 DAI = $1.00</div>
                 </div>
               </button>
             </div>
@@ -463,7 +472,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
               </div>
               <div className="summary-row">
                 <span>Payment method</span>
-                <strong>{tokenAmount} {currency}</strong>
+                <strong>{amount} {currency}</strong>
               </div>
               <div className="summary-row">
                 <span>Network</span>
@@ -495,7 +504,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
               className="btn-primary btn-large"
               onClick={handleSendPayment}
             >
-              💳 Pay ${amount} in {currency}
+              💳 Pay {amount} {currency}
             </button>
           </div>
         )}
