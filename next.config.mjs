@@ -33,10 +33,9 @@ const nextConfig = {
         '**/.git/**',
         '**/localdata/**',
         '**/.next/**',
-        // Explicitly ignore parent directories
-        path.resolve(__dirname, '..'),
       ],
-      aggregateTimeout: 300,
+      aggregateTimeout: 200,
+      poll: 1000, // Enable polling for better compatibility on Linux
     };
 
     // Fix sql.js Node.js polyfills for browser-only usage
