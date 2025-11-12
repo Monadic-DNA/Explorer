@@ -219,6 +219,8 @@ export async function checkCombinedSubscription(walletAddress: string): Promise<
     console.log('[Combined Check] User has active subscription:', {
       expiresAt: result.expiresAt?.toISOString(),
       daysRemaining: result.daysRemaining,
+      paymentsCount: result.payments.length,
+      paymentChains: result.payments.map(p => p.chain),
     });
 
     return result;

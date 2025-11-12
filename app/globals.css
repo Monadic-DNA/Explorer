@@ -286,6 +286,83 @@ body {
   text-decoration: underline;
 }
 
+/* Subscription Indicator Styles */
+.subscription-section {
+  display: flex;
+  align-items: center;
+}
+
+.subscription-indicator {
+  position: relative;
+}
+
+.subscription-indicator .stat-item {
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.subscription-indicator .stat-item:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.subscription-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 1rem;
+  min-width: 280px;
+  z-index: 1000;
+  backdrop-filter: blur(20px);
+}
+
+.subscription-info {
+  margin-bottom: 1rem;
+}
+
+.subscription-info p {
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.subscription-info p:first-child {
+  margin-top: 0;
+}
+
+.subscription-info p:last-child {
+  margin-bottom: 0;
+}
+
+.subscription-info strong {
+  color: var(--text-primary);
+}
+
+.control-button.cancel-subscription {
+  width: 100%;
+  justify-content: center;
+  background: var(--accent-red);
+  color: white;
+  border-color: var(--accent-red);
+}
+
+.control-button.cancel-subscription:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
 /* Footer Styles */
 .app-footer {
   background: var(--surface-bg);

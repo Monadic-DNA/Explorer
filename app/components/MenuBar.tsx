@@ -7,19 +7,36 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import AIConfigModal from "./AIConfigModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
-import { AuthButton } from "./AuthProvider";
+import { AuthButton, useAuth } from "./AuthProvider";
 import { getAIConfig, getProviderDisplayName } from "@/lib/ai-config";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
   const { status: customizationStatus } = useCustomization();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, user } = useAuth();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
   const [showAIConfigModal, setShowAIConfigModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
   const [aiProvider, setAiProvider] = useState<string>('');
+  const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
+
+  useEffect(() => {
+    // Close subscription menu when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.subscription-indicator')) {
+        setShowSubscriptionMenu(false);
+      }
+    };
+
+    if (showSubscriptionMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showSubscriptionMenu]);
 
   useEffect(() => {
     // Detect system preference on mount
@@ -273,6 +290,66 @@ export default function MenuBar() {
         </div>
 
         <div className="menu-separator" />
+
+        {isAuthenticated && hasActiveSubscription && subscriptionData && (
+          <>
+            <div className="subscription-section menu-group">
+              <div
+                className="subscription-indicator"
+                style={{ position: 'relative' }}
+              >
+                <button
+                  className="stat-item"
+                  style={{ cursor: 'pointer', border: '1px solid rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.1)' }}
+                  onClick={() => setShowSubscriptionMenu(!showSubscriptionMenu)}
+                >
+                  ✨ Premium ({subscriptionData.daysRemaining}d)
+                </button>
+                {showSubscriptionMenu && (
+                  <div className="subscription-dropdown">
+                    <div className="subscription-info">
+                      <p><strong>Premium Subscription</strong></p>
+                      <p>Expires: {subscriptionData.expiresAt ? new Date(subscriptionData.expiresAt).toLocaleDateString() : 'N/A'}</p>
+                      <p>Days remaining: {subscriptionData.daysRemaining}</p>
+                    </div>
+                    <button
+                        className="control-button cancel-subscription"
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your current billing period.')) {
+                            try {
+                              const walletAddress = user?.verifiedCredentials?.[0]?.address;
+                              if (!walletAddress) {
+                                alert('Could not find wallet address');
+                                return;
+                              }
+                              const response = await fetch('/api/stripe/cancel-subscription', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ walletAddress }),
+                              });
+                              const result = await response.json();
+                              if (result.success) {
+                                alert('Subscription cancelled successfully. You will retain access until ' + new Date(subscriptionData.expiresAt!).toLocaleDateString());
+                                window.location.reload();
+                              } else {
+                                alert('Failed to cancel subscription: ' + (result.error || 'Unknown error'));
+                              }
+                            } catch (error) {
+                              alert('Failed to cancel subscription. Please try again.');
+                            }
+                          }
+                        }}
+                        title="Cancel Stripe subscription (only available for card payments)"
+                      >
+                        Cancel Subscription
+                      </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="menu-separator" />
+          </>
+        )}
 
         <div className="auth-section menu-group">
           <AuthButton />
