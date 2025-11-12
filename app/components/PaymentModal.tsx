@@ -148,8 +148,14 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
         throw new Error('Wallet client not available');
       }
 
+      // Detect current chain from wallet client (don't rely on state)
+      let currentChain: string = '';
+      if ('chain' in walletClient && walletClient.chain) {
+        currentChain = walletClient.chain.name;
+      }
+
       // Check if chain is detected
-      if (!connectedChain) {
+      if (!currentChain) {
         throw new Error('Unable to detect connected network. Please make sure your wallet is connected to a supported network.');
       }
 
@@ -158,13 +164,13 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       let decimals: number;
 
       if (currency === 'USDC') {
-        tokenContract = USDC_CONTRACTS[connectedChain];
+        tokenContract = USDC_CONTRACTS[currentChain];
         decimals = 6;
       } else if (currency === 'USDT') {
-        tokenContract = USDT_CONTRACTS[connectedChain];
+        tokenContract = USDT_CONTRACTS[currentChain];
         decimals = 6;
       } else if (currency === 'DAI') {
-        tokenContract = DAI_CONTRACTS[connectedChain];
+        tokenContract = DAI_CONTRACTS[currentChain];
         decimals = 18;
       } else {
         throw new Error(`Unsupported currency: ${currency}`);
@@ -172,7 +178,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
       if (!tokenContract) {
         const supportedChains = Object.keys(USDC_CONTRACTS).join(', ');
-        throw new Error(`${currency} is not supported on "${connectedChain}". Supported networks: ${supportedChains}`);
+        throw new Error(`${currency} is not supported on "${currentChain}". Supported networks: ${supportedChains}`);
       }
 
       // Parse token amount with appropriate decimals
