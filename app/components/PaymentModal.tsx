@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
-import { parseEther, parseUnits, encodeFunctionData } from 'viem';
+import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
+import { mainnet, base, arbitrum, optimism, polygon } from 'viem/chains';
 import { verifyPromoCode } from '@/lib/prime-verification';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
 
@@ -53,6 +54,47 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     'Polygon': process.env.NEXT_PUBLIC_DAI_CONTRACT_POLYGON || '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
   };
 
+  // Map chain names to viem chain objects
+  const CHAIN_MAP: Record<string, any> = {
+    'Ethereum': mainnet,
+    'Base': base,
+    'Arbitrum One': arbitrum,
+    'OP Mainnet': optimism,
+    'Polygon': polygon,
+  };
+
+  // Check token balance for user's wallet
+  const checkTokenBalance = async (
+    walletAddress: string,
+    tokenContract: string,
+    chainName: string
+  ): Promise<bigint> => {
+    const chain = CHAIN_MAP[chainName];
+    if (!chain) {
+      throw new Error(`Unsupported chain: ${chainName}`);
+    }
+
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+
+    // ERC20 balanceOf function
+    const balance = await publicClient.readContract({
+      address: tokenContract as `0x${string}`,
+      abi: [{
+        name: 'balanceOf',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'account', type: 'address' }],
+        outputs: [{ type: 'uint256' }]
+      }],
+      functionName: 'balanceOf',
+      args: [walletAddress as `0x${string}`],
+    });
+
+    return balance as bigint;
+  };
 
   // Detect connected chain
   useEffect(() => {
@@ -184,6 +226,20 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       // Parse token amount with appropriate decimals
       const tokenAmount = parseUnits(amount, decimals);
 
+      // Check if user has sufficient balance
+      const userBalance = await checkTokenBalance(
+        primaryWallet.address!,
+        tokenContract,
+        currentChain
+      );
+
+      if (userBalance < tokenAmount) {
+        const balanceFormatted = formatUnits(userBalance, decimals);
+        throw new Error(
+          `Insufficient ${currency} balance. You have ${balanceFormatted} ${currency} but need ${amount} ${currency}. Please use the Dynamic wallet (top right) to transfer or purchase ${currency}.`
+        );
+      }
+
       // Encode ERC-20 transfer function call
       const transferData = encodeFunctionData({
         abi: [{
@@ -214,14 +270,20 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     } catch (err: any) {
       console.error('Payment failed:', err);
 
-      // Check if it's a stablecoin balance issue
+      // Check if it's a stablecoin balance issue (proactive check or transaction failure)
       if (
+        err.message?.includes('Insufficient') ||
         err.message?.includes('gas required exceeds allowance') ||
         err.message?.includes('insufficient funds') ||
         err.details?.includes('gas required exceeds allowance') ||
         err.shortMessage?.includes('insufficient funds')
       ) {
-        setError(`Insufficient ${currency} balance. Please check your wallet (top right) to transfer or purchase sufficient ${currency}.`);
+        // Use our custom message if it's from the proactive balance check
+        if (err.message?.includes('Dynamic wallet')) {
+          setError(err.message);
+        } else {
+          setError(`Insufficient ${currency} balance. Please use the Dynamic wallet (top right) to transfer or purchase ${currency}.`);
+        }
       } else {
         setError(err.shortMessage || err.message || 'Payment failed. Please try again.');
       }
