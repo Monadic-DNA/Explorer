@@ -33,8 +33,9 @@ export interface PaymentRecord {
   amount: number; // Token amount (stablecoin or USD for Stripe)
   currency: 'USDC' | 'USDT' | 'DAI' | 'USD';
   usdValue: number;
-  daysPurchased: number;
+  daysPurchased: number; // Positive for payments, negative for refunds
   chain: string;
+  type: 'payment' | 'refund';
 }
 
 const MONTHLY_PRICE = 4.99; // USD
@@ -109,7 +110,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
 
       const alchemy = new Alchemy(config);
 
-      // Get USDC transfers
+      // Get USDC payments (from user to payment wallet)
       const usdcTransfers = await alchemy.core.getAssetTransfers({
         fromAddress: walletAddress,
         toAddress: paymentWallet,
@@ -118,7 +119,16 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         order: SortingOrder.ASCENDING,
       });
 
-      // Get USDT transfers
+      // Get USDC refunds (from payment wallet to user)
+      const usdcRefunds = await alchemy.core.getAssetTransfers({
+        fromAddress: paymentWallet,
+        toAddress: walletAddress,
+        category: [AssetTransfersCategory.ERC20],
+        contractAddresses: [USDC_CONTRACTS[chainName]],
+        order: SortingOrder.ASCENDING,
+      });
+
+      // Get USDT payments (from user to payment wallet)
       const usdtTransfers = await alchemy.core.getAssetTransfers({
         fromAddress: walletAddress,
         toAddress: paymentWallet,
@@ -127,7 +137,16 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         order: SortingOrder.ASCENDING,
       });
 
-      // Get DAI transfers
+      // Get USDT refunds (from payment wallet to user)
+      const usdtRefunds = await alchemy.core.getAssetTransfers({
+        fromAddress: paymentWallet,
+        toAddress: walletAddress,
+        category: [AssetTransfersCategory.ERC20],
+        contractAddresses: [USDT_CONTRACTS[chainName]],
+        order: SortingOrder.ASCENDING,
+      });
+
+      // Get DAI payments (from user to payment wallet)
       const daiTransfers = await alchemy.core.getAssetTransfers({
         fromAddress: walletAddress,
         toAddress: paymentWallet,
@@ -136,7 +155,16 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         order: SortingOrder.ASCENDING,
       });
 
-      // Process USDC transfers
+      // Get DAI refunds (from payment wallet to user)
+      const daiRefunds = await alchemy.core.getAssetTransfers({
+        fromAddress: paymentWallet,
+        toAddress: walletAddress,
+        category: [AssetTransfersCategory.ERC20],
+        contractAddresses: [DAI_CONTRACTS[chainName]],
+        order: SortingOrder.ASCENDING,
+      });
+
+      // Process USDC payments
       for (const transfer of usdcTransfers.transfers) {
         if (!transfer.value || transfer.value === 0) continue;
 
@@ -161,10 +189,40 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
           usdValue,
           daysPurchased,
           chain: chainName,
+          type: 'payment',
         });
       }
 
-      // Process USDT transfers
+      // Process USDC refunds
+      for (const refund of usdcRefunds.transfers) {
+        if (!refund.value || refund.value === 0) continue;
+
+        // Get block timestamp
+        const block = await alchemy.core.getBlock(refund.blockNum);
+        const timestamp = block.timestamp;
+
+        // Convert to USD (USDC = $1, uses 6 decimals)
+        const usdValue = await convertToUsd(refund.value, 'USDC', timestamp, network);
+
+        // Skip refunds under $1
+        if (usdValue < 1) continue;
+
+        // Calculate days deducted (negative)
+        const daysPurchased = -((usdValue / MONTHLY_PRICE) * DAYS_PER_MONTH);
+
+        payments.push({
+          transactionHash: refund.hash,
+          timestamp,
+          amount: refund.value,
+          currency: 'USDC',
+          usdValue,
+          daysPurchased, // Negative value
+          chain: chainName,
+          type: 'refund',
+        });
+      }
+
+      // Process USDT payments
       for (const transfer of usdtTransfers.transfers) {
         if (!transfer.value || transfer.value === 0) continue;
 
@@ -189,10 +247,40 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
           usdValue,
           daysPurchased,
           chain: chainName,
+          type: 'payment',
         });
       }
 
-      // Process DAI transfers
+      // Process USDT refunds
+      for (const refund of usdtRefunds.transfers) {
+        if (!refund.value || refund.value === 0) continue;
+
+        // Get block timestamp
+        const block = await alchemy.core.getBlock(refund.blockNum);
+        const timestamp = block.timestamp;
+
+        // Convert to USD (USDT = $1, uses 6 decimals)
+        const usdValue = await convertToUsd(refund.value, 'USDT', timestamp, network);
+
+        // Skip refunds under $1
+        if (usdValue < 1) continue;
+
+        // Calculate days deducted (negative)
+        const daysPurchased = -((usdValue / MONTHLY_PRICE) * DAYS_PER_MONTH);
+
+        payments.push({
+          transactionHash: refund.hash,
+          timestamp,
+          amount: refund.value,
+          currency: 'USDT',
+          usdValue,
+          daysPurchased, // Negative value
+          chain: chainName,
+          type: 'refund',
+        });
+      }
+
+      // Process DAI payments
       for (const transfer of daiTransfers.transfers) {
         if (!transfer.value || transfer.value === 0) continue;
 
@@ -217,6 +305,36 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
           usdValue,
           daysPurchased,
           chain: chainName,
+          type: 'payment',
+        });
+      }
+
+      // Process DAI refunds
+      for (const refund of daiRefunds.transfers) {
+        if (!refund.value || refund.value === 0) continue;
+
+        // Get block timestamp
+        const block = await alchemy.core.getBlock(refund.blockNum);
+        const timestamp = block.timestamp;
+
+        // Convert to USD (DAI = $1, uses 18 decimals)
+        const usdValue = await convertToUsd(refund.value, 'DAI', timestamp, network);
+
+        // Skip refunds under $1
+        if (usdValue < 1) continue;
+
+        // Calculate days deducted (negative)
+        const daysPurchased = -((usdValue / MONTHLY_PRICE) * DAYS_PER_MONTH);
+
+        payments.push({
+          transactionHash: refund.hash,
+          timestamp,
+          amount: refund.value,
+          currency: 'DAI',
+          usdValue,
+          daysPurchased, // Negative value
+          chain: chainName,
+          type: 'refund',
         });
       }
     } catch (error) {
@@ -225,7 +343,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
     }
   }
 
-  // Sort payments by timestamp
+  // Sort payments and refunds by timestamp
   payments.sort((a, b) => a.timestamp - b.timestamp);
 
   // Calculate subscription status
@@ -240,11 +358,16 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
     };
   }
 
-  // Calculate total days purchased
+  // Calculate net days purchased (payments are positive, refunds are negative)
   const totalDaysPurchased = payments.reduce((sum, p) => sum + p.daysPurchased, 0);
-  const totalPaid = payments.reduce((sum, p) => sum + p.usdValue, 0);
 
-  // Calculate expiration date (from first payment)
+  // Calculate net amount paid (sum payments, subtract refunds)
+  const totalPaid = payments.reduce((sum, p) => {
+    return sum + (p.type === 'payment' ? p.usdValue : -p.usdValue);
+  }, 0);
+
+  // Calculate expiration date (from first transaction - payment or refund)
+  // Net days purchased accounts for refunds automatically (negative daysPurchased)
   const firstPaymentTime = payments[0].timestamp * 1000; // Convert to milliseconds
   const totalMilliseconds = totalDaysPurchased * 24 * 60 * 60 * 1000;
   const expiresAt = new Date(firstPaymentTime + totalMilliseconds);
