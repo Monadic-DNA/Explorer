@@ -148,6 +148,11 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
         throw new Error('Wallet client not available');
       }
 
+      // Check if chain is detected
+      if (!connectedChain) {
+        throw new Error('Unable to detect connected network. Please make sure your wallet is connected to a supported network.');
+      }
+
       // Get the appropriate contract address for the selected stablecoin
       let tokenContract: string | undefined;
       let decimals: number;
@@ -166,7 +171,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       }
 
       if (!tokenContract) {
-        throw new Error(`${currency} not supported on ${connectedChain}`);
+        const supportedChains = Object.keys(USDC_CONTRACTS).join(', ');
+        throw new Error(`${currency} is not supported on "${connectedChain}". Supported networks: ${supportedChains}`);
       }
 
       // Parse token amount with appropriate decimals
