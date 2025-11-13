@@ -77,6 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
+  // If environment ID is not set, render without Dynamic (useful for CI/CD builds)
+  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
+  const isDynamicEnabled = !!environmentId;
+
   const checkSubscription = useCallback(async (walletAddress: string) => {
     try {
       console.log('[AuthProvider] Checking subscription for:', walletAddress);
@@ -144,10 +148,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // If Dynamic is not enabled (no environment ID), render children with default auth context
+  if (!isDynamicEnabled) {
+    return (
+      <AuthContext.Provider
+        value={{
+          isAuthenticated: false,
+          user: null,
+          hasActiveSubscription: false,
+          checkingSubscription: false,
+          subscriptionData: null,
+          refreshSubscription: async () => {},
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
   return (
     <DynamicContextProvider
       settings={{
-        environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || '',
+        environmentId: environmentId,
         walletConnectors: [EthereumWalletConnectors],
         events: {
           onLogout: () => {
@@ -181,5 +203,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function AuthButton() {
+  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
+
+  // Don't render widget if Dynamic is not enabled
+  if (!environmentId) {
+    return null;
+  }
+
   return <DynamicWidget />;
 }
