@@ -425,7 +425,7 @@ Users can combine both! Subscribe with card for recurring billing, then add extr
 
 See detailed setup guides:
 - **Stripe Payments**: `STRIPE_INTEGRATION.md`
-- **Blockchain Payments**: `STABLECOIN_PAYMENTS.md`
+- **Stablecoin Payments**: `STABLECOIN_PAYMENTS.md`
 
 **Quick Start:**
 ```bash

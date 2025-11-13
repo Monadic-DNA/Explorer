@@ -7,7 +7,6 @@ import {
   LLMProvider,
   getLLMConfig,
   saveLLMConfig,
-  getProviderDisplayName,
   isConfigValid,
 } from "@/lib/llm-config";
 

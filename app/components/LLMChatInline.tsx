@@ -9,7 +9,6 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
-import { getLLMConfig } from "@/lib/llm-config";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -19,7 +18,6 @@ type Message = {
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
-const SIMILAR_STUDIES_LIMIT = 1000;
 const MAX_CONTEXT_RESULTS = 500;
 
 const EXAMPLE_QUESTIONS = [
