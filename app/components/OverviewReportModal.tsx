@@ -423,7 +423,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content large-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>📊 Comprehensive Genetic Overview Report</h2>
+          <h2>📊 Comprehensive Genetic Overview Report <span style={{color: '#ff9800', fontSize: '0.8em'}}>(Experimental)</span></h2>
           <button className="close-button" onClick={handleClose}>×</button>
         </div>
 

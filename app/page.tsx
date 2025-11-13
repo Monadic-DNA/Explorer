@@ -1146,7 +1146,7 @@ function MainContent() {
                   <line x1="16" y1="17" x2="8" y2="17"/>
                   <polyline points="10 9 9 9 8 9"/>
                 </svg>
-                <h3>Overview Report</h3>
+                <h3>Overview Report <span style={{color: '#ff9800', fontSize: '0.8em'}}>(Experimental)</span></h3>
                 <p>
                   {!mounted ? 'Loading...' :
                    resultsContext.savedResults.length < 1000

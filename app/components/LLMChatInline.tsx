@@ -23,10 +23,11 @@ const SIMILAR_STUDIES_LIMIT = 1000;
 const MAX_CONTEXT_RESULTS = 500;
 
 const EXAMPLE_QUESTIONS = [
-  "What are my highest risk factors?",
-  "Tell me about my cardiovascular health results",
-  "Do I have any protective variants for diabetes?",
-  "What traits should I pay attention to?"
+  "Which traits should I pay attention to?",
+  "Which sports are ideal for me?",
+  "What kinds of foods do you think I will like best?",
+  "On a scale of 1 - 10, how risk seeking am I?",
+  "Can you tell me which learning styles work best for me?"
 ];
 
 const FOLLOWUP_SUGGESTIONS = [
