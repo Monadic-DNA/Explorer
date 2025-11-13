@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
@@ -12,14 +12,15 @@ import { trackStudyResultReveal } from "@/lib/analytics";
 
 type StudyResultRevealProps = {
   studyId: number;
+  studyAccession: string | null;
   snps: string | null;
   traitName: string;
   studyTitle: string;
 };
 
-export default function StudyResultReveal({ studyId, snps, traitName, studyTitle }: StudyResultRevealProps) {
+export default function StudyResultReveal({ studyId, studyAccession, snps, traitName, studyTitle }: StudyResultRevealProps) {
   const { genotypeData, isUploaded } = useGenotype();
-  const { addResult, hasResult, getResult, savedResults } = useResults();
+  const { addResult, hasResult, getResult, getResultByGwasId, resultsVersion } = useResults();
   const [result, setResult] = useState<UserStudyResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -27,24 +28,55 @@ export default function StudyResultReveal({ studyId, snps, traitName, studyTitle
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [showCommentary, setShowCommentary] = useState(false);
 
-  // Check if we already have a saved result
+  // Memoize modal props - must be at top level before any conditional returns
+  const currentResultForModal = useMemo(() => {
+    if (!result?.hasMatch) return null;
+    return {
+      studyId,
+      gwasId: studyAccession || '',
+      traitName,
+      studyTitle,
+      userGenotype: result.userGenotype!,
+      riskAllele: result.riskAllele!,
+      effectSize: result.effectSize!,
+      effectType: result.effectType,
+      riskScore: result.riskScore!,
+      riskLevel: result.riskLevel!,
+      matchedSnp: result.matchedSnp!,
+      analysisDate: new Date().toISOString(),
+    };
+  }, [result, studyId, studyAccession, traitName, studyTitle]);
+
+  // Check if we already have a saved result (check by studyAccession for Run All results, fallback to studyId)
+  // Memoize the actual saved result to avoid re-renders when unrelated results change
+  const savedResult = useMemo(() => {
+    // First try to find by studyAccession (gwasId) - used by Run All
+    const byGwasId = studyAccession ? getResultByGwasId(studyAccession) : undefined;
+    if (byGwasId) return byGwasId;
+
+    // Fallback to studyId for individually revealed results
+    return hasResult(studyId) ? getResult(studyId) : undefined;
+  }, [studyId, studyAccession, resultsVersion, hasResult, getResult, getResultByGwasId]);
+
   useEffect(() => {
-    if (hasResult(studyId)) {
-      const savedResult = getResult(studyId);
-      if (savedResult) {
-        setResult({
-          hasMatch: true,
-          userGenotype: savedResult.userGenotype,
-          riskAllele: savedResult.riskAllele,
-          effectSize: savedResult.effectSize,
-          riskScore: savedResult.riskScore,
-          riskLevel: savedResult.riskLevel,
-          matchedSnp: savedResult.matchedSnp,
-        });
-        setIsRevealed(true);
-      }
+    if (savedResult) {
+      setResult({
+        hasMatch: true,
+        userGenotype: savedResult.userGenotype,
+        riskAllele: savedResult.riskAllele,
+        effectSize: savedResult.effectSize,
+        effectType: savedResult.effectType,
+        riskScore: savedResult.riskScore,
+        riskLevel: savedResult.riskLevel,
+        matchedSnp: savedResult.matchedSnp,
+      });
+      setIsRevealed(true);
+    } else {
+      // Reset if result was removed
+      setResult(null);
+      setIsRevealed(false);
     }
-  }, [studyId, hasResult, getResult]);
+  }, [savedResult]);
 
   const handleRevealClick = () => {
     setShowDisclaimer(true);
@@ -114,12 +146,13 @@ export default function StudyResultReveal({ studyId, snps, traitName, studyTitle
           userGenotype: analysisResult.userGenotype!,
           riskAllele: analysisResult.riskAllele!,
           effectSize: analysisResult.effectSize!,
+          effectType: analysisResult.effectType,
           riskScore: analysisResult.riskScore!,
           riskLevel: analysisResult.riskLevel!,
           matchedSnp: analysisResult.matchedSnp!,
           analysisDate: new Date().toISOString(),
         };
-        addResult(savedResult);
+        await addResult(savedResult);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');
@@ -131,8 +164,8 @@ export default function StudyResultReveal({ studyId, snps, traitName, studyTitle
   const formatRiskScore = (score: number, level: string, effectType?: string) => {
     if (level === 'neutral') return effectType === 'beta' ? 'baseline' : '1.0x';
     if (effectType === 'beta') {
-      // For beta coefficients, show the effect size directly, not as a multiplier
-      return `β=${score > 1 ? '+' : ''}${(score - 1).toFixed(3)}`;
+      // For beta coefficients, show the actual beta value in original units
+      return `β=${score >= 0 ? '+' : ''}${score.toFixed(3)} units`;
     }
     return `${score.toFixed(2)}x`;
   };
@@ -218,21 +251,19 @@ export default function StudyResultReveal({ studyId, snps, traitName, studyTitle
     if (!result.hasMatch) {
       return (
         <div className="user-result no-match">
-          No match found—your DNA is unique here
+          No match found - your DNA is unique here
         </div>
       );
     }
 
-    const savedResult = getResult(studyId);
-
     return (
       <>
-        {savedResult && (
+        {showCommentary && currentResultForModal && (
           <LLMCommentaryModal
             isOpen={showCommentary}
             onClose={() => setShowCommentary(false)}
-            currentResult={savedResult}
-            allResults={savedResults}
+            currentResult={currentResultForModal}
+            allResults={[]}
           />
         )}
         <div className="result-with-commentary">
@@ -252,10 +283,14 @@ export default function StudyResultReveal({ studyId, snps, traitName, studyTitle
           </div>
           <button
             className="commentary-button"
-            onClick={() => setShowCommentary(true)}
-            title="Get private AI analysis powered by Nillion's nilAI. Your data is processed securely in a Trusted Execution Environment and is not visible to Monadic DNA."
+            onClick={() => {
+              console.log('[StudyResultReveal] Private LLM Analysis button clicked');
+              setShowCommentary(true);
+              console.log('[StudyResultReveal] showCommentary set to true');
+            }}
+            title="Get private LLM analysis powered by Nillion's nilAI. Your data is processed securely in a Trusted Execution Environment and is not visible to Monadic DNA."
           >
-            🛡️ Private AI Analysis
+            🛡️ Private LLM Analysis
           </button>
         </div>
       </>

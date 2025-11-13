@@ -11,6 +11,7 @@ import {
   parseSampleSize,
   QualityFlag,
 } from "@/lib/parsing";
+import { embeddingService } from "@/lib/embedding-service";
 
 type ConfidenceBand = "high" | "medium" | "low";
 
@@ -35,6 +36,7 @@ type RawStudy = {
   risk_allele_frequency: string | null;
   strongest_snp_risk_allele: string | null;
   snps: string | null;
+  similarity?: number; // Semantic search similarity score (0-1)
 };
 
 type Study = RawStudy & {
@@ -235,7 +237,16 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search")?.trim();
   const trait = searchParams.get("trait")?.trim();
-  const limit = Math.max(10, Math.min(Number(searchParams.get("limit")) || 75, 200));
+  const searchMode = searchParams.get("searchMode") ?? "similarity"; // "similarity" or "exact"
+  const useSemanticSearch = searchMode === "similarity"; // Use semantic search only for similarity mode
+
+  // Special parameter for "Run All" - fetches all studies with SNPs
+  const fetchAll = searchParams.get("fetchAll") === "true";
+  // Allow larger batches for pagination (up to 100000 for Run All with fetchAll)
+  const requestedLimit = Number(searchParams.get("limit")) || 75;
+  const limit = fetchAll ? Math.max(10, Math.min(requestedLimit, 100000)) : Math.max(10, Math.min(requestedLimit, 50000));
+  const offset = Math.max(0, Number(searchParams.get("offset")) || 0);
+
   const sort = searchParams.get("sort") ?? "relevance";
   const direction = searchParams.get("direction") === "asc" ? "asc" : "desc";
   const minSampleSize = parseInteger(searchParams.get("minSampleSize"));
@@ -251,66 +262,346 @@ export async function GET(request: NextRequest) {
 
   const filters: string[] = [];
   const params: unknown[] = [];
+  let orderByClause = "";
+  let useSemanticQuery = false;
+  let queryEmbedding: number[] = [];
 
-  if (search) {
+  // Semantic search: Generate embedding for query
+  if (search && useSemanticSearch) {
+    try {
+      console.log(`[Semantic Search] Embedding query: "${search}"`);
+      queryEmbedding = await embeddingService.embed(search);
+      useSemanticQuery = true;
+      console.log(`[Semantic Search] Embedding generated (${queryEmbedding.length} dims)`);
+      console.log(`[Semantic Search] First 10 values:`, queryEmbedding.slice(0, 10));
+    } catch (error) {
+      console.error(`[Semantic Search] Failed to generate embedding:`, error);
+      // Fall back to keyword search
+      useSemanticQuery = false;
+    }
+  }
+
+  // Build search filters
+  if (search && !useSemanticQuery) {
+    // Keyword search (fallback or when semantic is disabled)
     const wildcard = `%${search}%`;
     filters.push(
-      "(study LIKE ? OR disease_trait LIKE ? OR mapped_trait LIKE ? OR first_author LIKE ? OR mapped_gene LIKE ? OR study_accession LIKE ?)",
+      "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
     );
-    params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+    params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+  } else if (useSemanticQuery) {
+    // Semantic search: Use separate study_embeddings table
+    const dbType = getDbType();
+
+    if (dbType === 'postgres') {
+      // PostgreSQL: Semantic search handled in FROM clause subquery
+      // The subquery already filters and orders by similarity
+      // Just order by the distance column from the subquery
+      orderByClause = `ORDER BY se.distance`;
+    } else {
+      // SQLite: No native vector support, fall back to keyword search
+      console.warn(`[Semantic Search] SQLite doesn't support vector similarity, falling back to keyword search`);
+      const wildcard = `%${search}%`;
+      filters.push(
+        "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
+      );
+      params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+      useSemanticQuery = false;
+    }
   }
 
   if (trait) {
-    filters.push("(mapped_trait = ? OR disease_trait = ?)");
+    filters.push("(gc.mapped_trait = ? OR gc.disease_trait = ?)");
     params.push(trait, trait);
   }
 
-  const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+  // For fetchAll, always require SNPs and risk alleles (since we're doing SNP matching)
+  if (fetchAll) {
+    filters.push("(gc.snps IS NOT NULL AND gc.snps != '')");
+    filters.push("(gc.strongest_snp_risk_allele IS NOT NULL AND gc.strongest_snp_risk_allele != '')");
+  }
 
-  // Use appropriate ID selection based on database type
+  // Add backend filters to SQL WHERE clause
+  const maxPValue = maxPValueRaw ? parsePValue(maxPValueRaw) : null;
+  const minLogP = minLogPRaw ? Number(minLogPRaw) : null;
+
+  // Get database type first to use appropriate syntax
   const dbType = getDbType();
+
+  if (minSampleSize !== null) {
+    // Filter for minimum sample size
+    // Check both initial_sample_size and replication_sample_size
+    // Note: Some values contain text like "1,000 cases, 1,034 controls"
+    // Extract only the first number to avoid overflow from concatenating multiple numbers
+    if (dbType === 'postgres') {
+      // Extract first number with commas, then remove commas
+      filters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
+    } else {
+      filters.push("((CAST(gc.initial_sample_size AS INTEGER) >= ?) OR (CAST(gc.replication_sample_size AS INTEGER) >= ?))");
+    }
+    params.push(minSampleSize, minSampleSize);
+  }
+
+  if (maxPValue !== null) {
+    // Filter for maximum p-value
+    // Use pvalue_mlog to avoid numeric overflow with extreme p-values like 1E-18716
+    // Convert: maxPValue = 5e-8 => minLogP = -log10(5e-8) ≈ 7.3
+    const minLogPFromMaxP = -Math.log10(maxPValue);
+    if (dbType === 'postgres') {
+      filters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
+    } else {
+      filters.push("(gc.pvalue_mlog IS NULL OR CAST(gc.pvalue_mlog AS REAL) >= ?)");
+    }
+    params.push(minLogPFromMaxP);
+  }
+
+  if (minLogP !== null) {
+    // Filter for minimum -log10(p-value)
+    if (dbType === 'postgres') {
+      filters.push("gc.pvalue_mlog::numeric >= ?::numeric");
+    } else {
+      filters.push("CAST(gc.pvalue_mlog AS REAL) >= ?");
+    }
+    params.push(minLogP);
+  }
+
+  if (excludeMissingGenotype) {
+    // Filter out studies with missing or invalid genotype data
+    filters.push("(gc.strongest_snp_risk_allele IS NOT NULL AND gc.strongest_snp_risk_allele != '' AND gc.strongest_snp_risk_allele != '?' AND gc.strongest_snp_risk_allele != 'NR' AND gc.strongest_snp_risk_allele NOT LIKE '%?%')");
+  }
+
+  const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
   // NOTE: hashtext() is a 32-bit non-cryptographic hash with potential collision risk.
   // For production with high study volumes, consider migrating to a stable UUID column
   // computed during data ingestion to eliminate collision probability.
   // Current risk is low given GWAS catalog size (~hundreds of thousands of studies) and
   // the composite key includes multiple discriminating fields (accession, SNPs, p-value, OR).
   const idSelection = dbType === 'postgres'
-    ? 'hashtext(COALESCE(study_accession, \'\') || COALESCE(snps, \'\') || COALESCE(strongest_snp_risk_allele, \'\') || COALESCE(p_value, \'\') || COALESCE(or_or_beta::text, \'\')) AS id'
-    : 'rowid AS id';
+    ? 'hashtext(COALESCE(gc.study_accession, \'\') || COALESCE(gc.snps, \'\') || COALESCE(gc.strongest_snp_risk_allele, \'\') || COALESCE(gc.p_value, \'\') || COALESCE(gc.or_or_beta::text, \'\')) AS id'
+    : 'gc.rowid AS id';
+
+  // Calculate rawLimit first (needed for HNSW candidate limit calculation)
+  // Most filters now run in SQL, so we only need a small buffer for excludeLowQuality and confidenceBand
+  // These filters are applied post-query in JavaScript
+  const needsPostFilterBuffer = excludeLowQuality || confidenceBandFilter !== null;
+  const isRunAllQuery = excludeLowQuality === false && excludeMissingGenotype === false && !search && !trait;
+  // Use 2x buffer for post-filtering to ensure enough results after JS-side filtering
+  // Respect user's limit choice (removed arbitrary 200 cap)
+  const rawLimit = fetchAll ? limit : (needsPostFilterBuffer ? limit * 2 : limit);
+
+  // Build FROM clause - for semantic search, query embeddings table first, then join
+  // This allows the HNSW index to be used efficiently
+  let fromClause = 'FROM gwas_catalog gc';
+
+  if (useSemanticQuery && dbType === 'postgres') {
+    // Two-stage query for efficient HNSW index usage:
+    // 1. First: Use HNSW index to get top candidate embeddings (fast!)
+    // 2. Then: JOIN with gwas_catalog using composite key (study_accession, snps, strongest_snp_risk_allele)
+    // This prevents full table scans by letting the HNSW index do the heavy lifting
+
+    const vectorLiteral = `'${JSON.stringify(queryEmbedding)}'::vector`;
+    // Dynamic candidate limit based on user's requested limit and filter strictness
+    // Use larger multiplier when filters are active to ensure enough results after filtering
+    const hasStrictFilters = minSampleSize !== null || maxPValue !== null || minLogP !== null || excludeMissingGenotype;
+    const candidateMultiplier = hasStrictFilters ? 10 : 5; // 10x with filters, 5x without
+    const hnswCandidateLimit = Math.max(1000, Math.min(rawLimit * candidateMultiplier, 10000));
+
+    fromClause = `FROM (
+      SELECT study_accession, snps, strongest_snp_risk_allele, embedding
+      FROM study_embeddings
+      ORDER BY embedding <=> ${vectorLiteral}
+      LIMIT ${hnswCandidateLimit}
+    ) se
+    INNER JOIN gwas_catalog gc ON (
+      se.study_accession = gc.study_accession
+      AND se.snps = gc.snps
+      AND se.strongest_snp_risk_allele = gc.strongest_snp_risk_allele
+    )`;
+
+    // Update order by to use embedding distance (ASC = lowest distance first = highest similarity first = descending similarity)
+    orderByClause = `ORDER BY se.embedding <=> ${vectorLiteral}`;
+  }
+
+  // Add similarity score for semantic search
+  const similarityColumn = useSemanticQuery && dbType === 'postgres'
+    ? `,\n       (1 - (se.embedding <=> ${`'${JSON.stringify(queryEmbedding)}'::vector`})) as similarity`
+    : '';
 
   const baseQuery = `SELECT ${idSelection},
-       study_accession,
-       study,
-       disease_trait,
-       mapped_trait,
-       mapped_trait_uri,
-       mapped_gene,
-       first_author,
-       date,
-       journal,
-       pubmedid,
-       link,
-       initial_sample_size,
-       replication_sample_size,
-       p_value,
-       pvalue_mlog,
-       or_or_beta,
-       risk_allele_frequency,
-       strongest_snp_risk_allele,
-       snps
-    FROM gwas_catalog
+       gc.study_accession,
+       gc.study,
+       gc.disease_trait,
+       gc.mapped_trait,
+       gc.mapped_trait_uri,
+       gc.mapped_gene,
+       gc.first_author,
+       gc.date,
+       gc.journal,
+       gc.pubmedid,
+       gc.link,
+       gc.initial_sample_size,
+       gc.replication_sample_size,
+       gc.p_value,
+       gc.pvalue_mlog,
+       gc.or_or_beta,
+       gc.risk_allele_frequency,
+       gc.strongest_snp_risk_allele,
+       gc.snps${similarityColumn}
+    ${fromClause}
     ${whereClause}
-    LIMIT ?`;
-  const rawLimit = Math.min(limit * 4, 800);
+    ${orderByClause}`;
+
+  // Add LIMIT/OFFSET directly to query for PostgreSQL (safe since rawLimit and offset are validated integers)
+  // This avoids parameter type inference issues with pg driver
+  const finalQuery = dbType === 'postgres'
+    ? `${baseQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`
+    : `${baseQuery}\n    LIMIT ? OFFSET ?`;
+
+  let rawRows: RawStudy[];
 
   try {
-    const rawRows = await executeQuery<RawStudy>(baseQuery, [...params, rawLimit]);
+    // Log query timing for semantic search debugging
+    const queryStart = Date.now();
+    console.log(`[Query] Starting database query...`);
+    if (useSemanticQuery) {
+      console.log(`[Query] Semantic search active, params count: ${params.length}`);
+      console.log(`[Query] HNSW ef_search is set to 1000 at connection level for better recall`);
+    }
 
-  const maxPValue = maxPValueRaw ? parsePValue(maxPValueRaw) : null;
-  const minLogP = minLogPRaw ? Number(minLogPRaw) : null;
+    // DEBUG: Print the actual SQL query
+    console.log(`[Query] SQL:\n${finalQuery}`);
+    console.log(`[Query] First 3 params:`, params.slice(0, 3).map(p => typeof p === 'string' && p.length > 100 ? `${p.substring(0, 100)}...` : p));
+
+    // For PostgreSQL, LIMIT/OFFSET are in the query string; for SQLite, they're in params
+    rawRows = dbType === 'postgres'
+      ? await executeQuery<RawStudy>(finalQuery, params)
+      : await executeQuery<RawStudy>(finalQuery, [...params, rawLimit, offset]);
+
+    const queryElapsed = Date.now() - queryStart;
+    console.log(`[Query] Database query completed in ${queryElapsed}ms`);
+    console.log(`[Query] Raw rows returned: ${rawRows.length}`);
+    if (queryElapsed > 5000) {
+      console.warn(`[Query] SLOW QUERY DETECTED: ${queryElapsed}ms - consider database upgrade`);
+    }
+  } catch (error: any) {
+    // If semantic search fails (e.g., study_embeddings table doesn't exist), fall back to keyword search
+    if (useSemanticQuery && (error?.message?.includes('study_embeddings') || error?.message?.includes('relation') || error?.message?.includes('does not exist'))) {
+      console.warn(`[Semantic Search] Table not found or query failed, falling back to keyword search:`, error.message);
+
+      // Rebuild query without semantic search, using same filters as main query
+      const fallbackFilters: string[] = [];
+      const fallbackParams: any[] = [];
+
+      // Re-add search as keyword search
+      if (search) {
+        const wildcard = `%${search}%`;
+        fallbackFilters.push(
+          "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
+        );
+        fallbackParams.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+      }
+
+      if (trait) {
+        fallbackFilters.push("(gc.mapped_trait = ? OR gc.disease_trait = ?)");
+        fallbackParams.push(trait, trait);
+      }
+
+      if (fetchAll) {
+        fallbackFilters.push("(gc.snps IS NOT NULL AND gc.snps != '')");
+        fallbackFilters.push("(gc.strongest_snp_risk_allele IS NOT NULL AND gc.strongest_snp_risk_allele != '')");
+      }
+
+      // Add the same backend filters as the main query
+      if (minSampleSize !== null) {
+        if (dbType === 'postgres') {
+          // Extract first number with commas, then remove commas
+          fallbackFilters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
+        } else {
+          fallbackFilters.push("((CAST(gc.initial_sample_size AS INTEGER) >= ?) OR (CAST(gc.replication_sample_size AS INTEGER) >= ?))");
+        }
+        fallbackParams.push(minSampleSize, minSampleSize);
+      }
+
+      if (maxPValue !== null) {
+        // Use pvalue_mlog to avoid numeric overflow with extreme p-values
+        const minLogPFromMaxP = -Math.log10(maxPValue);
+        if (dbType === 'postgres') {
+          fallbackFilters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
+        } else {
+          fallbackFilters.push("(gc.pvalue_mlog IS NULL OR CAST(gc.pvalue_mlog AS REAL) >= ?)");
+        }
+        fallbackParams.push(minLogPFromMaxP);
+      }
+
+      if (minLogP !== null) {
+        if (dbType === 'postgres') {
+          fallbackFilters.push("gc.pvalue_mlog::numeric >= ?::numeric");
+        } else {
+          fallbackFilters.push("CAST(gc.pvalue_mlog AS REAL) >= ?");
+        }
+        fallbackParams.push(minLogP);
+      }
+
+      if (excludeMissingGenotype) {
+        fallbackFilters.push("(gc.strongest_snp_risk_allele IS NOT NULL AND gc.strongest_snp_risk_allele != '' AND gc.strongest_snp_risk_allele != '?' AND gc.strongest_snp_risk_allele != 'NR' AND gc.strongest_snp_risk_allele NOT LIKE '%?%')");
+      }
+
+      const fallbackWhereClause = fallbackFilters.length ? `WHERE ${fallbackFilters.join(" AND ")}` : "";
+
+      // Build order by based on sort parameter
+      let fallbackOrderBy = "";
+      if (sort === "power") {
+        fallbackOrderBy = `ORDER BY CAST(gc.initial_sample_size AS INTEGER) ${direction}`;
+      } else if (sort === "recent") {
+        fallbackOrderBy = `ORDER BY gc.date ${direction}`;
+      } else if (sort === "alphabetical") {
+        fallbackOrderBy = `ORDER BY gc.study ${direction}`;
+      } else {
+        // Default: relevance (sort by -log10(p))
+        fallbackOrderBy = `ORDER BY CAST(gc.pvalue_mlog AS REAL) ${direction}`;
+      }
+
+      const fallbackQuery = `SELECT ${idSelection},
+       gc.study_accession,
+       gc.study,
+       gc.disease_trait,
+       gc.mapped_trait,
+       gc.mapped_trait_uri,
+       gc.mapped_gene,
+       gc.first_author,
+       gc.date,
+       gc.journal,
+       gc.pubmedid,
+       gc.link,
+       gc.initial_sample_size,
+       gc.replication_sample_size,
+       gc.p_value,
+       gc.pvalue_mlog,
+       gc.or_or_beta,
+       gc.risk_allele_frequency,
+       gc.strongest_snp_risk_allele,
+       gc.snps
+    FROM gwas_catalog gc
+    ${fallbackWhereClause}
+    ${fallbackOrderBy}`;
+
+      const fallbackFinalQuery = dbType === 'postgres'
+        ? `${fallbackQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`
+        : `${fallbackQuery}\n    LIMIT ? OFFSET ?`;
+
+      rawRows = dbType === 'postgres'
+        ? await executeQuery<RawStudy>(fallbackFinalQuery, fallbackParams)
+        : await executeQuery<RawStudy>(fallbackFinalQuery, [...fallbackParams, rawLimit, offset]);
+    } else {
+      // Re-throw if it's a different error
+      throw error;
+    }
+  }
+
+  try {
 
   const studies: Study[] = rawRows
-    .map((row) => {
+    .map((row, index) => {
       const sampleSize = parseSampleSize(row.initial_sample_size) ?? parseSampleSize(row.replication_sample_size);
       const pValueNumeric = parsePValue(row.p_value);
       const logPValue = parseLogPValue(row.pvalue_mlog) ?? (pValueNumeric ? -Math.log10(pValueNumeric) : null);
@@ -333,35 +624,10 @@ export async function GET(request: NextRequest) {
       } satisfies Study;
     })
     .filter((row) => {
-      if (minSampleSize && row.sampleSize !== null && row.sampleSize < minSampleSize) {
-        return false;
-      }
-      if (minSampleSize && row.sampleSize === null) {
-        return false;
-      }
-      if (maxPValue !== null && row.pValueNumeric !== null && row.pValueNumeric > maxPValue) {
-        return false;
-      }
-      if (maxPValue !== null && row.pValueNumeric === null) {
-        return false;
-      }
-      if (minLogP !== null && row.logPValue !== null && row.logPValue < minLogP) {
-        return false;
-      }
-      if (minLogP !== null && row.logPValue === null) {
-        return false;
-      }
+      // Note: minSampleSize, maxPValue, minLogP, and excludeMissingGenotype are now handled in SQL
+      // Only keep filters that require computed fields (excludeLowQuality, confidenceBand)
       if (excludeLowQuality && row.isLowQuality) {
         return false;
-      }
-      if (excludeMissingGenotype) {
-        if (!row.strongest_snp_risk_allele || 
-            row.strongest_snp_risk_allele.trim().length === 0 ||
-            row.strongest_snp_risk_allele.trim() === '?' ||
-            row.strongest_snp_risk_allele.trim() === 'NR' ||
-            row.strongest_snp_risk_allele.includes('?')) {
-          return false;
-        }
       }
       if (confidenceBandFilter && row.confidenceBand !== confidenceBandFilter) {
         return false;
@@ -369,43 +635,78 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
-    const countResult = await executeQuerySingle<{ count: number }>(`SELECT COUNT(*) as count FROM gwas_catalog ${whereClause}`, params);
-    const sourceCount = countResult?.count ?? 0;
+    // Get source count (may fail if numeric overflow in WHERE clause, that's ok)
+    let sourceCount = 0;
+    try {
+      const countQuery = useSemanticQuery && dbType === 'postgres'
+        ? `SELECT COUNT(*) as count ${fromClause} ${whereClause}`
+        : `SELECT COUNT(*) as count FROM gwas_catalog gc ${whereClause}`;
+      const countResult = await executeQuerySingle<{ count: number }>(countQuery, params);
+      sourceCount = countResult?.count ?? 0;
+    } catch (error: any) {
+      console.warn('[Query] Count query failed:', error?.message || 'Unknown error');
+      console.warn('[Query] Using result length as count instead');
+      sourceCount = rawRows.length;
+    }
 
   const sortedStudies = [...studies];
   const directionFactor = direction === "asc" ? 1 : -1;
 
-  switch (sort) {
-    case "power":
-      sortedStudies.sort((a, b) => directionFactor * ((a.sampleSize ?? 0) - (b.sampleSize ?? 0)));
-      break;
-    case "recent":
-      sortedStudies.sort((a, b) => {
-        const aDate = a.publicationDate;
-        const bDate = b.publicationDate;
-        if (aDate === null && bDate === null) {
-          return 0;
-        }
-        if (aDate === null) {
-          return 1;
-        }
-        if (bDate === null) {
-          return -1;
-        }
-        return directionFactor * (aDate - bDate);
-      });
-      break;
-    case "alphabetical":
-      sortedStudies.sort(
-        (a, b) => (a.study ?? "").localeCompare(b.study ?? "") * directionFactor,
-      );
-      break;
-    default:
-      sortedStudies.sort((a, b) => directionFactor * ((a.logPValue ?? -Infinity) - (b.logPValue ?? -Infinity)));
-      break;
+  // Skip client-side sorting if semantic search already ordered by relevance
+  if (!useSemanticQuery) {
+    switch (sort) {
+      case "power":
+        sortedStudies.sort((a, b) => directionFactor * ((a.sampleSize ?? 0) - (b.sampleSize ?? 0)));
+        break;
+      case "recent":
+        sortedStudies.sort((a, b) => {
+          const aDate = a.publicationDate;
+          const bDate = b.publicationDate;
+          if (aDate === null && bDate === null) {
+            return 0;
+          }
+          if (aDate === null) {
+            return 1;
+          }
+          if (bDate === null) {
+            return -1;
+          }
+          return directionFactor * (aDate - bDate);
+        });
+        break;
+      case "alphabetical":
+        sortedStudies.sort(
+          (a, b) => (a.study ?? "").localeCompare(b.study ?? "") * directionFactor,
+        );
+        break;
+      default:
+        sortedStudies.sort((a, b) => directionFactor * ((a.logPValue ?? -Infinity) - (b.logPValue ?? -Infinity)));
+        break;
+    }
   }
 
   const finalResults = sortedStudies.slice(0, limit);
+
+  // For Run All queries, return minimal payload to avoid JSON serialization limits
+  if (isRunAllQuery) {
+    const minimalResults = finalResults.map(s => ({
+      id: s.id,
+      study_accession: s.study_accession,
+      disease_trait: s.disease_trait,
+      study: s.study,
+      snps: s.snps,
+      strongest_snp_risk_allele: s.strongest_snp_risk_allele,
+      or_or_beta: s.or_or_beta,
+    }));
+
+    return NextResponse.json({
+      data: minimalResults,
+      total: studies.length,
+      limit,
+      truncated: studies.length > finalResults.length,
+      sourceCount,
+    });
+  }
 
     return NextResponse.json({
       data: finalResults,

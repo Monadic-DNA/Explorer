@@ -3,13 +3,40 @@
 import { useState, useEffect } from "react";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
+import { useCustomization } from "./CustomizationContext";
+import CustomizationModal from "./CustomizationModal";
+import LLMConfigModal from "./LLMConfigModal";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
+import { AuthButton, useAuth } from "./AuthProvider";
+import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
+  const { status: customizationStatus } = useCustomization();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, user } = useAuth();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [showCustomizationModal, setShowCustomizationModal] = useState(false);
+  const [showLLMConfigModal, setShowLLMConfigModal] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
+  const [llmProvider, setLlmProvider] = useState<string>('');
+  const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
+
+  useEffect(() => {
+    // Close subscription menu when clicking outside
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.subscription-indicator')) {
+        setShowSubscriptionMenu(false);
+      }
+    };
+
+    if (showSubscriptionMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showSubscriptionMenu]);
 
   useEffect(() => {
     // Detect system preference on mount
@@ -20,6 +47,24 @@ export default function MenuBar() {
     // Apply initial theme
     document.documentElement.setAttribute("data-theme", initialTheme);
     document.documentElement.style.colorScheme = initialTheme;
+
+    // Load LLM config
+    const config = getLLMConfig();
+    setLlmProvider(getProviderDisplayName(config.provider));
+
+    // Load cache info
+    const loadCacheInfo = async () => {
+      const { gwasDB } = await import('@/lib/gwas-db');
+      const metadata = await gwasDB.getMetadata();
+      if (metadata) {
+        const size = await gwasDB.getStorageSize();
+        setCacheInfo({
+          studies: metadata.totalStudies,
+          sizeMB: Math.round(size / 1024 / 1024)
+        });
+      }
+    };
+    loadCacheInfo();
   }, []);
 
   useEffect(() => {
@@ -35,7 +80,9 @@ export default function MenuBar() {
   const handleLoadFromFile = async () => {
     setIsLoadingFile(true);
     try {
-      await loadFromFile(fileHash);
+      // Allow loading results even without DNA file loaded
+      // fileHash will be null/undefined if no DNA file is loaded
+      await loadFromFile(fileHash || null);
     } catch (error) {
       alert('Failed to load results file: ' + (error as Error).message);
     } finally {
@@ -43,7 +90,45 @@ export default function MenuBar() {
     }
   };
 
+  const getCustomizationIcon = () => {
+    switch (customizationStatus) {
+      case 'not-set':
+        return '⚙️';
+      case 'locked':
+        return '🔒';
+      case 'unlocked':
+        return '🔓';
+    }
+  };
+
+  const getCustomizationTooltip = () => {
+    switch (customizationStatus) {
+      case 'not-set':
+        return 'Personalize LLM analysis with your personal information';
+      case 'locked':
+        return 'Personalization is locked - click to unlock';
+      case 'unlocked':
+        return 'Personalization is unlocked - click to edit or lock';
+    }
+  };
+
+  const handleLLMConfigSave = () => {
+    // Reload LLM provider display name
+    const config = getLLMConfig();
+    setLlmProvider(getProviderDisplayName(config.provider));
+  };
+
   return (
+    <>
+      <CustomizationModal
+        isOpen={showCustomizationModal}
+        onClose={() => setShowCustomizationModal(false)}
+      />
+      <LLMConfigModal
+        isOpen={showLLMConfigModal}
+        onClose={() => setShowLLMConfigModal(false)}
+        onSave={handleLLMConfigSave}
+      />
     <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
@@ -70,64 +155,126 @@ export default function MenuBar() {
           <UserDataUpload />
         </div>
 
-        {isUploaded && (
-          <>
-            <div className="menu-separator" />
-            <div className="results-section menu-group">
-              {savedResults.length > 0 && (
-                <span className="stat-item">
-                  {savedResults.length} result{savedResults.length !== 1 ? 's' : ''} cached
-                </span>
+        <div className="menu-separator" />
+        <div className="results-section menu-group">
+          {savedResults.length > 0 && (
+            <span className="stat-item">
+              {savedResults.length} result{savedResults.length !== 1 ? 's' : ''} cached
+            </span>
+          )}
+          <div className="results-controls">
+            <button
+              className="control-button load"
+              onClick={handleLoadFromFile}
+              disabled={isLoadingFile}
+              title="Load results from a file"
+            >
+              {isLoadingFile ? (
+                <>
+                  <ClockIcon size={14} /> Loading...
+                </>
+              ) : (
+                <>
+                  <FileIcon size={14} /> Load
+                </>
               )}
-              <div className="results-controls">
+            </button>
+            {savedResults.length > 0 && (
+              <>
                 <button
-                  className="control-button load"
-                  onClick={handleLoadFromFile}
-                  disabled={isLoadingFile}
-                  title="Load results from a file"
+                  className="control-button save"
+                  onClick={() => saveToFile(genotypeData?.size, fileHash || undefined)}
+                  title="Export your results to a TSV file"
                 >
-                  {isLoadingFile ? (
-                    <>
-                      <ClockIcon size={14} /> Loading...
-                    </>
-                  ) : (
-                    <>
-                      <FileIcon size={14} /> Load
-                    </>
-                  )}
+                  <SaveIcon size={14} /> Export
                 </button>
-                {savedResults.length > 0 && (
-                  <>
-                    <button
-                      className="control-button save"
-                      onClick={() => saveToFile(genotypeData?.size, fileHash || undefined)}
-                      title="Export your results to a JSON file"
-                    >
-                      <SaveIcon size={14} /> Export
-                    </button>
-                    <button
-                      className="control-button clear"
-                      onClick={clearResults}
-                      title="Clear all saved results"
-                    >
-                      <TrashIcon size={14} /> Clear
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+                <button
+                  className="control-button clear"
+                  onClick={clearResults}
+                  title="Clear all saved results"
+                >
+                  <TrashIcon size={14} /> Clear
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
         <div className="menu-separator" />
 
         <div className="utility-section menu-group">
+          <button
+            className={`control-button personalize-button ${customizationStatus}`}
+            onClick={() => setShowCustomizationModal(true)}
+            title={getCustomizationTooltip()}
+          >
+            {getCustomizationIcon()} Personalize
+          </button>
+
+          <button
+            className="control-button llm-config-button"
+            onClick={() => setShowLLMConfigModal(true)}
+            title="Configure LLM provider and model"
+          >
+            🤖 LLM: {llmProvider || 'Loading...'}
+          </button>
+        </div>
+
+        <div className="menu-separator" />
+
+        <div className="utility-section menu-group">
+          {cacheInfo && (
+            <>
+              <span className="stat-item">
+                {cacheInfo.studies.toLocaleString()} studies cached ({cacheInfo.sizeMB} MB)
+              </span>
+              <button
+                className="control-button"
+                onClick={async () => {
+                  const confirmed = window.confirm(
+                    `Clear cached GWAS Catalog data?\n\n` +
+                    `${cacheInfo.studies.toLocaleString()} studies (${cacheInfo.sizeMB} MB)\n\n` +
+                    `Data will be re-downloaded on next Run All.`
+                  );
+                  if (confirmed) {
+                    try {
+                      // Show loading state
+                      const button = document.activeElement as HTMLButtonElement;
+                      const originalText = button?.innerHTML;
+                      if (button) {
+                        button.disabled = true;
+                        button.innerHTML = '<div class="spinner" style="width: 14px; height: 14px; margin-right: 6px;"></div> Clearing...';
+                      }
+
+                      const { gwasDB } = await import('@/lib/gwas-db');
+                      await gwasDB.clearDatabase();
+                      setCacheInfo(null);
+
+                      // Restore button and show success
+                      if (button && originalText) {
+                        button.disabled = false;
+                        button.innerHTML = originalText;
+                      }
+                      alert('✓ Cache cleared successfully!');
+                    } catch (error) {
+                      console.error('Failed to clear cache:', error);
+                      alert('Failed to clear cache. Please try again.');
+                    }
+                  }
+                }}
+                title="Clear locally cached GWAS catalog data"
+              >
+                <TrashIcon size={14} /> Clear Cache
+              </button>
+            </>
+          )}
+
           <a
             href="https://recherche.discourse.group/c/public/monadic-dna/30"
             target="_blank"
             rel="noopener noreferrer"
             className="feedback-button"
-            title="Join fellow explorers—share your feedback on our forum"
+            title="Join fellow explorers - share your feedback on our forum"
           >
             <MessageIcon size={14} /> Feedback
           </a>
@@ -141,7 +288,74 @@ export default function MenuBar() {
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
         </div>
+
+        <div className="menu-separator" />
+
+        {isAuthenticated && hasActiveSubscription && subscriptionData && (
+          <>
+            <div className="subscription-section menu-group">
+              <div
+                className="subscription-indicator"
+                style={{ position: 'relative' }}
+              >
+                <button
+                  className="stat-item"
+                  style={{ cursor: 'pointer', border: '1px solid rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.1)' }}
+                  onClick={() => setShowSubscriptionMenu(!showSubscriptionMenu)}
+                >
+                  ✨ Premium ({subscriptionData.daysRemaining}d)
+                </button>
+                {showSubscriptionMenu && (
+                  <div className="subscription-dropdown">
+                    <div className="subscription-info">
+                      <p><strong>Premium Subscription</strong></p>
+                      <p>Expires: {subscriptionData.expiresAt ? new Date(subscriptionData.expiresAt).toLocaleDateString() : 'N/A'}</p>
+                      <p>Days remaining: {subscriptionData.daysRemaining}</p>
+                    </div>
+                    <button
+                        className="control-button cancel-subscription"
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your current billing period.')) {
+                            try {
+                              const walletAddress = user?.verifiedCredentials?.[0]?.address;
+                              if (!walletAddress) {
+                                alert('Could not find wallet address');
+                                return;
+                              }
+                              const response = await fetch('/api/stripe/cancel-subscription', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ walletAddress }),
+                              });
+                              const result = await response.json();
+                              if (result.success) {
+                                alert('Subscription cancelled successfully. You will retain access until ' + new Date(subscriptionData.expiresAt!).toLocaleDateString());
+                                window.location.reload();
+                              } else {
+                                alert('Failed to cancel subscription: ' + (result.error || 'Unknown error'));
+                              }
+                            } catch (error) {
+                              alert('Failed to cancel subscription. Please try again.');
+                            }
+                          }
+                        }}
+                        title="Cancel Stripe subscription (only available for card payments)"
+                      >
+                        Cancel Subscription
+                      </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="menu-separator" />
+          </>
+        )}
+
+        <div className="auth-section menu-group">
+          <AuthButton />
+        </div>
       </div>
     </div>
+    </>
   );
 }

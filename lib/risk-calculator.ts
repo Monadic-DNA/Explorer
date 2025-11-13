@@ -1,3 +1,5 @@
+import { parseVariantIds } from './snp-utils';
+
 export type UserStudyResult = {
   hasMatch: boolean;
   userGenotype?: string;
@@ -29,7 +31,7 @@ function getComplement(base: string): string {
 }
 
 // Helper function to check if genotype is valid (not a no-call)
-function isValidGenotype(genotype: string): boolean {
+export function isValidGenotype(genotype: string): boolean {
   // Filter out no-calls (--, -, 00, etc.)
   return genotype !== '--' &&
          genotype !== '-' &&
@@ -102,9 +104,9 @@ export function calculateRiskScore(
     }
   } else {
     // Beta coefficient - represents units of trait change, not relative risk
-    // Return the raw beta-based score for display purposes only
+    // Store the actual beta value (effect * alleleCount) for display
     // This should NOT be interpreted as a risk multiplier
-    riskScore = 1 + (effect * riskAlleleCount);
+    riskScore = effect * riskAlleleCount;
     if (riskAlleleCount === 0) {
       riskLevel = 'neutral';
     } else if (effect > 0) {
@@ -114,7 +116,12 @@ export function calculateRiskScore(
     }
   }
 
-  return { score: Math.max(0.1, riskScore), level: riskLevel };
+  // For OR, prevent scores below 0.1; for beta, allow any value including 0
+  if (effectType === 'OR') {
+    return { score: Math.max(0.1, riskScore), level: riskLevel };
+  } else {
+    return { score: riskScore, level: riskLevel };
+  }
 }
 
 export function analyzeStudyClientSide(
@@ -130,8 +137,8 @@ export function analyzeStudyClientSide(
     return { hasMatch: false };
   }
 
-  // Extract SNP IDs from the study
-  const snpList = studySnps.split(/[;,\s]+/).map(s => s.trim()).filter(Boolean);
+  // Extract SNP IDs from the study (use cached parser)
+  const snpList = parseVariantIds(studySnps);
 
   // Find ALL matching SNPs (not just the first one)
   const allMatches: Array<{

@@ -1,15 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { GenotypeProvider, useGenotype } from "./components/UserDataUpload";
 import { ResultsProvider, useResults } from "./components/ResultsContext";
+import { CustomizationProvider } from "./components/CustomizationContext";
 import StudyResultReveal from "./components/StudyResultReveal";
 import MenuBar from "./components/MenuBar";
 import VariantChips from "./components/VariantChips";
 import Footer from "./components/Footer";
 import DisclaimerModal from "./components/DisclaimerModal";
 import TermsAcceptanceModal from "./components/TermsAcceptanceModal";
+import RunAllModal from "./components/RunAllModal";
+import LLMChatInline from "./components/LLMChatInline";
+import OverviewReportModal from "./components/OverviewReportModal";
+import { PremiumPaywall } from "./components/PremiumPaywall";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
+import { analyzeStudyClientSide } from "@/lib/risk-calculator";
+import { isDevModeEnabled } from "@/lib/dev-mode";
 import {
   trackSearch,
   trackFilterChange,
@@ -26,6 +33,7 @@ type ConfidenceBand = "high" | "medium" | "low";
 
 type Filters = {
   search: string;
+  searchMode: "similarity" | "exact";
   trait: string;
   minSampleSize: string;
   maxPValue: string;
@@ -36,6 +44,7 @@ type Filters = {
   sortDirection: SortDirection;
   limit: number;
   confidenceBand: ConfidenceBand | null;
+  offset: number;
 };
 
 type Study = {
@@ -64,10 +73,11 @@ type Study = {
   pValueNumeric: number | null;
   pValueLabel: string;
   logPValue: number | null;
-  qualityFlags: string[];
+  qualityFlags: Array<{ message: string; severity: string }>;
   isLowQuality: boolean;
   confidenceBand: ConfidenceBand;
   publicationDate: number | null;
+  similarity?: number; // Semantic search similarity score (0-1, higher is more similar)
 };
 
 type StudiesResponse = {
@@ -88,6 +98,7 @@ type QualitySummary = {
 
 const defaultFilters: Filters = {
   search: "",
+  searchMode: "similarity",
   trait: "",
   minSampleSize: "500",
   maxPValue: "5e-8",
@@ -96,8 +107,9 @@ const defaultFilters: Filters = {
   requireUserSNPs: false,
   sort: "relevance",
   sortDirection: "desc",
-  limit: 75,
+  limit: 200,
   confidenceBand: null,
+  offset: 0,
 };
 
 
@@ -161,12 +173,14 @@ function getEffectCategory(effectStr: string | null): { label: string; className
 function buildQuery(filters: Filters): string {
   const params = new URLSearchParams();
   params.set("limit", String(filters.limit));
+  params.set("offset", String(filters.offset));
   params.set("sort", filters.sort);
   params.set("direction", filters.sortDirection);
   params.set("excludeLowQuality", String(filters.excludeLowQuality));
   params.set("excludeMissingGenotype", String(filters.excludeMissingGenotype));
   if (filters.search.trim()) {
     params.set("search", filters.search.trim());
+    params.set("searchMode", filters.searchMode);
   }
   if (filters.trait) {
     params.set("trait", filters.trait);
@@ -183,11 +197,46 @@ function buildQuery(filters: Filters): string {
   return params.toString();
 }
 
+type ActiveTab = "explore" | "premium";
+
 function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
-  const { setOnResultsLoadedCallback } = useResults();
+  const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
+  const resultsContext = useResults();
+
+  // Track client-side mounting to prevent hydration errors
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Initialize active tab (always start with 'explore' to avoid hydration issues)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('explore');
+
+  // Premium features overview collapsed state
+  const [featuresOverviewCollapsed, setFeaturesOverviewCollapsed] = useState(false);
+
+  // Load saved tab from localStorage after mount (dev mode only)
+  useEffect(() => {
+    if (isDevModeEnabled()) {
+      const saved = localStorage.getItem('activeTab');
+      if (saved === 'premium') {
+        setActiveTab('premium');
+      }
+    }
+  }, []);
+
+  // Persist active tab in dev-mode
+  useEffect(() => {
+    if (isDevModeEnabled()) {
+      localStorage.setItem('activeTab', activeTab);
+    }
+  }, [activeTab]);
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
+  const scrollPositionRef = useRef<number>(0);
+  const isLoadingMoreRef = useRef<boolean>(false);
   const [traits, setTraits] = useState<string[]>([]);
   const [studies, setStudies] = useState<Study[]>([]);
   const [meta, setMeta] = useState<Omit<StudiesResponse, "data" | "error">>({
@@ -200,6 +249,34 @@ function MainContent() {
   const [error, setError] = useState<string | null>(null);
   const [sectionCollapsed, setSectionCollapsed] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isRunningAll, setIsRunningAll] = useState(false);
+  const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
+  const [showRunAllModal, setShowRunAllModal] = useState(false);
+  const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
+  const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
+  const [runAllStatus, setRunAllStatus] = useState<{
+    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
+    fetchedBatches: number;
+    totalStudiesFetched: number;
+    totalInDatabase: number;
+    matchingStudies: number;
+    processedCount: number;
+    totalToProcess: number;
+    matchCount: number;
+    startTime?: number;
+    elapsedSeconds?: number;
+    etaSeconds?: number;
+    errorMessage?: string;
+  }>({
+    phase: 'fetching',
+    fetchedBatches: 0,
+    totalStudiesFetched: 0,
+    totalInDatabase: 0,
+    matchingStudies: 0,
+    processedCount: 0,
+    totalToProcess: 0,
+    matchCount: 0,
+  });
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
   // Check if user has accepted terms on mount
@@ -223,6 +300,13 @@ function MainContent() {
       const next = { ...prev, [key]: value };
       if (key !== "confidenceBand") {
         next.confidenceBand = null;
+      }
+
+      // Reset offset to 0 when any filter changes (except offset, sort, sortDirection, limit)
+      // This ensures "Load More" starts fresh when user changes search/filters
+      const shouldResetOffset = key !== 'offset' && key !== 'sort' && key !== 'sortDirection' && key !== 'limit';
+      if (shouldResetOffset) {
+        next.offset = 0;
       }
 
       // Track filter changes (with debouncing for search handled separately)
@@ -322,13 +406,24 @@ function MainContent() {
           trackSearch(debouncedSearch, filteredData.length, totalLoadTime);
         }
 
-        setStudies(filteredData);
-        setMeta({
-          total: filteredData.length,
-          limit: payload.limit ?? apiFilters.limit,
-          truncated: payload.truncated ?? false,
-          sourceCount: payload.sourceCount ?? 0,
-        });
+        // Append results if offset > 0 (Load More), otherwise replace
+        if (apiFilters.offset > 0) {
+          setStudies(prev => [...prev, ...filteredData]);
+          setMeta(prev => ({
+            total: prev.total + filteredData.length,
+            limit: payload.limit ?? apiFilters.limit,
+            truncated: payload.truncated ?? false,
+            sourceCount: payload.sourceCount ?? 0,
+          }));
+        } else {
+          setStudies(filteredData);
+          setMeta({
+            total: filteredData.length,
+            limit: payload.limit ?? apiFilters.limit,
+            truncated: payload.truncated ?? false,
+            sourceCount: payload.sourceCount ?? 0,
+          });
+        }
       })
       .catch((err) => {
         if (controller.signal.aborted) {
@@ -340,11 +435,18 @@ function MainContent() {
       .finally(() => {
         if (!controller.signal.aborted) {
           setLoading(false);
+          // Restore scroll position after loading more results
+          if (isLoadingMoreRef.current) {
+            requestAnimationFrame(() => {
+              window.scrollTo(0, scrollPositionRef.current);
+              isLoadingMoreRef.current = false;
+            });
+          }
         }
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, genotypeData]);
+  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, genotypeData]);
 
   const qualitySummary = useMemo<QualitySummary>(() => {
     return studies.reduce<QualitySummary>(
@@ -396,6 +498,103 @@ function MainContent() {
     } else {
       // Start with alphabetical
       handleColumnSort("alphabetical");
+    }
+  };
+
+  const handleRunAll = () => {
+    if (!genotypeData || genotypeData.size === 0) {
+      alert("No SNPs found in your genetic data");
+      return;
+    }
+
+    // Show disclaimer first
+    setShowRunAllDisclaimer(true);
+  };
+
+  const handleRunAllDisclaimerAccept = async () => {
+    setShowRunAllDisclaimer(false);
+
+    // Check if we need to download the catalog first
+    const { gwasDB } = await import('@/lib/gwas-db');
+    const metadata = await gwasDB.getMetadata();
+
+    if (!metadata) {
+      const confirmDownload = window.confirm(
+        `First-time setup: Download ~54MB GWAS Catalog data?\n\n` +
+        `This will be cached locally for instant future analysis.\n` +
+        `Estimated storage: ~500MB after decompression.\n\n` +
+        `Continue?`
+      );
+      if (!confirmDownload) return;
+    } else {
+      const confirmRun = window.confirm(
+        `Analyze all ${metadata.totalStudies.toLocaleString()} studies where you have matching SNPs?\n\n` +
+        `Using cached data from ${new Date(metadata.downloadDate).toLocaleDateString()}\n\n` +
+        `Continue?`
+      );
+      if (!confirmRun) return;
+    }
+
+    // Initialize and show modal
+    setIsRunningAll(true);
+    setShowRunAllModal(true);
+    const startTime = Date.now();
+    setRunAllStatus({
+      phase: 'fetching',
+      fetchedBatches: 0,
+      totalStudiesFetched: 0,
+      totalInDatabase: 0,
+      matchingStudies: 0,
+      processedCount: 0,
+      totalToProcess: 0,
+      matchCount: 0,
+      startTime,
+    });
+    setRunAllProgress({ current: 0, total: 0 });
+
+    try {
+      // Check if genotype data is loaded
+      if (!genotypeData) {
+        throw new Error('No genotype data loaded. Please upload your genetic data first.');
+      }
+
+      // Use IndexedDB-based implementation
+      const { runAllAnalysisIndexed } = await import('@/lib/run-all-indexed');
+
+      const results = await runAllAnalysisIndexed(
+        genotypeData,
+        (progress) => {
+          setRunAllStatus(prev => ({
+            ...prev,
+            phase: progress.phase,
+            totalStudiesFetched: progress.loaded,
+            totalInDatabase: progress.total,
+            matchingStudies: progress.matchingStudies,
+            matchCount: progress.matchCount,
+            elapsedSeconds: progress.elapsedSeconds,
+            fetchedBatches: 0,
+            processedCount: progress.matchingStudies,
+            totalToProcess: progress.matchingStudies,
+          }));
+        },
+        hasResult
+      );
+
+      // Add all results in one efficient batch operation
+      console.log(`Adding ${results.length} results to the results manager...`);
+      const startAdd = Date.now();
+      await addResultsBatch(results); // Embeddings will be fetched on-demand during LLM analysis
+      const addTime = Date.now() - startAdd;
+      console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+    } catch (error) {
+      console.error('Run All failed:', error);
+      setRunAllStatus(prev => ({
+        ...prev,
+        phase: 'error',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      }));
+    } finally {
+      setIsRunningAll(false);
     }
   };
 
@@ -457,7 +656,25 @@ function MainContent() {
         onAccept={() => setShowTermsModal(false)}
       />
       <MenuBar />
-      <main className="page">
+
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button
+          className={`tab-button ${activeTab === "explore" ? "active" : ""}`}
+          onClick={() => setActiveTab("explore")}
+        >
+          Explore
+        </button>
+        <button
+          className={`tab-button ${activeTab === "premium" ? "active" : ""}`}
+          onClick={() => setActiveTab("premium")}
+        >
+          Premium
+        </button>
+      </div>
+
+      <main className="page">{activeTab === "explore" ? (
+        <>
         <section className={`panel ${sectionCollapsed ? "collapsed" : ""}`}>
         <div className="panel-header">
           <div className="hero-title-section">
@@ -499,6 +716,28 @@ function MainContent() {
                   value={filters.search}
                   onChange={(event) => updateFilter("search", event.target.value)}
                 />
+                <div style={{ marginTop: "0.5rem", display: "flex", gap: "1rem" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
+                    <input
+                      type="radio"
+                      name="searchMode"
+                      value="similarity"
+                      checked={filters.searchMode === "similarity"}
+                      onChange={(event) => updateFilter("searchMode", event.target.value as "similarity" | "exact")}
+                    />
+                    Similarity
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
+                    <input
+                      type="radio"
+                      name="searchMode"
+                      value="exact"
+                      checked={filters.searchMode === "exact"}
+                      onChange={(event) => updateFilter("searchMode", event.target.value as "similarity" | "exact")}
+                    />
+                    Exact match
+                  </label>
+                </div>
               </div>
               <div className="panel-field">
                 <label htmlFor="trait">
@@ -563,7 +802,7 @@ function MainContent() {
                   value={filters.limit}
                   onChange={(event) => updateFilter("limit", Number(event.target.value))}
                 >
-                  {[25, 50, 75, 100, 150, 200].map((size) => (
+                  {[25, 50, 75, 100, 150, 200, 1000].map((size) => (
                     <option key={size} value={size}>
                       {size}
                     </option>
@@ -621,6 +860,16 @@ function MainContent() {
                   <span className="sort-indicator">{filters.sortDirection === "asc" ? " ↑" : " ↓"}</span>
                 )}
               </th>
+              {studies.some(s => s.similarity !== undefined) && (
+                <th
+                  scope="col"
+                  title="Semantic similarity score (0-1, higher is more similar). Based on vector embeddings of your search query vs study descriptions. Only shown when using search."
+                  className="sortable sorted"
+                >
+                  Similarity <span className="info-icon">ⓘ</span>
+                  <span className="sort-indicator"> ↓</span>
+                </th>
+              )}
               <th scope="col" title="The health condition, disease, or measurable characteristic that was studied. For example: height, diabetes, or blood pressure.">
                 Trait <span className="info-icon">ⓘ</span>
               </th>
@@ -665,29 +914,29 @@ function MainContent() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="loading-row">
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 9 : 8} className="loading-row">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && studies.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty-row">
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 9 : 8} className="empty-row">
                   No studies found. Try widening your filters.
                 </td>
               </tr>
             )}
             {!loading &&
-              studies.map((study) => {
-                const trait = study.mapped_trait ?? study.disease_trait ?? "—";
+              studies.map((study, index) => {
+                const trait = study.mapped_trait ?? study.disease_trait ?? "-";
                 const date = study.publicationDate
                   ? new Date(study.publicationDate).toLocaleDateString()
                   : study.date
                   ? new Date(study.date).toLocaleDateString() || study.date
-                  : "—";
-                const relevance = study.logPValue ? study.logPValue.toFixed(2) : "—";
-                const power = study.sampleSizeLabel ?? "—";
-                const effect = study.or_or_beta ?? "—";
+                  : "-";
+                const relevance = study.logPValue ? study.logPValue.toFixed(2) : "-";
+                const power = study.sampleSizeLabel ?? "-";
+                const effect = study.or_or_beta ?? "-";
                 const relevanceCategory = getRelevanceCategory(study.logPValue);
                 const powerCategory = getPowerCategory(study.sampleSize);
                 const effectCategory = getEffectCategory(study.or_or_beta);
@@ -706,7 +955,7 @@ function MainContent() {
                     ? "Medium confidence"
                     : "Lower confidence";
                 return (
-                  <tr key={study.id} className={study.isLowQuality ? "low-quality" : undefined}>
+                  <tr key={`${study.id}-${index}`} className={study.isLowQuality ? "low-quality" : undefined}>
                     <td data-label="Study">
                       <div className="study-title">
                         {studyLink ? (
@@ -729,6 +978,11 @@ function MainContent() {
                         {study.mapped_gene && <span>Gene: {study.mapped_gene}</span>}
                       </div>
                     </td>
+                    {study.similarity !== undefined && (
+                      <td data-label="Similarity">
+                        <span className="metric">{study.similarity.toFixed(3)}</span>
+                      </td>
+                    )}
                     <td data-label="Trait">{trait}</td>
                     <td data-label="Variant & Genotype">
                       <VariantChips snps={study.snps} riskAllele={study.strongest_snp_risk_allele} />
@@ -768,9 +1022,9 @@ function MainContent() {
                         <span className={`quality-pill ${study.confidenceBand}`}>{confidenceLabel}</span>
                         {study.qualityFlags.length > 0 && (
                           <div className="quality-flags">
-                            {study.qualityFlags.map((flag) => (
-                              <span key={flag} className="quality-flag">
-                                {flag}
+                            {study.qualityFlags.map((flag, index) => (
+                              <span key={index} className={`quality-flag quality-flag-${flag.severity}`}>
+                                {flag.message}
                               </span>
                             ))}
                           </div>
@@ -780,6 +1034,7 @@ function MainContent() {
                     <td data-label="Your Result">
                       <StudyResultReveal
                         studyId={study.id}
+                        studyAccession={study.study_accession}
                         snps={study.snps}
                         traitName={trait}
                         studyTitle={study.study || "Untitled study"}
@@ -791,9 +1046,149 @@ function MainContent() {
           </tbody>
         </table>
         </div>
+
+        {/* Load More Button */}
+        {!loading && studies.length > 0 && studies.length < meta.sourceCount && (
+          <div style={{
+            marginTop: '2rem',
+            textAlign: 'center',
+            padding: '1rem',
+            borderTop: '1px solid #e0e0e0'
+          }}>
+            <p style={{ marginBottom: '1rem', color: '#666' }}>
+              Showing {studies.length.toLocaleString()} of {meta.sourceCount.toLocaleString()} matches
+            </p>
+            <button
+              onClick={() => {
+                // Save current scroll position before loading more
+                scrollPositionRef.current = window.scrollY;
+                isLoadingMoreRef.current = true;
+                updateFilter('offset', filters.offset + filters.limit);
+              }}
+              style={{
+                padding: '0.75rem 2rem',
+                fontSize: '1rem',
+                backgroundColor: '#0070f3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0051cc'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0070f3'}
+            >
+              Load More Results
+            </button>
+          </div>
+        )}
       </section>
+        </>
+      ) : (
+        /* Premium Tab - 3 Features with LLM Chat Primary */
+        <PremiumPaywall>
+        <section className="premium-section">
+          {/* Feature Overview Cards - Compact 3-column with collapse button */}
+          <div className="premium-features-header">
+            <button
+              className="collapse-button"
+              onClick={() => setFeaturesOverviewCollapsed(!featuresOverviewCollapsed)}
+              title={featuresOverviewCollapsed ? "Show features" : "Hide features"}
+            >
+              {featuresOverviewCollapsed ? "Show Features ↓" : "Hide Features ↑"}
+            </button>
+          </div>
+
+          {!featuresOverviewCollapsed && (
+            <div className="premium-features-overview">
+              {/* Run All Card - First */}
+              <div className="feature-overview-card">
+                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <h3>Run All</h3>
+                <p>
+                  {!mounted ? 'Loading...' :
+                   !isUploaded ? 'Upload DNA data first' :
+                   resultsContext.savedResults.length > 0
+                    ? `${resultsContext.savedResults.length.toLocaleString()} traits analyzed`
+                    : 'Analyze all GWAS studies'}
+                </p>
+                <button
+                  className="feature-quick-action"
+                  onClick={handleRunAll}
+                  disabled={isRunningAll || !mounted || !isUploaded}
+                >
+                  {isRunningAll ? 'Running...' :
+                   !isUploaded ? 'Upload DNA File' :
+                   resultsContext.savedResults.length > 0 ? 'Run Again' : 'Start'}
+                </button>
+              </div>
+
+              {/* LLM Chat Card - Primary */}
+              <div className="feature-overview-card primary">
+                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <circle cx="9" cy="10" r="1"/>
+                  <circle cx="15" cy="10" r="1"/>
+                  <path d="M9 14c.5.5 1.5 1 3 1s2.5-.5 3-1"/>
+                </svg>
+                <h3>LLM Chat</h3>
+                <p>Ask a private LLM questions about your genetic data</p>
+              </div>
+
+              {/* Overview Report Card */}
+              <div className="feature-overview-card">
+                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <h3>Overview Report <span style={{color: '#ff9800', fontSize: '0.8em'}}>(Experimental)</span></h3>
+                <p>
+                  {!mounted ? 'Loading...' :
+                   resultsContext.savedResults.length < 1000
+                    ? 'Analyze 1,000+ traits first'
+                    : 'Generate comprehensive LLM report'}
+                </p>
+                <button
+                  className="feature-quick-action"
+                  onClick={() => setShowOverviewReportModal(true)}
+                  disabled={!mounted || resultsContext.savedResults.length < 1000}
+                >
+                  {resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Separator */}
+          <div className="premium-separator"></div>
+
+          {/* LLM Chat - Full Interface */}
+          <LLMChatInline />
+        </section>
+        </PremiumPaywall>
+      )}
       </main>
       <Footer />
+      <DisclaimerModal
+        isOpen={showRunAllDisclaimer}
+        onClose={() => setShowRunAllDisclaimer(false)}
+        type="initial"
+        onAccept={handleRunAllDisclaimerAccept}
+      />
+      <RunAllModal
+        isOpen={showRunAllModal}
+        onClose={() => setShowRunAllModal(false)}
+        status={runAllStatus}
+      />
+      <OverviewReportModal
+        isOpen={showOverviewReportModal}
+        onClose={() => setShowOverviewReportModal(false)}
+      />
     </div>
   );
 }
@@ -802,7 +1197,9 @@ export default function HomePage() {
   return (
     <GenotypeProvider>
       <ResultsProvider>
-        <MainContent />
+        <CustomizationProvider>
+          <MainContent />
+        </CustomizationProvider>
       </ResultsProvider>
     </GenotypeProvider>
   );

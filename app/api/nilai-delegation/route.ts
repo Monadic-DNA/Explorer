@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     const server = new DelegationTokenServer(apiKey, {
       nilauthInstance: NilAuthInstance.PRODUCTION,
       expirationTime: 600, // 10 minutes validity
-      tokenMaxUses: 1 // Single use for privacy
+      tokenMaxUses: 1 // Single use for privacy (fresh token fetched per message)
     });
 
     // Generate delegation token

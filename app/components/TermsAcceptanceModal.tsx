@@ -45,7 +45,7 @@ export default function TermsAcceptanceModal({ isOpen, onAccept }: TermsAcceptan
                 <li><strong>Privacy First:</strong> Your genetic data is processed entirely in your browser and never sent to our servers.</li>
                 <li><strong>No Data Storage:</strong> We do not store your raw genetic data. Results you save are stored locally in your browser only.</li>
                 <li><strong>Age Requirement:</strong> You must be 18 years or older to use this service.</li>
-                <li><strong>Third-Party Services:</strong> Optional AI analysis uses Nillion's privacy-preserving technology. We use Google Analytics for anonymized usage statistics.</li>
+                <li><strong>Third-Party Services:</strong> Optional LLM analysis uses Nillion's privacy-preserving technology. We use Google Analytics for anonymized usage statistics.</li>
               </ul>
             </div>
 

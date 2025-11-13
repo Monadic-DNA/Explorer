@@ -14,8 +14,6 @@ export default function NilAIConsentModal({
   onAccept,
   onDecline,
 }: NilAIConsentModalProps) {
-  const [hasReadTerms, setHasReadTerms] = useState(false);
-
   useEffect(() => {
     if (isOpen) {
       trackModalOpen('ai_consent');
@@ -31,11 +29,11 @@ export default function NilAIConsentModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-content">
-          <h2>🛡️ AI Commentary Privacy Notice</h2>
+          <h2>🛡️ LLM Commentary Privacy Notice</h2>
 
           <div className="consent-explanation">
             <p>
-              Before generating AI commentary, please understand how your data will be processed:
+              Before generating LLM commentary, please understand how your data will be processed:
             </p>
 
             <div className="consent-details">
@@ -88,19 +86,6 @@ export default function NilAIConsentModal({
               </div>
             </div>
 
-            <div className="consent-checkbox">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={hasReadTerms}
-                  onChange={(e) => setHasReadTerms(e.target.checked)}
-                />
-                <span>
-                  I understand that my genetic data will be sent to Nillion's nilAI service for
-                  processing, and I consent to this data sharing.
-                </span>
-              </label>
-            </div>
           </div>
         </div>
 
@@ -120,7 +105,6 @@ export default function NilAIConsentModal({
               trackAIConsentGiven();
               onAccept();
             }}
-            disabled={!hasReadTerms}
           >
             Accept & Continue
           </button>

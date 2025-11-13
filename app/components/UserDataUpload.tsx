@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, createContext, useContext } from "react";
+import { useState, useRef, createContext, useContext, useCallback, useEffect } from "react";
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
 import {
@@ -9,6 +9,13 @@ import {
   trackFileUploadError,
   trackFileCleared,
 } from "@/lib/analytics";
+import {
+  isDevModeEnabled,
+  loadGenotypeFile,
+  selectAndSaveGenotypeFile,
+  markGenotypeUsed,
+  logDevModeStatus,
+} from "@/lib/dev-mode";
 
 type GenotypeContextType = {
   genotypeData: Map<string, string> | null;
@@ -28,9 +35,42 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const [genotypeData, setGenotypeData] = useState<Map<string, string> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [onDataLoaded, setOnDataLoaded] = useState<(() => void) | null>(null);
+  const onDataLoadedRef = useRef<(() => void) | null>(null);
   const [fileHash, setFileHash] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
+  const [devModeInitialized, setDevModeInitialized] = useState(false);
+
+  // Dev mode: Auto-load genotype file on mount
+  useEffect(() => {
+    if (devModeInitialized || genotypeData) return;
+
+    const autoLoadGenotype = async () => {
+      if (!isDevModeEnabled()) {
+        setDevModeInitialized(true);
+        return;
+      }
+
+      await logDevModeStatus();
+      console.log('[Dev Mode] 🚀 Attempting to auto-load genotype...');
+
+      try {
+        const file = await loadGenotypeFile();
+        if (file) {
+          console.log('[Dev Mode] Auto-loading genotype file:', file.name);
+          await uploadGenotype(file);
+          console.log('[Dev Mode] ✓ Genotype auto-loaded successfully');
+        } else {
+          console.log('[Dev Mode] No saved genotype found. Upload a file to enable auto-load.');
+        }
+      } catch (error) {
+        console.error('[Dev Mode] Failed to auto-load genotype:', error);
+      } finally {
+        setDevModeInitialized(true);
+      }
+    };
+
+    autoLoadGenotype();
+  }, [devModeInitialized, genotypeData]);
 
   const uploadGenotype = async (file: File) => {
     const startTime = performance.now();
@@ -79,9 +119,14 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       setFileHash(hash);
       setOriginalFileName(file.name);
 
+      // Dev mode: Mark genotype as used for auto-load on next session
+      if (isDevModeEnabled()) {
+        markGenotypeUsed();
+      }
+
       // Call the callback if it exists
-      if (onDataLoaded) {
-        onDataLoaded();
+      if (onDataLoadedRef.current) {
+        onDataLoadedRef.current();
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
@@ -104,6 +149,11 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     trackFileCleared();
   };
 
+  const setOnDataLoadedCallback = useCallback((cb: (() => void) | null) => {
+    // Store the callback in a ref to avoid render-phase state updates
+    onDataLoadedRef.current = cb;
+  }, []);
+
   return (
     <GenotypeContext.Provider value={{
       genotypeData,
@@ -112,7 +162,7 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       isUploaded: !!genotypeData,
       isLoading,
       error,
-      setOnDataLoadedCallback: setOnDataLoaded,
+      setOnDataLoadedCallback,
       fileHash,
       originalFileName,
     }}>
@@ -148,7 +198,23 @@ export default function UserDataUpload() {
       return;
     }
 
-    // Automatically upload the file
+    // Dev mode: Try to use File System Access API to save handle for future auto-load
+    if (isDevModeEnabled()) {
+      try {
+        const devFile = await selectAndSaveGenotypeFile();
+        if (devFile) {
+          await uploadGenotype(devFile);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          return;
+        }
+      } catch (error) {
+        console.log('[Dev Mode] Failed to use File System Access API, falling back to regular upload');
+      }
+    }
+
+    // Regular upload
     await uploadGenotype(file);
 
     // Reset file input
@@ -161,7 +227,7 @@ export default function UserDataUpload() {
     return (
       <div className="genotype-status">
         <span className="genotype-indicator">
-          ✓ DNA loaded—ready to explore
+          ✓ DNA loaded - ready to explore
         </span>
         <button
           className="genotype-clear"
