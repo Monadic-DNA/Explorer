@@ -3,28 +3,28 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
-  AIConfig,
-  AIProvider,
-  getAIConfig,
-  saveAIConfig,
+  LLMConfig,
+  LLMProvider,
+  getLLMConfig,
+  saveLLMConfig,
   getProviderDisplayName,
   isConfigValid,
-} from "@/lib/ai-config";
+} from "@/lib/llm-config";
 
-type AIConfigModalProps = {
+type LLMConfigModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSave?: () => void;
 };
 
-export default function AIConfigModal({ isOpen, onClose, onSave }: AIConfigModalProps) {
-  const [config, setConfig] = useState<AIConfig>(getAIConfig());
+export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigModalProps) {
+  const [config, setConfig] = useState<LLMConfig>(getLLMConfig());
   const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       // Reload config when modal opens
-      setConfig(getAIConfig());
+      setConfig(getLLMConfig());
     }
   }, [isOpen]);
 
@@ -35,7 +35,7 @@ export default function AIConfigModal({ isOpen, onClose, onSave }: AIConfigModal
       return;
     }
 
-    saveAIConfig(config);
+    saveLLMConfig(config);
     onSave?.();
     onClose();
   };
@@ -45,21 +45,21 @@ export default function AIConfigModal({ isOpen, onClose, onSave }: AIConfigModal
   const modalContent = (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal-dialog ai-config-modal"
+        className="modal-dialog llm-config-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-content">
-          <h2>⚙️ AI Provider Settings</h2>
+          <h2>⚙️ LLM Provider Settings</h2>
 
           <div className="config-section">
             <label className="config-label">
-              <strong>AI Provider</strong>
+              <strong>LLM Provider</strong>
             </label>
             <select
               className="config-select"
               value={config.provider}
               onChange={(e) => {
-                const newProvider = e.target.value as AIProvider;
+                const newProvider = e.target.value as LLMProvider;
                 const newConfig = { ...config, provider: newProvider };
                 // Set defaults for Ollama when switching to it
                 if (newProvider === 'ollama' && !config.ollamaAddress && !config.ollamaPort) {
@@ -75,13 +75,13 @@ export default function AIConfigModal({ isOpen, onClose, onSave }: AIConfigModal
             </select>
             <p className="config-help">
               {config.provider === 'nilai' && (
-                <>🛡️ Privacy-preserving AI in a Trusted Execution Environment. No API key required.</>
+                <>🛡️ Privacy-preserving LLM in a Trusted Execution Environment. No API key required.</>
               )}
               {config.provider === 'ollama' && (
-                <>🖥️ Run AI models locally on your machine. Requires Ollama installation.</>
+                <>🖥️ Run LLM models locally on your machine. Requires Ollama installation.</>
               )}
               {config.provider === 'huggingface' && (
-                <>☁️ Cloud-based AI via HuggingFace Router. Requires API key.</>
+                <>☁️ Cloud-based LLM via HuggingFace Router. Requires API key.</>
               )}
             </p>
           </div>
@@ -176,7 +176,7 @@ export default function AIConfigModal({ isOpen, onClose, onSave }: AIConfigModal
 
           <div className="config-info">
             <p>
-              <strong>Privacy Note:</strong> All providers now send data directly from your browser to the AI service.
+              <strong>Privacy Note:</strong> All providers now send data directly from your browser to the LLM service.
               Your genetic data never passes through our servers.
             </p>
           </div>

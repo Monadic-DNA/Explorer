@@ -183,11 +183,11 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-content">
-          <h2>⚙️ Personalize AI Analysis</h2>
+          <h2>⚙️ Personalize LLM Analysis</h2>
 
           <div className="customization-info">
             <p>
-              Provide personal information to help the AI give more relevant interpretations.
+              Provide personal information to help the LLM give more relevant interpretations.
               Your data is encrypted with your password and stored only in your browser.
             </p>
           </div>

@@ -171,24 +171,24 @@ export function trackAIConsentDeclined() {
 }
 
 // ============================================================================
-// AI ANALYSIS
+// LLM ANALYSIS
 // ============================================================================
 
 export function trackAIAnalysisStart(studyCount: number) {
-  trackEvent('ai_analysis_start', {
+  trackEvent('llm_analysis_start', {
     study_count: studyCount,
   });
 }
 
 export function trackAIAnalysisSuccess(duration: number, studyCount: number) {
-  trackEvent('ai_analysis_success', {
+  trackEvent('llm_analysis_success', {
     duration_ms: Math.round(duration),
     study_count: studyCount,
   });
 }
 
 export function trackAIAnalysisError(error: string) {
-  trackEvent('ai_analysis_error', {
+  trackEvent('llm_analysis_error', {
     error_type: error.substring(0, 100),
   });
 }

@@ -1,4 +1,4 @@
-# Monadic DNA Explorer — Terms and Conditions
+# Monadic DNA Explorer - Terms and Conditions
 **Effective Date:** October 9, 2025 
 **Version:** 1.1
 
@@ -16,7 +16,7 @@ By accessing or using the Service, you agree to be bound by these Terms. If you 
 
 Monadic DNA Explorer is a **genetic research and educational platform** designed to let users explore genetic variants in the context of published Genome-Wide Association Studies (GWAS).
 
-Its **primary purpose** is to advance scientific understanding and research literacy — not to provide health or diagnostic advice.
+Its **primary purpose** is to advance scientific understanding and research literacy, not to provide health or diagnostic advice.
 
 ---
 
@@ -36,7 +36,7 @@ Through Monadic DNA Explorer, users can:
 - Apply research filters and view quality scores for each study.
 - Optionally use **private AI-based interpretation** via **Nillion’s nilAI**, which runs computations inside **Trusted Execution Environments (TEEs)**.
 
-The Service is designed for **temporary, in-session use** — uploaded data is processed **locally or transiently in memory**.  
+The Service is designed for **temporary, in-session use**, uploaded data is processed **locally or transiently in memory**.  
 We **do not permanently store or retain** user data on our servers.
 
 ---

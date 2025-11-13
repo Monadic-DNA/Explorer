@@ -20,8 +20,8 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 - **Semantic Search**: LLM-powered semantic search understands the meaning of your queries (e.g., "memory loss" finds "cognitive decline" studies)
 - **Interactive exploration** of GWAS Catalog studies with quality-aware filtering
 - **Upload and analyze** your personal genetic data (23andMe, AncestryDNA, Monadic DNA)
-- **Private LLM analysis** powered by Nillion's nilAI - your data is processed in a Trusted Execution Environment
-- **Premium Features**: AI-powered genetic analysis chat, Run All analysis, comprehensive reports
+- **Private LLM analysis** powered by Nillion's nilAI, your data is processed in a Trusted Execution Environment
+- **Premium Features**: LLM-powered genetic analysis chat, Run All analysis, comprehensive reports
 - **Dual payment system**: Credit/debit cards (Stripe) or stablecoins (USDC/USDT/DAI on Ethereum, Base, Arbitrum, Optimism, Polygon)
 - **Save and export** your results
 - **Privacy-focused**: All processing happens on your infrastructure (no third-party APIs for search)
@@ -116,19 +116,19 @@ npm start
 - `POSTGRES_DB`: PostgreSQL connection string (if set, takes precedence over SQLite)
 - `GWAS_DB_PATH`: Path to SQLite database file (only used if `POSTGRES_DB` is not set)
 
-**AI Features:**
-- **AI Provider Selection**: Configure in the UI (Menu Bar > AI Settings button)
-  - **Nillion nilAI** (Default): Privacy-preserving AI in Trusted Execution Environment
+**LLM Features:**
+- **LLM Provider Selection**: Configure in the UI (Menu Bar > LLM Settings button)
+  - **Nillion nilAI** (Default): Privacy-preserving LLM in Trusted Execution Environment
     - Requires `NILLION_API_KEY` environment variable
-  - **Ollama** (Local): Run AI models on your own machine
+  - **Ollama** (Local): Run LLM models on your own machine
     - Requires Ollama installation with gpt-oss-20b model
     - Configure address and port in UI settings
-  - **HuggingFace** (Cloud): Cloud-based AI via HuggingFace Router
+  - **HuggingFace** (Cloud): Cloud-based LLM via HuggingFace Router
     - Configure API key directly in UI settings (stored in browser localStorage)
-- **Privacy**: All providers send data directly from browser to AI service - never through our servers
+- **Privacy**: All providers send data directly from browser to LLM service - never through our servers
 
 **Authentication (Required for Premium):**
-- `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID`: Dynamic.xyz environment ID for wallet connection
+- `NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID`: Dynamic.xyz environment ID for logging in
 
 **Blockchain Payments (Required for Premium):**
 - `ALCHEMY_API_KEY`: Alchemy API key for blockchain indexer queries
@@ -308,7 +308,7 @@ User query → Check memory cache → Check DB cache → Generate embedding →
 
 - ✅ **No third-party APIs**: All embedding generation happens on your infrastructure
 - ✅ **Self-hosted models**: Uses open-source nomic-embed-text-v1.5
-- ✅ **Query privacy**: Search queries never leave your servers
+- ✅ **Query privacy**: Search queries never leave the servers
 - ✅ **Cache encryption**: Database cache uses standard PostgreSQL security
 - ✅ **Ephemeral processing**: Query embeddings computed transiently (not logged)
 
@@ -370,7 +370,7 @@ WHERE accessed_at < NOW() - INTERVAL '90 days'
 
 ## Premium Features & Payments
 
-GWASifier offers premium features including AI-powered genetic analysis chat, Run All analysis, and comprehensive reports.
+GWASifier offers premium features including LLM-powered genetic analysis chat, Run All analysis, and comprehensive reports.
 
 ### Dual Payment System
 
@@ -383,34 +383,34 @@ The app supports **two payment methods** for premium subscriptions:
 - **Managed via Stripe** - Cancel anytime through customer portal
 - **Setup**: See `STRIPE_INTEGRATION.md` for detailed instructions
 
-#### 2. Crypto Payments (Blockchain) - Flexible Prepaid
+#### 2. Stablecoin Payments (Blockchain) - Flexible Prepaid
 - **Flexible amounts** - Pay any amount ($1+ USD equivalent)
 - **One-time payment** - No auto-renewal, top up when needed
 - **Supported chains**: Ethereum, Base (recommended), Arbitrum, Optimism
 - **Accepted tokens**: ETH and USDC
 - **Examples**: $4.99 = 30 days, $10 = 60 days, $50 = 300 days
-- **Setup**: See `BLOCKCHAIN_PAYMENTS.md` for detailed instructions
+- **Setup**: See `STABLECOIN_PAYMENTS.md` for detailed instructions
 
 **Key Difference:**
 - **Stripe**: Fixed recurring subscription ($4.99/month, auto-renews)
-- **Crypto**: Flexible prepaid (choose your amount, no auto-renewal)
+- **Stablecoin**: Flexible prepaid (choose your amount, no auto-renewal)
 
 **Payment Stacking:**
-Users can combine both! Subscribe with card for recurring billing, then add extra months with crypto payments as needed.
+Users can combine both! Subscribe with card for recurring billing, then add extra months with stablecoin payments as needed.
 
 **See `PAYMENT_METHODS.md` for detailed comparison.**
 
 ### How It Works
 
 **Stripe Card Payments (Recurring):**
-1. User connects wallet via Dynamic.xyz (for identity)
+1. User logs in via Dynamic.xyz (for identity)
 2. User selects "Pay with Card" (fixed $4.99/month)
 3. Redirected to Stripe Checkout for secure payment
 4. Subscription created, payments recorded in PostgreSQL
 5. Auto-renews monthly, cancel anytime via Stripe portal
 
-**Blockchain Crypto Payments:**
-1. User connects wallet via Dynamic.xyz
+**Blockchain Stablecoin Payments:**
+1. User logs in via Dynamic.xyz
 2. User sends ETH or USDC to payment wallet from connected wallet
 3. App queries Alchemy indexer to find all payments from user's wallet
 4. App uses Alchemy Prices API to get historical prices at transaction time
@@ -425,7 +425,7 @@ Users can combine both! Subscribe with card for recurring billing, then add extr
 
 See detailed setup guides:
 - **Stripe Payments**: `STRIPE_INTEGRATION.md`
-- **Blockchain Payments**: `BLOCKCHAIN_PAYMENTS.md`
+- **Blockchain Payments**: `STABLECOIN_PAYMENTS.md`
 
 **Quick Start:**
 ```bash

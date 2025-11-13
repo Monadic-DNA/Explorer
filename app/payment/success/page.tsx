@@ -90,7 +90,7 @@ function PaymentSuccessContent() {
           margin: '0 0 2rem 0',
           lineHeight: '1.6',
         }}>
-          Your premium subscription has been activated. You now have access to all premium features including AI Chat and Run All Analysis.
+          Your premium subscription has been activated. You now have access to all premium features including LLM Chat and Run All Analysis.
         </p>
 
         {sessionId && (

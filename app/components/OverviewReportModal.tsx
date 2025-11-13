@@ -441,7 +441,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                 Overview Report requires an active premium subscription.
               </p>
               <p style={{ fontSize: '0.875rem', color: '#78350f' }}>
-                Subscribe for $4.99/month to unlock comprehensive AI-powered analysis
+                Subscribe for $4.99/month to unlock comprehensive LLM-powered analysis
                 of all your genetic results.
               </p>
             </div>
@@ -452,7 +452,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   <strong>Generate a comprehensive overview report</strong> analyzing all {savedResults.length.toLocaleString()} of your high-confidence genetic results.
                 </p>
                 <p>
-                  This report uses advanced AI to identify patterns, themes, and actionable insights across your entire genetic profile.
+                  This report uses advanced LLM to identify patterns, themes, and actionable insights across your entire genetic profile.
                 </p>
 
                 <div style={{

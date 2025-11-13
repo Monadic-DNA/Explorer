@@ -1,8 +1,8 @@
-# Blockchain Payment System (EVM Chains)
+# Stablecoin Payment System (EVM Chains)
 
 ## Overview
 
-GWASifier Premium now uses a **database-free, blockchain-based payment system**. Users pay with stablecoins (USDC, USDT, or DAI) from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API.
+GWASifier Premium now uses a **database-free, stablecoin-based payment system**. Users pay with stablecoins (USDC, USDT, or DAI) from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API.
 
 ## How It Works
 

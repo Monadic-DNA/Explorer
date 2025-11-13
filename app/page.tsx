@@ -11,7 +11,7 @@ import Footer from "./components/Footer";
 import DisclaimerModal from "./components/DisclaimerModal";
 import TermsAcceptanceModal from "./components/TermsAcceptanceModal";
 import RunAllModal from "./components/RunAllModal";
-import AIChatInline from "./components/AIChatInline";
+import LLMChatInline from "./components/LLMChatInline";
 import OverviewReportModal from "./components/OverviewReportModal";
 import { PremiumPaywall } from "./components/PremiumPaywall";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
@@ -583,7 +583,7 @@ function MainContent() {
       // Add all results in one efficient batch operation
       console.log(`Adding ${results.length} results to the results manager...`);
       const startAdd = Date.now();
-      await addResultsBatch(results); // Embeddings will be fetched on-demand during AI analysis
+      await addResultsBatch(results); // Embeddings will be fetched on-demand during LLM analysis
       const addTime = Date.now() - startAdd;
       console.log(`Finished adding ${results.length} results in ${addTime}ms`);
     } catch (error) {
@@ -928,15 +928,15 @@ function MainContent() {
             )}
             {!loading &&
               studies.map((study, index) => {
-                const trait = study.mapped_trait ?? study.disease_trait ?? "—";
+                const trait = study.mapped_trait ?? study.disease_trait ?? "-";
                 const date = study.publicationDate
                   ? new Date(study.publicationDate).toLocaleDateString()
                   : study.date
                   ? new Date(study.date).toLocaleDateString() || study.date
-                  : "—";
-                const relevance = study.logPValue ? study.logPValue.toFixed(2) : "—";
-                const power = study.sampleSizeLabel ?? "—";
-                const effect = study.or_or_beta ?? "—";
+                  : "-";
+                const relevance = study.logPValue ? study.logPValue.toFixed(2) : "-";
+                const power = study.sampleSizeLabel ?? "-";
+                const effect = study.or_or_beta ?? "-";
                 const relevanceCategory = getRelevanceCategory(study.logPValue);
                 const powerCategory = getPowerCategory(study.sampleSize);
                 const effectCategory = getEffectCategory(study.or_or_beta);
@@ -1085,7 +1085,7 @@ function MainContent() {
       </section>
         </>
       ) : (
-        /* Premium Tab - 3 Features with AI Chat Primary */
+        /* Premium Tab - 3 Features with LLM Chat Primary */
         <PremiumPaywall>
         <section className="premium-section">
           {/* Feature Overview Cards - Compact 3-column with collapse button */}
@@ -1151,7 +1151,7 @@ function MainContent() {
                   {!mounted ? 'Loading...' :
                    resultsContext.savedResults.length < 1000
                     ? 'Analyze 1,000+ traits first'
-                    : 'Generate comprehensive AI report'}
+                    : 'Generate comprehensive LLM report'}
                 </p>
                 <button
                   className="feature-quick-action"
@@ -1167,8 +1167,8 @@ function MainContent() {
           {/* Separator */}
           <div className="premium-separator"></div>
 
-          {/* AI Chat - Full Interface */}
-          <AIChatInline />
+          {/* LLM Chat - Full Interface */}
+          <LLMChatInline />
         </section>
         </PremiumPaywall>
       )}

@@ -88,7 +88,7 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
           gap: '1rem'
         }}>
           <span>
-            <strong>Premium subscription required</strong> — Subscribe for $4.99/month to access AI Chat, Run All Analysis, and more.
+            <strong>Premium subscription required</strong> - Subscribe for $4.99/month to access LLM Chat, Run All Analysis, and more.
           </span>
           <button
             onClick={() => setShowPaymentModal(true)}

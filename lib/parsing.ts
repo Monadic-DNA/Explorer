@@ -120,7 +120,7 @@ export function computeQualityFlags(sampleSize: number | null, pValue: number | 
 
 export function formatNumber(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
-    return "—";
+    return "-";
   }
   if (value >= 1_000_000) {
     return `${(value / 1_000_000).toFixed(1)}M`;
@@ -133,7 +133,7 @@ export function formatNumber(value: number | null): string {
 
 export function formatPValue(value: number | null): string {
   if (value === null) {
-    return "—";
+    return "-";
   }
   if (value === 0) {
     return "0";

@@ -303,7 +303,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
         <div className="modal-header">
           <h2>💳 Subscribe to Premium</h2>
-          <p>Get AI Chat, Run All Analysis, and more</p>
+          <p>Get LLM Chat, Run All Analysis, and more</p>
         </div>
 
         {step === 'choice' && (

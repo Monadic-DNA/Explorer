@@ -157,7 +157,7 @@ export default function StudyQualityIndicators({ metadata }: StudyQualityIndicat
       <div className="quality-disclaimer">
         <strong>
           <WarningIcon size={16} className="inline-icon" /> Important:
-        </strong> The AI commentary below may not fully account for these limitations.
+        </strong> The LLM commentary below may not fully account for these limitations.
         Study quality, ancestry differences, and the strength of evidence should all factor into how you
         interpret these results. Always consult a healthcare professional or genetic counselor for
         personalized interpretation.

@@ -6,7 +6,7 @@
  */
 
 import { NilaiOpenAIClient, AuthType, NilAuthInstance } from '@nillion/nilai-ts';
-import { getAIConfig, getModelIdentifier, getAPIEndpoint } from './ai-config';
+import { getLLMConfig, getModelIdentifier, getAPIEndpoint } from './llm-config';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -36,7 +36,7 @@ export async function callLLM(
   messages: LLMMessage[],
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
-  const config = getAIConfig();
+  const config = getLLMConfig();
   const { maxTokens, temperature = 0.7, reasoningEffort = 'medium' } = options;
 
   // Calculate prompt length for logging
@@ -321,7 +321,7 @@ async function callHuggingFace(
  * Get a user-friendly description of the current LLM configuration
  */
 export function getLLMDescription(): string {
-  const config = getAIConfig();
+  const config = getLLMConfig();
 
   switch (config.provider) {
     case 'nilai':
@@ -331,6 +331,6 @@ export function getLLMDescription(): string {
     case 'huggingface':
       return `☁️ Using HuggingFace Router (${config.model})`;
     default:
-      return 'AI analysis';
+      return 'LLM analysis';
   }
 }

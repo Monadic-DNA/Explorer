@@ -9,7 +9,7 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
-import { getAIConfig } from "@/lib/ai-config";
+import { getLLMConfig } from "@/lib/llm-config";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -18,7 +18,7 @@ type Message = {
   studiesUsed?: SavedResult[];
 };
 
-const CONSENT_STORAGE_KEY = "nilai_ai_chat_consent_accepted";
+const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const SIMILAR_STUDIES_LIMIT = 1000;
 const MAX_CONTEXT_RESULTS = 500;
 
@@ -169,15 +169,15 @@ export default function AIChatInline() {
 
       if (shouldIncludeContext) {
         setLoadingStatus("🔍 Searching your results for relevant traits...");
-        console.log(`[AI Chat] Finding relevant results for query: "${query}"`);
+        console.log(`[LLM Chat] Finding relevant results for query: "${query}"`);
         relevantResults = await getTopResultsByRelevance(query, MAX_CONTEXT_RESULTS);
-        console.log(`[AI Chat] Found ${relevantResults.length} relevant results`);
+        console.log(`[LLM Chat] Found ${relevantResults.length} relevant results`);
       } else {
-        console.log(`[AI Chat] Follow-up question - skipping RAG context search`);
+        console.log(`[LLM Chat] Follow-up question - skipping RAG context search`);
       }
 
       // Prepare to call LLM
-      setLoadingStatus(`🤖 Analyzing ${relevantResults.length} traits with AI...`);
+      setLoadingStatus(`🤖 Analyzing ${relevantResults.length} traits with LLM...`);
 
       const contextResults = relevantResults
         .map((r: SavedResult, idx: number) =>
@@ -189,7 +189,7 @@ export default function AIChatInline() {
         )
         .join('\n\n');
 
-      console.log(`[AI Chat] Including ${relevantResults.length} results in LLM context`);
+      console.log(`[LLM Chat] Including ${relevantResults.length} results in LLM context`);
 
       let userContext = '';
       if (customization) {
@@ -246,8 +246,8 @@ Consider how this user's background, lifestyle factors (smoking, alcohol, diet),
         content: m.content
       }));
 
-      const aiDescription = getLLMDescription();
-      const systemPrompt = `You are an expert genetic counselor AI assistant providing personalized, holistic insights about GWAS results. ${aiDescription}
+      const llmDescription = getLLMDescription();
+      const systemPrompt = `You are an expert genetic counselor LLM assistant providing personalized, holistic insights about GWAS results. ${llmDescription}
 
 IMPORTANT CONTEXT:
 - The user has uploaded their DNA file and analyzed it against thousands of GWAS studies
@@ -355,11 +355,11 @@ RESPONSE REQUIREMENTS:
 
 Remember: You have plenty of space. Use ALL of it to provide a complete, thorough, personalized analysis. Do not rush. Do not truncate.`;
 
-      console.log('=== AI CHAT PROMPT ===');
+      console.log('=== LLM CHAT PROMPT ===');
       console.log('System Prompt:', systemPrompt);
       console.log('User Query:', query);
       console.log('Relevant Results Count:', relevantResults.length);
-      console.log('=====================');
+      console.log('======================');
 
       // Call LLM using centralized client
       // Use MEDIUM reasoning effort for balanced quality and speed
@@ -385,7 +385,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       const assistantContent = response.content;
 
       if (!assistantContent) {
-        throw new Error("No response generated from AI");
+        throw new Error("No response generated from LLM");
       }
 
       const assistantMessage: Message = {
@@ -397,7 +397,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       setMessages(prev => [...prev, assistantMessage]);
 
     } catch (err) {
-      console.error('[AI Chat] Error:', err);
+      console.error('[LLM Chat] Error:', err);
 
       let errorMessage = err instanceof Error ? err.message : "Failed to get response";
 
@@ -406,7 +406,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         errorMessage = "Rate limit exceeded. Please wait a moment and try again.";
       } else if (errorMessage.includes('expired') || errorMessage.includes('Delegation token')) {
         errorMessage = "Token error. Please try sending your message again.";
-        console.log('[AI Chat] Delegation token error detected');
+        console.log('[LLM Chat] Delegation token error detected');
       } else if (errorMessage.includes('CORS') || errorMessage.includes('Failed to fetch')) {
         errorMessage = "Network error. Please check your connection and try again.";
       }
@@ -472,7 +472,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       return `
         <div style="margin: 1.5rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; page-break-inside: avoid;">
           <div style="font-weight: bold; margin-bottom: 0.75rem; color: ${m.role === 'user' ? '#3B82F6' : '#10B981'};">
-            ${m.role === 'user' ? '👤 You' : '🤖 AI Assistant (gpt-oss-20b via Nillion nilAI)'}
+            ${m.role === 'user' ? '👤 You' : '🤖 LLM Assistant (gpt-oss-20b via Nillion nilAI)'}
           </div>
           <div style="line-height: 1.6;">${content}</div>
           <div style="font-size: 0.8rem; color: #666; margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
@@ -486,7 +486,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       <!DOCTYPE html>
       <html>
         <head>
-          <title>AI Chat - Genetic Results</title>
+          <title>LLM Chat - Genetic Results</title>
           <style>
             body {
               font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -543,7 +543,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           </style>
         </head>
         <body>
-          <h1>🤖 AI Chat: Your Genetic Results</h1>
+          <h1>🤖 LLM Chat: Your Genetic Results</h1>
           <p style="color: #666; margin-bottom: 1rem;">
             Chat session from ${new Date().toLocaleString()}<br>
             ${getLLMDescription()}
@@ -570,7 +570,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="blocked-message">
           <h2>📋 Personalization Recommended</h2>
           <p>
-            For the best AI chat experience, we recommend {customizationStatus === 'not-set' ? 'setting up' : 'unlocking'} your personalization information.
+            For the best LLM chat experience, we recommend {customizationStatus === 'not-set' ? 'setting up' : 'unlocking'} your personalization information.
           </p>
           <p>
             Personalized chat provides more relevant insights based on your ancestry, medical history, and demographics.
@@ -631,16 +631,16 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             }}>
               <h3 style={{ margin: '0 0 1rem 0', color: '#92400e', fontSize: '1.5rem' }}>🔒 Premium Feature</h3>
               <p style={{ margin: '0 0 1rem 0', color: '#92400e' }}>
-                AI Chat requires an active premium subscription.
+                LLM Chat requires an active premium subscription.
               </p>
               <p style={{ margin: 0, fontSize: '0.875rem', color: '#78350f' }}>
-                Subscribe for $4.99/month to unlock AI-powered analysis of your genetic results.
+                Subscribe for $4.99/month to unlock LLM-powered analysis of your genetic results.
               </p>
             </div>
           </div>
         )}
         <div className="chat-header">
-          <h2>🤖 AI Chat: Your Genetic Results</h2>
+          <h2>🤖 LLM Chat: Your Genetic Results</h2>
           <p className="powered-by">
             {getLLMDescription()} - Your data is processed securely
           </p>
@@ -665,20 +665,20 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
-              <h3>Welcome to AI Chat!</h3>
+              <h3>Welcome to LLM Chat!</h3>
 
               {mounted && resultsContext.savedResults.length < 1000 && (
                 <div className="chat-warning">
                   <p><strong>⚠️ Limited Results ({resultsContext.savedResults.length} studies)</strong></p>
                   <p>
-                    You currently have fewer than 1,000 analyzed results. For the best AI chat experience,
+                    You currently have fewer than 1,000 analyzed results. For the best LLM chat experience,
                     you can either:
                   </p>
                   <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
                     <li>Run "Run All" to analyze your DNA against all available studies, or</li>
                     <li>Load results from a prior run if you've previously completed analysis</li>
                   </ul>
-                  <p style={{ marginTop: '0.5rem' }}>This will give the AI more comprehensive data to provide personalized insights.</p>
+                  <p style={{ marginTop: '0.5rem' }}>This will give the LLM more comprehensive data to provide personalized insights.</p>
                 </div>
               )}
 
@@ -822,7 +822,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         </div>
 
         <div className="chat-footer-disclaimer">
-          ⚠️ AI-generated content may contain errors. This is not medical advice.
+          ⚠️ LLM-generated content may contain errors. This is not medical advice.
         </div>
       </div>
     </>

@@ -1,4 +1,4 @@
-# Monadic DNA Explorer — Privacy Policy
+# Monadic DNA Explorer - Privacy Policy
 **Effective Date:** October 9, 2025 
 **Version:** 1.1
 

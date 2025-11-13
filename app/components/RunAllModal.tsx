@@ -146,7 +146,7 @@ export default function RunAllModal({ isOpen, onClose, status }: RunAllModalProp
             <div className="status-section">
               <div className="status-header">
                 <div className="spinner"></div>
-                <h3>Generating AI Embeddings...</h3>
+                <h3>Generating LLM Embeddings...</h3>
               </div>
               <div className="status-details">
                 {status.embeddingProgress && (
@@ -161,8 +161,8 @@ export default function RunAllModal({ isOpen, onClose, status }: RunAllModalProp
                   </>
                 )}
                 <p className="status-hint">
-                  Generating semantic embeddings for AI-powered analysis. This enables intelligent
-                  result selection when you use AI commentary. This is a one-time process.
+                  Generating semantic embeddings for LLM-powered analysis. This enables intelligent
+                  result selection when you use LLM commentary. This is a one-time process.
                 </p>
               </div>
             </div>

@@ -251,7 +251,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
     if (!result.hasMatch) {
       return (
         <div className="user-result no-match">
-          No match found—your DNA is unique here
+          No match found - your DNA is unique here
         </div>
       );
     }
@@ -284,13 +284,13 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
           <button
             className="commentary-button"
             onClick={() => {
-              console.log('[StudyResultReveal] Private AI Analysis button clicked');
+              console.log('[StudyResultReveal] Private LLM Analysis button clicked');
               setShowCommentary(true);
               console.log('[StudyResultReveal] showCommentary set to true');
             }}
-            title="Get private AI analysis powered by Nillion's nilAI. Your data is processed securely in a Trusted Execution Environment and is not visible to Monadic DNA."
+            title="Get private LLM analysis powered by Nillion's nilAI. Your data is processed securely in a Trusted Execution Environment and is not visible to Monadic DNA."
           >
-            🛡️ Private AI Analysis
+            🛡️ Private LLM Analysis
           </button>
         </div>
       </>

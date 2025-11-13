@@ -227,7 +227,7 @@ export default function UserDataUpload() {
     return (
       <div className="genotype-status">
         <span className="genotype-indicator">
-          ✓ DNA loaded—ready to explore
+          ✓ DNA loaded - ready to explore
         </span>
         <button
           className="genotype-clear"
