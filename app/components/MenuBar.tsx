@@ -7,14 +7,13 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
-import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, CrownIcon, UserIcon } from "./Icons";
-import { AuthButton, useAuth } from "./AuthProvider";
+import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon } from "./Icons";
+import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
   const { status: customizationStatus } = useCustomization();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, user } = useAuth();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
   const [showLLMConfigModal, setShowLLMConfigModal] = useState(false);
@@ -24,22 +23,7 @@ export default function MenuBar() {
   const [showHelpDropdown, setShowHelpDropdown] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
-  const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
-
-  useEffect(() => {
-    // Close subscription menu when clicking outside
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.subscription-indicator')) {
-        setShowSubscriptionMenu(false);
-      }
-    };
-
-    if (showSubscriptionMenu) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showSubscriptionMenu]);
+  const [llmProvider, setLlmProvider] = useState<string>('');
 
   useEffect(() => {
     // Detect system preference on mount
@@ -50,6 +34,10 @@ export default function MenuBar() {
     // Apply initial theme
     document.documentElement.setAttribute("data-theme", initialTheme);
     document.documentElement.style.colorScheme = initialTheme;
+
+    // Load LLM config
+    const config = getLLMConfig();
+    setLlmProvider(getProviderDisplayName(config.provider));
 
     // Load cache info
     const loadCacheInfo = async () => {
@@ -128,7 +116,12 @@ export default function MenuBar() {
       />
       <LLMConfigModal
         isOpen={showLLMConfigModal}
-        onClose={() => setShowLLMConfigModal(false)}
+        onClose={() => {
+          setShowLLMConfigModal(false);
+          // Refresh LLM provider after closing modal
+          const config = getLLMConfig();
+          setLlmProvider(getProviderDisplayName(config.provider));
+        }}
         onSave={() => {}}
       />
       <MyDataDropdown
@@ -185,6 +178,9 @@ export default function MenuBar() {
               <DNAIcon size={32} />
             </span>
             <span className="label">My Data</span>
+            {isUploaded && genotypeData && (
+              <span className="badge">{genotypeData.size.toLocaleString()}</span>
+            )}
           </button>
 
           <button
@@ -221,6 +217,7 @@ export default function MenuBar() {
               <SparklesIcon size={32} />
             </span>
             <span className="label">LLM</span>
+            <span className="badge">{llmProvider || 'OpenAI'}</span>
           </button>
 
           <button
@@ -232,18 +229,23 @@ export default function MenuBar() {
               <CacheIcon size={32} />
             </span>
             <span className="label">Cache</span>
+            {cacheInfo && (
+              <span className="badge">{cacheInfo.studies.toLocaleString()}</span>
+            )}
           </button>
 
-          <button
+          <a
+            href="https://recherche.discourse.group/c/public/monadic-dna/30"
+            target="_blank"
+            rel="noopener noreferrer"
             className="menu-icon-button"
-            onClick={() => setShowHelpDropdown(!showHelpDropdown)}
-            title="Help and feedback"
+            title="Visit community forum for help and feedback"
           >
             <span className="icon">
               <HelpCircleIcon size={32} />
             </span>
             <span className="label">Help</span>
-          </button>
+          </a>
 
           <button
             className="menu-icon-button"
@@ -256,104 +258,6 @@ export default function MenuBar() {
             </span>
             <span className="label">Theme</span>
           </button>
-        </div>
-
-        <div className="menu-separator" />
-
-        {/* Subscription/Plan Icon Button */}
-        <button
-          className={`menu-icon-button ${hasActiveSubscription ? 'subscribed' : 'not-subscribed'}`}
-          onClick={() => setShowSubscriptionMenu(!showSubscriptionMenu)}
-          title={hasActiveSubscription ? `Premium subscription (${subscriptionData?.daysRemaining || 0} days remaining)` : 'Subscribe to Premium'}
-        >
-          <span className="icon">
-            <CrownIcon size={32} />
-          </span>
-          <span className="label">Plan</span>
-          {hasActiveSubscription && subscriptionData && (
-            <span className="badge">{subscriptionData.daysRemaining}d</span>
-          )}
-        </button>
-
-        {showSubscriptionMenu && hasActiveSubscription && subscriptionData && (
-          <div className="subscription-dropdown" style={{
-            position: 'fixed',
-            top: '5rem',
-            right: '2rem',
-            background: 'var(--secondary-bg)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            minWidth: '300px',
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.3)',
-            zIndex: 1000
-          }}>
-            <div className="subscription-info">
-              <p><strong>Premium Subscription</strong></p>
-              <p>Expires: {subscriptionData.expiresAt ? new Date(subscriptionData.expiresAt).toLocaleDateString() : 'N/A'}</p>
-              <p>Days remaining: {subscriptionData.daysRemaining}</p>
-            </div>
-            <button
-              className="control-button cancel-subscription"
-              style={{ marginTop: '1rem', width: '100%' }}
-              onClick={async () => {
-                if (confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your current billing period.')) {
-                  try {
-                    const walletAddress = user?.verifiedCredentials?.[0]?.address;
-                    if (!walletAddress) {
-                      alert('Could not find wallet address');
-                      return;
-                    }
-                    const response = await fetch('/api/stripe/cancel-subscription', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ walletAddress }),
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                      alert('Subscription cancelled successfully. You will retain access until ' + new Date(subscriptionData.expiresAt!).toLocaleDateString());
-                      window.location.reload();
-                    } else {
-                      alert('Failed to cancel subscription: ' + (result.error || 'Unknown error'));
-                    }
-                  } catch {
-                    alert('Failed to cancel subscription. Please try again.');
-                  }
-                }
-              }}
-              title="Cancel Stripe subscription (only available for card payments)"
-            >
-              Cancel Subscription
-            </button>
-          </div>
-        )}
-
-        <div className="menu-separator" />
-
-        {/* Auth/Account Icon Button with integrated DynamicWidget */}
-        <div className="auth-icon-wrapper" style={{ position: 'relative' }}>
-          <div className={`menu-icon-button ${isAuthenticated ? 'authenticated' : 'not-authenticated'}`}>
-            <span className="icon">
-              <UserIcon size={32} />
-            </span>
-            <span className="label">Account</span>
-          </div>
-          {/* DynamicWidget overlaid on top */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: 0,
-            cursor: 'pointer'
-          }}>
-            <AuthButton />
-          </div>
         </div>
       </div>
     </div>

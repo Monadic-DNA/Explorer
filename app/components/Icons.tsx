@@ -419,6 +419,103 @@ export function CrownIcon({ className = "", size = 20 }: IconProps) {
   );
 }
 
+// Premium Feature Icons - Ornate and intricate
+export function RunAllIcon({ className = "", size = 24 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      {/* Ornate outer circle */}
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.3" />
+
+      {/* Play triangle with ornate details */}
+      <path d="M9 7L17 12L9 17V7Z" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.8" />
+      <path d="M9.5 8L16 12L9.5 16V8Z" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+
+      {/* Decorative accents */}
+      <circle cx="12" cy="12" r="6.5" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="0.6" opacity="0.15" />
+
+      {/* Corner flourishes */}
+      <path d="M4 4L5.5 5.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
+      <path d="M20 4L18.5 5.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
+      <path d="M4 20L5.5 18.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
+      <path d="M20 20L18.5 18.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
+
+      {/* Decorative dots */}
+      <circle cx="4" cy="12" r="0.8" fill="currentColor" opacity="0.4" />
+      <circle cx="20" cy="12" r="0.8" fill="currentColor" opacity="0.4" />
+      <circle cx="12" cy="4" r="0.8" fill="currentColor" opacity="0.4" />
+      <circle cx="12" cy="20" r="0.8" fill="currentColor" opacity="0.4" />
+    </svg>
+  );
+}
+
+export function LLMChatIcon({ className = "", size = 24 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      {/* Ornate outer frame */}
+      <rect x="2" y="2" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+
+      {/* Chat bubble with ornate details */}
+      <path d="M6 6C6 5.44772 6.44772 5 7 5H17C17.5523 5 18 5.44772 18 6V13C18 13.5523 17.5523 14 17 14H10L6 17V6Z"
+            stroke="currentColor" strokeWidth="1.3" />
+      <path d="M7 6H17V13H10.5L7 15.5V6Z"
+            stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Ornate chat dots */}
+      <circle cx="9" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="12" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="15" cy="9.5" r="1" fill="currentColor" />
+      <circle cx="9" cy="9.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <circle cx="12" cy="9.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <circle cx="15" cy="9.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Decorative corner elements */}
+      <path d="M4 7L5 6L6 7" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+      <path d="M20 7L19 6L18 7" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+      <path d="M4 17L5 18L6 17" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+      <path d="M20 17L19 18L18 17" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+    </svg>
+  );
+}
+
+export function OverviewReportIcon({ className = "", size = 24 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      {/* Ornate document frame */}
+      <path d="M6 2H14L18 6V20C18 21.1046 17.1046 22 16 22H6C4.89543 22 4 21.1046 4 20V4C4 2.89543 4.89543 2 6 2Z"
+            stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6.5 3H13.5L17 6.5V20C17 20.5523 16.5523 21 16 21H6.5C5.94772 21 5.5 20.5523 5.5 20V4C5.5 3.44772 5.94772 3 6.5 3Z"
+            stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+
+      {/* Folded corner with ornate detail */}
+      <path d="M14 2V6H18" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M14.5 3V5.5H17" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
+
+      {/* Document lines with ornate flourishes */}
+      <line x1="7" y1="10" x2="15" y2="10" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="7.5" y1="10" x2="14.5" y2="10" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      <line x1="7" y1="13" x2="15" y2="13" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="7.5" y1="13" x2="14.5" y2="13" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      <line x1="7" y1="16" x2="12" y2="16" stroke="currentColor" strokeWidth="1.2" />
+      <line x1="7.5" y1="16" x2="11.5" y2="16" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Decorative corner accents */}
+      <circle cx="7" cy="7" r="0.8" fill="currentColor" opacity="0.4" />
+      <circle cx="9" cy="7" r="0.6" fill="currentColor" opacity="0.3" />
+      <circle cx="11" cy="7" r="0.5" fill="currentColor" opacity="0.2" />
+
+      {/* Border embellishments */}
+      <circle cx="11" cy="19" r="0.8" fill="currentColor" opacity="0.4" />
+      <circle cx="13" cy="19" r="0.6" fill="currentColor" opacity="0.3" />
+      <circle cx="15" cy="19" r="0.5" fill="currentColor" opacity="0.2" />
+    </svg>
+  );
+}
+
 export function UserIcon({ className = "", size = 20 }: IconProps) {
   return (
     <svg
