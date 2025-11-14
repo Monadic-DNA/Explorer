@@ -7,6 +7,7 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
+import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon } from "./Icons";
 import { AuthButton, useAuth } from "./AuthProvider";
 
 export default function MenuBar() {
@@ -180,7 +181,9 @@ export default function MenuBar() {
             onClick={() => setShowMyDataDropdown(!showMyDataDropdown)}
             title="Upload and manage your genetic data"
           >
-            <span className="icon">🧬</span>
+            <span className="icon">
+              <DNAIcon size={24} />
+            </span>
             <span className="label">My Data</span>
           </button>
 
@@ -189,7 +192,9 @@ export default function MenuBar() {
             onClick={() => setShowResultsDropdown(!showResultsDropdown)}
             title="Load, export, and manage results"
           >
-            <span className="icon">🗄️</span>
+            <span className="icon">
+              <FolderIcon size={24} />
+            </span>
             <span className="label">Results</span>
             {savedResults.length > 0 && (
               <span className="badge">{savedResults.length}</span>
@@ -201,7 +206,9 @@ export default function MenuBar() {
             onClick={() => setShowCustomizationModal(true)}
             title={getCustomizationTooltip()}
           >
-            <span className="icon">🔬</span>
+            <span className="icon">
+              <MicroscopeIcon size={24} />
+            </span>
             <span className="label">Personalize</span>
           </button>
 
@@ -210,7 +217,9 @@ export default function MenuBar() {
             onClick={() => setShowLLMConfigModal(true)}
             title="Configure LLM provider and model"
           >
-            <span className="icon">✨</span>
+            <span className="icon">
+              <SparklesIcon size={24} />
+            </span>
             <span className="label">LLM</span>
           </button>
 
@@ -219,7 +228,9 @@ export default function MenuBar() {
             onClick={() => setShowCacheDropdown(!showCacheDropdown)}
             title="View and manage cached GWAS data"
           >
-            <span className="icon">💎</span>
+            <span className="icon">
+              <CacheIcon size={24} />
+            </span>
             <span className="label">Cache</span>
           </button>
 
@@ -228,7 +239,9 @@ export default function MenuBar() {
             onClick={() => setShowHelpDropdown(!showHelpDropdown)}
             title="Help and feedback"
           >
-            <span className="icon">❓</span>
+            <span className="icon">
+              <HelpCircleIcon size={24} />
+            </span>
             <span className="label">Help</span>
           </button>
         </div>

@@ -255,3 +255,91 @@ export function AIIcon({ className = "", size = 16 }: IconProps) {
     </svg>
   );
 }
+
+export function MicroscopeIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <path d="M9 4L14 4L14 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="11.5" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M11.5 10L11.5 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M8 14L15 14L16 18L7 18Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+      <path d="M6 20L18 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M14 6L17 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="18" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+    </svg>
+  );
+}
+
+export function SparklesIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <path d="M12 3L13.5 8.5L19 10L13.5 11.5L12 17L10.5 11.5L5 10L10.5 8.5L12 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+      <path d="M19 4L19.5 6L21.5 6.5L19.5 7L19 9L18.5 7L16.5 6.5L18.5 6L19 4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+      <path d="M6 16L6.5 18L8.5 18.5L6.5 19L6 21L5.5 19L3.5 18.5L5.5 18L6 16Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
+export function CacheIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <ellipse cx="12" cy="6" rx="8" ry="3" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M4 6L4 12C4 13.6569 7.58172 15 12 15C16.4183 15 20 13.6569 20 12L20 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M4 12L4 18C4 19.6569 7.58172 21 12 21C16.4183 21 20 19.6569 20 18L20 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function HelpCircleIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M9.5 9C9.5 7.61929 10.6193 6.5 12 6.5C13.3807 6.5 14.5 7.61929 14.5 9C14.5 10.3807 13.3807 11.5 12 11.5V13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="12" cy="16.5" r="0.75" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function FolderIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <path d="M3 7C3 5.89543 3.89543 5 5 5H9L11 7H19C20.1046 7 21 7.89543 21 9V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7Z" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M3 9H21" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}

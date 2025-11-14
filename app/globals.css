@@ -155,8 +155,16 @@ body {
 }
 
 .menu-icon-button .icon {
-  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+.menu-icon-button .icon svg {
+  display: block;
 }
 
 .menu-icon-button .label {
@@ -164,6 +172,7 @@ body {
   font-weight: 500;
   color: var(--text-secondary);
   line-height: 1;
+  transition: color 0.2s ease;
 }
 
 .menu-icon-button .badge {
@@ -188,6 +197,10 @@ body {
 
 .menu-icon-button:hover .label {
   color: var(--text-primary);
+}
+
+.menu-icon-button:hover .icon {
+  color: var(--accent-blue);
 }
 
 .menu-icon-button.not-set {
