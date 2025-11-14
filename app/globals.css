@@ -3959,6 +3959,103 @@ details[open] .summary-arrow {
   background: #d97706;
 }
 
+.subscription-menu-container {
+  position: relative;
+}
+
+.subscription-menu-button {
+  padding: 0.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subscription-menu-button:hover {
+  opacity: 1;
+}
+
+.subscription-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.subscription-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: var(--surface-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.subscription-menu-header {
+  padding: 0.75rem 1rem;
+}
+
+.subscription-menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.subscription-menu-info strong {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.subscription-menu-info span {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.subscription-menu-info .expires-date {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.subscription-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0;
+}
+
+.subscription-menu-item {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  transition: background 0.2s;
+  display: block;
+}
+
+.subscription-menu-item:hover {
+  background: rgba(128, 128, 128, 0.1);
+}
+
+.subscription-menu-item.cancel {
+  color: var(--text-secondary);
+}
+
+.subscription-menu-item.cancel:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
 @media (max-width: 900px) {
   .premium-compact-header {
     padding: 1rem 1.5rem;

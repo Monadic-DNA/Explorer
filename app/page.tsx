@@ -256,6 +256,7 @@ function MainContent() {
   const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
   const [showRunAllModal, setShowRunAllModal] = useState(false);
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
+  const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
     phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
@@ -1121,6 +1122,76 @@ function MainContent() {
             <div className="premium-wallet-section">
               <AuthButton />
             </div>
+            {subscriptionData && (
+              <div className="subscription-menu-container">
+                <button
+                  onClick={() => setShowSubscriptionMenu(!showSubscriptionMenu)}
+                  className="subscription-menu-button"
+                  title="Subscription options"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2"/>
+                    <circle cx="12" cy="12" r="2"/>
+                    <circle cx="12" cy="19" r="2"/>
+                  </svg>
+                </button>
+                {showSubscriptionMenu && (
+                  <>
+                    <div
+                      className="subscription-menu-backdrop"
+                      onClick={() => setShowSubscriptionMenu(false)}
+                    />
+                    <div className="subscription-menu-dropdown">
+                      <div className="subscription-menu-header">
+                        <div className="subscription-menu-info">
+                          <strong>Subscription Details</strong>
+                          {subscriptionData.daysRemaining > 0 && (
+                            <span>{subscriptionData.daysRemaining} days remaining in current cycle</span>
+                          )}
+                          {subscriptionData.expiresAt && (
+                            <span className="expires-date">Renews {new Date(subscriptionData.expiresAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="subscription-menu-divider"></div>
+                      <button
+                        onClick={async () => {
+                          setShowSubscriptionMenu(false);
+                          if (!confirm('Are you sure you want to cancel your subscription? It will remain active until the end of your billing period.')) {
+                            return;
+                          }
+                          try {
+                            const walletAddress = user?.verifiedCredentials?.[0]?.address;
+                            if (!walletAddress) {
+                              alert('Could not find wallet address');
+                              return;
+                            }
+                            const response = await fetch('/api/stripe/cancel-subscription', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ walletAddress }),
+                            });
+                            const data = await response.json();
+                            if (response.ok) {
+                              alert(data.message || 'Subscription cancelled successfully');
+                              window.location.reload();
+                            } else {
+                              alert(data.error || 'Failed to cancel subscription');
+                            }
+                          } catch (error) {
+                            alert('Error cancelling subscription');
+                            console.error(error);
+                          }
+                        }}
+                        className="subscription-menu-item cancel"
+                      >
+                        Cancel Subscription
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </section>
         <PremiumPaywall />
