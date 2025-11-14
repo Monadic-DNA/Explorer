@@ -9,6 +9,7 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
+import { RobotIcon } from "./Icons";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -143,6 +144,25 @@ export default function AIChatInline() {
   const handleSendMessage = async () => {
     const query = inputValue.trim();
     if (!query) return;
+
+    // Check authentication first
+    if (!hasActiveSubscription && !hasPromoAccess) {
+      // Check if user is authenticated
+      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
+      if (dynamicButton) {
+        // Try to determine if user is logged in by checking for Dynamic's user indicator
+        const isLoggedIn = document.querySelector('[data-dynamic-user-profile]');
+        if (!isLoggedIn) {
+          // Not logged in, trigger login
+          dynamicButton.click();
+          return;
+        }
+      }
+      // User is logged in but not subscribed, show payment modal
+      const event = new CustomEvent('openPaymentModal');
+      window.dispatchEvent(event);
+      return;
+    }
 
     // Check consent before sending first message
     if (!hasConsent) {
@@ -595,9 +615,6 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
     );
   }
 
-  // Show subscription required overlay if not subscribed and no promo access
-  const isBlocked = !hasActiveSubscription && !hasPromoAccess;
-
   return (
     <>
       {showConsentModal && (
@@ -608,38 +625,10 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         />
       )}
       <div className="ai-chat-inline" style={{ position: 'relative' }}>
-        {isBlocked && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(254, 243, 199, 0.95)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: '8px'
-          }}>
-            <div style={{
-              textAlign: 'center',
-              padding: '2rem',
-              maxWidth: '400px'
-            }}>
-              <h3 style={{ margin: '0 0 1rem 0', color: '#92400e', fontSize: '1.5rem' }}>🔒 Premium Feature</h3>
-              <p style={{ margin: '0 0 1rem 0', color: '#92400e' }}>
-                LLM Chat requires an active premium subscription.
-              </p>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#78350f' }}>
-                Subscribe for $4.99/month to unlock LLM-powered analysis of your genetic results.
-              </p>
-            </div>
-          </div>
-        )}
         <div className="chat-header">
-          <h2>🤖 LLM Chat: Your Genetic Results</h2>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <RobotIcon size={28} /> LLM Chat: Your Genetic Results
+          </h2>
           <p className="powered-by">
             {getLLMDescription()} - Your data is processed securely
           </p>
@@ -813,9 +802,10 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             <button
               className="chat-send-button"
               onClick={handleSendMessage}
-              disabled={isLoading || !inputValue.trim()}
+              disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
+              title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
             >
-              {isLoading ? '⏳' : '➤'} Send
+              {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
             </button>
           </div>
         </div>

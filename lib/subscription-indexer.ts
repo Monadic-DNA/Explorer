@@ -5,13 +5,16 @@
  */
 
 // Fix Next.js + Alchemy SDK compatibility by polyfilling global fetch
-// This intercepts all fetch calls (including nested ones in ethers.js) to remove invalid referrer
+// This intercepts all fetch calls (including nested ones in ethers.js) to handle invalid referrer
+// The Alchemy SDK (via ethers.js) passes referrer: "client" which is valid in browsers
+// but throws "Referrer 'client' is not a valid URL" in Node.js
 const originalFetch = global.fetch;
 global.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
   const options = { ...init };
-  // Remove referrer property that causes "Referrer 'client' is not a valid URL" error in Node.js
-  if (options && 'referrer' in options) {
-    delete options.referrer;
+  // Set referrer to empty string to avoid Node.js validation errors
+  // Empty string is valid in Node.js fetch, while "client" is not
+  if (options) {
+    options.referrer = '';
   }
   return originalFetch(input, options);
 };

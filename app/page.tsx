@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { GenotypeProvider, useGenotype } from "./components/UserDataUpload";
 import { ResultsProvider, useResults } from "./components/ResultsContext";
 import { CustomizationProvider } from "./components/CustomizationContext";
+import { AuthButton, useAuth } from "./components/AuthProvider";
+import { RunAllIcon, LLMChatIcon, OverviewReportIcon } from "./components/Icons";
 import StudyResultReveal from "./components/StudyResultReveal";
 import MenuBar from "./components/MenuBar";
 import VariantChips from "./components/VariantChips";
@@ -203,6 +205,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -253,6 +256,7 @@ function MainContent() {
   const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
   const [showRunAllModal, setShowRunAllModal] = useState(false);
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
+  const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
     phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
@@ -1086,7 +1090,111 @@ function MainContent() {
         </>
       ) : (
         /* Premium Tab - 3 Features with LLM Chat Primary */
-        <PremiumPaywall>
+        <>
+        {/* Account & Subscription Compact Header */}
+        <section className="premium-compact-header">
+          <div className="premium-header-content">
+            {!isAuthenticated ? (
+              <div className="auth-prompt-inline">
+                <span>Sign in to access premium features →</span>
+              </div>
+            ) : !hasActiveSubscription ? (
+              <div className="subscription-prompt-inline">
+                <div className="subscription-message">
+                  <strong>Premium subscription required</strong>
+                  <span>Subscribe for $4.99/month to access Run All Analysis, LLM Chat, and Overview Report.</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const event = new CustomEvent('openPaymentModal');
+                    window.dispatchEvent(event);
+                  }}
+                  className="subscribe-button"
+                >
+                  Subscribe
+                </button>
+              </div>
+            ) : subscriptionData ? (
+              <div className="subscription-active-inline">
+                <span>✓ Premium Active</span>
+              </div>
+            ) : null}
+            <div className="premium-wallet-section">
+              <AuthButton />
+            </div>
+            {subscriptionData && (
+              <div className="subscription-menu-container">
+                <button
+                  onClick={() => setShowSubscriptionMenu(!showSubscriptionMenu)}
+                  className="subscription-menu-button"
+                  title="Subscription options"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2"/>
+                    <circle cx="12" cy="12" r="2"/>
+                    <circle cx="12" cy="19" r="2"/>
+                  </svg>
+                </button>
+                {showSubscriptionMenu && (
+                  <>
+                    <div
+                      className="subscription-menu-backdrop"
+                      onClick={() => setShowSubscriptionMenu(false)}
+                    />
+                    <div className="subscription-menu-dropdown">
+                      <div className="subscription-menu-header">
+                        <div className="subscription-menu-info">
+                          <strong>Subscription Details</strong>
+                          {subscriptionData.daysRemaining > 0 && (
+                            <span>{subscriptionData.daysRemaining} days remaining in current cycle</span>
+                          )}
+                          {subscriptionData.expiresAt && (
+                            <span className="expires-date">Renews {new Date(subscriptionData.expiresAt).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="subscription-menu-divider"></div>
+                      <button
+                        onClick={async () => {
+                          setShowSubscriptionMenu(false);
+                          if (!confirm('Are you sure you want to cancel your subscription? It will remain active until the end of your billing period.')) {
+                            return;
+                          }
+                          try {
+                            const walletAddress = user?.verifiedCredentials?.[0]?.address;
+                            if (!walletAddress) {
+                              alert('Could not find wallet address');
+                              return;
+                            }
+                            const response = await fetch('/api/stripe/cancel-subscription', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ walletAddress }),
+                            });
+                            const data = await response.json();
+                            if (response.ok) {
+                              alert(data.message || 'Subscription cancelled successfully');
+                              window.location.reload();
+                            } else {
+                              alert(data.error || 'Failed to cancel subscription');
+                            }
+                          } catch (error) {
+                            alert('Error cancelling subscription');
+                            console.error(error);
+                          }
+                        }}
+                        className="subscription-menu-item cancel"
+                      >
+                        Cancel Subscription
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+        <PremiumPaywall>{null}</PremiumPaywall>
         <section className="premium-section">
           {/* Feature Overview Cards - Compact 3-column with collapse button */}
           <div className="premium-features-header">
@@ -1103,23 +1211,30 @@ function MainContent() {
             <div className="premium-features-overview">
               {/* Run All Card - First */}
               <div className="feature-overview-card">
-                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
+                <div className="feature-icon">
+                  <RunAllIcon size={48} />
+                </div>
                 <h3>Run All</h3>
-                <p>
-                  {!mounted ? 'Loading...' :
-                   !isUploaded ? 'Upload DNA data first' :
-                   resultsContext.savedResults.length > 0
-                    ? `${resultsContext.savedResults.length.toLocaleString()} traits analyzed`
-                    : 'Analyze all GWAS studies'}
-                </p>
+                <p>Run your data through all million+ traits</p>
                 <button
                   className="feature-quick-action"
-                  onClick={handleRunAll}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      // Trigger Dynamic widget to open
+                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
+                      if (dynamicButton) dynamicButton.click();
+                    } else if (!hasActiveSubscription) {
+                      const event = new CustomEvent('openPaymentModal');
+                      window.dispatchEvent(event);
+                    } else {
+                      handleRunAll();
+                    }
+                  }}
                   disabled={isRunningAll || !mounted || !isUploaded}
                 >
                   {isRunningAll ? 'Running...' :
+                   !isAuthenticated ? 'Login' :
+                   !hasActiveSubscription ? 'Subscribe' :
                    !isUploaded ? 'Upload DNA File' :
                    resultsContext.savedResults.length > 0 ? 'Run Again' : 'Start'}
                 </button>
@@ -1127,38 +1242,39 @@ function MainContent() {
 
               {/* LLM Chat Card - Primary */}
               <div className="feature-overview-card primary">
-                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  <circle cx="9" cy="10" r="1"/>
-                  <circle cx="15" cy="10" r="1"/>
-                  <path d="M9 14c.5.5 1.5 1 3 1s2.5-.5 3-1"/>
-                </svg>
+                <div className="feature-icon">
+                  <LLMChatIcon size={48} />
+                </div>
                 <h3>LLM Chat</h3>
                 <p>Ask a private LLM questions about your genetic data</p>
               </div>
 
               {/* Overview Report Card */}
               <div className="feature-overview-card">
-                <svg className="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
-                </svg>
+                <div className="feature-icon">
+                  <OverviewReportIcon size={48} />
+                </div>
                 <h3>Overview Report <span style={{color: '#ff9800', fontSize: '0.8em'}}>(Experimental)</span></h3>
-                <p>
-                  {!mounted ? 'Loading...' :
-                   resultsContext.savedResults.length < 1000
-                    ? 'Analyze 1,000+ traits first'
-                    : 'Generate comprehensive LLM report'}
-                </p>
+                <p>Have an LLM analyze all your traits</p>
                 <button
                   className="feature-quick-action"
-                  onClick={() => setShowOverviewReportModal(true)}
-                  disabled={!mounted || resultsContext.savedResults.length < 1000}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      // Trigger Dynamic widget to open
+                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
+                      if (dynamicButton) dynamicButton.click();
+                    } else if (!hasActiveSubscription) {
+                      const event = new CustomEvent('openPaymentModal');
+                      window.dispatchEvent(event);
+                    } else {
+                      setShowOverviewReportModal(true);
+                    }
+                  }}
+                  disabled={!mounted || (!isAuthenticated || !hasActiveSubscription ? false : resultsContext.savedResults.length < 1000)}
                 >
-                  {resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
+                  {!isAuthenticated ? 'Login' :
+                   !hasActiveSubscription ? 'Subscribe' :
+                   resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
                 </button>
               </div>
             </div>
@@ -1170,7 +1286,7 @@ function MainContent() {
           {/* LLM Chat - Full Interface */}
           <LLMChatInline />
         </section>
-        </PremiumPaywall>
+        </>
       )}
       </main>
       <Footer />
