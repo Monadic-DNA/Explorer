@@ -7,7 +7,7 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
-import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, CrownIcon } from "./Icons";
+import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, CrownIcon, UserIcon } from "./Icons";
 import { AuthButton, useAuth } from "./AuthProvider";
 
 export default function MenuBar() {
@@ -331,8 +331,29 @@ export default function MenuBar() {
 
         <div className="menu-separator" />
 
-        <div className="auth-section menu-group">
-          <AuthButton />
+        {/* Auth/Account Icon Button with integrated DynamicWidget */}
+        <div className="auth-icon-wrapper" style={{ position: 'relative' }}>
+          <div className={`menu-icon-button ${isAuthenticated ? 'authenticated' : 'not-authenticated'}`}>
+            <span className="icon">
+              <UserIcon size={32} />
+            </span>
+            <span className="label">Account</span>
+          </div>
+          {/* DynamicWidget overlaid on top */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: 0,
+            cursor: 'pointer'
+          }}>
+            <AuthButton />
+          </div>
         </div>
       </div>
     </div>

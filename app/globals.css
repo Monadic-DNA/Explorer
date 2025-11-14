@@ -271,6 +271,32 @@ body {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+.menu-icon-button.authenticated {
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.menu-icon-button.authenticated::before {
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.menu-icon-button.not-authenticated {
+  border-color: rgba(156, 163, 175, 0.4);
+}
+
+.menu-icon-button.not-authenticated::before {
+  border-color: rgba(156, 163, 175, 0.3);
+}
+
+/* Auth icon wrapper - allow click-through to DynamicWidget */
+.auth-icon-wrapper {
+  position: relative;
+  pointer-events: none;
+}
+
+.auth-icon-wrapper > * {
+  pointer-events: auto;
+}
+
 /* Menu Dropdowns */
 .menu-dropdown {
   position: fixed;

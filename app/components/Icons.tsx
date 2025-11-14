@@ -418,3 +418,34 @@ export function CrownIcon({ className = "", size = 20 }: IconProps) {
     </svg>
   );
 }
+
+export function UserIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* Ornate decorative outer circle */}
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.3" />
+
+      {/* User head with ornate details */}
+      <circle cx="12" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+
+      {/* Ornate body/shoulders */}
+      <path d="M5 19C5 19 7 14 12 14C17 14 19 19 19 19" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M6 18.5C6 18.5 8 15 12 15C16 15 18 18.5 18 18.5" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+
+      {/* Decorative corner accents */}
+      <path d="M4 8L5 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+      <path d="M20 8L19 7" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+      <path d="M8 4L9 5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+      <path d="M16 4L15 5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+    </svg>
+  );
+}
