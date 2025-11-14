@@ -381,3 +381,40 @@ export function MoonIcon({ className = "", size = 20 }: IconProps) {
     </svg>
   );
 }
+
+export function CrownIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* Ornate crown */}
+      <path d="M3 18H21V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V18Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+
+      {/* Crown points */}
+      <path d="M3 18L6 8L9 13L12 6L15 13L18 8L21 18" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+
+      {/* Decorative gems on crown points */}
+      <circle cx="6" cy="8" r="1.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
+      <circle cx="12" cy="6" r="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
+      <circle cx="18" cy="8" r="1.2" stroke="currentColor" strokeWidth="1.2" fill="none" />
+
+      {/* Inner gem details */}
+      <circle cx="6" cy="8" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="12" cy="6" r="0.6" fill="currentColor" opacity="0.6" />
+      <circle cx="18" cy="8" r="0.5" fill="currentColor" opacity="0.6" />
+
+      {/* Ornate band decoration */}
+      <path d="M4 19H20" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+
+      {/* Side decorations */}
+      <path d="M7.5 18V20.5" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+      <path d="M12 18V20.5" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+      <path d="M16.5 18V20.5" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+    </svg>
+  );
+}

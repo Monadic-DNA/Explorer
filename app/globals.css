@@ -255,6 +255,22 @@ body {
   border-color: rgba(16, 185, 129, 0.3);
 }
 
+.menu-icon-button.subscribed {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.menu-icon-button.subscribed::before {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.menu-icon-button.not-subscribed {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.menu-icon-button.not-subscribed::before {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 /* Menu Dropdowns */
 .menu-dropdown {
   position: fixed;
