@@ -7,7 +7,7 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
-import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon } from "./Icons";
+import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon } from "./Icons";
 import { AuthButton, useAuth } from "./AuthProvider";
 
 export default function MenuBar() {
@@ -182,7 +182,7 @@ export default function MenuBar() {
             title="Upload and manage your genetic data"
           >
             <span className="icon">
-              <DNAIcon size={24} />
+              <DNAIcon size={32} />
             </span>
             <span className="label">My Data</span>
           </button>
@@ -193,7 +193,7 @@ export default function MenuBar() {
             title="Load, export, and manage results"
           >
             <span className="icon">
-              <FolderIcon size={24} />
+              <FolderIcon size={32} />
             </span>
             <span className="label">Results</span>
             {savedResults.length > 0 && (
@@ -207,7 +207,7 @@ export default function MenuBar() {
             title={getCustomizationTooltip()}
           >
             <span className="icon">
-              <MicroscopeIcon size={24} />
+              <MicroscopeIcon size={32} />
             </span>
             <span className="label">Personalize</span>
           </button>
@@ -218,7 +218,7 @@ export default function MenuBar() {
             title="Configure LLM provider and model"
           >
             <span className="icon">
-              <SparklesIcon size={24} />
+              <SparklesIcon size={32} />
             </span>
             <span className="label">LLM</span>
           </button>
@@ -229,7 +229,7 @@ export default function MenuBar() {
             title="View and manage cached GWAS data"
           >
             <span className="icon">
-              <CacheIcon size={24} />
+              <CacheIcon size={32} />
             </span>
             <span className="label">Cache</span>
           </button>
@@ -240,22 +240,23 @@ export default function MenuBar() {
             title="Help and feedback"
           >
             <span className="icon">
-              <HelpCircleIcon size={24} />
+              <HelpCircleIcon size={32} />
             </span>
             <span className="label">Help</span>
           </button>
+
+          <button
+            className="menu-icon-button"
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            <span className="icon">
+              {theme === "dark" ? <SunIcon size={32} /> : <MoonIcon size={32} />}
+            </span>
+            <span className="label">Theme</span>
+          </button>
         </div>
-
-        <div className="menu-separator" />
-
-        <button
-          className="theme-toggle"
-          onClick={toggleTheme}
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        >
-          {theme === "dark" ? "☀️" : "🌙"}
-        </button>
 
         <div className="menu-separator" />
 

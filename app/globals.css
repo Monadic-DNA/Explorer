@@ -141,17 +141,31 @@ body {
 
 .menu-icon-button {
   background: var(--surface-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
-  min-width: 70px;
+  gap: 0.5rem;
+  min-width: 85px;
   position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* Tarot card aesthetic - decorative double border */
+  outline: 1px solid transparent;
+  outline-offset: -4px;
+}
+
+.menu-icon-button::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  pointer-events: none;
+  opacity: 0.3;
 }
 
 .menu-icon-button .icon {
@@ -160,39 +174,52 @@ body {
   justify-content: center;
   line-height: 1;
   color: var(--text-secondary);
-  transition: color 0.2s ease;
+  transition: all 0.3s ease;
+  padding: 0.25rem;
 }
 
 .menu-icon-button .icon svg {
   display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
 }
 
 .menu-icon-button .label {
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.7rem;
+  font-weight: 600;
   color: var(--text-secondary);
   line-height: 1;
-  transition: color 0.2s ease;
+  transition: all 0.3s ease;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: 'Inter', sans-serif;
 }
 
 .menu-icon-button .badge {
   position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
+  top: -0.25rem;
+  right: -0.25rem;
   background: var(--accent-blue);
   color: white;
   font-size: 0.65rem;
-  font-weight: 600;
-  padding: 0.1rem 0.35rem;
-  border-radius: 10px;
-  min-width: 18px;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 12px;
+  min-width: 20px;
   text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--primary-bg);
 }
 
 .menu-icon-button:hover {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(59, 130, 246, 0.08);
   border-color: var(--accent-blue);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2);
+}
+
+.menu-icon-button:hover::before {
+  border-color: var(--accent-blue);
+  opacity: 0.5;
 }
 
 .menu-icon-button:hover .label {
@@ -201,17 +228,30 @@ body {
 
 .menu-icon-button:hover .icon {
   color: var(--accent-blue);
+  transform: scale(1.05);
 }
 
 .menu-icon-button.not-set {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.menu-icon-button.not-set::before {
   border-color: rgba(245, 158, 11, 0.3);
 }
 
 .menu-icon-button.locked {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.menu-icon-button.locked::before {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
 .menu-icon-button.unlocked {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.menu-icon-button.unlocked::before {
   border-color: rgba(16, 185, 129, 0.3);
 }
 
