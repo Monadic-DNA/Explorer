@@ -1148,7 +1148,11 @@ function MainContent() {
                 <button
                   className="feature-quick-action"
                   onClick={() => {
-                    if (!hasActiveSubscription) {
+                    if (!isAuthenticated) {
+                      // Trigger Dynamic widget to open
+                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
+                      if (dynamicButton) dynamicButton.click();
+                    } else if (!hasActiveSubscription) {
                       const event = new CustomEvent('openPaymentModal');
                       window.dispatchEvent(event);
                     } else {
@@ -1158,6 +1162,7 @@ function MainContent() {
                   disabled={isRunningAll || !mounted || !isUploaded}
                 >
                   {isRunningAll ? 'Running...' :
+                   !isAuthenticated ? 'Login' :
                    !hasActiveSubscription ? 'Subscribe' :
                    !isUploaded ? 'Upload DNA File' :
                    resultsContext.savedResults.length > 0 ? 'Run Again' : 'Start'}
@@ -1183,16 +1188,21 @@ function MainContent() {
                 <button
                   className="feature-quick-action"
                   onClick={() => {
-                    if (!hasActiveSubscription) {
+                    if (!isAuthenticated) {
+                      // Trigger Dynamic widget to open
+                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
+                      if (dynamicButton) dynamicButton.click();
+                    } else if (!hasActiveSubscription) {
                       const event = new CustomEvent('openPaymentModal');
                       window.dispatchEvent(event);
                     } else {
                       setShowOverviewReportModal(true);
                     }
                   }}
-                  disabled={!mounted || (!hasActiveSubscription ? false : resultsContext.savedResults.length < 1000)}
+                  disabled={!mounted || (!isAuthenticated || !hasActiveSubscription ? false : resultsContext.savedResults.length < 1000)}
                 >
-                  {!hasActiveSubscription ? 'Subscribe' :
+                  {!isAuthenticated ? 'Login' :
+                   !hasActiveSubscription ? 'Subscribe' :
                    resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
                 </button>
               </div>

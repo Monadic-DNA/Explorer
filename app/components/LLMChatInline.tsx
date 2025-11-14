@@ -145,8 +145,20 @@ export default function AIChatInline() {
     const query = inputValue.trim();
     if (!query) return;
 
-    // Check subscription first
+    // Check authentication first
     if (!hasActiveSubscription && !hasPromoAccess) {
+      // Check if user is authenticated
+      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
+      if (dynamicButton) {
+        // Try to determine if user is logged in by checking for Dynamic's user indicator
+        const isLoggedIn = document.querySelector('[data-dynamic-user-profile]');
+        if (!isLoggedIn) {
+          // Not logged in, trigger login
+          dynamicButton.click();
+          return;
+        }
+      }
+      // User is logged in but not subscribed, show payment modal
       const event = new CustomEvent('openPaymentModal');
       window.dispatchEvent(event);
       return;
@@ -791,9 +803,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               className="chat-send-button"
               onClick={handleSendMessage}
               disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
-              title={(!hasActiveSubscription && !hasPromoAccess) ? 'Subscribe to send messages' : undefined}
+              title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
             >
-              {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Subscribe' : '➤ Send'}
+              {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
             </button>
           </div>
         </div>
