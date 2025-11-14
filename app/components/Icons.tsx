@@ -420,98 +420,265 @@ export function CrownIcon({ className = "", size = 20 }: IconProps) {
 }
 
 // Premium Feature Icons - Ornate and intricate
+// Run All: Machine that processes genes into reports
 export function RunAllIcon({ className = "", size = 24 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      {/* Ornate outer circle */}
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.2" opacity="0.3" />
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.3" />
+      {/* Machine body - ornate box */}
+      <rect x="5" y="8" width="14" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="5.5" y="8.5" width="13" height="9" rx="0.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
 
-      {/* Play triangle with ornate details */}
-      <path d="M9 7L17 12L9 17V7Z" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.8" />
-      <path d="M9.5 8L16 12L9.5 16V8Z" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+      {/* Input funnel (left) for genes */}
+      <path d="M2 5L5 8" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M2 5L3.5 5L5 6.5" stroke="currentColor" strokeWidth="1" opacity="0.3" />
 
-      {/* Decorative accents */}
-      <circle cx="12" cy="12" r="6.5" stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
-      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="0.6" opacity="0.15" />
+      {/* DNA helix going into machine */}
+      <circle cx="2" cy="4" r="0.8" fill="currentColor" opacity="0.6" />
+      <circle cx="3" cy="5.5" r="0.6" fill="currentColor" opacity="0.5" />
+      <circle cx="4" cy="6.5" r="0.5" fill="currentColor" opacity="0.4" />
+      <line x1="2" y1="4" x2="4" y2="6.5" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
 
-      {/* Corner flourishes */}
-      <path d="M4 4L5.5 5.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
-      <path d="M20 4L18.5 5.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
-      <path d="M4 20L5.5 18.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
-      <path d="M20 20L18.5 18.5" stroke="currentColor" strokeWidth="1" opacity="0.4" />
+      {/* Output chute (right) for reports */}
+      <path d="M19 18L22 20" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M19.5 17.5L21 19L22 20" stroke="currentColor" strokeWidth="1" opacity="0.3" />
 
-      {/* Decorative dots */}
-      <circle cx="4" cy="12" r="0.8" fill="currentColor" opacity="0.4" />
-      <circle cx="20" cy="12" r="0.8" fill="currentColor" opacity="0.4" />
-      <circle cx="12" cy="4" r="0.8" fill="currentColor" opacity="0.4" />
-      <circle cx="12" cy="20" r="0.8" fill="currentColor" opacity="0.4" />
+      {/* Report paper coming out */}
+      <rect x="21" y="19.5" width="2" height="2.5" rx="0.3" stroke="currentColor" strokeWidth="0.8" opacity="0.7" />
+      <line x1="21.5" y1="20.5" x2="22.5" y2="20.5" stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
+      <line x1="21.5" y1="21.5" x2="22.5" y2="21.5" stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
+
+      {/* Machine gears and processing */}
+      <circle cx="9" cy="13" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <circle cx="9" cy="13" r="1.8" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <circle cx="9" cy="13" r="0.8" fill="currentColor" opacity="0.4" />
+
+      <circle cx="15" cy="13" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <circle cx="15" cy="13" r="1.8" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <circle cx="15" cy="13" r="0.8" fill="currentColor" opacity="0.4" />
+
+      {/* Gear teeth */}
+      <path d="M9 10.5L9 11.2" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M9 14.8L9 15.5" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M6.5 13L7.2 13" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M10.8 13L11.5 13" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+
+      <path d="M15 10.5L15 11.2" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M15 14.8L15 15.5" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M12.5 13L13.2 13" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M16.8 13L17.5 13" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+
+      {/* Control panel on top */}
+      <rect x="8" y="9" width="8" height="1.5" rx="0.3" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+      <circle cx="9.5" cy="9.8" r="0.3" fill="currentColor" opacity="0.6" />
+      <circle cx="11" cy="9.8" r="0.3" fill="currentColor" opacity="0.6" />
+      <circle cx="12.5" cy="9.8" r="0.3" fill="currentColor" opacity="0.6" />
+      <rect x="13.5" y="9.5" width="1.5" height="0.6" rx="0.2" stroke="currentColor" strokeWidth="0.5" opacity="0.5" />
+
+      {/* Steam/processing indicator */}
+      <path d="M7 6L7.3 5L7.6 6" stroke="currentColor" strokeWidth="0.6" opacity="0.4" />
+      <path d="M12 6L12.3 5L12.6 6" stroke="currentColor" strokeWidth="0.6" opacity="0.4" />
+      <path d="M17 6L17.3 5L17.6 6" stroke="currentColor" strokeWidth="0.6" opacity="0.4" />
     </svg>
   );
 }
 
+// LLM Chat: Witch using a typewriter
 export function LLMChatIcon({ className = "", size = 24 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      {/* Ornate outer frame */}
-      <rect x="2" y="2" width="20" height="20" rx="3" stroke="currentColor" strokeWidth="1.3" />
-      <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.3" />
+      {/* Witch hat - pointed with ornate brim */}
+      <path d="M10 3L12 1L14 3L12 8Z" stroke="currentColor" strokeWidth="1" fill="currentColor" opacity="0.8" />
+      <path d="M10.5 3.5L12 2L13.5 3.5L12 7Z" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
+      <ellipse cx="12" cy="8" rx="3" ry="0.8" stroke="currentColor" strokeWidth="1" fill="currentColor" opacity="0.7" />
 
-      {/* Chat bubble with ornate details */}
-      <path d="M6 6C6 5.44772 6.44772 5 7 5H17C17.5523 5 18 5.44772 18 6V13C18 13.5523 17.5523 14 17 14H10L6 17V6Z"
-            stroke="currentColor" strokeWidth="1.3" />
-      <path d="M7 6H17V13H10.5L7 15.5V6Z"
-            stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      {/* Witch head/face */}
+      <circle cx="12" cy="10" r="2" stroke="currentColor" strokeWidth="1" />
+      <circle cx="12" cy="10" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
 
-      {/* Ornate chat dots */}
-      <circle cx="9" cy="9.5" r="1" fill="currentColor" />
-      <circle cx="12" cy="9.5" r="1" fill="currentColor" />
-      <circle cx="15" cy="9.5" r="1" fill="currentColor" />
-      <circle cx="9" cy="9.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
-      <circle cx="12" cy="9.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
-      <circle cx="15" cy="9.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      {/* Witch hair flowing */}
+      <path d="M10.5 9Q9 10 9 11" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M13.5 9Q15 10 15 11" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
 
-      {/* Decorative corner elements */}
-      <path d="M4 7L5 6L6 7" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
-      <path d="M20 7L19 6L18 7" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
-      <path d="M4 17L5 18L6 17" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
-      <path d="M20 17L19 18L18 17" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+      {/* Witch body/shoulders */}
+      <path d="M10 11.5L8 13L8 15" stroke="currentColor" strokeWidth="1" />
+      <path d="M14 11.5L16 13L16 15" stroke="currentColor" strokeWidth="1" />
+      <path d="M10 12L12 12.5L14 12" stroke="currentColor" strokeWidth="1" />
+
+      {/* Arms reaching to typewriter */}
+      <path d="M8 14L6 16" stroke="currentColor" strokeWidth="1" />
+      <path d="M16 14L18 16" stroke="currentColor" strokeWidth="1" />
+
+      {/* Typewriter body - ornate vintage design */}
+      <rect x="4" y="16" width="16" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="4.5" y="16.5" width="15" height="5" rx="0.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Typewriter keys */}
+      <circle cx="7" cy="18.5" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="9" cy="18.5" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="11" cy="18.5" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="13" cy="18.5" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="15" cy="18.5" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="17" cy="18.5" r="0.5" fill="currentColor" opacity="0.6" />
+
+      <circle cx="8" cy="20" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="10" cy="20" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="12" cy="20" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="14" cy="20" r="0.5" fill="currentColor" opacity="0.6" />
+      <circle cx="16" cy="20" r="0.5" fill="currentColor" opacity="0.6" />
+
+      {/* Paper coming out of typewriter */}
+      <rect x="9" y="13" width="6" height="3.5" rx="0.3" stroke="currentColor" strokeWidth="0.8" opacity="0.7" />
+      <line x1="10" y1="14.5" x2="14" y2="14.5" stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
+      <line x1="10" y1="15.5" x2="14" y2="15.5" stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
+
+      {/* Magic sparkles around */}
+      <path d="M3 10L3.4 11L4 11.4L3.4 11.8L3 13L2.6 11.8L2 11.4L2.6 11L3 10Z" fill="currentColor" opacity="0.5" />
+      <path d="M21 10L21.4 11L22 11.4L21.4 11.8L21 13L20.6 11.8L20 11.4L20.6 11L21 10Z" fill="currentColor" opacity="0.5" />
+      <path d="M12 22L12.3 22.7L13 23L12.3 23.3L12 24L11.7 23.3L11 23L11.7 22.7L12 22Z" fill="currentColor" opacity="0.4" />
     </svg>
   );
 }
 
+// Overview Report: Lab tech looking into microscope
 export function OverviewReportIcon({ className = "", size = 24 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      {/* Ornate document frame */}
-      <path d="M6 2H14L18 6V20C18 21.1046 17.1046 22 16 22H6C4.89543 22 4 21.1046 4 20V4C4 2.89543 4.89543 2 6 2Z"
-            stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.5 3H13.5L17 6.5V20C17 20.5523 16.5523 21 16 21H6.5C5.94772 21 5.5 20.5523 5.5 20V4C5.5 3.44772 5.94772 3 6.5 3Z"
-            stroke="currentColor" strokeWidth="0.8" opacity="0.2" />
+      {/* Lab tech head */}
+      <circle cx="7" cy="6" r="2.5" stroke="currentColor" strokeWidth="1" />
+      <circle cx="7" cy="6" r="2" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
 
-      {/* Folded corner with ornate detail */}
-      <path d="M14 2V6H18" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M14.5 3V5.5H17" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
+      {/* Lab coat collar */}
+      <path d="M5 8L4 10" stroke="currentColor" strokeWidth="1" />
+      <path d="M9 8L10 10" stroke="currentColor" strokeWidth="1" />
+      <path d="M5.5 8.5L7 9L8.5 8.5" stroke="currentColor" strokeWidth="1" />
 
-      {/* Document lines with ornate flourishes */}
-      <line x1="7" y1="10" x2="15" y2="10" stroke="currentColor" strokeWidth="1.2" />
-      <line x1="7.5" y1="10" x2="14.5" y2="10" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      {/* Body/shoulders hunched over microscope */}
+      <path d="M4 10L3 13L3 16" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M10 10L11 13L11 16" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M4 11L7 12L10 11" stroke="currentColor" strokeWidth="1" />
 
-      <line x1="7" y1="13" x2="15" y2="13" stroke="currentColor" strokeWidth="1.2" />
-      <line x1="7.5" y1="13" x2="14.5" y2="13" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      {/* Arms/hands on microscope */}
+      <path d="M3 15L6 17" stroke="currentColor" strokeWidth="1" />
+      <path d="M11 15L9 17" stroke="currentColor" strokeWidth="1" />
 
-      <line x1="7" y1="16" x2="12" y2="16" stroke="currentColor" strokeWidth="1.2" />
-      <line x1="7.5" y1="16" x2="11.5" y2="16" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      {/* Microscope base/platform */}
+      <rect x="5" y="17" width="7" height="1.5" rx="0.3" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="4" y="18.5" width="9" height="0.8" rx="0.2" stroke="currentColor" strokeWidth="1" />
 
-      {/* Decorative corner accents */}
-      <circle cx="7" cy="7" r="0.8" fill="currentColor" opacity="0.4" />
-      <circle cx="9" cy="7" r="0.6" fill="currentColor" opacity="0.3" />
-      <circle cx="11" cy="7" r="0.5" fill="currentColor" opacity="0.2" />
+      {/* Microscope body - ornate details */}
+      <rect x="7" y="12" width="3" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="7.3" y="12.3" width="2.4" height="4.4" rx="0.3" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
 
-      {/* Border embellishments */}
-      <circle cx="11" cy="19" r="0.8" fill="currentColor" opacity="0.4" />
-      <circle cx="13" cy="19" r="0.6" fill="currentColor" opacity="0.3" />
-      <circle cx="15" cy="19" r="0.5" fill="currentColor" opacity="0.2" />
+      {/* Microscope eyepiece where tech is looking */}
+      <ellipse cx="8.5" cy="11" rx="1.5" ry="0.8" stroke="currentColor" strokeWidth="1" fill="currentColor" opacity="0.3" />
+      <ellipse cx="8.5" cy="11" rx="1" ry="0.5" stroke="currentColor" strokeWidth="0.6" opacity="0.4" />
+
+      {/* Microscope objective lens (bottom) */}
+      <circle cx="8.5" cy="17" r="1.2" stroke="currentColor" strokeWidth="1" />
+      <circle cx="8.5" cy="17" r="0.7" stroke="currentColor" strokeWidth="0.6" opacity="0.3" />
+
+      {/* Focus knobs */}
+      <circle cx="10.5" cy="14" r="0.6" stroke="currentColor" strokeWidth="0.8" fill="currentColor" opacity="0.3" />
+      <circle cx="10.5" cy="15.5" r="0.6" stroke="currentColor" strokeWidth="0.8" fill="currentColor" opacity="0.3" />
+
+      {/* Slide on stage */}
+      <rect x="7" y="16.5" width="3" height="0.5" rx="0.1" stroke="currentColor" strokeWidth="0.6" opacity="0.6" />
+
+      {/* Data/results visualization on side (screen/readout) */}
+      <rect x="14" y="10" width="8" height="10" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="14.3" y="10.3" width="7.4" height="9.4" rx="0.3" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Graph/data lines on screen */}
+      <line x1="15" y1="13" x2="21" y2="13" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+      <line x1="15" y1="15" x2="20" y2="15" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+      <line x1="15" y1="17" x2="19" y2="17" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+      <circle cx="15.5" cy="13" r="0.4" fill="currentColor" opacity="0.5" />
+      <circle cx="15.5" cy="15" r="0.4" fill="currentColor" opacity="0.5" />
+      <circle cx="15.5" cy="17" r="0.4" fill="currentColor" opacity="0.5" />
+
+      {/* DNA helix on screen */}
+      <path d="M17 11.5Q18 12 17 12.5Q16 13 17 13.5" stroke="currentColor" strokeWidth="0.6" opacity="0.6" />
+      <circle cx="17" cy="11.7" r="0.3" fill="currentColor" opacity="0.4" />
+      <circle cx="17" cy="13.3" r="0.3" fill="currentColor" opacity="0.4" />
+
+      {/* Lab environment details */}
+      <path d="M2 20L3 22" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+      <path d="M12 20L11 22" stroke="currentColor" strokeWidth="0.8" opacity="0.4" />
+
+      {/* Analysis sparkle */}
+      <path d="M20 8L20.4 9L21 9.4L20.4 9.8L20 11L19.6 9.8L19 9.4L19.6 9L20 8Z" fill="currentColor" opacity="0.5" />
+    </svg>
+  );
+}
+
+// Robot AI icon for LLM Chat header
+export function RobotIcon({ className = "", size = 24 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      {/* Antenna with ornate details */}
+      <line x1="12" y1="2" x2="12" y2="4" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="12" cy="1.5" r="1" stroke="currentColor" strokeWidth="1" fill="currentColor" opacity="0.3" />
+      <circle cx="12" cy="1.5" r="1.5" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Head - ornate box with multiple layers */}
+      <rect x="7" y="4" width="10" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="7.5" y="4.5" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <rect x="6.5" y="3.5" width="11" height="9" rx="2" stroke="currentColor" strokeWidth="0.8" opacity="0.15" />
+
+      {/* Eyes - glowing ornate circles */}
+      <circle cx="10" cy="8" r="1.2" fill="currentColor" opacity="0.8" />
+      <circle cx="14" cy="8" r="1.2" fill="currentColor" opacity="0.8" />
+      <circle cx="10" cy="8" r="1.8" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <circle cx="14" cy="8" r="1.8" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+      <circle cx="10" cy="7.5" r="0.4" fill="currentColor" opacity="0.3" />
+      <circle cx="14" cy="7.5" r="0.4" fill="currentColor" opacity="0.3" />
+
+      {/* Mouth/display panel */}
+      <rect x="9" y="10" width="6" height="1" rx="0.5" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <line x1="10" y1="10.5" x2="11" y2="10.5" stroke="currentColor" strokeWidth="0.4" opacity="0.4" />
+      <line x1="13" y1="10.5" x2="14" y2="10.5" stroke="currentColor" strokeWidth="0.4" opacity="0.4" />
+
+      {/* Body - ornate rectangle */}
+      <rect x="8" y="12" width="8" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="8.5" y="12.5" width="7" height="6" rx="1" stroke="currentColor" strokeWidth="0.6" opacity="0.2" />
+
+      {/* Chest panel with circuit pattern */}
+      <rect x="9.5" y="14" width="5" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="0.8" opacity="0.5" />
+      <line x1="10" y1="15" x2="11.5" y2="15" stroke="currentColor" strokeWidth="0.5" opacity="0.4" />
+      <line x1="12.5" y1="15" x2="14" y2="15" stroke="currentColor" strokeWidth="0.5" opacity="0.4" />
+      <line x1="10" y1="16.5" x2="14" y2="16.5" stroke="currentColor" strokeWidth="0.5" opacity="0.4" />
+      <circle cx="11.5" cy="15" r="0.4" fill="currentColor" opacity="0.4" />
+      <circle cx="12.5" cy="15" r="0.4" fill="currentColor" opacity="0.4" />
+
+      {/* Arms - ornate mechanical limbs */}
+      <rect x="5" y="13" width="2" height="5" rx="0.8" stroke="currentColor" strokeWidth="1" />
+      <rect x="17" y="13" width="2" height="5" rx="0.8" stroke="currentColor" strokeWidth="1" />
+      <rect x="5.3" y="13.3" width="1.4" height="4.4" rx="0.5" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+      <rect x="17.3" y="13.3" width="1.4" height="4.4" rx="0.5" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+
+      {/* Hands/claws */}
+      <circle cx="6" cy="18.5" r="0.8" stroke="currentColor" strokeWidth="0.8" fill="currentColor" opacity="0.3" />
+      <circle cx="18" cy="18.5" r="0.8" stroke="currentColor" strokeWidth="0.8" fill="currentColor" opacity="0.3" />
+
+      {/* Legs - mechanical supports */}
+      <rect x="9" y="19" width="2" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="1" />
+      <rect x="13" y="19" width="2" height="3.5" rx="0.5" stroke="currentColor" strokeWidth="1" />
+      <rect x="9.3" y="19.3" width="1.4" height="3" rx="0.3" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+      <rect x="13.3" y="19.3" width="1.4" height="3" rx="0.3" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+
+      {/* Feet */}
+      <rect x="8.5" y="22.5" width="2.5" height="1" rx="0.3" stroke="currentColor" strokeWidth="0.8" />
+      <rect x="13" y="22.5" width="2.5" height="1" rx="0.3" stroke="currentColor" strokeWidth="0.8" />
+
+      {/* Decorative screws/bolts */}
+      <circle cx="8.5" cy="5" r="0.4" fill="currentColor" opacity="0.3" />
+      <circle cx="15.5" cy="5" r="0.4" fill="currentColor" opacity="0.3" />
+      <circle cx="8.5" cy="11" r="0.4" fill="currentColor" opacity="0.3" />
+      <circle cx="15.5" cy="11" r="0.4" fill="currentColor" opacity="0.3" />
+
+      {/* Energy/AI sparkles */}
+      <path d="M6 7L6.3 7.7L7 8L6.3 8.3L6 9L5.7 8.3L5 8L5.7 7.7L6 7Z" fill="currentColor" opacity="0.4" />
+      <path d="M18 7L18.3 7.7L19 8L18.3 8.3L18 9L17.7 8.3L17 8L17.7 7.7L18 7Z" fill="currentColor" opacity="0.4" />
     </svg>
   );
 }

@@ -9,6 +9,7 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
+import { RobotIcon } from "./Icons";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -613,7 +614,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       )}
       <div className="ai-chat-inline" style={{ position: 'relative' }}>
         <div className="chat-header">
-          <h2>🤖 LLM Chat: Your Genetic Results</h2>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <RobotIcon size={28} /> LLM Chat: Your Genetic Results
+          </h2>
           <p className="powered-by">
             {getLLMDescription()} - Your data is processed securely
           </p>

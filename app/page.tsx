@@ -1092,32 +1092,36 @@ function MainContent() {
         <>
         {/* Account & Subscription Compact Header */}
         <section className="premium-compact-header">
-          {!isAuthenticated ? (
-            <div className="auth-prompt">
-              <span>Sign in to access premium features</span>
+          <div className="premium-header-content">
+            {!isAuthenticated ? (
+              <div className="auth-prompt-inline">
+                <span>Sign in to access premium features →</span>
+              </div>
+            ) : !hasActiveSubscription ? (
+              <div className="subscription-prompt-inline">
+                <div className="subscription-message">
+                  <strong>Premium subscription required</strong>
+                  <span>Subscribe for $4.99/month to access Run All Analysis, LLM Chat, and Overview Report.</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const event = new CustomEvent('openPaymentModal');
+                    window.dispatchEvent(event);
+                  }}
+                  className="subscribe-button"
+                >
+                  Subscribe
+                </button>
+              </div>
+            ) : subscriptionData ? (
+              <div className="subscription-active-inline">
+                <span>✓ Premium Active</span>
+              </div>
+            ) : null}
+            <div className="premium-wallet-section">
               <AuthButton />
             </div>
-          ) : !hasActiveSubscription ? (
-            <div className="subscription-prompt">
-              <div className="subscription-message">
-                <strong>Premium subscription required</strong>
-                <span>Subscribe for $4.99/month to access Run All Analysis, LLM Chat, and Overview Report.</span>
-              </div>
-              <button
-                onClick={() => {
-                  const event = new CustomEvent('openPaymentModal');
-                  window.dispatchEvent(event);
-                }}
-                className="subscribe-button"
-              >
-                Subscribe
-              </button>
-            </div>
-          ) : subscriptionData ? (
-            <div className="subscription-active">
-              <span>✓ Premium Active - {subscriptionData.daysRemaining} days remaining (expires {new Date(subscriptionData.expiresAt || '').toLocaleDateString()})</span>
-            </div>
-          ) : null}
+          </div>
         </section>
         <PremiumPaywall />
         <section className="premium-section">
@@ -1140,13 +1144,7 @@ function MainContent() {
                   <RunAllIcon size={48} />
                 </div>
                 <h3>Run All</h3>
-                <p>
-                  {!mounted ? 'Loading...' :
-                   !isUploaded ? 'Upload DNA data first' :
-                   resultsContext.savedResults.length > 0
-                    ? `${resultsContext.savedResults.length.toLocaleString()} traits analyzed`
-                    : 'Analyze all GWAS studies'}
-                </p>
+                <p>Run your data through all million+ traits</p>
                 <button
                   className="feature-quick-action"
                   onClick={() => {
@@ -1181,12 +1179,7 @@ function MainContent() {
                   <OverviewReportIcon size={48} />
                 </div>
                 <h3>Overview Report <span style={{color: '#ff9800', fontSize: '0.8em'}}>(Experimental)</span></h3>
-                <p>
-                  {!mounted ? 'Loading...' :
-                   resultsContext.savedResults.length < 1000
-                    ? 'Analyze 1,000+ traits first'
-                    : 'Generate comprehensive LLM report'}
-                </p>
+                <p>Have an LLM analyze all your traits</p>
                 <button
                   className="feature-quick-action"
                   onClick={() => {
