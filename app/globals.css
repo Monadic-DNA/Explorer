@@ -132,6 +132,134 @@ body {
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
 }
 
+/* Icon-based Menu Navigation */
+.menu-icons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.menu-icon-button {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 70px;
+  position: relative;
+}
+
+.menu-icon-button .icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.menu-icon-button .label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.menu-icon-button .badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: var(--accent-blue);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.1rem 0.35rem;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.menu-icon-button:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+}
+
+.menu-icon-button:hover .label {
+  color: var(--text-primary);
+}
+
+.menu-icon-button.not-set {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.menu-icon-button.locked {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.menu-icon-button.unlocked {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Menu Dropdowns */
+.menu-dropdown {
+  position: fixed;
+  top: 5rem;
+  right: 2rem;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  min-width: 300px;
+  max-width: 400px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-content h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dropdown-content .stat-display {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.dropdown-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dropdown-actions .control-button,
+.dropdown-actions a {
+  width: 100%;
+  justify-content: center;
+}
+
 .app-title {
   margin: 0;
   font-size: 1.5rem;
