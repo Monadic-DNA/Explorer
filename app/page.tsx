@@ -205,7 +205,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -1194,7 +1194,7 @@ function MainContent() {
             )}
           </div>
         </section>
-        <PremiumPaywall />
+        <PremiumPaywall>{null}</PremiumPaywall>
         <section className="premium-section">
           {/* Feature Overview Cards - Compact 3-column with collapse button */}
           <div className="premium-features-header">
