@@ -148,6 +148,11 @@ export function analyzeStudyClientSide(
     level: 'increased' | 'decreased' | 'neutral';
   }> = [];
 
+  // Extract BOTH the SNP ID and allele from riskAllele (e.g., "rs57506806-G" -> ["rs57506806", "G"])
+  const riskAlleleParts = riskAllele.split('-');
+  const riskSnpId = riskAlleleParts[0];
+  const riskAlleleBase = riskAlleleParts[1] || '';
+
   for (const snp of snpList) {
     if (genotypeMap.has(snp)) {
       const userGenotype = genotypeMap.get(snp)!;
@@ -155,6 +160,17 @@ export function analyzeStudyClientSide(
       // Skip invalid genotypes (no-calls, etc.)
       if (!isValidGenotype(userGenotype)) {
         continue;
+      }
+
+      // CRITICAL FIX: If this SNP is the one with the risk allele specified,
+      // verify the user actually has that specific allele
+      // This prevents false matches when studies have multiple SNPs but only one has a risk allele
+      // Example: Study has "rs57506806; rs234567" with risk allele "rs57506806-G"
+      //          User has rs234567:AG -> should NOT match (the G is in the wrong SNP)
+      if (snp === riskSnpId && riskAlleleBase) {
+        if (!userGenotype.includes(riskAlleleBase)) {
+          continue; // User doesn't have the risk allele for THIS specific SNP
+        }
       }
 
       const { score, level } = calculateRiskScore(userGenotype, riskAllele, effectSize, effectType);

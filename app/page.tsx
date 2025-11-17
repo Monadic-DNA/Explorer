@@ -392,8 +392,8 @@ function MainContent() {
         // Client-side filtering for user SNPs
         if (apiFilters.requireUserSNPs && genotypeData) {
           filteredData = filteredData.filter(study => {
-            // First check if study has matching SNPs with user data
-            const hasUserSNPs = hasMatchingSNPs(genotypeData, study.snps);
+            // STRICT MODE: Only show studies where user has the specific SNP with the specific allele
+            const hasUserSNPs = hasMatchingSNPs(genotypeData, study.snps, study.strongest_snp_risk_allele, true);
             if (!hasUserSNPs) return false;
 
             // If "Require genotype" is also enabled, ensure the study has genotype data
@@ -1051,6 +1051,9 @@ function MainContent() {
                         snps={study.snps}
                         traitName={trait}
                         studyTitle={study.study || "Untitled study"}
+                        riskAllele={study.strongest_snp_risk_allele}
+                        isAnalyzable={study.isAnalyzable}
+                        nonAnalyzableReason={study.nonAnalyzableReason}
                       />
                     </td>
                   </tr>

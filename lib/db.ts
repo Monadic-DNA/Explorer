@@ -135,10 +135,6 @@ function convertQueryToPostgres(query: string): string {
   // Simply remove the COLLATE clause and sort case-sensitively for now
   // The client-side sorting will handle case-insensitive sorting
 
-  // Replace rowid with a row number for PostgreSQL (since PostgreSQL doesn't have rowid)
-  // We'll use ROW_NUMBER() OVER() to simulate SQLite's rowid
-  pgQuery = pgQuery.replace(/SELECT\s+rowid\s+AS\s+id,/gi, 'SELECT ROW_NUMBER() OVER() AS id,');
-
   return pgQuery;
 }
 

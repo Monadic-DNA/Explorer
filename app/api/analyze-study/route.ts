@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { executeQuerySingle, getDbType } from "@/lib/db";
+import { executeQuerySingle } from "@/lib/db";
 import { validateOrigin } from "@/lib/origin-validator";
 
 // This endpoint only returns study metadata - NO user genetic data is processed here
@@ -19,16 +19,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Get study metadata from database (contains no user data)
-    const dbType = getDbType();
-
-    // NOTE: hashtext() is a 32-bit non-cryptographic hash with potential collision risk.
-    // Given the composite key (study_accession + snps + risk_allele + p_value + OR),
-    // collision probability is low in practice for GWAS catalog size.
-    // For high-security production, consider adding a stable UUID column during ingestion.
-    const idCondition = dbType === 'postgres'
-      ? 'hashtext(COALESCE(study_accession, \'\') || COALESCE(snps, \'\') || COALESCE(strongest_snp_risk_allele, \'\') || COALESCE(p_value, \'\') || COALESCE(or_or_beta::text, \'\')) = ?'
-      : 'rowid = ?';
-
     const query = `
       SELECT
         snps,
@@ -38,7 +28,7 @@ export async function POST(request: NextRequest) {
         study_accession,
         disease_trait
       FROM gwas_catalog
-      WHERE ${idCondition}
+      WHERE id = ?
       AND snps IS NOT NULL AND snps != ''
       AND strongest_snp_risk_allele IS NOT NULL AND strongest_snp_risk_allele != ''
       AND or_or_beta IS NOT NULL AND or_or_beta != ''

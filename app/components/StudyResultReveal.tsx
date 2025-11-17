@@ -16,9 +16,12 @@ type StudyResultRevealProps = {
   snps: string | null;
   traitName: string;
   studyTitle: string;
+  riskAllele?: string | null;
+  isAnalyzable?: boolean;
+  nonAnalyzableReason?: string;
 };
 
-export default function StudyResultReveal({ studyId, studyAccession, snps, traitName, studyTitle }: StudyResultRevealProps) {
+export default function StudyResultReveal({ studyId, studyAccession, snps, traitName, studyTitle, riskAllele, isAnalyzable, nonAnalyzableReason }: StudyResultRevealProps) {
   const { genotypeData, isUploaded } = useGenotype();
   const { addResult, hasResult, getResult, getResultByGwasId, resultsVersion } = useResults();
   const [result, setResult] = useState<UserStudyResult | null>(null);
@@ -92,7 +95,11 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
   };
 
   const analyzeStudy = async () => {
-    if (!genotypeData) return;
+    if (!genotypeData) {
+      console.error('[StudyResultReveal] No genotype data available');
+      setError('No genetic data loaded. Please upload your DNA file first.');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -136,7 +143,8 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
         data.study.confidenceBand || 'unknown'
       );
 
-      // Save the result if it has a match
+      // Save the result (including non-matches) so we don't re-analyze on reload
+      // For non-matches, we store minimal info to indicate "already checked, no match"
       if (analysisResult.hasMatch) {
         const savedResult: SavedResult = {
           studyId,
@@ -302,10 +310,33 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
     return null; // No data uploaded yet - don't show anything
   }
 
-  if (!hasMatchingSNPs(genotypeData, snps)) {
+  // Check if study is analyzable (has required data)
+  if (isAnalyzable === false) {
     return (
-      <div className="user-result no-match" title="Your genetic data file does not contain the SNP variants tested in this study.">
+      <div
+        className="user-result not-analyzable"
+        title={nonAnalyzableReason || 'This study cannot be analyzed due to missing data'}
+      >
+        ⚠️ {nonAnalyzableReason || 'Not analyzable'}
+      </div>
+    );
+  }
+
+  // LOOSE MODE: Show "Reveal your match" button if user has ANY SNP from the study
+  // Strict allele checking happens later in analyzeStudyClientSide() during actual calculation
+  if (!hasMatchingSNPs(genotypeData, snps, null, false)) {
+    return (
+      <div className="user-result no-match" title="Your genetic data file does not contain any of the SNP variants tested in this study.">
         No data
+      </div>
+    );
+  }
+
+  // Show error if analysis failed
+  if (error) {
+    return (
+      <div className="user-result error" title={error}>
+        Error: {error}
       </div>
     );
   }

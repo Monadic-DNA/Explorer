@@ -49,6 +49,8 @@ type Study = RawStudy & {
   isLowQuality: boolean;
   confidenceBand: ConfidenceBand;
   publicationDate: number | null;
+  isAnalyzable: boolean;
+  nonAnalyzableReason?: string;
 };
 
 function normalizeYear(value: string): number | null {
@@ -371,14 +373,7 @@ export async function GET(request: NextRequest) {
   }
 
   const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
-  // NOTE: hashtext() is a 32-bit non-cryptographic hash with potential collision risk.
-  // For production with high study volumes, consider migrating to a stable UUID column
-  // computed during data ingestion to eliminate collision probability.
-  // Current risk is low given GWAS catalog size (~hundreds of thousands of studies) and
-  // the composite key includes multiple discriminating fields (accession, SNPs, p-value, OR).
-  const idSelection = dbType === 'postgres'
-    ? 'hashtext(COALESCE(gc.study_accession, \'\') || COALESCE(gc.snps, \'\') || COALESCE(gc.strongest_snp_risk_allele, \'\') || COALESCE(gc.p_value, \'\') || COALESCE(gc.or_or_beta::text, \'\')) AS id'
-    : 'gc.rowid AS id';
+  const idSelection = 'gc.id';
 
   // Calculate rawLimit first (needed for HNSW candidate limit calculation)
   // Most filters now run in SQL, so we only need a small buffer for excludeLowQuality and confidenceBand
@@ -610,6 +605,21 @@ export async function GET(request: NextRequest) {
       const isLowQuality = hasMajorFlags; // Only major flags indicate truly low quality
       const confidenceBand = determineConfidenceBand(sampleSize, pValueNumeric, logPValue, qualityFlags);
       const publicationDate = parseStudyDate(row.date);
+
+      // Check if study is analyzable (has all required fields for risk calculation)
+      const isAnalyzable = !!(
+        row.snps && row.snps !== '' &&
+        row.or_or_beta && row.or_or_beta !== '' &&
+        row.strongest_snp_risk_allele && row.strongest_snp_risk_allele !== ''
+      );
+
+      const nonAnalyzableReason = !isAnalyzable
+        ? (!row.snps || row.snps === '' ? 'Missing SNP data' :
+           !row.or_or_beta || row.or_or_beta === '' ? 'Missing effect size (OR/beta)' :
+           !row.strongest_snp_risk_allele || row.strongest_snp_risk_allele === '' ? 'Missing risk allele' :
+           'Missing required data')
+        : undefined;
+
       return {
         ...row,
         sampleSize,
@@ -621,6 +631,8 @@ export async function GET(request: NextRequest) {
         isLowQuality,
         confidenceBand,
         publicationDate,
+        isAnalyzable,
+        nonAnalyzableReason,
       } satisfies Study;
     })
     .filter((row) => {
