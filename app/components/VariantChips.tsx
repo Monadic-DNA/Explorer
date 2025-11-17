@@ -1,7 +1,6 @@
 "use client";
 
 import { useGenotype } from "./UserDataUpload";
-import { parseVariantIds, getMatchingSNPs } from "@/lib/snp-utils";
 import { trackVariantClick } from "@/lib/analytics";
 import { CheckIcon } from "./Icons";
 
@@ -12,46 +11,36 @@ type VariantChipsProps = {
 
 export default function VariantChips({ snps, riskAllele }: VariantChipsProps) {
   const { genotypeData, isUploaded } = useGenotype();
-  const variantIds = parseVariantIds(snps);
-  const hasGenotype = riskAllele?.trim().length ?? 0 > 0;
 
-  const matchingSNPs = isUploaded && genotypeData ?
-    new Set(getMatchingSNPs(genotypeData, snps)) :
-    new Set();
+  // Extract SNP ID from risk allele (e.g., "rs7903146-T" -> "rs7903146")
+  const riskSnpId = riskAllele?.split('-')[0] || null;
+  const hasRiskAllele = riskSnpId !== null && riskSnpId.length > 0;
+
+  // Check if user has data for this specific risk SNP
+  const userHasData = isUploaded && genotypeData && riskSnpId ? genotypeData.has(riskSnpId) : false;
 
   return (
     <div className="variant-cell">
-      <div className="variant-chip-group" aria-label="SNP identifier">
-        {variantIds.length > 0 ? (
-          variantIds.map((variantId) => (
-            <a
-              key={variantId}
-              className={`variant-chip variant-link ${matchingSNPs.has(variantId) ? 'has-user-data' : ''}`}
-              href={`https://www.ncbi.nlm.nih.gov/snp/${encodeURIComponent(variantId)}`}
-              target="_blank"
-              rel="noreferrer"
-              title={matchingSNPs.has(variantId) ? 'You have data for this variant' : undefined}
-              onClick={() => trackVariantClick(variantId)}
-              aria-label={matchingSNPs.has(variantId) ? `${variantId} - You have data for this variant` : variantId}
-            >
-              {variantId}
-              {matchingSNPs.has(variantId) && (
-                <span className="user-data-indicator" aria-hidden="true">
-                  <CheckIcon size={12} />
-                </span>
-              )}
-            </a>
-          ))
-        ) : (
-          <span className="variant-chip variant-chip--placeholder">Not reported</span>
-        )}
-      </div>
-      <span
-        className={hasGenotype ? "variant-chip secondary" : "variant-chip variant-chip--placeholder"}
-        aria-label="Risk allele or genotype"
-      >
-        {hasGenotype ? riskAllele : "Not reported"}
-      </span>
+      {hasRiskAllele ? (
+        <a
+          className={`variant-chip variant-link ${userHasData ? 'has-user-data' : ''}`}
+          href={`https://www.ncbi.nlm.nih.gov/snp/${encodeURIComponent(riskSnpId)}`}
+          target="_blank"
+          rel="noreferrer"
+          title={userHasData ? `${riskAllele} - You have data for this variant` : riskAllele || undefined}
+          onClick={() => trackVariantClick(riskSnpId)}
+          aria-label={userHasData ? `${riskAllele} - You have data for this variant` : riskAllele || riskSnpId}
+        >
+          {riskAllele}
+          {userHasData && (
+            <span className="user-data-indicator" aria-hidden="true">
+              <CheckIcon size={12} />
+            </span>
+          )}
+        </a>
+      ) : (
+        <span className="variant-chip variant-chip--placeholder">Not reported</span>
+      )}
     </div>
   );
 }
