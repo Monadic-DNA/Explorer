@@ -205,7 +205,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -236,6 +236,15 @@ function MainContent() {
       localStorage.setItem('activeTab', activeTab);
     }
   }, [activeTab]);
+
+  // Initialize Dynamic.xyz when Premium tab is accessed
+  useEffect(() => {
+    if (activeTab === 'premium' && !isDynamicInitialized) {
+      console.log('[MainContent] Premium tab accessed, initializing Dynamic...');
+      initializeDynamic();
+    }
+  }, [activeTab, isDynamicInitialized, initializeDynamic]);
+
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
   const scrollPositionRef = useRef<number>(0);
@@ -1091,6 +1100,17 @@ function MainContent() {
       ) : (
         /* Premium Tab - 3 Features with LLM Chat Primary */
         <>
+        {/* Show loading state while Dynamic initializes */}
+        {!isDynamicInitialized ? (
+          <section className="premium-compact-header">
+            <div className="premium-header-content">
+              <div className="auth-prompt-inline">
+                <span>Loading premium features...</span>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <>
         {/* Account & Subscription Compact Header */}
         <section className="premium-compact-header">
           <div className="premium-header-content">
@@ -1286,6 +1306,8 @@ function MainContent() {
           {/* LLM Chat - Full Interface */}
           <LLMChatInline />
         </section>
+        </>
+        )}
         </>
       )}
       </main>
