@@ -50,16 +50,12 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
     };
   }, [result, studyId, studyAccession, traitName, studyTitle]);
 
-  // Check if we already have a saved result (check by studyAccession for Run All results, fallback to studyId)
-  // Memoize the actual saved result to avoid re-renders when unrelated results change
+  // Check if we already have a saved result
+  // Both individual reveals and Run All set studyId correctly, so we only need to check by studyId
+  // This prevents cross-contamination when multiple catalog rows share the same study_accession
   const savedResult = useMemo(() => {
-    // First try to find by studyAccession (gwasId) - used by Run All
-    const byGwasId = studyAccession ? getResultByGwasId(studyAccession) : undefined;
-    if (byGwasId) return byGwasId;
-
-    // Fallback to studyId for individually revealed results
     return hasResult(studyId) ? getResult(studyId) : undefined;
-  }, [studyId, studyAccession, resultsVersion, hasResult, getResult, getResultByGwasId]);
+  }, [studyId, resultsVersion, hasResult, getResult]);
 
   useEffect(() => {
     if (savedResult) {
