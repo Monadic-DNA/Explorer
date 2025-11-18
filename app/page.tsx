@@ -80,6 +80,8 @@ type Study = {
   confidenceBand: ConfidenceBand;
   publicationDate: number | null;
   similarity?: number; // Semantic search similarity score (0-1, higher is more similar)
+  isAnalyzable: boolean;
+  nonAnalyzableReason?: string;
 };
 
 type StudiesResponse = {
