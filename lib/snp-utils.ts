@@ -22,11 +22,47 @@ export function parseVariantIds(snps: string | null): string[] {
   return parsed;
 }
 
-export function hasMatchingSNPs(genotypeData: Map<string, string> | null, snps: string | null): boolean {
+export function hasMatchingSNPs(
+  genotypeData: Map<string, string> | null,
+  snps: string | null,
+  riskAllele?: string | null,
+  strictMode: boolean = false
+): boolean {
   if (!genotypeData || !snps) return false;
 
   const studySnps = parseVariantIds(snps);
-  return studySnps.some(snp => genotypeData.has(snp));
+
+  // LOOSE MODE (strictMode = false): Check if user has ANY SNP from the study
+  // Used by StudyResultReveal to determine if "Reveal your match" button should show
+  // Strict allele checking happens later during actual calculation
+  if (!strictMode) {
+    return studySnps.some(snp => genotypeData.has(snp));
+  }
+
+  // STRICT MODE (strictMode = true): Check if user has the SPECIFIC SNP with SPECIFIC allele
+  // Used by Explore tab "Only my variants" filter to only show studies where user has the exact match
+  if (!riskAllele) {
+    // No risk allele provided, fall back to loose matching
+    return studySnps.some(snp => genotypeData.has(snp));
+  }
+
+  // Extract the SNP ID and specific allele from risk allele (e.g., "rs57506806-G" -> ["rs57506806", "G"])
+  const riskAlleleParts = riskAllele.split('-');
+  const riskSnpId = riskAlleleParts[0];
+  const riskAlleleBase = riskAlleleParts[1];
+
+  if (!riskAlleleBase || riskAlleleBase.length !== 1) {
+    // Invalid risk allele format, fall back to SNP presence check
+    return studySnps.some(snp => genotypeData.has(snp));
+  }
+
+  // Check if user has the specific SNP mentioned in the risk allele
+  // AND carries that specific allele
+  const userGenotype = genotypeData.get(riskSnpId);
+  if (!userGenotype) return false;
+
+  // User must have the specific allele for the specific SNP
+  return userGenotype.includes(riskAlleleBase);
 }
 
 export function getMatchingSNPs(genotypeData: Map<string, string> | null, snps: string | null): string[] {

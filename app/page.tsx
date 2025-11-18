@@ -80,6 +80,8 @@ type Study = {
   confidenceBand: ConfidenceBand;
   publicationDate: number | null;
   similarity?: number; // Semantic search similarity score (0-1, higher is more similar)
+  isAnalyzable: boolean;
+  nonAnalyzableReason?: string;
 };
 
 type StudiesResponse = {
@@ -205,7 +207,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -236,6 +238,15 @@ function MainContent() {
       localStorage.setItem('activeTab', activeTab);
     }
   }, [activeTab]);
+
+  // Initialize Dynamic.xyz when Premium tab is accessed
+  useEffect(() => {
+    if (activeTab === 'premium' && !isDynamicInitialized) {
+      console.log('[MainContent] Premium tab accessed, initializing Dynamic...');
+      initializeDynamic();
+    }
+  }, [activeTab, isDynamicInitialized, initializeDynamic]);
+
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
   const scrollPositionRef = useRef<number>(0);
@@ -383,8 +394,8 @@ function MainContent() {
         // Client-side filtering for user SNPs
         if (apiFilters.requireUserSNPs && genotypeData) {
           filteredData = filteredData.filter(study => {
-            // First check if study has matching SNPs with user data
-            const hasUserSNPs = hasMatchingSNPs(genotypeData, study.snps);
+            // STRICT MODE: Only show studies where user has the specific SNP with the specific allele
+            const hasUserSNPs = hasMatchingSNPs(genotypeData, study.snps, study.strongest_snp_risk_allele, true);
             if (!hasUserSNPs) return false;
 
             // If "Require genotype" is also enabled, ensure the study has genotype data
@@ -1042,6 +1053,9 @@ function MainContent() {
                         snps={study.snps}
                         traitName={trait}
                         studyTitle={study.study || "Untitled study"}
+                        riskAllele={study.strongest_snp_risk_allele}
+                        isAnalyzable={study.isAnalyzable}
+                        nonAnalyzableReason={study.nonAnalyzableReason}
                       />
                     </td>
                   </tr>
@@ -1091,6 +1105,17 @@ function MainContent() {
       ) : (
         /* Premium Tab - 3 Features with LLM Chat Primary */
         <>
+        {/* Show loading state while Dynamic initializes */}
+        {!isDynamicInitialized ? (
+          <section className="premium-compact-header">
+            <div className="premium-header-content">
+              <div className="auth-prompt-inline">
+                <span>Loading premium features...</span>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <>
         {/* Account & Subscription Compact Header */}
         <section className="premium-compact-header">
           <div className="premium-header-content">
@@ -1286,6 +1311,8 @@ function MainContent() {
           {/* LLM Chat - Full Interface */}
           <LLMChatInline />
         </section>
+        </>
+        )}
         </>
       )}
       </main>

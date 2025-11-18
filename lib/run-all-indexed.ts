@@ -25,7 +25,7 @@ export async function runAllAnalysisIndexed(
   if (!metadata) {
     // Download and cache catalog
     await gwasDB.downloadAndStore(
-      'https://monadoc-dna-explorer.nyc3.digitaloceanspaces.com/gwas_catalog_v1.0.2-associations_e115_r2025-09-15.tsv.gz',
+      'https://monadic-dna-explorer.nyc3.digitaloceanspaces.com/gwas_catalog_20251117.tsv.gz',
       (progress) => {
         const elapsedSeconds = (Date.now() - startTime) / 1000;
         onProgress({
@@ -103,87 +103,85 @@ export async function runAllAnalysisIndexed(
       // Quick filter: check if has SNPs matching user
       if (!study.snps) continue;
 
-      const snpList = study.snps.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
-      const hasMatch = snpList.some(snp => genotypeData.has(snp));
-
-      if (!hasMatch) continue;
-
       // Skip if no risk allele or effect size
       if (!study.strongest_snp_risk_allele || !study.or_or_beta) continue;
 
-      // Perform analysis
-      for (const snp of snpList) {
-        if (genotypeData.has(snp)) {
-          const userGenotype = genotypeData.get(snp)!;
+      // CRITICAL FIX: Extract BOTH SNP ID and allele from risk allele
+      // Only match if user has the SPECIFIC SNP with the SPECIFIC allele
+      const riskAlleleParts = study.strongest_snp_risk_allele.split('-');
+      const riskSnpId = riskAlleleParts[0];
+      const riskAlleleBase = riskAlleleParts[1];
 
-          // Basic genotype validation
-          if (!/^[ACGT]{2}$/.test(userGenotype)) continue;
+      if (!riskSnpId || !riskAlleleBase) continue;
 
-          // Calculate risk score using proper logic
-          const riskAllele = study.strongest_snp_risk_allele.split('-').pop() || '';
-          const riskAlleleCount = userGenotype.split('').filter(a => a === riskAllele).length;
-          const effectValue = parseFloat(study.or_or_beta);
+      // Check if user has the specific SNP mentioned in the risk allele
+      const userGenotype = genotypeData.get(riskSnpId);
+      if (!userGenotype) continue;
 
-          // Detect effect type (beta coefficient vs odds ratio)
-          // Beta coefficients have "increase" or "decrease" in CI text
-          // e.g., "[NR] unit increase", "[0.0068-0.0139] unit increase", "[112.27-112.33] increase"
-          // Odds ratios are just numbers: e.g., "[1.08-1.15]"
-          const ciTextLower = study.ci_text?.toLowerCase() ?? '';
-          const isBeta = ciTextLower.includes('increase') || ciTextLower.includes('decrease');
-          const effectType: 'OR' | 'beta' = isBeta ? 'beta' : 'OR';
+      // Check if user has the specific allele for this SNP
+      if (!userGenotype.includes(riskAlleleBase)) continue;
 
-          // Debug logging for lentiform nucleus
-          if (study.disease_trait?.toLowerCase().includes('lentiform')) {
+      // Perform analysis (now we know user has the correct SNP with the correct allele)
+      // Basic genotype validation
+      if (!/^[ACGT]{2}$/.test(userGenotype)) continue;
+
+      // Calculate risk score using the validated genotype
+      const riskAlleleCount = userGenotype.split('').filter(a => a === riskAlleleBase).length;
+      const effectValue = parseFloat(study.or_or_beta);
+
+      // Detect effect type (beta coefficient vs odds ratio)
+      // Beta coefficients have "increase" or "decrease" in CI text
+      // e.g., "[NR] unit increase", "[0.0068-0.0139] unit increase", "[112.27-112.33] increase"
+      // Odds ratios are just numbers: e.g., "[1.08-1.15]"
+      const ciTextLower = study.ci_text?.toLowerCase() ?? '';
+      const isBeta = ciTextLower.includes('increase') || ciTextLower.includes('decrease');
+      const effectType: 'OR' | 'beta' = isBeta ? 'beta' : 'OR';
+
+      let riskScore = 1.0;
+      let riskLevel: 'increased' | 'decreased' | 'neutral' = 'neutral';
+
+      if (!isNaN(effectValue) && effectValue !== 0) {
+        if (effectType === 'OR') {
+          // Odds ratio logic
+          if (riskAlleleCount === 0) {
+            riskScore = 1.0;
+            riskLevel = 'neutral';
+          } else {
+            riskScore = Math.pow(effectValue, riskAlleleCount);
+            riskLevel = effectValue > 1 ? 'increased' : effectValue < 1 ? 'decreased' : 'neutral';
           }
-
-          let riskScore = 1.0;
-          let riskLevel: 'increased' | 'decreased' | 'neutral' = 'neutral';
-
-          if (!isNaN(effectValue) && effectValue !== 0) {
-            if (effectType === 'OR') {
-              // Odds ratio logic
-              if (riskAlleleCount === 0) {
-                riskScore = 1.0;
-                riskLevel = 'neutral';
-              } else {
-                riskScore = Math.pow(effectValue, riskAlleleCount);
-                riskLevel = effectValue > 1 ? 'increased' : effectValue < 1 ? 'decreased' : 'neutral';
-              }
-            } else {
-              // Beta coefficient logic - store actual beta value
-              riskScore = effectValue * riskAlleleCount;
-              if (riskAlleleCount === 0) {
-                riskLevel = 'neutral';
-              } else {
-                riskLevel = effectValue > 0 ? 'increased' : effectValue < 0 ? 'decreased' : 'neutral';
-              }
-            }
+        } else {
+          // Beta coefficient logic - store actual beta value
+          riskScore = effectValue * riskAlleleCount;
+          if (riskAlleleCount === 0) {
+            riskLevel = 'neutral';
+          } else {
+            riskLevel = effectValue > 0 ? 'increased' : effectValue < 0 ? 'decreased' : 'neutral';
           }
-
-          if (!hasResult(study.id)) {
-            allResults.push({
-              studyId: study.id,
-              gwasId: study.study_accession || '',
-              traitName: study.disease_trait || 'Unknown trait',
-              studyTitle: study.study || 'Unknown study',
-              userGenotype,
-              riskAllele: study.strongest_snp_risk_allele,
-              effectSize: study.or_or_beta,
-              effectType,
-              riskScore,
-              riskLevel,
-              matchedSnp: snp,
-              analysisDate: new Date().toISOString(),
-              pValue: study.p_value || undefined,
-              pValueMlog: study.pvalue_mlog || undefined,
-              mappedGene: study.mapped_gene || undefined,
-              sampleSize: study.initial_sample_size || undefined,
-              replicationSampleSize: study.replication_sample_size || undefined,
-            });
-            totalMatchCount++;
-          }
-          break; // Only first match per study
         }
+      }
+
+      if (!hasResult(study.id)) {
+        allResults.push({
+          studyId: study.id,
+          gwasId: study.study_accession || '',
+          traitName: study.disease_trait || 'Unknown trait',
+          studyTitle: study.study || 'Unknown study',
+          userGenotype,
+          riskAllele: study.strongest_snp_risk_allele,
+          effectSize: study.or_or_beta,
+          effectType,
+          riskScore,
+          riskLevel,
+          matchedSnp: riskSnpId,
+          analysisDate: new Date().toISOString(),
+          pValue: study.p_value || undefined,
+          pValueMlog: study.pvalue_mlog || undefined,
+          mappedGene: study.mapped_gene || undefined,
+          sampleSize: study.initial_sample_size || undefined,
+          replicationSampleSize: study.replication_sample_size || undefined,
+        });
+        totalMatchCount++;
       }
     }
 

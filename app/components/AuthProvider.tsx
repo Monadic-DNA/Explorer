@@ -20,6 +20,8 @@ interface AuthContextType {
   checkingSubscription: boolean;
   subscriptionData: SubscriptionData | null;
   refreshSubscription: () => Promise<void>;
+  initializeDynamic: () => void;
+  isDynamicInitialized: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,17 +31,18 @@ const AuthContext = createContext<AuthContextType>({
   checkingSubscription: true,
   subscriptionData: null,
   refreshSubscription: async () => {},
+  initializeDynamic: () => {},
+  isDynamicInitialized: false,
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 // Inner component to sync Dynamic context with Auth context
+// NOTE: No longer automatically checks subscription - must be triggered manually
 function AuthStateSync({
   onAuthStateChange,
-  onCheckSubscription,
 }: {
   onAuthStateChange: (isAuth: boolean, user: any) => void;
-  onCheckSubscription: (walletAddress: string) => Promise<void>;
 }) {
   const { user: dynamicUser } = useDynamicContext();
 
@@ -54,18 +57,7 @@ function AuthStateSync({
 
     // Sync Dynamic's auth state with our context
     onAuthStateChange(isAuth, dynamicUser);
-
-    // If we have a user with wallet address, check subscription
-    if (dynamicUser) {
-      const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address;
-      if (walletAddress) {
-        console.log('[AuthStateSync] Checking subscription for wallet:', walletAddress);
-        onCheckSubscription(walletAddress);
-      } else {
-        console.warn('[AuthStateSync] User exists but no wallet address found');
-      }
-    }
-  }, [dynamicUser, onAuthStateChange, onCheckSubscription]);
+  }, [dynamicUser, onAuthStateChange]);
 
   return null;
 }
@@ -75,7 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
-  const [checkingSubscription, setCheckingSubscription] = useState(true);
+  const [checkingSubscription, setCheckingSubscription] = useState(false); // Changed default to false
+  const [isDynamicInitialized, setIsDynamicInitialized] = useState(false);
 
   // If environment ID is not set, render without Dynamic (useful for CI/CD builds)
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
@@ -128,12 +121,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // On mount, if no user is authenticated, stop checking subscription
-  useEffect(() => {
-    if (!isAuthenticated && !user) {
-      setCheckingSubscription(false);
+  // Initialize Dynamic and trigger subscription check
+  const initializeDynamic = useCallback(() => {
+    if (!isDynamicEnabled) {
+      console.log('[AuthProvider] Dynamic not enabled (missing environment ID)');
+      return;
     }
-  }, [isAuthenticated, user]);
+
+    if (isDynamicInitialized) {
+      console.log('[AuthProvider] Dynamic already initialized');
+      return;
+    }
+
+    console.log('[AuthProvider] Initializing Dynamic...');
+    setIsDynamicInitialized(true);
+
+    // If we already have a user (from previous session), check subscription
+    if (user) {
+      const walletAddress = user?.verifiedCredentials?.[0]?.address;
+      if (walletAddress) {
+        console.log('[AuthProvider] Checking subscription for existing user:', walletAddress);
+        checkSubscription(walletAddress);
+      }
+    }
+  }, [isDynamicEnabled, isDynamicInitialized, user, checkSubscription]);
 
   const handleAuthStateChange = useCallback((isAuth: boolean, dynamicUser: any) => {
     console.log('[AuthProvider] Auth state changed:', { isAuth, hasUser: !!dynamicUser, userAddress: dynamicUser?.verifiedCredentials?.[0]?.address });
@@ -145,8 +156,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHasActiveSubscription(false);
       setSubscriptionData(null);
       setCheckingSubscription(false);
+    } else if (dynamicUser && isDynamicInitialized) {
+      // User logged in and Dynamic is initialized, check subscription
+      const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address;
+      if (walletAddress) {
+        console.log('[AuthProvider] User logged in, checking subscription:', walletAddress);
+        checkSubscription(walletAddress);
+      }
     }
-  }, []);
+  }, [isDynamicInitialized, checkSubscription]);
 
   // If Dynamic is not enabled (no environment ID), render children with default auth context
   if (!isDynamicEnabled) {
@@ -159,6 +177,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           checkingSubscription: false,
           subscriptionData: null,
           refreshSubscription: async () => {},
+          initializeDynamic: () => {},
+          isDynamicInitialized: false,
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
+  // Render without Dynamic until explicitly initialized
+  if (!isDynamicInitialized) {
+    return (
+      <AuthContext.Provider
+        value={{
+          isAuthenticated,
+          user,
+          hasActiveSubscription,
+          checkingSubscription,
+          subscriptionData,
+          refreshSubscription,
+          initializeDynamic,
+          isDynamicInitialized,
         }}
       >
         {children}
@@ -184,7 +224,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     >
       <AuthStateSync
         onAuthStateChange={handleAuthStateChange}
-        onCheckSubscription={checkSubscription}
       />
       <AuthContext.Provider
         value={{
@@ -194,6 +233,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           checkingSubscription,
           subscriptionData,
           refreshSubscription,
+          initializeDynamic,
+          isDynamicInitialized,
         }}
       >
         {children}
@@ -203,10 +244,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function AuthButton() {
-  const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
+  const { isDynamicInitialized } = useAuth();
 
-  // Don't render widget if Dynamic is not enabled
-  if (!environmentId) {
+  // Don't render widget if Dynamic is not initialized yet
+  if (!isDynamicInitialized) {
     return null;
   }
 

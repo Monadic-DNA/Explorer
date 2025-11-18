@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { executeQuerySingle, getDbType } from '@/lib/db';
+import { executeQuerySingle } from '@/lib/db';
 import { validateOrigin } from '@/lib/origin-validator';
 
 export async function GET(request: NextRequest) {
@@ -18,11 +18,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const dbType = getDbType();
-    const idCondition = dbType === 'postgres'
-      ? 'hashtext(COALESCE(study_accession, \'\') || COALESCE(snps, \'\') || COALESCE(strongest_snp_risk_allele, \'\') || COALESCE(p_value, \'\') || COALESCE(or_or_beta::text, \'\')) = ?'
-      : 'rowid = ?';
-
     const query = `
       SELECT
         initial_sample_size,
@@ -35,7 +30,7 @@ export async function GET(request: NextRequest) {
         date,
         journal
       FROM gwas_catalog
-      WHERE ${idCondition}
+      WHERE id = ?
     `;
 
     const metadata = await executeQuerySingle<{
