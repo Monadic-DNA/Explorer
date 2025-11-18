@@ -1,8 +1,8 @@
 /**
- * Google Analytics Event Tracking
+ * Simplified User Journey Analytics
  *
- * Privacy-compliant event tracking for user behavior insights.
- * All events are anonymized and contain no PII.
+ * Tracks only the core user journey milestones.
+ * Privacy-compliant with no PII tracking.
  */
 
 // Extend Window interface to include gtag
@@ -31,218 +31,201 @@ function trackEvent(eventName: string, params?: Record<string, any>) {
 }
 
 // ============================================================================
-// FILE OPERATIONS
+// CORE USER JOURNEY EVENTS (12 total)
 // ============================================================================
 
-export function trackFileUploadStart(fileSize: number, fileExtension: string) {
-  trackEvent('file_upload_start', {
-    file_size_kb: Math.round(fileSize / 1024),
-    file_extension: fileExtension.toLowerCase(),
-  });
-}
-
-export function trackFileUploadSuccess(
-  fileSize: number,
-  variantCount: number,
-  parseDuration: number
-) {
-  trackEvent('file_upload_success', {
-    file_size_kb: Math.round(fileSize / 1024),
-    variant_count: variantCount,
-    parse_duration_ms: Math.round(parseDuration),
-  });
-}
-
-export function trackFileUploadError(error: string, fileSize?: number) {
-  trackEvent('file_upload_error', {
-    error_type: error.substring(0, 100), // Limit length
-    file_size_kb: fileSize ? Math.round(fileSize / 1024) : undefined,
-  });
-}
-
-export function trackFileCleared() {
-  trackEvent('file_cleared');
-}
-
-// ============================================================================
-// SEARCH & FILTERS
-// ============================================================================
-
-export function trackSearch(query: string, resultCount: number, loadTime: number) {
-  // Anonymize query - only track length and result count
-  trackEvent('search', {
-    query_length: query.length,
-    result_count: resultCount,
-    load_time_ms: Math.round(loadTime),
-  });
-}
-
-export function trackFilterChange(
-  filterType: string,
-  filterValue: string | number | boolean
-) {
-  const sanitizedValue =
-    typeof filterValue === 'string'
-      ? filterValue.substring(0, 50) // Limit string length
-      : filterValue;
-
-  trackEvent('filter_change', {
-    filter_type: filterType,
-    filter_value: String(sanitizedValue),
-  });
-}
-
-export function trackFilterReset() {
-  trackEvent('filter_reset');
-}
-
-export function trackSort(sortBy: string, direction: string) {
-  trackEvent('sort_change', {
-    sort_by: sortBy,
-    direction,
-  });
-}
-
-// ============================================================================
-// STUDY INTERACTIONS
-// ============================================================================
-
-export function trackStudyClick(
-  studyAccession: string | null,
-  trait: string | null,
-  confidenceBand: string
-) {
-  trackEvent('study_click', {
-    has_accession: !!studyAccession,
-    trait_category: trait?.substring(0, 50) || 'unknown',
-    confidence_band: confidenceBand,
-  });
-}
-
-export function trackStudyResultReveal(
-  hasUserData: boolean,
-  matchCount: number,
-  confidenceBand: string
-) {
-  trackEvent('study_result_reveal', {
-    has_user_data: hasUserData,
-    match_count: matchCount,
-    confidence_band: confidenceBand,
-  });
-}
-
-export function trackVariantClick(rsid: string) {
-  trackEvent('variant_click', {
-    rsid,
-  });
-}
-
-// ============================================================================
-// MODAL INTERACTIONS
-// ============================================================================
-
-export function trackModalOpen(modalName: string) {
-  trackEvent('modal_open', {
-    modal_name: modalName,
-  });
-}
-
-export function trackModalClose(modalName: string, action: 'accept' | 'decline' | 'dismiss') {
-  trackEvent('modal_close', {
-    modal_name: modalName,
-    action,
-  });
-}
-
-export function trackTermsAcceptance() {
+/**
+ * User accepted terms and moved past initial modal
+ */
+export function trackTermsAccepted() {
   trackEvent('terms_accepted');
 }
 
-export function trackDisclaimerView() {
-  trackEvent('disclaimer_viewed');
+/**
+ * User ran a search query to find studies
+ */
+export function trackQueryRun(resultCount: number) {
+  trackEvent('query_run', {
+    result_count: resultCount,
+  });
 }
 
-export function trackAIConsentGiven() {
-  trackEvent('ai_consent_given');
+/**
+ * User revealed/analyzed a study match
+ */
+export function trackMatchRevealed(hasUserData: boolean, matchCount: number) {
+  trackEvent('match_revealed', {
+    has_user_data: hasUserData,
+    match_count: matchCount,
+  });
 }
 
-export function trackAIConsentDeclined() {
-  trackEvent('ai_consent_declined');
+/**
+ * User ran AI analysis on a specific match
+ */
+export function trackAIAnalysisRun() {
+  trackEvent('ai_analysis_run');
+}
+
+/**
+ * User loaded a genotype file (DNA data)
+ */
+export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) {
+  trackEvent('genotype_file_loaded', {
+    file_size_kb: Math.round(fileSize / 1024),
+    variant_count: variantCount,
+  });
+}
+
+/**
+ * User loaded a previously saved results file
+ */
+export function trackResultsFileLoaded(resultCount: number) {
+  trackEvent('results_file_loaded', {
+    result_count: resultCount,
+  });
+}
+
+/**
+ * User saved their results to a file
+ */
+export function trackResultsFileSaved(resultCount: number) {
+  trackEvent('results_file_saved', {
+    result_count: resultCount,
+  });
+}
+
+/**
+ * User navigated to the Premium section
+ */
+export function trackPremiumSectionViewed() {
+  trackEvent('premium_section_viewed');
+}
+
+/**
+ * User logged in using Dynamic wallet authentication
+ */
+export function trackUserLoggedIn() {
+  trackEvent('user_logged_in');
+}
+
+/**
+ * User clicked "Run All" to analyze all studies
+ */
+export function trackRunAllStarted(studyCount: number) {
+  trackEvent('run_all_started', {
+    study_count: studyCount,
+  });
+}
+
+/**
+ * User asked the LLM a question in chat
+ */
+export function trackLLMQuestionAsked() {
+  trackEvent('llm_question_asked');
+}
+
+/**
+ * User generated an Overview Report
+ */
+export function trackOverviewReportGenerated(resultCount: number) {
+  trackEvent('overview_report_generated', {
+    result_count: resultCount,
+  });
+}
+
+/**
+ * User subscribed using a promo code
+ */
+export function trackSubscribedWithPromoCode(promoCode: string) {
+  trackEvent('subscribed_promo_code', {
+    promo_code: promoCode,
+  });
+}
+
+/**
+ * User subscribed with credit card payment
+ */
+export function trackSubscribedWithCreditCard(durationDays: number) {
+  trackEvent('subscribed_credit_card', {
+    duration_days: durationDays,
+  });
+}
+
+/**
+ * User subscribed with stablecoin payment
+ */
+export function trackSubscribedWithStablecoin(durationDays: number) {
+  trackEvent('subscribed_stablecoin', {
+    duration_days: durationDays,
+  });
+}
+
+/**
+ * User updated their personalization settings
+ */
+export function trackPersonalizationUpdated() {
+  trackEvent('personalization_updated');
+}
+
+/**
+ * User switched AI provider
+ */
+export function trackAIProviderSwitched(newProvider: string) {
+  trackEvent('ai_provider_switched', {
+    provider: newProvider,
+  });
 }
 
 // ============================================================================
-// LLM ANALYSIS
+// DEPRECATED FUNCTIONS (for backwards compatibility during migration)
+// These will be removed once all components are updated
 // ============================================================================
 
+/** @deprecated Use trackGenotypeFileLoaded instead */
+export function trackFileUploadSuccess(fileSize: number, variantCount: number) {
+  trackGenotypeFileLoaded(fileSize, variantCount);
+}
+
+/** @deprecated Use trackQueryRun instead */
+export function trackSearch(query: string, resultCount: number, loadTime: number) {
+  trackQueryRun(resultCount);
+}
+
+/** @deprecated Use trackMatchRevealed instead */
+export function trackStudyResultReveal(hasUserData: boolean, matchCount: number, confidenceBand: string) {
+  trackMatchRevealed(hasUserData, matchCount);
+}
+
+/** @deprecated Use trackAIAnalysisRun instead */
 export function trackAIAnalysisStart(studyCount: number) {
-  trackEvent('llm_analysis_start', {
-    study_count: studyCount,
-  });
+  trackAIAnalysisRun();
 }
 
-export function trackAIAnalysisSuccess(duration: number, studyCount: number) {
-  trackEvent('llm_analysis_success', {
-    duration_ms: Math.round(duration),
-    study_count: studyCount,
-  });
+/** @deprecated Use trackTermsAccepted instead */
+export function trackTermsAcceptance() {
+  trackTermsAccepted();
 }
 
-export function trackAIAnalysisError(error: string) {
-  trackEvent('llm_analysis_error', {
-    error_type: error.substring(0, 100),
-  });
-}
-
-// ============================================================================
-// PERFORMANCE METRICS
-// ============================================================================
-
-export function trackAPITiming(endpoint: string, duration: number, success: boolean) {
-  trackEvent('api_timing', {
-    endpoint,
-    duration_ms: Math.round(duration),
-    success,
-  });
-}
-
-export function trackPageLoad(loadTime: number) {
-  trackEvent('page_load', {
-    load_time_ms: Math.round(loadTime),
-  });
-}
-
-// ============================================================================
-// FEATURE USAGE
-// ============================================================================
-
-export function trackFeatureToggle(featureName: string, enabled: boolean) {
-  trackEvent('feature_toggle', {
-    feature: featureName,
-    enabled,
-  });
-}
-
-export function trackExport(exportType: string, itemCount: number) {
-  trackEvent('export', {
-    export_type: exportType,
-    item_count: itemCount,
-  });
-}
-
-// ============================================================================
-// USER JOURNEY
-// ============================================================================
-
-export function trackUserJourneyStep(step: string, metadata?: Record<string, any>) {
-  trackEvent('user_journey', {
-    step,
-    ...metadata,
-  });
-}
-
-export function trackEngagement(action: string, value?: number) {
-  trackEvent('engagement', {
-    action,
-    value,
-  });
-}
+// Stub out removed functions to prevent errors during migration
+export function trackFileUploadStart() {}
+export function trackFileUploadError() {}
+export function trackFileCleared() {}
+export function trackFilterChange() {}
+export function trackFilterReset() {}
+export function trackSort() {}
+export function trackStudyClick() {}
+export function trackVariantClick() {}
+export function trackModalOpen() {}
+export function trackModalClose() {}
+export function trackDisclaimerView() {}
+export function trackAIConsentGiven() {}
+export function trackAIConsentDeclined() {}
+export function trackAIAnalysisSuccess() {}
+export function trackAIAnalysisError() {}
+export function trackAPITiming() {}
+export function trackPageLoad() {}
+export function trackFeatureToggle() {}
+export function trackExport() {}
+export function trackUserJourneyStep() {}
+export function trackEngagement() {}

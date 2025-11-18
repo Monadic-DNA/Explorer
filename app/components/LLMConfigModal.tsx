@@ -9,6 +9,7 @@ import {
   saveLLMConfig,
   isConfigValid,
 } from "@/lib/llm-config";
+import { trackAIProviderSwitched } from "@/lib/analytics";
 
 type LLMConfigModalProps = {
   isOpen: boolean;
@@ -19,11 +20,14 @@ type LLMConfigModalProps = {
 export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigModalProps) {
   const [config, setConfig] = useState<LLMConfig>(getLLMConfig());
   const [showApiKey, setShowApiKey] = useState(false);
+  const [initialProvider, setInitialProvider] = useState<LLMProvider>(getLLMConfig().provider);
 
   useEffect(() => {
     if (isOpen) {
-      // Reload config when modal opens
-      setConfig(getLLMConfig());
+      // Reload config when modal opens and track initial provider
+      const currentConfig = getLLMConfig();
+      setConfig(currentConfig);
+      setInitialProvider(currentConfig.provider);
     }
   }, [isOpen]);
 
@@ -35,6 +39,12 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
     }
 
     saveLLMConfig(config);
+
+    // Track if provider was changed
+    if (config.provider !== initialProvider) {
+      trackAIProviderSwitched(config.provider);
+    }
+
     onSave?.();
     onClose();
   };

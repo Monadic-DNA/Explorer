@@ -1,7 +1,6 @@
 "use client";
 
 import { useGenotype } from "./UserDataUpload";
-import { trackVariantClick } from "@/lib/analytics";
 import { CheckIcon } from "./Icons";
 
 type VariantChipsProps = {
@@ -28,7 +27,6 @@ export default function VariantChips({ snps, riskAllele }: VariantChipsProps) {
           target="_blank"
           rel="noreferrer"
           title={userHasData ? `${riskAllele} - You have data for this variant` : riskAllele || undefined}
-          onClick={() => trackVariantClick(riskSnpId)}
           aria-label={userHasData ? `${riskAllele} - You have data for this variant` : riskAllele || riskSnpId}
         >
           {riskAllele}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { trackModalOpen, trackAIConsentGiven, trackAIConsentDeclined } from "@/lib/analytics";
+import { useEffect } from "react";
 
 type NilAIConsentModalProps = {
   isOpen: boolean;
@@ -14,11 +13,7 @@ export default function NilAIConsentModal({
   onAccept,
   onDecline,
 }: NilAIConsentModalProps) {
-  useEffect(() => {
-    if (isOpen) {
-      trackModalOpen('ai_consent');
-    }
-  }, [isOpen]);
+  // Removed modal tracking - not needed for simplified analytics
 
   if (!isOpen) return null;
 
@@ -93,7 +88,6 @@ export default function NilAIConsentModal({
           <button
             className="secondary"
             onClick={() => {
-              trackAIConsentDeclined();
               onDecline();
             }}
           >
@@ -102,7 +96,6 @@ export default function NilAIConsentModal({
           <button
             className="primary"
             onClick={() => {
-              trackAIConsentGiven();
               onAccept();
             }}
           >

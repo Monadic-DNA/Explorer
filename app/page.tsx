@@ -21,12 +21,8 @@ import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
 import {
   trackSearch,
-  trackFilterChange,
-  trackFilterReset,
-  trackSort,
-  trackStudyClick,
-  trackFeatureToggle,
-  trackAPITiming,
+  trackRunAllStarted,
+  trackQueryRun,
 } from "@/lib/analytics";
 
 type SortOption = "relevance" | "power" | "recent" | "alphabetical";
@@ -324,10 +320,7 @@ function MainContent() {
         next.offset = 0;
       }
 
-      // Track filter changes (with debouncing for search handled separately)
-      if (key !== 'search' && value !== null) {
-        trackFilterChange(key, value);
-      }
+      // Filter tracking removed for simplified analytics
 
       return next;
     });
@@ -378,16 +371,12 @@ function MainContent() {
 
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          trackAPITiming('/api/studies', apiDuration, false);
           throw new Error(payload.error ?? "Failed to load studies");
         }
         const payload = (await response.json()) as StudiesResponse;
         if (payload.error) {
-          trackAPITiming('/api/studies', apiDuration, false);
           throw new Error(payload.error);
         }
-
-        trackAPITiming('/api/studies', apiDuration, true);
 
         let filteredData = payload.data ?? [];
 
@@ -479,7 +468,6 @@ function MainContent() {
   const resetFilters = () => {
     setFilters(defaultFilters);
     setDebouncedSearch(defaultFilters.search);
-    trackFilterReset();
   };
 
 
@@ -496,9 +484,6 @@ function MainContent() {
       updateFilter("sort", sortKey);
       updateFilter("sortDirection", newDirection);
     }
-
-    // Track sort change
-    trackSort(sortKey, newDirection);
   };
 
   const handleStudyColumnSort = () => {
@@ -509,7 +494,6 @@ function MainContent() {
       // Toggle direction for recent
       const newDirection = filters.sortDirection === "asc" ? "desc" : "asc";
       updateFilter("sortDirection", newDirection);
-      trackSort("recent", newDirection);
     } else {
       // Start with alphabetical
       handleColumnSort("alphabetical");
@@ -566,6 +550,9 @@ function MainContent() {
       startTime,
     });
     setRunAllProgress({ current: 0, total: 0 });
+
+    // Track Run All started (with estimated study count)
+    trackRunAllStarted(metadata?.totalStudies || 0);
 
     try {
       // Check if genotype data is loaded
@@ -978,7 +965,6 @@ function MainContent() {
                             href={studyLink}
                             target="_blank"
                             rel="noreferrer"
-                            onClick={() => trackStudyClick(study.study_accession, trait, study.confidenceBand)}
                           >
                             {study.study ?? "Untitled study"}
                           </a>

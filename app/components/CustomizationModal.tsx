@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useCustomization, UserCustomization } from "./CustomizationContext";
+import { trackPersonalizationUpdated } from "@/lib/analytics";
 
 type CustomizationModalProps = {
   isOpen: boolean;
@@ -137,6 +138,10 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
       };
 
       await saveCustomization(data, password);
+
+      // Track personalization update
+      trackPersonalizationUpdated();
+
       // Don't close - let user decide with buttons
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save customization');

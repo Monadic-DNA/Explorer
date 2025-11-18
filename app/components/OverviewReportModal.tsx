@@ -6,6 +6,7 @@ import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { trackOverviewReportGenerated } from "@/lib/analytics";
 
 type GenerationPhase = 'idle' | 'map' | 'reduce' | 'complete' | 'error';
 
@@ -90,6 +91,8 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
           if (update.phase === 'complete') {
             clearInterval(timerInterval);
             setIsGenerating(false);
+            // Track overview report generation
+            trackOverviewReportGenerated(savedResults.length);
           } else if (update.phase === 'error') {
             clearInterval(timerInterval);
             setIsGenerating(false);

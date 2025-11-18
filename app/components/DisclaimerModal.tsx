@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { trackModalOpen, trackModalClose, trackDisclaimerView } from "@/lib/analytics";
 
 type DisclaimerModalProps = {
   isOpen: boolean;
@@ -21,8 +20,7 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
 
   useEffect(() => {
     if (isOpen) {
-      trackModalOpen(type === 'initial' ? 'disclaimer_initial' : 'disclaimer_result');
-      trackDisclaimerView();
+      // Removed granular modal tracking - no longer needed
     } else {
       setHasScrolledToBottom(false);
     }
@@ -99,7 +97,6 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
         <button
           className="disclaimer-button primary"
           onClick={() => {
-            trackModalClose('disclaimer_initial', 'accept');
             if (onAccept) {
               onAccept();
             } else {
@@ -150,7 +147,6 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
         <button
           className="disclaimer-button secondary"
           onClick={() => {
-            trackModalClose('disclaimer_result', 'decline');
             onClose();
           }}
         >
@@ -159,7 +155,6 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
         <button
           className="disclaimer-button primary"
           onClick={() => {
-            trackModalClose('disclaimer_result', 'accept');
             (onAccept || onClose)();
           }}
           disabled={!hasScrolledToBottom}
