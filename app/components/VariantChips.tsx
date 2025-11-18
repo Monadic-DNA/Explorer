@@ -27,7 +27,6 @@ export default function VariantChips({ snps, riskAllele }: VariantChipsProps) {
           target="_blank"
           rel="noreferrer"
           title={userHasData ? `${riskAllele} - You have data for this variant` : riskAllele || undefined}
-          onClick={() => {}}
           aria-label={userHasData ? `${riskAllele} - You have data for this variant` : riskAllele || riskSnpId}
         >
           {riskAllele}
