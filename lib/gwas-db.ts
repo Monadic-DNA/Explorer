@@ -158,28 +158,33 @@ export class GWASDatabase {
       colMap[header.trim()] = idx;
     });
 
-    // Required columns
-    const snpsIdx = colMap['SNPS'];
-    const accessionIdx = colMap['STUDY ACCESSION'];
-    const traitIdx = colMap['DISEASE/TRAIT'];
-    const studyIdx = colMap['STUDY'];
-    const riskAlleleIdx = colMap['STRONGEST SNP-RISK ALLELE'];
-    const orBetaIdx = colMap['OR or BETA'];
+    // Required columns - use PostgreSQL column names (lowercase)
+    const idIdx = colMap['id'];
+    const snpsIdx = colMap['snps'];
+    const accessionIdx = colMap['study_accession'];
+    const traitIdx = colMap['disease_trait'];
+    const studyIdx = colMap['study'];
+    const riskAlleleIdx = colMap['strongest_snp_risk_allele'];
+    const orBetaIdx = colMap['or_or_beta'];
 
-    // Optional metadata columns
-    const ciTextIdx = colMap['95% CI (TEXT)'];
-    const pValueIdx = colMap['P-VALUE'];
-    const pValueMlogIdx = colMap['PVALUE_MLOG'];
-    const mappedGeneIdx = colMap['MAPPED_GENE'];
-    const sampleSizeIdx = colMap['INITIAL SAMPLE SIZE'];
-    const replicationSizeIdx = colMap['REPLICATION SAMPLE SIZE'];
+    // Validate required id column exists
+    if (idIdx === undefined) {
+      throw new Error('TSV file missing required "id" column - please update catalog file');
+    }
 
-    console.log('Column indices:', { snpsIdx, accessionIdx, traitIdx, studyIdx, riskAlleleIdx, orBetaIdx, ciTextIdx, pValueIdx, pValueMlogIdx, mappedGeneIdx, sampleSizeIdx, replicationSizeIdx });
+    // Optional metadata columns - use PostgreSQL column names (lowercase)
+    const ciTextIdx = colMap['ci_text'];
+    const pValueIdx = colMap['p_value'];
+    const pValueMlogIdx = colMap['pvalue_mlog'];
+    const mappedGeneIdx = colMap['mapped_gene'];
+    const sampleSizeIdx = colMap['initial_sample_size'];
+    const replicationSizeIdx = colMap['replication_sample_size'];
+
+    console.log('Column indices:', { idIdx, snpsIdx, accessionIdx, traitIdx, studyIdx, riskAlleleIdx, orBetaIdx, ciTextIdx, pValueIdx, pValueMlogIdx, mappedGeneIdx, sampleSizeIdx, replicationSizeIdx });
 
     // Process rest of file in chunks to avoid memory issues
     const batchSize = 5000;
     let currentBatch: GWASStudy[] = [];
-    let studyId = 0;
     let storedCount = 0;
     let skippedNoSnps = 0;
     let lineNumber = 0;
@@ -223,7 +228,7 @@ export class GWASDatabase {
 
         if (lineNumber % 10000 === 0) {
           onProgress?.({ loaded: storedCount, total: estimatedTotalLines, phase: 'storing' });
-          console.log(`Processed ${lineNumber} lines, found ${studyId} studies with SNPs, skipped ${skippedNoSnps}`);
+          console.log(`Processed ${lineNumber} lines, found ${storedCount} studies with SNPs, skipped ${skippedNoSnps}`);
         }
 
         const cols = line.split('\t');
@@ -235,8 +240,16 @@ export class GWASDatabase {
           continue;
         }
 
+        // Parse and validate PostgreSQL ID from file
+        const id = parseInt(cols[idIdx]);
+        if (!id || isNaN(id)) {
+          console.warn(`Skipping row ${lineNumber} with invalid ID: ${cols[idIdx]}`);
+          skippedNoSnps++;
+          continue;
+        }
+
         currentBatch.push({
-          id: studyId++,
+          id: id,  // Use PostgreSQL ID from file
           study_accession: cols[accessionIdx] || null,
           disease_trait: cols[traitIdx] || null,
           study: cols[studyIdx] || null,
@@ -285,11 +298,7 @@ export class GWASDatabase {
       version: '1.0.2',
     });
     console.log("Metadata stored. Total studies:", storedCount);
-
-    // Close and reopen database to ensure all data is committed
-    this.close();
-    await this.open();
-    console.log("Database connection refreshed after storing data");
+    console.log("Download and storage complete! Ready for analysis.");
   }
 
   private async storeBatch(studies: GWASStudy[]): Promise<void> {

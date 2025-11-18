@@ -25,7 +25,7 @@ export async function runAllAnalysisIndexed(
   if (!metadata) {
     // Download and cache catalog
     await gwasDB.downloadAndStore(
-      'https://monadoc-dna-explorer.nyc3.digitaloceanspaces.com/gwas_catalog_v1.0.2-associations_e115_r2025-09-15.tsv.gz',
+      'https://monadic-dna-explorer.nyc3.digitaloceanspaces.com/gwas_catalog_20251117.tsv.gz',
       (progress) => {
         const elapsedSeconds = (Date.now() - startTime) / 1000;
         onProgress({
