@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
 import { RobotIcon } from "./Icons";
+import { trackLLMQuestionAsked } from "@/lib/analytics";
 
 type Message = {
   role: 'user' | 'assistant';
@@ -179,6 +180,9 @@ export default function AIChatInline() {
     setInputValue("");
     setIsLoading(true);
     setError(null);
+
+    // Track LLM question
+    trackLLMQuestionAsked();
 
     try {
       let relevantResults: SavedResult[] = [];

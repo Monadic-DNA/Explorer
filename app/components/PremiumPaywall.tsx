@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from './AuthProvider';
 import { verifyPromoCode } from '@/lib/prime-verification';
+import { trackPremiumSectionViewed } from '@/lib/analytics';
 
 // Lazy load PaymentModal to reduce initial bundle size (viem + @dynamic-labs = ~86MB)
 const PaymentModal = dynamic(() => import('./PaymentModal'), {
@@ -46,6 +47,8 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
   useEffect(() => {
     const handleOpenPaymentModal = () => {
       setShowPaymentModal(true);
+      // Track when user views premium section
+      trackPremiumSectionViewed();
     };
     window.addEventListener('openPaymentModal', handleOpenPaymentModal);
     return () => window.removeEventListener('openPaymentModal', handleOpenPaymentModal);

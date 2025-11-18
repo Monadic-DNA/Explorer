@@ -6,6 +6,7 @@ import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits }
 import { mainnet, base, arbitrum, optimism, polygon } from 'viem/chains';
 import { verifyPromoCode } from '@/lib/prime-verification';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
+import { trackSubscribedWithPromoCode, trackSubscribedWithCreditCard, trackSubscribedWithStablecoin } from '@/lib/analytics';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -143,6 +144,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       localStorage.setItem('promo_access', JSON.stringify({ code: promoCode, granted: Date.now() }));
       setPromoMessage({ type: 'success', text: result.message });
 
+      // Track promo code subscription
+      trackSubscribedWithPromoCode(promoCode);
+
       // Success - trigger callback and close modal
       setTimeout(() => {
         onSuccess();
@@ -160,6 +164,10 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     }
     // Show success message
     setStep('card-success');
+
+    // Track credit card subscription
+    const durationDays = Math.round((parseFloat(amount || '0') / 4.99) * 30);
+    trackSubscribedWithCreditCard(durationDays);
 
     // Close modal after 3 seconds and trigger success callback
     setTimeout(() => {
@@ -260,6 +268,10 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
         to: tokenContract as `0x${string}`,
         data: transferData,
       });
+
+      // Track stablecoin subscription
+      const durationDays = Math.round((parseFloat(amount || '0') / 4.99) * 30);
+      trackSubscribedWithStablecoin(durationDays);
 
       // Success
       setTimeout(() => {

@@ -27,6 +27,8 @@ import {
   trackStudyClick,
   trackFeatureToggle,
   trackAPITiming,
+  trackRunAllStarted,
+  trackQueryRun,
 } from "@/lib/analytics";
 
 type SortOption = "relevance" | "power" | "recent" | "alphabetical";
@@ -324,10 +326,7 @@ function MainContent() {
         next.offset = 0;
       }
 
-      // Track filter changes (with debouncing for search handled separately)
-      if (key !== 'search' && value !== null) {
-        trackFilterChange(key, value);
-      }
+      // Filter tracking removed for simplified analytics
 
       return next;
     });
@@ -566,6 +565,9 @@ function MainContent() {
       startTime,
     });
     setRunAllProgress({ current: 0, total: 0 });
+
+    // Track Run All started (with estimated study count)
+    trackRunAllStarted(metadata?.totalStudies || 0);
 
     try {
       // Check if genotype data is loaded

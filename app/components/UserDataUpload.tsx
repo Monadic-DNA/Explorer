@@ -4,10 +4,8 @@ import { useState, useRef, createContext, useContext, useCallback, useEffect } f
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
 import {
-  trackFileUploadStart,
   trackFileUploadSuccess,
-  trackFileUploadError,
-  trackFileCleared,
+  trackGenotypeFileLoaded,
 } from "@/lib/analytics";
 import {
   isDevModeEnabled,
@@ -79,9 +77,6 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
 
-    // Track upload start
-    trackFileUploadStart(file.size, fileExtension);
-
     try {
       // Validate file size (50MB limit)
       if (!validateFileSize(file, 50)) {
@@ -112,8 +107,8 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
 
       const parseDuration = performance.now() - startTime;
 
-      // Track successful upload
-      trackFileUploadSuccess(file.size, genotypeMap.size, parseDuration);
+      // Track successful genotype file load
+      trackGenotypeFileLoaded(file.size, genotypeMap.size);
 
       setGenotypeData(genotypeMap);
       setFileHash(hash);
@@ -131,9 +126,6 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMessage);
-
-      // Track upload error
-      trackFileUploadError(errorMessage, file.size);
     } finally {
       setIsLoading(false);
     }
@@ -144,9 +136,6 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setFileHash(null);
     setOriginalFileName(null);
-
-    // Track file cleared
-    trackFileCleared();
   };
 
   const setOnDataLoadedCallback = useCallback((cb: (() => void) | null) => {

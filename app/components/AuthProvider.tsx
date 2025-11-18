@@ -3,6 +3,7 @@
 import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { trackUserLoggedIn } from '@/lib/analytics';
 
 interface SubscriptionData {
   isActive: boolean;
@@ -148,6 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleAuthStateChange = useCallback((isAuth: boolean, dynamicUser: any) => {
     console.log('[AuthProvider] Auth state changed:', { isAuth, hasUser: !!dynamicUser, userAddress: dynamicUser?.verifiedCredentials?.[0]?.address });
+
+    const wasAuthenticated = isAuthenticated;
     setIsAuthenticated(isAuth);
     setUser(dynamicUser);
 
@@ -157,14 +160,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSubscriptionData(null);
       setCheckingSubscription(false);
     } else if (dynamicUser && isDynamicInitialized) {
-      // User logged in and Dynamic is initialized, check subscription
+      // User logged in
       const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address;
       if (walletAddress) {
         console.log('[AuthProvider] User logged in, checking subscription:', walletAddress);
+
+        // Track login event (only on new login, not on page refresh)
+        if (!wasAuthenticated) {
+          trackUserLoggedIn();
+        }
+
         checkSubscription(walletAddress);
       }
     }
-  }, [isDynamicInitialized, checkSubscription]);
+  }, [isDynamicInitialized, checkSubscription, isAuthenticated]);
 
   // If Dynamic is not enabled (no environment ID), render children with default auth context
   if (!isDynamicEnabled) {

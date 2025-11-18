@@ -9,6 +9,7 @@ import {
   selectAndSaveResultsFile,
   markResultsUsed,
 } from "@/lib/dev-mode";
+import { trackResultsFileLoaded, trackResultsFileSaved } from "@/lib/analytics";
 
 type ResultsContextType = {
   savedResults: SavedResult[];
@@ -154,6 +155,9 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
 
     // Regular save
     ResultsManager.saveResultsToFile(session);
+
+    // Track results file save
+    trackResultsFileSaved(savedResults.length);
   };
 
   const loadFromFile = async (currentFileHash?: string | null) => {
@@ -184,6 +188,9 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       if (isDevModeEnabled()) {
         markResultsUsed();
       }
+
+      // Track results file load
+      trackResultsFileLoaded(session.results.length);
 
       // Call the callback if it exists
       if (onResultsLoaded) {
