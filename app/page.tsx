@@ -494,7 +494,6 @@ function MainContent() {
       // Toggle direction for recent
       const newDirection = filters.sortDirection === "asc" ? "desc" : "asc";
       updateFilter("sortDirection", newDirection);
-      trackSort("recent", newDirection);
     } else {
       // Start with alphabetical
       handleColumnSort("alphabetical");
