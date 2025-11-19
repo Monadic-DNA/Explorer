@@ -271,11 +271,14 @@ export async function GET(request: NextRequest) {
   // Semantic search: Generate embedding for query
   if (search && useSemanticSearch) {
     try {
-      console.log(`[Semantic Search] Embedding query: "${search}"`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Semantic Search] Embedding query: "${search}"`);
+      }
       queryEmbedding = await embeddingService.embed(search);
       useSemanticQuery = true;
-      console.log(`[Semantic Search] Embedding generated (${queryEmbedding.length} dims)`);
-      console.log(`[Semantic Search] First 10 values:`, queryEmbedding.slice(0, 10));
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Semantic Search] Embedding generated (${queryEmbedding.length} dims)`);
+      }
     } catch (error) {
       console.error(`[Semantic Search] Failed to generate embedding:`, error);
       // Fall back to keyword search
