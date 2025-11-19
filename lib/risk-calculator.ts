@@ -116,12 +116,8 @@ export function calculateRiskScore(
     }
   }
 
-  // For OR, prevent scores below 0.1; for beta, allow any value including 0
-  if (effectType === 'OR') {
-    return { score: Math.max(0.1, riskScore), level: riskLevel };
-  } else {
-    return { score: riskScore, level: riskLevel };
-  }
+  // Return the calculated score without artificial floors
+  return { score: riskScore, level: riskLevel };
 }
 
 export function analyzeStudyClientSide(
