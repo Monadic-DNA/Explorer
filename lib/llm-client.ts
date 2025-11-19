@@ -23,6 +23,11 @@ export interface LLMResponse {
   };
 }
 
+export interface LLMStreamChunk {
+  content: string;
+  done: boolean;
+}
+
 export interface LLMOptions {
   maxTokens?: number;
   temperature?: number;
@@ -315,6 +320,231 @@ async function callHuggingFace(
       total_tokens: 0,
     },
   };
+}
+
+/**
+ * Call LLM with streaming support - yields content chunks as they arrive
+ */
+export async function* callLLMStream(
+  messages: LLMMessage[],
+  options: LLMOptions = {}
+): AsyncGenerator<string, void, unknown> {
+  const config = getLLMConfig();
+  const { maxTokens, temperature = 0.7, reasoningEffort = 'medium' } = options;
+
+  console.log(`[LLM Stream] Starting stream with provider: ${config.provider}, model: ${config.model}`);
+  const startTime = Date.now();
+
+  try {
+    switch (config.provider) {
+      case 'nilai':
+        yield* streamNilAI(messages, maxTokens, temperature, reasoningEffort);
+        break;
+
+      case 'ollama':
+        yield* streamOllama(messages, maxTokens, temperature, reasoningEffort, config.ollamaAddress, config.ollamaPort, config.model);
+        break;
+
+      case 'huggingface':
+        if (!config.huggingfaceApiKey) {
+          throw new Error('HuggingFace API key not configured');
+        }
+        yield* streamHuggingFace(messages, maxTokens, temperature, reasoningEffort, config.huggingfaceApiKey);
+        break;
+
+      default:
+        throw new Error(`Unknown provider: ${config.provider}`);
+    }
+
+    const elapsedMs = Date.now() - startTime;
+    console.log(`[LLM Stream] Stream completed in ${(elapsedMs / 1000).toFixed(2)}s`);
+  } catch (error) {
+    const elapsedMs = Date.now() - startTime;
+    console.error(`[LLM Stream] Stream failed after ${(elapsedMs / 1000).toFixed(2)}s:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Stream from Nillion nilAI
+ */
+async function* streamNilAI(
+  messages: LLMMessage[],
+  maxTokens: number | undefined,
+  temperature: number,
+  reasoningEffort: 'low' | 'medium' | 'high'
+): AsyncGenerator<string, void, unknown> {
+  const client = new NilaiOpenAIClient({
+    baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
+    authType: AuthType.DELEGATION_TOKEN,
+    nilauthInstance: NilAuthInstance.PRODUCTION,
+  });
+
+  // Get delegation token
+  const delegationRequest = client.getDelegationRequest();
+  const tokenResponse = await fetch('/api/nilai-delegation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ delegationRequest }),
+  });
+
+  if (!tokenResponse.ok) {
+    const errorData = await tokenResponse.json();
+    throw new Error(errorData.error || 'Failed to get delegation token');
+  }
+
+  const { delegationToken } = await tokenResponse.json();
+  client.updateDelegation(delegationToken);
+
+  // Call nilAI with streaming
+  const stream = await client.chat.completions.create({
+    model: 'openai/gpt-oss-20b',
+    messages: messages as any,
+    max_tokens: maxTokens || 131072,
+    temperature,
+    reasoning_effort: reasoningEffort,
+    stream: true,
+  });
+
+  // Yield chunks as they arrive
+  for await (const chunk of stream) {
+    const content = chunk.choices?.[0]?.delta?.content;
+    if (content) {
+      yield content;
+    }
+  }
+}
+
+/**
+ * Stream from Ollama
+ */
+async function* streamOllama(
+  messages: LLMMessage[],
+  maxTokens: number | undefined,
+  temperature: number,
+  reasoningEffort: 'low' | 'medium' | 'high',
+  address?: string,
+  port?: number,
+  model?: string
+): AsyncGenerator<string, void, unknown> {
+  const baseURL = `http://${address || 'localhost'}:${port || 11434}`;
+  const modelName = model || 'gpt-oss:latest';
+
+  const response = await fetch(`${baseURL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: modelName,
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      stream: true,
+      options: {
+        num_ctx: 131072,
+        num_predict: maxTokens || 131072,
+        temperature,
+        reasoning_effort: reasoningEffort,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama error: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('No response body from Ollama');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.trim()) {
+        try {
+          const data = JSON.parse(line);
+          if (data.message?.content) {
+            yield data.message.content;
+          }
+        } catch (e) {
+          console.warn('[Ollama Stream] Failed to parse line:', line);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Stream from HuggingFace
+ */
+async function* streamHuggingFace(
+  messages: LLMMessage[],
+  maxTokens: number | undefined,
+  temperature: number,
+  reasoningEffort: 'low' | 'medium' | 'high',
+  apiKey: string
+): AsyncGenerator<string, void, unknown> {
+  const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'openai/gpt-oss-20b:together',
+      messages,
+      max_tokens: maxTokens || 131072,
+      temperature,
+      reasoning_effort: reasoningEffort,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HuggingFace error: ${response.statusText} - ${errorText}`);
+  }
+
+  if (!response.body) {
+    throw new Error('No response body from HuggingFace');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) {
+            yield content;
+          }
+        } catch (e) {
+          console.warn('[HuggingFace Stream] Failed to parse line:', line);
+        }
+      }
+    }
+  }
 }
 
 /**
