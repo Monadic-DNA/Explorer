@@ -264,6 +264,7 @@ export async function GET(request: NextRequest) {
 
   const filters: string[] = [];
   const params: unknown[] = [];
+  let paramIndex = 1; // Track PostgreSQL parameter index ($1, $2, $3, ...)
   let orderByClause = "";
   let useSemanticQuery = false;
   let queryEmbedding: number[] = [];
@@ -291,9 +292,10 @@ export async function GET(request: NextRequest) {
     // Keyword search (fallback or when semantic is disabled)
     const wildcard = `%${search}%`;
     filters.push(
-      "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
+      `(gc.study LIKE $${paramIndex} OR gc.disease_trait LIKE $${paramIndex+1} OR gc.mapped_trait LIKE $${paramIndex+2} OR gc.first_author LIKE $${paramIndex+3} OR gc.mapped_gene LIKE $${paramIndex+4} OR gc.study_accession LIKE $${paramIndex+5} OR gc.snps LIKE $${paramIndex+6})`,
     );
     params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+    paramIndex += 7;
   } else if (useSemanticQuery) {
     // Semantic search: Use separate study_embeddings table
     // PostgreSQL: Semantic search handled in FROM clause subquery
@@ -303,8 +305,9 @@ export async function GET(request: NextRequest) {
   }
 
   if (trait) {
-    filters.push("(gc.mapped_trait = ? OR gc.disease_trait = ?)");
+    filters.push(`(gc.mapped_trait = $${paramIndex} OR gc.disease_trait = $${paramIndex+1})`);
     params.push(trait, trait);
+    paramIndex += 2;
   }
 
   // For fetchAll, always require SNPs and risk alleles (since we're doing SNP matching)
@@ -323,8 +326,9 @@ export async function GET(request: NextRequest) {
     // Note: Some values contain text like "1,000 cases, 1,034 controls"
     // Extract only the first number to avoid overflow from concatenating multiple numbers
     // PostgreSQL: Extract first number with commas, then remove commas
-    filters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
+    filters.push(`((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${paramIndex}::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${paramIndex+1}::numeric))`);
     params.push(minSampleSize, minSampleSize);
+    paramIndex += 2;
   }
 
   if (maxPValue !== null) {
@@ -332,14 +336,16 @@ export async function GET(request: NextRequest) {
     // Use pvalue_mlog to avoid numeric overflow with extreme p-values like 1E-18716
     // Convert: maxPValue = 5e-8 => minLogP = -log10(5e-8) ≈ 7.3
     const minLogPFromMaxP = -Math.log10(maxPValue);
-    filters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
+    filters.push(`(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= $${paramIndex}::numeric)`);
     params.push(minLogPFromMaxP);
+    paramIndex += 1;
   }
 
   if (minLogP !== null) {
     // Filter for minimum -log10(p-value)
-    filters.push("gc.pvalue_mlog::numeric >= ?::numeric");
+    filters.push(`gc.pvalue_mlog::numeric >= $${paramIndex}::numeric`);
     params.push(minLogP);
+    paramIndex += 1;
   }
 
   if (excludeMissingGenotype) {
@@ -457,19 +463,22 @@ export async function GET(request: NextRequest) {
       // Rebuild query without semantic search, using same filters as main query
       const fallbackFilters: string[] = [];
       const fallbackParams: any[] = [];
+      let fallbackParamIndex = 1;
 
       // Re-add search as keyword search
       if (search) {
         const wildcard = `%${search}%`;
         fallbackFilters.push(
-          "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
+          `(gc.study LIKE $${fallbackParamIndex} OR gc.disease_trait LIKE $${fallbackParamIndex+1} OR gc.mapped_trait LIKE $${fallbackParamIndex+2} OR gc.first_author LIKE $${fallbackParamIndex+3} OR gc.mapped_gene LIKE $${fallbackParamIndex+4} OR gc.study_accession LIKE $${fallbackParamIndex+5} OR gc.snps LIKE $${fallbackParamIndex+6})`,
         );
         fallbackParams.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+        fallbackParamIndex += 7;
       }
 
       if (trait) {
-        fallbackFilters.push("(gc.mapped_trait = ? OR gc.disease_trait = ?)");
+        fallbackFilters.push(`(gc.mapped_trait = $${fallbackParamIndex} OR gc.disease_trait = $${fallbackParamIndex+1})`);
         fallbackParams.push(trait, trait);
+        fallbackParamIndex += 2;
       }
 
       if (fetchAll) {
@@ -480,20 +489,23 @@ export async function GET(request: NextRequest) {
       // Add the same backend filters as the main query
       if (minSampleSize !== null) {
         // PostgreSQL: Extract first number with commas, then remove commas
-        fallbackFilters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
+        fallbackFilters.push(`((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${fallbackParamIndex}::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${fallbackParamIndex+1}::numeric))`);
         fallbackParams.push(minSampleSize, minSampleSize);
+        fallbackParamIndex += 2;
       }
 
       if (maxPValue !== null) {
         // Use pvalue_mlog to avoid numeric overflow with extreme p-values
         const minLogPFromMaxP = -Math.log10(maxPValue);
-        fallbackFilters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
+        fallbackFilters.push(`(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= $${fallbackParamIndex}::numeric)`);
         fallbackParams.push(minLogPFromMaxP);
+        fallbackParamIndex += 1;
       }
 
       if (minLogP !== null) {
-        fallbackFilters.push("gc.pvalue_mlog::numeric >= ?::numeric");
+        fallbackFilters.push(`gc.pvalue_mlog::numeric >= $${fallbackParamIndex}::numeric`);
         fallbackParams.push(minLogP);
+        fallbackParamIndex += 1;
       }
 
       if (excludeMissingGenotype) {
