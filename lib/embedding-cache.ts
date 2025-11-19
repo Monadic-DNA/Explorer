@@ -11,7 +11,7 @@
  * - Analytics: Track popular queries
  */
 
-import { executeQuery, executeQuerySingle, getDbType } from './db';
+import { executeQuery, executeQuerySingle } from './db';
 
 export class EmbeddingCache {
   // Tier 1: In-memory cache (hot queries)
@@ -34,47 +34,24 @@ export class EmbeddingCache {
 
     // Try database cache (persistent: 2-5ms)
     try {
-      const dbType = getDbType();
+      // PostgreSQL: vector type
+      const result = await executeQuerySingle<{ embedding: string }>(
+        `SELECT embedding::text FROM embedding_cache WHERE query = $1`,
+        [normalized]
+      );
 
-      if (dbType === 'postgres') {
-        // PostgreSQL: vector type
-        const result = await executeQuerySingle<{ embedding: string }>(
-          `SELECT embedding::text FROM embedding_cache WHERE query = ?`,
-          [normalized]
-        );
+      if (result?.embedding) {
+        // Parse vector string to array
+        const embedding = this.parseEmbedding(result.embedding);
+        console.log(`[Cache] DB hit (PostgreSQL): "${query}"`);
 
-        if (result?.embedding) {
-          // Parse vector string to array
-          const embedding = this.parseEmbedding(result.embedding);
-          console.log(`[Cache] DB hit (PostgreSQL): "${query}"`);
+        // Promote to memory cache
+        this.addToMemCache(normalized, embedding);
 
-          // Promote to memory cache
-          this.addToMemCache(normalized, embedding);
+        // Update access tracking
+        await this.updateAccessTracking(normalized);
 
-          // Update access tracking
-          await this.updateAccessTracking(normalized);
-
-          return embedding;
-        }
-      } else {
-        // SQLite: JSON text
-        const result = await executeQuerySingle<{ embedding: string }>(
-          `SELECT embedding FROM embedding_cache WHERE query = ?`,
-          [normalized]
-        );
-
-        if (result?.embedding) {
-          const embedding = JSON.parse(result.embedding);
-          console.log(`[Cache] DB hit (SQLite): "${query}"`);
-
-          // Promote to memory cache
-          this.addToMemCache(normalized, embedding);
-
-          // Update access tracking
-          await this.updateAccessTracking(normalized);
-
-          return embedding;
-        }
+        return embedding;
       }
     } catch (error) {
       console.error(`[Cache] DB lookup error:`, error);
@@ -96,31 +73,16 @@ export class EmbeddingCache {
 
     // Add to database cache (persistent tier)
     try {
-      const dbType = getDbType();
-
-      if (dbType === 'postgres') {
-        // PostgreSQL: Use UPSERT with vector type
-        await executeQuery(
-          `INSERT INTO embedding_cache (query, embedding, created_at, accessed_at, access_count)
-           VALUES (?, ?::vector, NOW(), NOW(), 1)
-           ON CONFLICT (query) DO UPDATE
-           SET embedding = ?::vector,
-               accessed_at = NOW(),
-               access_count = embedding_cache.access_count + 1`,
-          [normalized, JSON.stringify(embedding), JSON.stringify(embedding)]
-        );
-      } else {
-        // SQLite: Use INSERT OR REPLACE with JSON
-        await executeQuery(
-          `INSERT INTO embedding_cache (query, embedding, created_at, accessed_at, access_count)
-           VALUES (?, ?, datetime('now'), datetime('now'), 1)
-           ON CONFLICT(query) DO UPDATE
-           SET embedding = ?,
-               accessed_at = datetime('now'),
-               access_count = access_count + 1`,
-          [normalized, JSON.stringify(embedding), JSON.stringify(embedding)]
-        );
-      }
+      // PostgreSQL: Use UPSERT with vector type
+      await executeQuery(
+        `INSERT INTO embedding_cache (query, embedding, created_at, accessed_at, access_count)
+         VALUES ($1, $2::vector, NOW(), NOW(), 1)
+         ON CONFLICT (query) DO UPDATE
+         SET embedding = $3::vector,
+             accessed_at = NOW(),
+             access_count = embedding_cache.access_count + 1`,
+        [normalized, JSON.stringify(embedding), JSON.stringify(embedding)]
+      );
 
       console.log(`[Cache] Stored: "${query}"`);
     } catch (error) {
@@ -171,39 +133,20 @@ export class EmbeddingCache {
    */
   async cleanup(maxEntries: number = 10000, maxAgeDays: number = 90) {
     try {
-      const dbType = getDbType();
-
-      if (dbType === 'postgres') {
-        // PostgreSQL: Delete old/unpopular entries
-        await executeQuery(
-          `DELETE FROM embedding_cache
-           WHERE
-             accessed_at < NOW() - INTERVAL '${maxAgeDays} days'
-             OR id IN (
-               SELECT id
-               FROM embedding_cache
-               WHERE accessed_at > NOW() - INTERVAL '${maxAgeDays} days'
-               ORDER BY accessed_at ASC
-               LIMIT (SELECT GREATEST(0, COUNT(*) - ?) FROM embedding_cache)
-             )`,
-          [maxEntries]
-        );
-      } else {
-        // SQLite: Similar logic
-        await executeQuery(
-          `DELETE FROM embedding_cache
-           WHERE
-             accessed_at < datetime('now', '-${maxAgeDays} days')
-             OR id IN (
-               SELECT id
-               FROM embedding_cache
-               WHERE accessed_at > datetime('now', '-${maxAgeDays} days')
-               ORDER BY accessed_at ASC
-               LIMIT (SELECT MAX(0, COUNT(*) - ?) FROM embedding_cache)
-             )`,
-          [maxEntries]
-        );
-      }
+      // PostgreSQL: Delete old/unpopular entries
+      await executeQuery(
+        `DELETE FROM embedding_cache
+         WHERE
+           accessed_at < NOW() - INTERVAL '${maxAgeDays} days'
+           OR id IN (
+             SELECT id
+             FROM embedding_cache
+             WHERE accessed_at > NOW() - INTERVAL '${maxAgeDays} days'
+             ORDER BY accessed_at ASC
+             LIMIT (SELECT GREATEST(0, COUNT(*) - $1) FROM embedding_cache)
+           )`,
+        [maxEntries]
+      );
 
       console.log(`[Cache] Cleanup complete (max ${maxEntries} entries, ${maxAgeDays} days TTL)`);
     } catch (error) {
@@ -238,25 +181,13 @@ export class EmbeddingCache {
 
   private async updateAccessTracking(query: string) {
     try {
-      const dbType = getDbType();
-
-      if (dbType === 'postgres') {
-        await executeQuery(
-          `UPDATE embedding_cache
-           SET accessed_at = NOW(),
-               access_count = access_count + 1
-           WHERE query = ?`,
-          [query]
-        );
-      } else {
-        await executeQuery(
-          `UPDATE embedding_cache
-           SET accessed_at = datetime('now'),
-               access_count = access_count + 1
-           WHERE query = ?`,
-          [query]
-        );
-      }
+      await executeQuery(
+        `UPDATE embedding_cache
+         SET accessed_at = NOW(),
+             access_count = access_count + 1
+         WHERE query = $1`,
+        [query]
+      );
     } catch (error) {
       // Non-critical error, don't fail the request
       console.error(`[Cache] Failed to update access tracking:`, error);

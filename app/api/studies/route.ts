@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { executeQuery, executeQuerySingle, getDbType } from "@/lib/db";
+import { executeQuery, executeQuerySingle } from "@/lib/db";
 import { validateOrigin } from "@/lib/origin-validator";
 import {
   computeQualityFlags,
@@ -296,23 +296,10 @@ export async function GET(request: NextRequest) {
     params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
   } else if (useSemanticQuery) {
     // Semantic search: Use separate study_embeddings table
-    const dbType = getDbType();
-
-    if (dbType === 'postgres') {
-      // PostgreSQL: Semantic search handled in FROM clause subquery
-      // The subquery already filters and orders by similarity
-      // Just order by the distance column from the subquery
-      orderByClause = `ORDER BY se.distance`;
-    } else {
-      // SQLite: No native vector support, fall back to keyword search
-      console.warn(`[Semantic Search] SQLite doesn't support vector similarity, falling back to keyword search`);
-      const wildcard = `%${search}%`;
-      filters.push(
-        "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
-      );
-      params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
-      useSemanticQuery = false;
-    }
+    // PostgreSQL: Semantic search handled in FROM clause subquery
+    // The subquery already filters and orders by similarity
+    // Just order by the distance column from the subquery
+    orderByClause = `ORDER BY se.distance`;
   }
 
   if (trait) {
@@ -330,20 +317,13 @@ export async function GET(request: NextRequest) {
   const maxPValue = maxPValueRaw ? parsePValue(maxPValueRaw) : null;
   const minLogP = minLogPRaw ? Number(minLogPRaw) : null;
 
-  // Get database type first to use appropriate syntax
-  const dbType = getDbType();
-
   if (minSampleSize !== null) {
     // Filter for minimum sample size
     // Check both initial_sample_size and replication_sample_size
     // Note: Some values contain text like "1,000 cases, 1,034 controls"
     // Extract only the first number to avoid overflow from concatenating multiple numbers
-    if (dbType === 'postgres') {
-      // Extract first number with commas, then remove commas
-      filters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
-    } else {
-      filters.push("((CAST(gc.initial_sample_size AS INTEGER) >= ?) OR (CAST(gc.replication_sample_size AS INTEGER) >= ?))");
-    }
+    // PostgreSQL: Extract first number with commas, then remove commas
+    filters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
     params.push(minSampleSize, minSampleSize);
   }
 
@@ -352,21 +332,13 @@ export async function GET(request: NextRequest) {
     // Use pvalue_mlog to avoid numeric overflow with extreme p-values like 1E-18716
     // Convert: maxPValue = 5e-8 => minLogP = -log10(5e-8) ≈ 7.3
     const minLogPFromMaxP = -Math.log10(maxPValue);
-    if (dbType === 'postgres') {
-      filters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
-    } else {
-      filters.push("(gc.pvalue_mlog IS NULL OR CAST(gc.pvalue_mlog AS REAL) >= ?)");
-    }
+    filters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
     params.push(minLogPFromMaxP);
   }
 
   if (minLogP !== null) {
     // Filter for minimum -log10(p-value)
-    if (dbType === 'postgres') {
-      filters.push("gc.pvalue_mlog::numeric >= ?::numeric");
-    } else {
-      filters.push("CAST(gc.pvalue_mlog AS REAL) >= ?");
-    }
+    filters.push("gc.pvalue_mlog::numeric >= ?::numeric");
     params.push(minLogP);
   }
 
@@ -391,7 +363,7 @@ export async function GET(request: NextRequest) {
   // This allows the HNSW index to be used efficiently
   let fromClause = 'FROM gwas_catalog gc';
 
-  if (useSemanticQuery && dbType === 'postgres') {
+  if (useSemanticQuery) {
     // Two-stage query for efficient HNSW index usage:
     // 1. First: Use HNSW index to get top candidate embeddings (fast!)
     // 2. Then: JOIN with gwas_catalog using composite key (study_accession, snps, strongest_snp_risk_allele)
@@ -421,7 +393,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Add similarity score for semantic search
-  const similarityColumn = useSemanticQuery && dbType === 'postgres'
+  const similarityColumn = useSemanticQuery
     ? `,\n       (1 - (se.embedding <=> ${`'${JSON.stringify(queryEmbedding)}'::vector`})) as similarity`
     : '';
 
@@ -451,9 +423,7 @@ export async function GET(request: NextRequest) {
 
   // Add LIMIT/OFFSET directly to query for PostgreSQL (safe since rawLimit and offset are validated integers)
   // This avoids parameter type inference issues with pg driver
-  const finalQuery = dbType === 'postgres'
-    ? `${baseQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`
-    : `${baseQuery}\n    LIMIT ? OFFSET ?`;
+  const finalQuery = `${baseQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`;
 
   let rawRows: RawStudy[];
 
@@ -470,10 +440,8 @@ export async function GET(request: NextRequest) {
     console.log(`[Query] SQL:\n${finalQuery}`);
     console.log(`[Query] First 3 params:`, params.slice(0, 3).map(p => typeof p === 'string' && p.length > 100 ? `${p.substring(0, 100)}...` : p));
 
-    // For PostgreSQL, LIMIT/OFFSET are in the query string; for SQLite, they're in params
-    rawRows = dbType === 'postgres'
-      ? await executeQuery<RawStudy>(finalQuery, params)
-      : await executeQuery<RawStudy>(finalQuery, [...params, rawLimit, offset]);
+    // For PostgreSQL, LIMIT/OFFSET are in the query string
+    rawRows = await executeQuery<RawStudy>(finalQuery, params);
 
     const queryElapsed = Date.now() - queryStart;
     console.log(`[Query] Database query completed in ${queryElapsed}ms`);
@@ -511,32 +479,20 @@ export async function GET(request: NextRequest) {
 
       // Add the same backend filters as the main query
       if (minSampleSize !== null) {
-        if (dbType === 'postgres') {
-          // Extract first number with commas, then remove commas
-          fallbackFilters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
-        } else {
-          fallbackFilters.push("((CAST(gc.initial_sample_size AS INTEGER) >= ?) OR (CAST(gc.replication_sample_size AS INTEGER) >= ?))");
-        }
+        // PostgreSQL: Extract first number with commas, then remove commas
+        fallbackFilters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
         fallbackParams.push(minSampleSize, minSampleSize);
       }
 
       if (maxPValue !== null) {
         // Use pvalue_mlog to avoid numeric overflow with extreme p-values
         const minLogPFromMaxP = -Math.log10(maxPValue);
-        if (dbType === 'postgres') {
-          fallbackFilters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
-        } else {
-          fallbackFilters.push("(gc.pvalue_mlog IS NULL OR CAST(gc.pvalue_mlog AS REAL) >= ?)");
-        }
+        fallbackFilters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
         fallbackParams.push(minLogPFromMaxP);
       }
 
       if (minLogP !== null) {
-        if (dbType === 'postgres') {
-          fallbackFilters.push("gc.pvalue_mlog::numeric >= ?::numeric");
-        } else {
-          fallbackFilters.push("CAST(gc.pvalue_mlog AS REAL) >= ?");
-        }
+        fallbackFilters.push("gc.pvalue_mlog::numeric >= ?::numeric");
         fallbackParams.push(minLogP);
       }
 
@@ -583,13 +539,9 @@ export async function GET(request: NextRequest) {
     ${fallbackWhereClause}
     ${fallbackOrderBy}`;
 
-      const fallbackFinalQuery = dbType === 'postgres'
-        ? `${fallbackQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`
-        : `${fallbackQuery}\n    LIMIT ? OFFSET ?`;
+      const fallbackFinalQuery = `${fallbackQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`;
 
-      rawRows = dbType === 'postgres'
-        ? await executeQuery<RawStudy>(fallbackFinalQuery, fallbackParams)
-        : await executeQuery<RawStudy>(fallbackFinalQuery, [...fallbackParams, rawLimit, offset]);
+      rawRows = await executeQuery<RawStudy>(fallbackFinalQuery, fallbackParams);
     } else {
       // Re-throw if it's a different error
       throw error;
@@ -653,7 +605,7 @@ export async function GET(request: NextRequest) {
     // Get source count (may fail if numeric overflow in WHERE clause, that's ok)
     let sourceCount = 0;
     try {
-      const countQuery = useSemanticQuery && dbType === 'postgres'
+      const countQuery = useSemanticQuery
         ? `SELECT COUNT(*) as count ${fromClause} ${whereClause}`
         : `SELECT COUNT(*) as count FROM gwas_catalog gc ${whereClause}`;
       const countResult = await executeQuerySingle<{ count: number }>(countQuery, params);
