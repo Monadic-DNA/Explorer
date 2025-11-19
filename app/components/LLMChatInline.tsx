@@ -776,6 +776,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                           <div key={studyIdx} className="study-item">
                             <div className="study-trait">{study.traitName}</div>
                             <div className="study-details">
+                              {study.mappedGene && <span className="study-gene">Gene: {study.mappedGene}</span>}
+                              <span className="study-snp">SNP: {study.matchedSnp}</span>
                               <span className="study-genotype">Your genotype: {study.userGenotype}</span>
                               <span className="study-risk">Risk: {formatRiskScore(study.riskScore, study.riskLevel, study.effectType)}</span>
                               <span className="study-level" data-level={study.riskLevel}>{study.riskLevel}</span>
