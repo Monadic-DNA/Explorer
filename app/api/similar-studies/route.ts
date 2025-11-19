@@ -39,15 +39,8 @@ export async function POST(request: NextRequest) {
     // Generate embedding for query
     const queryEmbedding = await embeddingService.embed(query);
 
-    // Get database connection
-    const dbConn = getDb();
-
-    if (dbConn.type !== 'postgres' || !dbConn.postgres) {
-      return NextResponse.json(
-        { error: "Vector similarity search requires PostgreSQL" },
-        { status: 503 }
-      );
-    }
+    // Get database connection (PostgreSQL only)
+    const db = getDb();
 
     // Use PostgreSQL's vector similarity search with HNSW index
     // Strategy: Aggregate at study level to avoid missing SNPs due to gene context in embeddings
@@ -69,7 +62,7 @@ export async function POST(request: NextRequest) {
       ORDER BY rs.max_similarity DESC
     `;
 
-    const result = await dbConn.postgres.query(sqlQuery, [JSON.stringify(queryEmbedding), limit]);
+    const result = await db.query(sqlQuery, [JSON.stringify(queryEmbedding), limit]);
 
     const elapsed = Date.now() - startTime;
     console.log(`[Similar Studies API] Found ${result.rows.length} similar studies in ${elapsed}ms`);
