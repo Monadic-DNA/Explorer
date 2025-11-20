@@ -183,11 +183,18 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
             </div>
           )}
 
-          <div className="config-info">
-            <p>
-              <strong>Privacy Note:</strong> All providers now send data directly from your browser to the LLM service.
-              Your genetic data never passes through our servers.
-            </p>
+          <div className="config-info llm-privacy-notice">
+            <h4>🔒 Privacy & Data Flow</h4>
+            <div className="privacy-details">
+              <p><strong>How it works:</strong></p>
+              <ul>
+                <li><strong>Nillion nilAI (Default):</strong> Your genetic variants are sent to a Trusted Execution Environment (TEE) where analysis happens in an encrypted, isolated environment. No one, not even Nillion, can see your raw data. Usage is covered by your Monadic DNA subscription.</li>
+                <li><strong>Ollama (Advanced):</strong> Everything runs locally on your computer. No data leaves your device. <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="inline-link">Download Ollama</a> and note that you need a powerful GPU (8GB+ VRAM recommended) for acceptable performance.</li>
+                <li><strong>HuggingFace:</strong> Your variants are sent directly from your browser to HuggingFace's servers for analysis. Requires your own HuggingFace account and paid subscription. We never see or store your data.</li>
+              </ul>
+              <p><strong>What's sent:</strong> Only the specific genetic variants (SNPs) relevant to each trait you analyze, not your entire genome.</p>
+              <p><strong>Our servers:</strong> Your genetic data never passes through Monadic DNA's servers. We only facilitate the connection.</p>
+            </div>
           </div>
         </div>
 

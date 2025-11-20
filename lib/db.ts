@@ -1,16 +1,8 @@
-import Database from "better-sqlite3";
 import { Pool } from "pg";
 import fs from "fs";
 import path from "path";
 
-let sqliteInstance: Database.Database | null = null;
 let pgPool: Pool | null = null;
-
-type DbConnection = {
-  type: 'sqlite' | 'postgres';
-  sqlite?: Database.Database;
-  postgres?: Pool;
-};
 
 function getSSLConfig(connectionString: string) {
   // Local connections don't need SSL
@@ -64,107 +56,38 @@ function getSSLConfig(connectionString: string) {
   };
 }
 
-function resolveDatabasePath(): string {
-  const fromEnv = process.env.GWAS_DB_PATH;
-  if (fromEnv) {
-    return fromEnv;
-  }
-
-  return path.join(process.cwd(), "localdata", "gwas_catalog.sqlite");
-}
-
-export function getDbType(): 'sqlite' | 'postgres' {
-  return process.env.POSTGRES_DB ? 'postgres' : 'sqlite';
-}
-
-export function getDb(): DbConnection {
+export function getDb(): Pool {
   // Check if PostgreSQL connection string is provided
   const postgresDb = process.env.POSTGRES_DB;
 
-  if (postgresDb) {
-    if (!pgPool) {
-      pgPool = new Pool({
-        connectionString: postgresDb,
-        ssl: getSSLConfig(postgresDb),
-        // Set HNSW ef_search parameter for better recall in semantic search
-        // This increases the number of candidates examined by the HNSW index
-        options: '-c hnsw.ef_search=1000'
-      });
-    }
-    return {
-      type: 'postgres',
-      postgres: pgPool,
-    };
-  }
-
-  // Fall back to SQLite
-  if (sqliteInstance) {
-    return {
-      type: 'sqlite',
-      sqlite: sqliteInstance,
-    };
-  }
-
-  const dbPath = resolveDatabasePath();
-
-  if (!fs.existsSync(dbPath)) {
+  if (!postgresDb) {
     throw new Error(
-      `GWAS catalog database not found at ${dbPath}. Set GWAS_DB_PATH or create the SQLite database using localdata/gwas_catalog.sql.`,
+      'POSTGRES_DB environment variable is required. Please set it to your PostgreSQL connection string.',
     );
   }
 
-  sqliteInstance = new Database(dbPath, { readonly: true, fileMustExist: true });
-  return {
-    type: 'sqlite',
-    sqlite: sqliteInstance,
-  };
-}
-
-// Helper function to convert SQLite query to PostgreSQL format
-function convertQueryToPostgres(query: string): string {
-  let pgQuery = query;
-  let paramIndex = 1;
-
-  // Replace SQLite ? placeholders with PostgreSQL $1, $2, etc.
-  pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
-
-  // Replace SQLite's COLLATE NOCASE with PostgreSQL LOWER() function
-  pgQuery = pgQuery.replace(/COLLATE NOCASE/gi, '');
-
-  // For PostgreSQL, we need to handle case-insensitive ordering differently
-  // Simply remove the COLLATE clause and sort case-sensitively for now
-  // The client-side sorting will handle case-insensitive sorting
-
-  return pgQuery;
-}
-
-// Helper function to execute queries on either database type
-export async function executeQuery<T>(query: string, params: any[] = []): Promise<T[]> {
-  const db = getDb();
-
-  if (db.type === 'postgres' && db.postgres) {
-    const pgQuery = convertQueryToPostgres(query);
-    const result = await db.postgres.query(pgQuery, params);
-    return result.rows;
-  } else if (db.type === 'sqlite' && db.sqlite) {
-    const stmt = db.sqlite.prepare(query);
-    return stmt.all(...params) as T[];
+  if (!pgPool) {
+    pgPool = new Pool({
+      connectionString: postgresDb,
+      ssl: getSSLConfig(postgresDb),
+      // Set HNSW ef_search parameter for better recall in semantic search
+      // This increases the number of candidates examined by the HNSW index
+      options: '-c hnsw.ef_search=1000'
+    });
   }
 
-  throw new Error('No database connection available');
+  return pgPool;
+}
+
+// Helper function to execute queries on PostgreSQL
+export async function executeQuery<T>(query: string, params: any[] = []): Promise<T[]> {
+  const db = getDb();
+  const result = await db.query(query, params);
+  return result.rows;
 }
 
 export async function executeQuerySingle<T>(query: string, params: any[] = []): Promise<T | null> {
   const db = getDb();
-
-  if (db.type === 'postgres' && db.postgres) {
-    const pgQuery = convertQueryToPostgres(query);
-    const result = await db.postgres.query(pgQuery, params);
-    return result.rows[0] || null;
-  } else if (db.type === 'sqlite' && db.sqlite) {
-    const stmt = db.sqlite.prepare(query);
-    return (stmt.get(...params) as T) || null;
-  }
-
-  throw new Error('No database connection available');
+  const result = await db.query(query, params);
+  return result.rows[0] || null;
 }

@@ -21,19 +21,25 @@ export default function MenuBar() {
   const [showResultsDropdown, setShowResultsDropdown] = useState(false);
   const [showCacheDropdown, setShowCacheDropdown] = useState(false);
   const [showHelpDropdown, setShowHelpDropdown] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [mounted, setMounted] = useState(false);
+  // Initialize theme from localStorage (lazy initialization to avoid hydration issues)
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme') as "light" | "dark" | null;
+      return savedTheme || "light";
+    }
+    return "light";
+  });
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
   const [llmProvider, setLlmProvider] = useState<string>('');
 
   useEffect(() => {
-    // Detect system preference on mount
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initialTheme = isDark ? "dark" : "light";
-    setTheme(initialTheme);
+    // Mark component as mounted
+    setMounted(true);
 
-    // Apply initial theme
-    document.documentElement.setAttribute("data-theme", initialTheme);
-    document.documentElement.style.colorScheme = initialTheme;
+    // Apply theme on mount
+    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.style.colorScheme = theme;
 
     // Load LLM config
     const config = getLLMConfig();
@@ -55,9 +61,10 @@ export default function MenuBar() {
   }, []);
 
   useEffect(() => {
-    // Apply theme changes
+    // Apply theme changes and persist to localStorage
     document.documentElement.setAttribute("data-theme", theme);
     document.documentElement.style.colorScheme = theme;
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -149,6 +156,11 @@ export default function MenuBar() {
       <HelpDropdown
         isOpen={showHelpDropdown}
         onClose={() => setShowHelpDropdown(false)}
+        onStartTour={() => {
+          // Dispatch custom event that page.tsx can listen to
+          const event = new CustomEvent('startGuidedTour');
+          window.dispatchEvent(event);
+        }}
       />
     <div className="menu-bar">
       <div className="menu-left">
@@ -234,30 +246,30 @@ export default function MenuBar() {
             )}
           </button>
 
-          <a
-            href="https://recherche.discourse.group/c/public/monadic-dna/30"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             className="menu-icon-button"
-            title="Visit community forum for help and feedback"
+            onClick={() => setShowHelpDropdown(!showHelpDropdown)}
+            title="Get help and restart the guided tour"
           >
             <span className="icon">
               <HelpCircleIcon size={32} />
             </span>
             <span className="label">Help</span>
-          </a>
-
-          <button
-            className="menu-icon-button"
-            onClick={toggleTheme}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          >
-            <span className="icon">
-              {theme === "dark" ? <SunIcon size={32} /> : <MoonIcon size={32} />}
-            </span>
-            <span className="label">Theme</span>
           </button>
+
+          {mounted && (
+            <button
+              className="menu-icon-button"
+              onClick={toggleTheme}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              <span className="icon">
+                {theme === "dark" ? <SunIcon size={32} /> : <MoonIcon size={32} />}
+              </span>
+              <span className="label">Theme</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

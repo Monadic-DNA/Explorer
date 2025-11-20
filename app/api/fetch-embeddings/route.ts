@@ -53,14 +53,7 @@ export async function POST(request: NextRequest) {
     `;
 
     const db = getDb();
-    if (db.type !== 'postgres' || !db.postgres) {
-      return NextResponse.json(
-        { error: "Embeddings are only supported with PostgreSQL" },
-        { status: 503 }
-      );
-    }
-
-    const result = await db.postgres.query(query, params);
+    const result = await db.query(query, params);
 
     // Create lookup map
     const embeddingMap = new Map<string, number[]>();

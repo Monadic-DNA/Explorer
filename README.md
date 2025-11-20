@@ -28,24 +28,41 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 
 ## Development
 
-### Preparing local data
+### Preparing the Database
 
-Fetch the latest GWAS Catalog data from https://www.ebi.ac.uk/gwas/api/search/downloads/alternative into the `localdata` directory. This is "All associations v1.0.2 - with added ontology annotations, GWAS Catalog study accession numbers and genotyping technology" from https://www.ebi.ac.uk/gwas/docs/file-downloads.
+1. **Set up PostgreSQL** with the pgvector extension:
+   ```bash
+   # Create database
+   createdb gwas_catalog
 
-Create a new SQLite database at `localdata/gwas_catalog.sqlite`.
+   # Apply schema (includes pgvector setup)
+   psql gwas_catalog < sql/postgres_schema.sql
+   ```
 
-Load the contents of the TSV file into the SQLite database using your favorite method.
+2. **Fetch and load GWAS Catalog data**:
+   - Download from https://www.ebi.ac.uk/gwas/api/search/downloads/alternative
+   - Load "All associations v1.0.2" TSV into the `gwas_catalog` table
+   - See https://www.ebi.ac.uk/gwas/docs/file-downloads for details
+
+3. **Apply indexes** for better performance:
+   ```bash
+   psql gwas_catalog < sql/postgres_indexes.sql
+   ```
 
 ### Running the Monadic DNA Explorer
 
-The repository includes a Next.js single-page application for exploring studies stored in `localdata/gwas_catalog.sqlite`.
+The repository includes a Next.js single-page application for exploring GWAS studies.
 
 ```bash
+# Set PostgreSQL connection string
+export POSTGRES_DB="postgresql://user:password@localhost:5432/gwas_catalog"
+
+# Install dependencies and start dev server
 npm install
 npm run dev
 ```
 
-The development server defaults to http://localhost:3000. You can override the database location by exporting `GWAS_DB_PATH` before starting the server.
+The development server defaults to http://localhost:3000.
 
 ### Dev Mode Auto-Loading (Development Only)
 
@@ -90,9 +107,7 @@ npm run dev
 
 ## Production Deployment
 
-### Using PostgreSQL in Production
-
-For production deployments, you can use a remote PostgreSQL database instead of the local SQLite database:
+### Database Setup
 
 1. **Set up your PostgreSQL database** with the GWAS catalog data
 2. **Set the `POSTGRES_DB` environment variable** to your PostgreSQL connection string:
@@ -113,8 +128,7 @@ npm start
 ### Environment Variables
 
 **GWAS Database (Required):**
-- `POSTGRES_DB`: PostgreSQL connection string (if set, takes precedence over SQLite)
-- `GWAS_DB_PATH`: Path to SQLite database file (only used if `POSTGRES_DB` is not set)
+- `POSTGRES_DB`: PostgreSQL connection string (required for all environments)
 
 **LLM Features:**
 - **LLM Provider Selection**: Configure in the UI (Menu Bar > LLM Settings button)
@@ -139,25 +153,22 @@ See `.env.local.example` for complete configuration details.
 
 ### Database Schema
 
-Complete database schemas are provided in the `sql/` directory:
+The complete database schema is provided in `sql/postgres_schema.sql` with pgvector support.
 
-- **PostgreSQL**: `sql/postgres_schema.sql` - Production schema with pgvector support
-- **SQLite**: `sql/sqlite_schema.sql` - Development schema
-
-Both schemas include:
+The schema includes:
 - `gwas_catalog` table with auto-incrementing `id` primary key
-- `study_embeddings` table with foreign key to `gwas_catalog.id`
+- `study_embeddings` table for semantic search (pgvector)
 - `embedding_cache` table for query caching
-- All necessary indexes including HNSW for PostgreSQL
+- All necessary indexes including HNSW for vector similarity search
 
 To initialize a fresh database:
 
 ```bash
-# For PostgreSQL
+# Apply schema
 psql $POSTGRES_DB < sql/postgres_schema.sql
 
-# For SQLite
-sqlite3 /path/to/gwas_catalog.sqlite < sql/sqlite_schema.sql
+# Apply indexes
+psql $POSTGRES_DB < sql/postgres_indexes.sql
 ```
 
 **Architecture benefits:**
@@ -172,12 +183,12 @@ The application includes LLM-powered semantic search that understands the meanin
 
 ### Prerequisites
 
-1. **PostgreSQL with pgvector** (production) or **SQLite** (development)
+1. **PostgreSQL with pgvector** (required)
 2. **Python 3.8+** with GPU support (for initial embedding generation)
 
-The complete database schema (including semantic search support) is in `sql/postgres_schema.sql` or `sql/sqlite_schema.sql`. See [Database Schema](#database-schema) section above for setup instructions.
+The complete database schema (including semantic search support) is in `sql/postgres_schema.sql`. See [Database Schema](#database-schema) section above for setup instructions.
 
-**Note for PostgreSQL:** The `pgvector` extension is automatically enabled by the schema. Most managed PostgreSQL services (DigitalOcean, AWS RDS, etc.) allow extension creation by database owners.
+**Note:** The `pgvector` extension is automatically enabled by the schema. Most managed PostgreSQL services (DigitalOcean, AWS RDS, etc.) allow extension creation by database owners.
 
 ### Step 1: Generate Study Embeddings
 
@@ -187,11 +198,8 @@ Use your local GPU to generate embeddings for all studies:
 # Install Python dependencies
 pip install -r scripts/requirements.txt
 
-# For PostgreSQL (production) - save local backup
+# Generate embeddings for PostgreSQL - save local backup
 POSTGRES_DB="postgresql://..." python scripts/generate-embeddings.py --save-local embeddings_backup.npz
-
-# For SQLite (development)
-python scripts/generate-embeddings.py
 
 # Load from local backup to new database (no GPU needed)
 POSTGRES_DB="postgresql://..." python scripts/generate-embeddings.py --load-local embeddings_backup.npz
@@ -365,8 +373,8 @@ WHERE accessed_at < NOW() - INTERVAL '90 days'
 - Check embeddings generated: `SELECT COUNT(*) FROM study_embeddings;`
 
 **Poor search quality:**
-- Semantic search only works with PostgreSQL + pgvector (SQLite falls back to keyword search)
 - Ensure HNSW index created: `\d+ study_embeddings` should show `idx_study_embeddings_embedding`
+- Verify pgvector extension is enabled: `SELECT * FROM pg_extension WHERE extname = 'vector';`
 
 ## Premium Features & Payments
 

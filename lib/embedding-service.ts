@@ -138,7 +138,9 @@ export class EmbeddingService {
       const embedding = fullEmbedding.slice(0, this.DIMENSIONS);
 
       const elapsed = Date.now() - start;
-      console.log(`[Embedding] Generated in ${elapsed}ms for: "${query}"`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Embedding] Generated in ${elapsed}ms for: "${query}"`);
+      }
 
       // Store in in-memory cache (LRU)
       this.addToCache(normalized, embedding);

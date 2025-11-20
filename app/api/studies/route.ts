@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { executeQuery, executeQuerySingle, getDbType } from "@/lib/db";
+import { executeQuery, executeQuerySingle } from "@/lib/db";
 import { validateOrigin } from "@/lib/origin-validator";
 import {
   computeQualityFlags,
@@ -264,6 +264,7 @@ export async function GET(request: NextRequest) {
 
   const filters: string[] = [];
   const params: unknown[] = [];
+  let paramIndex = 1; // Track PostgreSQL parameter index ($1, $2, $3, ...)
   let orderByClause = "";
   let useSemanticQuery = false;
   let queryEmbedding: number[] = [];
@@ -271,11 +272,14 @@ export async function GET(request: NextRequest) {
   // Semantic search: Generate embedding for query
   if (search && useSemanticSearch) {
     try {
-      console.log(`[Semantic Search] Embedding query: "${search}"`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Semantic Search] Embedding query: "${search}"`);
+      }
       queryEmbedding = await embeddingService.embed(search);
       useSemanticQuery = true;
-      console.log(`[Semantic Search] Embedding generated (${queryEmbedding.length} dims)`);
-      console.log(`[Semantic Search] First 10 values:`, queryEmbedding.slice(0, 10));
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Semantic Search] Embedding generated (${queryEmbedding.length} dims)`);
+      }
     } catch (error) {
       console.error(`[Semantic Search] Failed to generate embedding:`, error);
       // Fall back to keyword search
@@ -288,33 +292,22 @@ export async function GET(request: NextRequest) {
     // Keyword search (fallback or when semantic is disabled)
     const wildcard = `%${search}%`;
     filters.push(
-      "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
+      `(gc.study LIKE $${paramIndex} OR gc.disease_trait LIKE $${paramIndex+1} OR gc.mapped_trait LIKE $${paramIndex+2} OR gc.first_author LIKE $${paramIndex+3} OR gc.mapped_gene LIKE $${paramIndex+4} OR gc.study_accession LIKE $${paramIndex+5} OR gc.snps LIKE $${paramIndex+6})`,
     );
     params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+    paramIndex += 7;
   } else if (useSemanticQuery) {
     // Semantic search: Use separate study_embeddings table
-    const dbType = getDbType();
-
-    if (dbType === 'postgres') {
-      // PostgreSQL: Semantic search handled in FROM clause subquery
-      // The subquery already filters and orders by similarity
-      // Just order by the distance column from the subquery
-      orderByClause = `ORDER BY se.distance`;
-    } else {
-      // SQLite: No native vector support, fall back to keyword search
-      console.warn(`[Semantic Search] SQLite doesn't support vector similarity, falling back to keyword search`);
-      const wildcard = `%${search}%`;
-      filters.push(
-        "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
-      );
-      params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
-      useSemanticQuery = false;
-    }
+    // PostgreSQL: Semantic search handled in FROM clause subquery
+    // The subquery already filters and orders by similarity
+    // Just order by the distance column from the subquery
+    orderByClause = `ORDER BY se.distance`;
   }
 
   if (trait) {
-    filters.push("(gc.mapped_trait = ? OR gc.disease_trait = ?)");
+    filters.push(`(gc.mapped_trait = $${paramIndex} OR gc.disease_trait = $${paramIndex+1})`);
     params.push(trait, trait);
+    paramIndex += 2;
   }
 
   // For fetchAll, always require SNPs and risk alleles (since we're doing SNP matching)
@@ -327,21 +320,15 @@ export async function GET(request: NextRequest) {
   const maxPValue = maxPValueRaw ? parsePValue(maxPValueRaw) : null;
   const minLogP = minLogPRaw ? Number(minLogPRaw) : null;
 
-  // Get database type first to use appropriate syntax
-  const dbType = getDbType();
-
   if (minSampleSize !== null) {
     // Filter for minimum sample size
     // Check both initial_sample_size and replication_sample_size
     // Note: Some values contain text like "1,000 cases, 1,034 controls"
     // Extract only the first number to avoid overflow from concatenating multiple numbers
-    if (dbType === 'postgres') {
-      // Extract first number with commas, then remove commas
-      filters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
-    } else {
-      filters.push("((CAST(gc.initial_sample_size AS INTEGER) >= ?) OR (CAST(gc.replication_sample_size AS INTEGER) >= ?))");
-    }
+    // PostgreSQL: Extract first number with commas, then remove commas
+    filters.push(`((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${paramIndex}::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${paramIndex+1}::numeric))`);
     params.push(minSampleSize, minSampleSize);
+    paramIndex += 2;
   }
 
   if (maxPValue !== null) {
@@ -349,22 +336,16 @@ export async function GET(request: NextRequest) {
     // Use pvalue_mlog to avoid numeric overflow with extreme p-values like 1E-18716
     // Convert: maxPValue = 5e-8 => minLogP = -log10(5e-8) ≈ 7.3
     const minLogPFromMaxP = -Math.log10(maxPValue);
-    if (dbType === 'postgres') {
-      filters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
-    } else {
-      filters.push("(gc.pvalue_mlog IS NULL OR CAST(gc.pvalue_mlog AS REAL) >= ?)");
-    }
+    filters.push(`(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= $${paramIndex}::numeric)`);
     params.push(minLogPFromMaxP);
+    paramIndex += 1;
   }
 
   if (minLogP !== null) {
     // Filter for minimum -log10(p-value)
-    if (dbType === 'postgres') {
-      filters.push("gc.pvalue_mlog::numeric >= ?::numeric");
-    } else {
-      filters.push("CAST(gc.pvalue_mlog AS REAL) >= ?");
-    }
+    filters.push(`gc.pvalue_mlog::numeric >= $${paramIndex}::numeric`);
     params.push(minLogP);
+    paramIndex += 1;
   }
 
   if (excludeMissingGenotype) {
@@ -388,7 +369,7 @@ export async function GET(request: NextRequest) {
   // This allows the HNSW index to be used efficiently
   let fromClause = 'FROM gwas_catalog gc';
 
-  if (useSemanticQuery && dbType === 'postgres') {
+  if (useSemanticQuery) {
     // Two-stage query for efficient HNSW index usage:
     // 1. First: Use HNSW index to get top candidate embeddings (fast!)
     // 2. Then: JOIN with gwas_catalog using composite key (study_accession, snps, strongest_snp_risk_allele)
@@ -418,7 +399,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Add similarity score for semantic search
-  const similarityColumn = useSemanticQuery && dbType === 'postgres'
+  const similarityColumn = useSemanticQuery
     ? `,\n       (1 - (se.embedding <=> ${`'${JSON.stringify(queryEmbedding)}'::vector`})) as similarity`
     : '';
 
@@ -448,9 +429,7 @@ export async function GET(request: NextRequest) {
 
   // Add LIMIT/OFFSET directly to query for PostgreSQL (safe since rawLimit and offset are validated integers)
   // This avoids parameter type inference issues with pg driver
-  const finalQuery = dbType === 'postgres'
-    ? `${baseQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`
-    : `${baseQuery}\n    LIMIT ? OFFSET ?`;
+  const finalQuery = `${baseQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`;
 
   let rawRows: RawStudy[];
 
@@ -467,10 +446,8 @@ export async function GET(request: NextRequest) {
     console.log(`[Query] SQL:\n${finalQuery}`);
     console.log(`[Query] First 3 params:`, params.slice(0, 3).map(p => typeof p === 'string' && p.length > 100 ? `${p.substring(0, 100)}...` : p));
 
-    // For PostgreSQL, LIMIT/OFFSET are in the query string; for SQLite, they're in params
-    rawRows = dbType === 'postgres'
-      ? await executeQuery<RawStudy>(finalQuery, params)
-      : await executeQuery<RawStudy>(finalQuery, [...params, rawLimit, offset]);
+    // For PostgreSQL, LIMIT/OFFSET are in the query string
+    rawRows = await executeQuery<RawStudy>(finalQuery, params);
 
     const queryElapsed = Date.now() - queryStart;
     console.log(`[Query] Database query completed in ${queryElapsed}ms`);
@@ -486,19 +463,22 @@ export async function GET(request: NextRequest) {
       // Rebuild query without semantic search, using same filters as main query
       const fallbackFilters: string[] = [];
       const fallbackParams: any[] = [];
+      let fallbackParamIndex = 1;
 
       // Re-add search as keyword search
       if (search) {
         const wildcard = `%${search}%`;
         fallbackFilters.push(
-          "(gc.study LIKE ? OR gc.disease_trait LIKE ? OR gc.mapped_trait LIKE ? OR gc.first_author LIKE ? OR gc.mapped_gene LIKE ? OR gc.study_accession LIKE ? OR gc.snps LIKE ?)",
+          `(gc.study LIKE $${fallbackParamIndex} OR gc.disease_trait LIKE $${fallbackParamIndex+1} OR gc.mapped_trait LIKE $${fallbackParamIndex+2} OR gc.first_author LIKE $${fallbackParamIndex+3} OR gc.mapped_gene LIKE $${fallbackParamIndex+4} OR gc.study_accession LIKE $${fallbackParamIndex+5} OR gc.snps LIKE $${fallbackParamIndex+6})`,
         );
         fallbackParams.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
+        fallbackParamIndex += 7;
       }
 
       if (trait) {
-        fallbackFilters.push("(gc.mapped_trait = ? OR gc.disease_trait = ?)");
+        fallbackFilters.push(`(gc.mapped_trait = $${fallbackParamIndex} OR gc.disease_trait = $${fallbackParamIndex+1})`);
         fallbackParams.push(trait, trait);
+        fallbackParamIndex += 2;
       }
 
       if (fetchAll) {
@@ -508,33 +488,24 @@ export async function GET(request: NextRequest) {
 
       // Add the same backend filters as the main query
       if (minSampleSize !== null) {
-        if (dbType === 'postgres') {
-          // Extract first number with commas, then remove commas
-          fallbackFilters.push("((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= ?::numeric))");
-        } else {
-          fallbackFilters.push("((CAST(gc.initial_sample_size AS INTEGER) >= ?) OR (CAST(gc.replication_sample_size AS INTEGER) >= ?))");
-        }
+        // PostgreSQL: Extract first number with commas, then remove commas
+        fallbackFilters.push(`((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${fallbackParamIndex}::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${fallbackParamIndex+1}::numeric))`);
         fallbackParams.push(minSampleSize, minSampleSize);
+        fallbackParamIndex += 2;
       }
 
       if (maxPValue !== null) {
         // Use pvalue_mlog to avoid numeric overflow with extreme p-values
         const minLogPFromMaxP = -Math.log10(maxPValue);
-        if (dbType === 'postgres') {
-          fallbackFilters.push("(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= ?::numeric)");
-        } else {
-          fallbackFilters.push("(gc.pvalue_mlog IS NULL OR CAST(gc.pvalue_mlog AS REAL) >= ?)");
-        }
+        fallbackFilters.push(`(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= $${fallbackParamIndex}::numeric)`);
         fallbackParams.push(minLogPFromMaxP);
+        fallbackParamIndex += 1;
       }
 
       if (minLogP !== null) {
-        if (dbType === 'postgres') {
-          fallbackFilters.push("gc.pvalue_mlog::numeric >= ?::numeric");
-        } else {
-          fallbackFilters.push("CAST(gc.pvalue_mlog AS REAL) >= ?");
-        }
+        fallbackFilters.push(`gc.pvalue_mlog::numeric >= $${fallbackParamIndex}::numeric`);
         fallbackParams.push(minLogP);
+        fallbackParamIndex += 1;
       }
 
       if (excludeMissingGenotype) {
@@ -580,13 +551,9 @@ export async function GET(request: NextRequest) {
     ${fallbackWhereClause}
     ${fallbackOrderBy}`;
 
-      const fallbackFinalQuery = dbType === 'postgres'
-        ? `${fallbackQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`
-        : `${fallbackQuery}\n    LIMIT ? OFFSET ?`;
+      const fallbackFinalQuery = `${fallbackQuery}\n    LIMIT ${rawLimit} OFFSET ${offset}`;
 
-      rawRows = dbType === 'postgres'
-        ? await executeQuery<RawStudy>(fallbackFinalQuery, fallbackParams)
-        : await executeQuery<RawStudy>(fallbackFinalQuery, [...fallbackParams, rawLimit, offset]);
+      rawRows = await executeQuery<RawStudy>(fallbackFinalQuery, fallbackParams);
     } else {
       // Re-throw if it's a different error
       throw error;
@@ -650,7 +617,7 @@ export async function GET(request: NextRequest) {
     // Get source count (may fail if numeric overflow in WHERE clause, that's ok)
     let sourceCount = 0;
     try {
-      const countQuery = useSemanticQuery && dbType === 'postgres'
+      const countQuery = useSemanticQuery
         ? `SELECT COUNT(*) as count ${fromClause} ${whereClause}`
         : `SELECT COUNT(*) as count FROM gwas_catalog gc ${whereClause}`;
       const countResult = await executeQuerySingle<{ count: number }>(countQuery, params);

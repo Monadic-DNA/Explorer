@@ -8,7 +8,7 @@ import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { callLLM, getLLMDescription } from "@/lib/llm-client";
+import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
 import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 
@@ -384,9 +384,17 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('Relevant Results Count:', relevantResults.length);
       console.log('======================');
 
-      // Call LLM using centralized client
-      // Use MEDIUM reasoning effort for balanced quality and speed
-      const response = await callLLM([
+      // Create an initial assistant message with empty content
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        studiesUsed: relevantResults
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+
+      // Call LLM with streaming
+      const stream = callLLMStream([
         {
           role: "system",
           content: systemPrompt
@@ -405,19 +413,33 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         reasoningEffort: 'medium',
       });
 
-      const assistantContent = response.content;
+      // Accumulate content from stream
+      let accumulatedContent = '';
+      let isFirstChunk = true;
 
-      if (!assistantContent) {
-        throw new Error("No response generated from LLM");
+      for await (const chunk of stream) {
+        // Once we get the first chunk, stop showing loading indicator
+        if (isFirstChunk) {
+          setIsLoading(false);
+          setLoadingStatus('');
+          isFirstChunk = false;
+        }
+
+        accumulatedContent += chunk;
+        // Update the last message (assistant message) with accumulated content
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            content: accumulatedContent
+          };
+          return updated;
+        });
       }
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: assistantContent,
-        timestamp: new Date(),
-        studiesUsed: relevantResults
-      };
-      setMessages(prev => [...prev, assistantMessage]);
+      if (!accumulatedContent) {
+        throw new Error("No response generated from LLM");
+      }
 
     } catch (err) {
       console.error('[LLM Chat] Error:', err);
@@ -435,8 +457,18 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       }
 
       setError(errorMessage);
+
+      // Remove the empty assistant message if error occurred before any content
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
     } finally {
       setIsLoading(false);
+      setLoadingStatus('');
     }
   };
 
@@ -744,6 +776,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                           <div key={studyIdx} className="study-item">
                             <div className="study-trait">{study.traitName}</div>
                             <div className="study-details">
+                              {study.mappedGene && <span className="study-gene">Gene: {study.mappedGene}</span>}
+                              <span className="study-snp">SNP: {study.matchedSnp}</span>
                               <span className="study-genotype">Your genotype: {study.userGenotype}</span>
                               <span className="study-risk">Risk: {formatRiskScore(study.riskScore, study.riskLevel, study.effectType)}</span>
                               <span className="study-level" data-level={study.riskLevel}>{study.riskLevel}</span>
