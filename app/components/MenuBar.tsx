@@ -156,6 +156,11 @@ export default function MenuBar() {
       <HelpDropdown
         isOpen={showHelpDropdown}
         onClose={() => setShowHelpDropdown(false)}
+        onStartTour={() => {
+          // Dispatch custom event that page.tsx can listen to
+          const event = new CustomEvent('startGuidedTour');
+          window.dispatchEvent(event);
+        }}
       />
     <div className="menu-bar">
       <div className="menu-left">
@@ -241,18 +246,16 @@ export default function MenuBar() {
             )}
           </button>
 
-          <a
-            href="https://recherche.discourse.group/c/public/monadic-dna/30"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             className="menu-icon-button"
-            title="Visit community forum for help and feedback"
+            onClick={() => setShowHelpDropdown(!showHelpDropdown)}
+            title="Get help and restart the guided tour"
           >
             <span className="icon">
               <HelpCircleIcon size={32} />
             </span>
             <span className="label">Help</span>
-          </a>
+          </button>
 
           {mounted && (
             <button

@@ -16,6 +16,7 @@ import RunAllModal from "./components/RunAllModal";
 import LLMChatInline from "./components/LLMChatInline";
 import OverviewReportModal from "./components/OverviewReportModal";
 import { PremiumPaywall } from "./components/PremiumPaywall";
+import GuidedTour from "./components/GuidedTour";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -265,6 +266,7 @@ function MainContent() {
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
+  const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
     phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
     fetchedBatches: number;
@@ -290,12 +292,29 @@ function MainContent() {
   });
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  // Check if user has accepted terms on mount
+  // Check if user has accepted terms and show tour on mount
   useEffect(() => {
     const termsAccepted = localStorage.getItem('terms_accepted');
     if (!termsAccepted) {
       setShowTermsModal(true);
     }
+
+    // Check if user wants to see the guided tour
+    const tourDismissed = localStorage.getItem('tour_dismissed');
+    if (!tourDismissed && termsAccepted) {
+      // Show tour after a short delay to allow UI to settle
+      setTimeout(() => setShowGuidedTour(true), 1000);
+    }
+
+    // Listen for custom event from Help menu to restart tour
+    const handleStartTour = () => {
+      setShowGuidedTour(true);
+    };
+    window.addEventListener('startGuidedTour', handleStartTour);
+
+    return () => {
+      window.removeEventListener('startGuidedTour', handleStartTour);
+    };
   }, []);
 
   // Debounce search input to avoid excessive API calls
@@ -1317,6 +1336,14 @@ function MainContent() {
       <OverviewReportModal
         isOpen={showOverviewReportModal}
         onClose={() => setShowOverviewReportModal(false)}
+      />
+      <GuidedTour
+        isOpen={showGuidedTour}
+        onClose={() => setShowGuidedTour(false)}
+        onNeverShowAgain={() => {
+          localStorage.setItem('tour_dismissed', 'true');
+          setShowGuidedTour(false);
+        }}
       />
     </div>
   );

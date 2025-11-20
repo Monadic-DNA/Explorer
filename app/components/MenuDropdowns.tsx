@@ -290,7 +290,15 @@ export function CacheDropdown({
 }
 
 // Help Dropdown
-export function HelpDropdown({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function HelpDropdown({
+  isOpen,
+  onClose,
+  onStartTour
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onStartTour?: () => void;
+}) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -313,6 +321,18 @@ export function HelpDropdown({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       <div className="dropdown-content">
         <h3>Help & Feedback</h3>
         <div className="dropdown-actions">
+          {onStartTour && (
+            <button
+              className="control-button"
+              onClick={() => {
+                onStartTour();
+                onClose();
+              }}
+              title="Take a guided tour of the app"
+            >
+              🎯 Start Guided Tour
+            </button>
+          )}
           <a
             href="https://recherche.discourse.group/c/public/monadic-dna/30"
             target="_blank"
@@ -322,16 +342,6 @@ export function HelpDropdown({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             title="Join fellow explorers - share your feedback on our forum"
           >
             <MessageIcon size={14} /> Community Forum
-          </a>
-          <a
-            href="https://monadicdna.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="control-button"
-            onClick={onClose}
-            title="Visit Monadic DNA website"
-          >
-            Documentation
           </a>
         </div>
       </div>
