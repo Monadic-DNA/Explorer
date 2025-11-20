@@ -9,10 +9,7 @@ import {
 } from "@/lib/analytics";
 import {
   isDevModeEnabled,
-  loadGenotypeFile,
   selectAndSaveGenotypeFile,
-  markGenotypeUsed,
-  logDevModeStatus,
 } from "@/lib/dev-mode";
 
 type GenotypeContextType = {
@@ -36,39 +33,6 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const onDataLoadedRef = useRef<(() => void) | null>(null);
   const [fileHash, setFileHash] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
-  const [devModeInitialized, setDevModeInitialized] = useState(false);
-
-  // Dev mode: Auto-load genotype file on mount
-  useEffect(() => {
-    if (devModeInitialized || genotypeData) return;
-
-    const autoLoadGenotype = async () => {
-      if (!isDevModeEnabled()) {
-        setDevModeInitialized(true);
-        return;
-      }
-
-      await logDevModeStatus();
-      console.log('[Dev Mode] 🚀 Attempting to auto-load genotype...');
-
-      try {
-        const file = await loadGenotypeFile();
-        if (file) {
-          console.log('[Dev Mode] Auto-loading genotype file:', file.name);
-          await uploadGenotype(file);
-          console.log('[Dev Mode] ✓ Genotype auto-loaded successfully');
-        } else {
-          console.log('[Dev Mode] No saved genotype found. Upload a file to enable auto-load.');
-        }
-      } catch (error) {
-        console.error('[Dev Mode] Failed to auto-load genotype:', error);
-      } finally {
-        setDevModeInitialized(true);
-      }
-    };
-
-    autoLoadGenotype();
-  }, [devModeInitialized, genotypeData]);
 
   const uploadGenotype = async (file: File) => {
     const startTime = performance.now();
@@ -113,11 +77,6 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       setGenotypeData(genotypeMap);
       setFileHash(hash);
       setOriginalFileName(file.name);
-
-      // Dev mode: Mark genotype as used for auto-load on next session
-      if (isDevModeEnabled()) {
-        markGenotypeUsed();
-      }
 
       // Call the callback if it exists
       if (onDataLoadedRef.current) {

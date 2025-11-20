@@ -19,9 +19,6 @@ const GENOTYPE_HANDLE_KEY = 'genotype_file_handle';
 const RESULTS_HANDLE_KEY = 'results_file_handle';
 const PASSWORD_KEY = 'personalization_password';
 
-// Fallback for browsers without File System Access API
-const LOCALSTORAGE_GENOTYPE_PATH = 'gwasifier_dev_genotype_path';
-const LOCALSTORAGE_RESULTS_PATH = 'gwasifier_dev_results_path';
 
 /**
  * Check if dev mode is enabled
@@ -210,9 +207,6 @@ export async function selectAndSaveGenotypeFile(): Promise<File | null> {
     }
   }
 
-  // Fallback: Just mark that a file was used
-  localStorage.setItem(LOCALSTORAGE_GENOTYPE_PATH, 'true');
-  console.log('[Dev Mode] Marked genotype as used (fallback mode)');
   return null;
 }
 
@@ -252,143 +246,9 @@ export async function selectAndSaveResultsFile(): Promise<File | null> {
     }
   }
 
-  // Fallback: Just mark that a file was used
-  localStorage.setItem(LOCALSTORAGE_RESULTS_PATH, 'true');
-  console.log('[Dev Mode] Marked results as used (fallback mode)');
   return null;
 }
 
-/**
- * Load genotype file from saved handle (automatic, no picker)
- * Falls back to prompting for file if File System Access API not supported
- */
-export async function loadGenotypeFile(): Promise<File | null> {
-  if (!isDevModeEnabled()) return null;
-
-  // Try File System Access API first
-  if (isFileSystemAccessSupported()) {
-    try {
-      const fileHandle = await getGenotypeFileHandle();
-      if (!fileHandle) {
-        console.log('[Dev Mode] No genotype file handle saved. Upload a file to enable auto-load.');
-        return null;
-      }
-
-      // Request permission to read the file
-      const permission = await (fileHandle as any).queryPermission({ mode: 'read' });
-      if (permission !== 'granted') {
-        const requestPermission = await (fileHandle as any).requestPermission({ mode: 'read' });
-        if (requestPermission !== 'granted') {
-          console.log('[Dev Mode] Permission denied to read genotype file');
-          return null;
-        }
-      }
-
-      const file = await fileHandle.getFile();
-      console.log('[Dev Mode] ✓ Auto-loaded genotype file:', file.name);
-      return file;
-    } catch (error) {
-      console.error('[Dev Mode] Failed to load genotype file:', error);
-      console.log('[Dev Mode] Please select the file again using "Load genetic data"');
-      return null;
-    }
-  }
-
-  // Fallback: Check if we have a previously used file (localStorage marker)
-  const hasGenotypeMarker = localStorage.getItem(LOCALSTORAGE_GENOTYPE_PATH);
-  console.log('[Dev Mode] Checking for genotype marker:', hasGenotypeMarker);
-
-  if (!hasGenotypeMarker) {
-    console.log('[Dev Mode] No saved genotype marker. Upload a file once to enable auto-load prompt on next session.');
-    return null;
-  }
-
-  console.log('[Dev Mode] 🚀 Genotype marker found! Opening file picker...');
-  console.log('[Dev Mode] (Brave/Firefox fallback mode: File System Access API not available)');
-
-  // Prompt user to select the file
-  return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt,.tsv,.csv';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        console.log('[Dev Mode] ✓ Genotype file selected:', file.name);
-        resolve(file);
-      } else {
-        resolve(null);
-      }
-    };
-    input.click();
-  });
-}
-
-/**
- * Load results file from saved handle (automatic, no picker)
- * Falls back to prompting for file if File System Access API not supported
- */
-export async function loadResultsFile(): Promise<File | null> {
-  if (!isDevModeEnabled()) return null;
-
-  // Try File System Access API first
-  if (isFileSystemAccessSupported()) {
-    try {
-      const fileHandle = await getResultsFileHandle();
-      if (!fileHandle) {
-        console.log('[Dev Mode] No results file handle saved. Export results to enable auto-load.');
-        return null;
-      }
-
-      // Request permission to read the file
-      const permission = await (fileHandle as any).queryPermission({ mode: 'read' });
-      if (permission !== 'granted') {
-        const requestPermission = await (fileHandle as any).requestPermission({ mode: 'read' });
-        if (requestPermission !== 'granted') {
-          console.log('[Dev Mode] Permission denied to read results file');
-          return null;
-        }
-      }
-
-      const file = await fileHandle.getFile();
-      console.log('[Dev Mode] ✓ Auto-loaded results file:', file.name);
-      return file;
-    } catch (error) {
-      console.error('[Dev Mode] Failed to load results file:', error);
-      console.log('[Dev Mode] Please load the file again using the "Load" button');
-      return null;
-    }
-  }
-
-  // Fallback: Check if we have a previously used file (localStorage marker)
-  const hasResultsMarker = localStorage.getItem(LOCALSTORAGE_RESULTS_PATH);
-  console.log('[Dev Mode] Checking for results marker:', hasResultsMarker);
-
-  if (!hasResultsMarker) {
-    console.log('[Dev Mode] No saved results marker. Load or export results once to enable auto-load prompt on next session.');
-    return null;
-  }
-
-  console.log('[Dev Mode] 🚀 Results marker found! Opening file picker...');
-  console.log('[Dev Mode] (Brave/Firefox fallback mode: File System Access API not available)');
-
-  // Prompt user to select the file
-  return new Promise((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.tsv';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        console.log('[Dev Mode] ✓ Results file selected:', file.name);
-        resolve(file);
-      } else {
-        resolve(null);
-      }
-    };
-    input.click();
-  });
-}
 
 /**
  * Clear all dev mode storage
@@ -413,23 +273,6 @@ export async function clearDevModeStorage(): Promise<void> {
   }
 }
 
-/**
- * Mark genotype file as used (for fallback browsers)
- */
-export function markGenotypeUsed(): void {
-  if (!isDevModeEnabled()) return;
-  localStorage.setItem(LOCALSTORAGE_GENOTYPE_PATH, 'true');
-  console.log('[Dev Mode] ✓ Marked genotype as used for auto-load');
-}
-
-/**
- * Mark results file as used (for fallback browsers)
- */
-export function markResultsUsed(): void {
-  if (!isDevModeEnabled()) return;
-  localStorage.setItem(LOCALSTORAGE_RESULTS_PATH, 'true');
-  console.log('[Dev Mode] ✓ Marked results as used for auto-load');
-}
 
 /**
  * Save personalization password to IndexedDB (dev mode only)
