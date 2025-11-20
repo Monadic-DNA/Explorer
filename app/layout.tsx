@@ -43,6 +43,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Theme Script - Must run before any rendering to prevent flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const savedTheme = localStorage.getItem('theme') || 'light';
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                document.documentElement.style.colorScheme = savedTheme;
+              })();
+            `,
+          }}
+        />
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-HP3FB0GX80"
