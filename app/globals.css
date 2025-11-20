@@ -303,7 +303,7 @@ body {
 .menu-dropdown {
   position: fixed;
   top: 5rem;
-  right: 2rem;
+  right: 10%;
   background: var(--secondary-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -311,9 +311,9 @@ body {
   min-width: 300px;
   max-width: 400px;
   backdrop-filter: blur(20px);
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(59, 130, 246, 0.2);
   z-index: 1000;
-  animation: slideDown 0.2s ease-out;
+  animation: dropdownEnter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes slideDown {
@@ -324,6 +324,17 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes dropdownEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -355,6 +366,111 @@ body {
 .dropdown-actions a {
   width: 100%;
   justify-content: center;
+}
+
+/* My Data Dropdown Specific Styles */
+.my-data-dropdown {
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.data-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.info-block {
+  padding: 0.75rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.info-block h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.info-block p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.info-block p + p {
+  margin-top: 0.5rem;
+}
+
+.file-limit {
+  margin-top: 0.5rem !important;
+  font-size: 0.75rem !important;
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+.guide-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.guide-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.data-loaded-section {
+  margin-bottom: 1rem;
+}
+
+.data-status-message {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.upload-section {
+  margin-bottom: 1.5rem;
+}
+
+/* Results Dropdown Specific Styles */
+.results-dropdown {
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.results-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Cache Dropdown Specific Styles */
+.cache-dropdown {
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.cache-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
 }
 
 .app-title {
@@ -692,15 +808,15 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(59, 130, 246, 0.15);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
   z-index: 2000;
   overflow-y: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem 1rem;
-  animation: modalOverlayFadeIn 0.2s ease-out;
+  animation: modalOverlayFadeIn 0.25s ease-out;
 }
 
 @keyframes modalOverlayFadeIn {
@@ -715,11 +831,11 @@ body {
 }
 
 @keyframes modalDialogScaleIn {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(0.95) translateY(-10px);
+    transform: scale(0.9) translateY(-30px);
   }
-  to {
+  100% {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
@@ -727,16 +843,16 @@ body {
 
 .modal-dialog {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 2px solid rgba(59, 130, 246, 0.3);
   border-radius: 16px;
   backdrop-filter: blur(20px);
-  box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 20px 25px -5px rgba(59, 130, 246, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(59, 130, 246, 0.1);
   max-width: min(600px, 90vw);
   width: 100%;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  animation: modalDialogScaleIn 0.3s ease-out;
+  animation: modalDialogScaleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .modal-content {
@@ -1626,8 +1742,8 @@ tbody tr:hover {
 /* Unobtrusive Genotype Upload Styles */
 .genotype-upload {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .genotype-file-input {
@@ -1635,21 +1751,25 @@ tbody tr:hover {
 }
 
 .genotype-upload-label {
-  background: var(--surface-bg);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
+  background: var(--accent-blue);
+  border: 2px solid var(--accent-blue);
+  color: white;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
 }
 
 .genotype-upload-label:hover:not(.loading) {
-  background: var(--accent-blue);
-  color: white;
-  border-color: var(--accent-blue);
+  background: #2563eb;
+  border-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
 }
 
 .genotype-upload-label.loading {
@@ -1657,17 +1777,59 @@ tbody tr:hover {
   cursor: wait;
 }
 
-.sample-file-link {
-  font-size: 0.8rem;
+.sample-data-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
   color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.divider span {
+  padding: 0 0.75rem;
+}
+
+.sample-file-link {
+  font-size: 0.85rem;
+  color: var(--accent-blue);
   text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.2s ease;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  padding: 0.5rem;
+  border-radius: 6px;
+  text-align: center;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .sample-file-link:hover {
-  color: var(--accent-blue);
-  text-decoration: underline;
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.sample-description {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  text-align: center;
 }
 
 .genotype-file-selected {
@@ -2055,7 +2217,7 @@ tbody tr:hover {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--bg-secondary);
+  background: var(--secondary-bg);
   border: 2px solid var(--border-color);
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -5249,9 +5411,89 @@ details[open] .summary-arrow {
   line-height: 1.5;
 }
 
+/* LLM Privacy Notice */
+.llm-privacy-notice {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.llm-privacy-notice h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.privacy-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.privacy-details p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.privacy-details ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.25rem;
+  list-style-type: none;
+}
+
+.privacy-details li {
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  position: relative;
+  padding-left: 0.5rem;
+}
+
+.privacy-details li:before {
+  content: "•";
+  position: absolute;
+  left: -0.75rem;
+  color: var(--accent-blue);
+  font-weight: bold;
+}
+
+.privacy-details li:last-child {
+  margin-bottom: 0;
+}
+
+.privacy-details .inline-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.privacy-details .inline-link:hover {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
 .ai-config-button {
   font-size: 0.85rem;
   padding: 0.5rem 0.75rem;
+}
+
+/* LLM Config Modal - Add padding and spacing */
+.llm-config-modal .modal-content {
+  padding: 2rem;
+  overflow-y: auto;
+  gap: 0;
+}
+
+.llm-config-modal h2 {
+  padding: 0;
+  margin-bottom: 1.5rem;
 }
 
 /* AI Config Modal - Add padding to content */

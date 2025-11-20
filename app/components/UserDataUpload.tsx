@@ -200,22 +200,28 @@ export default function UserDataUpload() {
         disabled={isLoading}
       />
       <label htmlFor="genotype-upload" className={`genotype-upload-label ${isLoading ? 'loading' : ''}`}>
-        {isLoading ? 'Analyzing your genetic map...' : 'Load genetic data'}
+        {isLoading ? 'Analyzing your genetic map...' : 'Choose File to Upload'}
       </label>
-      <a
-        href="https://drive.google.com/file/d/1WK3zZbqmu3_m6LvoQCylyIbWBkoO5pGI/view?usp=sharing"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="sample-file-link"
-        title="Download a sample DNA file to try out the app"
-      >
-        (or try a sample)
-      </a>
       {error && (
         <div className="genotype-error" title={error}>
           Upload failed
         </div>
       )}
+      <div className="sample-data-section">
+        <div className="divider">
+          <span>or</span>
+        </div>
+        <a
+          href="https://drive.google.com/file/d/1WK3zZbqmu3_m6LvoQCylyIbWBkoO5pGI/view?usp=sharing"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="sample-file-link"
+          title="Download a sample DNA file to try out the app"
+        >
+          Download Sample Data
+        </a>
+        <p className="sample-description">Try the app with an anonymized sample dataset if you don't have your own DNA file yet.</p>
+      </div>
     </div>
   );
 }
