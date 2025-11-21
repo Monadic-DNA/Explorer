@@ -781,6 +781,11 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                               <span className="study-genotype">Your genotype: {study.userGenotype}</span>
                               <span className="study-risk">Risk: {formatRiskScore(study.riskScore, study.riskLevel, study.effectType)}</span>
                               <span className="study-level" data-level={study.riskLevel}>{study.riskLevel}</span>
+                              {study.similarity !== undefined && (
+                                <span className="study-similarity" title="Semantic relevance to your query">
+                                  Match: {(study.similarity * 100).toFixed(0)}%
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}

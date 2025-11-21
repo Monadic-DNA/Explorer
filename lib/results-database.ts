@@ -472,11 +472,11 @@ export class ResultsDatabase {
         return this.getTopResultsByEffect(limit, excludeGwasId);
       }
 
-      // Step 2: Build index of similar studies for fast lookup
-      const similarStudiesSet = new Set<string>();
+      // Step 2: Build index of similar studies with similarity scores for fast lookup
+      const similarStudiesMap = new Map<string, number>();
       for (const study of similarStudies) {
-        const key = `${study.study_accession}|${study.snps}|${study.strongest_snp_risk_allele}`;
-        similarStudiesSet.add(key);
+        // Map by study_accession to similarity score
+        similarStudiesMap.set(study.study_accession, study.similarity);
       }
 
       // Step 3: Get all user results and filter to those that match similar studies
@@ -515,6 +515,7 @@ export class ResultsDatabase {
 
       for (const study of similarStudies) {
         const studyAccession = study.study_accession;
+        const similarity = study.similarity;
 
         // Find ALL matching user results for this study
         for (const userResult of allResults) {
@@ -523,7 +524,11 @@ export class ResultsDatabase {
 
           // Match on study accession (gwasId)
           if (userResult.gwasId === studyAccession) {
-            matchedResults.push(userResult);
+            // Attach similarity score to result
+            matchedResults.push({
+              ...userResult,
+              similarity: similarity
+            });
             matchedResultIds.add(userResult.studyId);
           }
         }
