@@ -4681,6 +4681,13 @@ details[open] .summary-arrow {
   font-size: 0.9rem;
 }
 
+.study-title {
+  font-style: italic;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
 .study-details {
   display: flex;
   flex-wrap: wrap;

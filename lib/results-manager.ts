@@ -16,6 +16,7 @@ export type SavedResult = {
   mappedGene?: string; // Mapped gene from GWAS catalog
   sampleSize?: string; // Initial sample size from GWAS catalog
   replicationSampleSize?: string; // Replication sample size from GWAS catalog
+  similarity?: number; // Semantic similarity score (0-1) from RAG search
 };
 
 export type SavedSession = {

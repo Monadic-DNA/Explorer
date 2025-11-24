@@ -107,10 +107,10 @@ function calculateOptimalBatches(highConfResultCount: number): number {
   const MAX_BATCHES = 32;
 
   // Target results per batch for optimal quality
-  // Map phase token budget: 137k context - 13k output - 16k buffer = 108k tokens
-  // Measured: ~26 tokens/result → ~4,200 results max per batch
+  // Map phase token budget: 100k nilAI limit - 13k output - 10k buffer = 77k tokens
+  // Measured: ~26 tokens/result → ~3,000 results max per batch
   const MIN_RESULTS_PER_BATCH = 800;
-  const MAX_RESULTS_PER_BATCH = 4200; // Reduced from 4500 due to added effectType column
+  const MAX_RESULTS_PER_BATCH = 3000; // Tuned for nilAI's 100k token limit
 
   // Calculate batches to maximize results per batch (minimize total API calls)
   const optimalBatches = Math.max(
@@ -125,7 +125,7 @@ function calculateOptimalBatches(highConfResultCount: number): number {
     High-confidence results: ${highConfResultCount.toLocaleString()}
     Optimal batches: ${optimalBatches}
     Results per batch: ${resultsPerBatch.toLocaleString()}
-    Estimated map tokens/batch: ${estimatedTokensPerBatch.toLocaleString()} (~${Math.round(estimatedTokensPerBatch / 137000 * 100)}% of 137k context)
+    Estimated map tokens/batch: ${estimatedTokensPerBatch.toLocaleString()} (~${Math.round(estimatedTokensPerBatch / 100000 * 100)}% of 100k nilAI limit)
     Estimated reduce tokens: ${optimalBatches * SUMMARY_TOKENS_PER_BATCH + REASONING_TOKENS_LOW + OUTPUT_TOKENS}
     Token buffer: ${CONTEXT_WINDOW - (optimalBatches * SUMMARY_TOKENS_PER_BATCH + REASONING_TOKENS_LOW + OUTPUT_TOKENS)}`);
 

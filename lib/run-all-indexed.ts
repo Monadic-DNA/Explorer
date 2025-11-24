@@ -134,29 +134,39 @@ export async function runAllAnalysisIndexed(
       // e.g., "[NR] unit increase", "[0.0068-0.0139] unit increase", "[112.27-112.33] increase"
       // Odds ratios are just numbers: e.g., "[1.08-1.15]"
       const ciTextLower = study.ci_text?.toLowerCase() ?? '';
-      const isBeta = ciTextLower.includes('increase') || ciTextLower.includes('decrease');
+      const hasIncrease = ciTextLower.includes('increase');
+      const hasDecrease = ciTextLower.includes('decrease');
+      const isBeta = hasIncrease || hasDecrease;
       const effectType: 'OR' | 'beta' = isBeta ? 'beta' : 'OR';
+
+      // CRITICAL FIX: GWAS Catalog stores ALL beta values as positive numbers
+      // Direction is encoded in ci_text ("increase" vs "decrease")
+      // We must negate the value for "decrease" studies
+      let adjustedEffect = effectValue;
+      if (isBeta && hasDecrease && !hasIncrease) {
+        adjustedEffect = -Math.abs(effectValue); // Force negative for decrease
+      }
 
       let riskScore = 1.0;
       let riskLevel: 'increased' | 'decreased' | 'neutral' = 'neutral';
 
-      if (!isNaN(effectValue) && effectValue !== 0) {
+      if (!isNaN(adjustedEffect) && adjustedEffect !== 0) {
         if (effectType === 'OR') {
           // Odds ratio logic
           if (riskAlleleCount === 0) {
             riskScore = 1.0;
             riskLevel = 'neutral';
           } else {
-            riskScore = Math.pow(effectValue, riskAlleleCount);
-            riskLevel = effectValue > 1 ? 'increased' : effectValue < 1 ? 'decreased' : 'neutral';
+            riskScore = Math.pow(adjustedEffect, riskAlleleCount);
+            riskLevel = adjustedEffect > 1 ? 'increased' : adjustedEffect < 1 ? 'decreased' : 'neutral';
           }
         } else {
-          // Beta coefficient logic - store actual beta value
-          riskScore = effectValue * riskAlleleCount;
+          // Beta coefficient logic - store actual beta value (now correctly signed)
+          riskScore = adjustedEffect * riskAlleleCount;
           if (riskAlleleCount === 0) {
             riskLevel = 'neutral';
           } else {
-            riskLevel = effectValue > 0 ? 'increased' : effectValue < 0 ? 'decreased' : 'neutral';
+            riskLevel = adjustedEffect > 0 ? 'increased' : adjustedEffect < 0 ? 'decreased' : 'neutral';
           }
         }
       }
