@@ -200,12 +200,13 @@ export function generateMapPrompt(
   userContext: string
 ): string {
   return `Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase.
-  Please analyze health, lifestyle, appearance, personality and fun facts for the reduce phase.
+  Please analyze health, lifestyle, appearance, personality, rare disease and fun facts for the reduce phase.
   Fun facts should actually be fun and not serious medical stuff.
   Do not include tutorial, recommendations, next steps. The output is not meant for the user. Rather, the next reduce phase will be handled by an LLM.
   Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture.
   Output text with no tables or any fancy formatting.
-  Do not comment on SNPs and genes I do not have.
+  CRITICAL: Do not comment on SNPs and genes I do not have. Stick to the results and do not speculate about the effect of any SNPs or genes. 
+  Back up each assertion with a specific reference to SNPs actually present in the dataset. 
 
 USER:${userContext}
 
@@ -254,14 +255,15 @@ export function generateReducePrompt(
 
   return `Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am ${userContext}
 
-Please analyze and produce a five page report (health, lifestyle, appearance, personality, fun facts) suitable for personal genomics users. 
+Please summarize and produce a report (health, diet, lifestyle, appearance, personality, fun facts, rare disease) suitable for personal genomics users. 
 
 Fun facts should actually be fun and not serious medical stuff. 
 
-Make sure you mention the most salient SNPs and genes. 
-
 Minimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. 
 
-Output text with no tables or any fancy formatting. Do not comment on SNPs and genes I do not have. 
+Output text with no tables or any fancy formatting. Section headings are ok. 
+
+CRITICAL: Do not comment on SNPs and genes I do not have.  Stick to the results and do not speculate about the effect of any SNPs or genes.
+
 ${summariesText}`;
 }

@@ -243,7 +243,7 @@ export async function generateOverviewReport(
       // Use HIGH reasoning effort for complex pattern recognition across variants
       // TESTING: Temporarily limit max tokens to 1,300
       const response = await callLLM([{ role: 'user', content: mapPrompt }], {
-        temperature: 0.7,
+        temperature: 0.4,
         reasoningEffort: 'low',
         maxTokens: 13000,
       });
@@ -311,9 +311,9 @@ export async function generateOverviewReport(
     // Use LOW reasoning effort to stay under token limit
     // No maxTokens limit - let model generate comprehensive reports
     const response = await callLLM([{ role: 'user', content: reducePrompt }], {
-      temperature: 0.7,
-      reasoningEffort: 'high',
-      maxTokens: 13000,
+      temperature: 0.2,
+      reasoningEffort: 'medium',
+      maxTokens: 25000,
     });
 
     const finalReport = response.content;
