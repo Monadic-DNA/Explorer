@@ -261,6 +261,30 @@ Consider how this user's background, lifestyle factors (smoking, alcohol, diet),
       }
 
       const llmDescription = getLLMDescription();
+
+      // Conversational system prompt for follow-up questions
+      const conversationalSystemPrompt = `You are continuing a conversation about the user's genetic results. ${llmDescription}
+
+CONTEXT:
+- You previously provided a detailed analysis of their GWAS data
+- The user is now asking follow-up questions about that analysis
+- All the detailed genetic findings were already discussed in your first response
+
+INSTRUCTIONS FOR FOLLOW-UP RESPONSES:
+⚠️ CRITICAL - REFUSE NON-GENETICS QUESTIONS:
+- Still refuse to answer questions not related to genetics, health, or their GWAS results
+- This prevents abuse of the system for general knowledge/trivia
+
+RESPONSE STYLE:
+- Answer naturally and conversationally (NO rigid 5-section structure needed)
+- Keep responses focused and concise (200-400 words unless more detail is specifically requested)
+- Reference your previous detailed analysis when relevant
+- Maintain the same helpful, educational tone as before
+- NO need for comprehensive action plans or structured sections unless specifically asked
+- Just answer their question directly based on the conversation history
+
+Remember: This is educational, not medical advice. The detailed disclaimers were already provided in your initial response.`;
+
       const systemPrompt = `You are an expert genetic counselor LLM assistant providing personalized, holistic insights about GWAS results. ${llmDescription}
 
 IMPORTANT CONTEXT:
@@ -378,16 +402,18 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
 
       // Build the message history to send to LLM FIRST (before updating state)
       // For first message: [system, user]
-      // For follow-ups: [system (from history), user1, assistant1, ..., userN]
+      // For follow-ups: [conversational system, user1, assistant1, ..., userN]
       const messagesToSend = shouldIncludeContext
         ? [
             { role: "system" as const, content: systemPrompt },
             { role: "user" as const, content: query }
           ]
         : [
-            // Include all previous messages from state (includes system message from first exchange)
-            ...messages.map(m => ({
-              role: m.role as 'system' | 'user' | 'assistant',
+            // Use conversational system prompt for follow-ups (replace the detailed one from history)
+            { role: "system" as const, content: conversationalSystemPrompt },
+            // Include all user/assistant messages from history (filter out old system message)
+            ...messages.filter(m => m.role !== 'system').map(m => ({
+              role: m.role as 'user' | 'assistant',
               content: m.content
             })),
             // Add the new user question
