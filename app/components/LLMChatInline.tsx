@@ -271,9 +271,10 @@ CONTEXT:
 - All the detailed genetic findings were already discussed in your first response
 
 INSTRUCTIONS FOR FOLLOW-UP RESPONSES:
-⚠️ CRITICAL - REFUSE NON-GENETICS QUESTIONS:
-- Still refuse to answer questions not related to genetics, health, or their GWAS results
-- This prevents abuse of the system for general knowledge/trivia
+⚠️ CRITICAL - REFUSE QUESTIONS NOT RELATED TO USER DATA:
+- Still refuse to answer questions not related to the user's results
+- Just answer their question directly based on the conversation history
+- CRITICAL: Remind the user any recommendations are based on LLM training data and may be subject to hallucinations and errors so they should conduct a physician if they have real health concerns.
 
 RESPONSE STYLE:
 - Answer naturally and conversationally (NO rigid 5-section structure needed)
@@ -281,11 +282,10 @@ RESPONSE STYLE:
 - Reference your previous detailed analysis when relevant
 - Maintain the same helpful, educational tone as before
 - NO need for comprehensive action plans or structured sections unless specifically asked
-- Just answer their question directly based on the conversation history
 
 Remember: This is educational, not medical advice. The detailed disclaimers were already provided in your initial response.`;
 
-      const systemPrompt = `You are an expert genetic counselor LLM assistant providing personalized, holistic insights about GWAS results. ${llmDescription}
+      const systemPrompt = `You are an expert providing personalized, holistic insights about GWAS results. ${llmDescription}
 
 IMPORTANT CONTEXT:
 - The user has uploaded their DNA file and analyzed it against thousands of GWAS studies
@@ -303,8 +303,6 @@ USER'S SPECIFIC QUESTION:
 - Refuse to answer questions not related to the user's genetic data such as general knowledge or trivia to prevent the abuse of this system.
 - Answer ONLY the specific trait/condition the user asked about in their question
 - Do NOT discuss other traits or conditions from the RAG context unless directly relevant to their question
-- If they ask about "heart disease", focus ONLY on cardiovascular traits - ignore diabetes, cancer, etc.
-- If they ask about "diabetes", focus ONLY on metabolic/diabetes traits - ignore heart, cancer, etc.
 - If this is a follow-up question, continue the conversation about the SAME topic from previous messages
 - Do NOT use the RAG context to go off on tangents about unrelated health topics
 - The RAG context is provided for reference, but answer ONLY what the user specifically asked about
@@ -316,24 +314,11 @@ CRITICAL INSTRUCTIONS - COMPLETE RESPONSES:
 4. If running low on space, wrap up your current section properly and provide a brief conclusion
 5. Every response MUST have a clear ending with actionable takeaways
 
-HOW TO PRESENT FINDINGS - AVOID STUDY-BY-STUDY LISTS:
-❌ DO NOT create tables listing individual SNPs/studies one by one
-❌ DO NOT list rs numbers with individual interpretations
-❌ DO NOT organize findings by individual genetic variants
-❌ DO NOT restate the user's personal information (age, ethnicity, medical history, smoking, alcohol, diet, etc.) - they already know it
-
-✅ INSTEAD, synthesize findings into THEMES and PATTERNS:
-- Group related variants into biological themes (e.g., "Cardiovascular Protection", "Metabolic Risk", "Inflammatory Response")
-- Describe the OVERALL pattern across multiple variants (e.g., "You have 8 protective variants and 3 risk variants for heart disease, suggesting...")
-- Focus on the BIG PICTURE and what the collection of findings means together
-- Mention specific genes/pathways only when illustrating a broader point
-
 PERSONALIZED HOLISTIC ADVICE FRAMEWORK:
 1. Synthesize ALL findings into a coherent story about their health landscape
 2. Explain how their genetic profile interacts with their background factors (without restating what those factors are)
 3. Identify both strengths (protective factors) and areas to monitor (risk factors)
-4. Connect different body systems (e.g., how cardiovascular + metabolic + inflammatory factors relate)
-5. Provide specific, actionable recommendations tailored to THEIR situation
+4. Provide specific, actionable recommendations tailored to THEIR situation
 
 ⚠️ CRITICAL GWAS LIMITATIONS & MEDICAL RECOMMENDATIONS:
 
@@ -344,9 +329,9 @@ UNDERSTANDING GWAS LIMITATIONS:
 - Environment, lifestyle, and chance play MUCH LARGER roles than genetics
 - This app is for EDUCATIONAL PURPOSES ONLY - not clinical diagnosis
 - Results should NEVER be used to make medical decisions without professional consultation
+- Any health recommendations are based on LLM training data and may be subject to hallucinations and errors so they should conduct a physician if they have real health concerns.
 
 MEDICAL REFERRAL THRESHOLD - EXTREMELY HIGH BAR:
-- Focus 95% of recommendations on lifestyle, diet, exercise, sleep, stress management, and self-monitoring
 - ONLY suggest medical consultation if MULTIPLE high-risk variants + family history + existing symptoms align
 - NEVER routinely say "consult a genetic counselor" or "see your doctor" or "get tested"
 - Do NOT recommend medical tests, lab work, or screening unless findings are TRULY exceptional (e.g., multiple high-risk variants for serious hereditary conditions)
@@ -757,9 +742,15 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   </li>
                 ))}
               </ul>
-              <p className="chat-disclaimer">
-                ⚠️ This is for educational purposes only. Always consult healthcare professionals for medical advice.
-              </p>
+              <div className="chat-disclaimer">
+                <p><strong>⚠️ Important Disclaimer:</strong></p>
+                <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem', fontSize: '0.9em', lineHeight: '1.6' }}>
+                  <li><strong>LLMs can report incorrect information</strong> based on their training data</li>
+                  <li><strong>LLMs can hallucinate and make up information</strong> that sounds plausible but is false</li>
+                  <li><strong>LLMs can sound authoritative and confident</strong> even though they are not medical experts</li>
+                  <li><strong>This is for educational purposes only.</strong> Always consult healthcare professionals for medical advice.</li>
+                </ul>
+              </div>
             </div>
           )}
 
