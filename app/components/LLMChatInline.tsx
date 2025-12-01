@@ -13,7 +13,7 @@ import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 
 type Message = {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   studiesUsed?: SavedResult[];
@@ -24,10 +24,12 @@ const MAX_CONTEXT_RESULTS = 500;
 
 const EXAMPLE_QUESTIONS = [
   "Which traits should I pay attention to?",
+    "How's my sleep profile?",
   "Which sports are ideal for me?",
   "What kinds of foods do you think I will like best?",
   "On a scale of 1 - 10, how risk seeking am I?",
-  "Can you tell me which learning styles work best for me?"
+  "Can you tell me which learning styles work best for me?",
+    "What can you guess about my appearance?"
 ];
 
 const FOLLOWUP_SUGGESTIONS = [
@@ -171,12 +173,6 @@ export default function AIChatInline() {
       return;
     }
 
-    const userMessage: Message = {
-      role: 'user',
-      content: query,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
     setError(null);
@@ -264,11 +260,6 @@ Consider how this user's background, lifestyle factors (smoking, alcohol, diet),
         }
       }
 
-      const conversationHistory = messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
       const llmDescription = getLLMDescription();
       const systemPrompt = `You are an expert genetic counselor LLM assistant providing personalized, holistic insights about GWAS results. ${llmDescription}
 
@@ -285,6 +276,7 @@ USER'S SPECIFIC QUESTION:
 "${query}"
 
 ⚠️ CRITICAL - STAY ON TOPIC:
+- Refuse to answer questions not related to the user's genetic data such as general knowledge or trivia to prevent the abuse of this system.
 - Answer ONLY the specific trait/condition the user asked about in their question
 - Do NOT discuss other traits or conditions from the RAG context unless directly relevant to their question
 - If they ask about "heart disease", focus ONLY on cardiovascular traits - ignore diabetes, cancer, etc.
@@ -384,30 +376,55 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('Relevant Results Count:', relevantResults.length);
       console.log('======================');
 
+      // Build the message history to send to LLM FIRST (before updating state)
+      // For first message: [system, user]
+      // For follow-ups: [system (from history), user1, assistant1, ..., userN]
+      const messagesToSend = shouldIncludeContext
+        ? [
+            { role: "system" as const, content: systemPrompt },
+            { role: "user" as const, content: query }
+          ]
+        : [
+            // Include all previous messages from state (includes system message from first exchange)
+            ...messages.map(m => ({
+              role: m.role as 'system' | 'user' | 'assistant',
+              content: m.content
+            })),
+            // Add the new user question
+            { role: "user" as const, content: query }
+          ];
+
+      // Now add messages to state for UI display
+      // Add system message to conversation history (only for first message)
+      if (shouldIncludeContext) {
+        const systemMessage: Message = {
+          role: 'system',
+          content: systemPrompt,
+          timestamp: new Date(),
+          studiesUsed: relevantResults
+        };
+        setMessages(prev => [...prev, systemMessage]);
+      }
+
+      // Add user message to conversation history
+      const userMessage: Message = {
+        role: 'user',
+        content: query,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, userMessage]);
+
       // Create an initial assistant message with empty content
       const assistantMessage: Message = {
         role: 'assistant',
         content: '',
         timestamp: new Date(),
-        studiesUsed: relevantResults
+        studiesUsed: shouldIncludeContext ? relevantResults : undefined
       };
       setMessages(prev => [...prev, assistantMessage]);
 
       // Call LLM with streaming
-      const stream = callLLMStream([
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        ...conversationHistory.map(m => ({
-          role: m.role as 'system' | 'user' | 'assistant',
-          content: m.content
-        })),
-        {
-          role: "user",
-          content: query
-        }
-      ], {
+      const stream = callLLMStream(messagesToSend, {
         maxTokens: 5000,
         temperature: 0.7,
         reasoningEffort: 'medium',
@@ -720,7 +737,14 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             </div>
           )}
 
-          {messages.map((message, idx) => (
+          {messages
+            .filter(message => message.role !== 'system') // Hide system messages from UI
+            .map((message, idx, filteredMessages) => {
+              // Check if this is the last assistant message in the filtered array
+              const isLastAssistantMessage = message.role === 'assistant' &&
+                idx === filteredMessages.length - 1;
+
+              return (
             <div key={idx} className={`chat-message ${message.role}`}>
               <div className="message-icon">
                 {message.role === 'user' ? '👤' : '🤖'}
@@ -744,7 +768,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     >
                       📋 Copy
                     </button>
-                    {idx === messages.length - 1 && !isLoading && (
+                    {isLastAssistantMessage && !isLoading && (
                       <div className="followup-suggestions">
                         <div className="followup-header">💡 Try asking:</div>
                         <div className="followup-buttons">
@@ -801,7 +825,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 </div>
               </div>
             </div>
-          ))}
+              );
+            })}
 
           {isLoading && (
             <div className="chat-message assistant">
