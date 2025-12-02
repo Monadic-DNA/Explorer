@@ -204,7 +204,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized, refreshSubscription } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -1186,6 +1186,22 @@ function MainContent() {
                         </div>
                       </div>
                       <div className="subscription-menu-divider"></div>
+                      <button
+                        onClick={async () => {
+                          setShowSubscriptionMenu(false);
+                          try {
+                            await refreshSubscription();
+                            alert('✓ Subscription status refreshed!');
+                          } catch (error) {
+                            console.error('Failed to refresh subscription:', error);
+                            alert('Failed to refresh subscription. Please try again.');
+                          }
+                        }}
+                        className="subscription-menu-item"
+                        disabled={checkingSubscription}
+                      >
+                        {checkingSubscription ? '⏳ Checking...' : '🔄 Refresh Subscription'}
+                      </button>
                       <button
                         onClick={async () => {
                           setShowSubscriptionMenu(false);
