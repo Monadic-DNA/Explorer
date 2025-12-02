@@ -15,7 +15,7 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ["react", "react-dom", "viem", "react-markdown"],
-    serverComponentsExternalPackages: ['onnxruntime-node', 'sharp']
+    serverComponentsExternalPackages: ['onnxruntime-node', 'sharp', 'alchemy-sdk', '@ethersproject/web', '@ethersproject/providers']
   },
   async rewrites() {
     return [

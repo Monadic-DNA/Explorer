@@ -42,6 +42,7 @@ export async function callLLM(
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
   const config = getLLMConfig();
+  const modelId = getModelIdentifier(config);
   const { maxTokens, temperature = 0.7, reasoningEffort = 'medium' } = options;
 
   // Calculate prompt length for logging
@@ -64,7 +65,7 @@ export async function callLLM(
 ║ LLM REQUEST START
 ╠═══════════════════════════════════════════════════════════════
 ║ Provider: ${config.provider}
-║ Model: ${config.model}
+║ Model: ${modelId}
 ║ Max Output Tokens: ${maxTokens !== undefined ? maxTokens.toLocaleString() : 'unlimited (model max)'}
 ║ Reasoning Effort: ${reasoningEffort}
 ║ Temperature: ${temperature}
@@ -93,18 +94,18 @@ export async function callLLM(
   try {
     switch (config.provider) {
       case 'nilai':
-        response = await callNilAI(messages, maxTokens, temperature, reasoningEffort);
+        response = await callNilAI(messages, maxTokens, temperature, reasoningEffort, modelId);
         break;
 
       case 'ollama':
-        response = await callOllama(messages, maxTokens, temperature, reasoningEffort, config.ollamaAddress, config.ollamaPort, config.model);
+        response = await callOllama(messages, maxTokens, temperature, reasoningEffort, config.ollamaAddress, config.ollamaPort, modelId);
         break;
 
       case 'huggingface':
         if (!config.huggingfaceApiKey) {
           throw new Error('HuggingFace API key not configured');
         }
-        response = await callHuggingFace(messages, maxTokens, temperature, reasoningEffort, config.huggingfaceApiKey);
+        response = await callHuggingFace(messages, maxTokens, temperature, reasoningEffort, config.huggingfaceApiKey, modelId);
         break;
 
       default:
@@ -125,7 +126,7 @@ export async function callLLM(
 ║ LLM RESPONSE SUCCESS
 ╠═══════════════════════════════════════════════════════════════
 ║ Provider: ${config.provider}
-║ Model: ${config.model}
+║ Model: ${modelId}
 ║ Time Taken: ${elapsedSeconds}s (${elapsedMs}ms)
 ║ Reasoning Effort: ${reasoningEffort}
 ╠═══════════════════════════════════════════════════════════════
@@ -148,7 +149,7 @@ export async function callLLM(
 ║ LLM REQUEST FAILED
 ╠═══════════════════════════════════════════════════════════════
 ║ Provider: ${config.provider}
-║ Model: ${config.model}
+║ Model: ${modelId}
 ║ Time Taken: ${elapsedSeconds}s before failure
 ║ Error: ${error instanceof Error ? error.message : String(error)}
 ╚═══════════════════════════════════════════════════════════════`);
@@ -164,7 +165,8 @@ async function callNilAI(
   messages: LLMMessage[],
   maxTokens: number | undefined,
   temperature: number,
-  reasoningEffort: 'low' | 'medium' | 'high'
+  reasoningEffort: 'low' | 'medium' | 'high',
+  modelId: string
 ): Promise<LLMResponse> {
   // Initialize client
   const client = new NilaiOpenAIClient({
@@ -192,7 +194,7 @@ async function callNilAI(
 
   // Call nilAI
   const response = await client.chat.completions.create({
-    model: 'openai/gpt-oss-20b',
+    model: modelId,
     messages: messages as any,
     max_tokens: maxTokens || 131072, // Default to model max if not specified
     temperature,
@@ -220,10 +222,10 @@ async function callOllama(
   reasoningEffort: 'low' | 'medium' | 'high',
   address?: string,
   port?: number,
-  model?: string
+  modelId?: string
 ): Promise<LLMResponse> {
   const baseURL = `http://${address || 'localhost'}:${port || 11434}`;
-  const modelName = model || 'gpt-oss:latest';
+  const modelName = modelId || 'gpt-oss:latest';
 
   // Extract prompt from messages
   const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
@@ -282,7 +284,8 @@ async function callHuggingFace(
   maxTokens: number | undefined,
   temperature: number,
   reasoningEffort: 'low' | 'medium' | 'high',
-  apiKey: string
+  apiKey: string,
+  modelId: string
 ): Promise<LLMResponse> {
   const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
@@ -291,7 +294,7 @@ async function callHuggingFace(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'openai/gpt-oss-20b:together',
+      model: modelId,
       messages,
       max_tokens: maxTokens || 131072, // Default to model max if not specified
       temperature,
@@ -330,26 +333,27 @@ export async function* callLLMStream(
   options: LLMOptions = {}
 ): AsyncGenerator<string, void, unknown> {
   const config = getLLMConfig();
+  const modelId = getModelIdentifier(config);
   const { maxTokens, temperature = 0.7, reasoningEffort = 'medium' } = options;
 
-  console.log(`[LLM Stream] Starting stream with provider: ${config.provider}, model: ${config.model}`);
+  console.log(`[LLM Stream] Starting stream with provider: ${config.provider}, model: ${modelId}`);
   const startTime = Date.now();
 
   try {
     switch (config.provider) {
       case 'nilai':
-        yield* streamNilAI(messages, maxTokens, temperature, reasoningEffort);
+        yield* streamNilAI(messages, maxTokens, temperature, reasoningEffort, modelId);
         break;
 
       case 'ollama':
-        yield* streamOllama(messages, maxTokens, temperature, reasoningEffort, config.ollamaAddress, config.ollamaPort, config.model);
+        yield* streamOllama(messages, maxTokens, temperature, reasoningEffort, config.ollamaAddress, config.ollamaPort, modelId);
         break;
 
       case 'huggingface':
         if (!config.huggingfaceApiKey) {
           throw new Error('HuggingFace API key not configured');
         }
-        yield* streamHuggingFace(messages, maxTokens, temperature, reasoningEffort, config.huggingfaceApiKey);
+        yield* streamHuggingFace(messages, maxTokens, temperature, reasoningEffort, config.huggingfaceApiKey, modelId);
         break;
 
       default:
@@ -372,7 +376,8 @@ async function* streamNilAI(
   messages: LLMMessage[],
   maxTokens: number | undefined,
   temperature: number,
-  reasoningEffort: 'low' | 'medium' | 'high'
+  reasoningEffort: 'low' | 'medium' | 'high',
+  modelId: string
 ): AsyncGenerator<string, void, unknown> {
   const client = new NilaiOpenAIClient({
     baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
@@ -398,7 +403,7 @@ async function* streamNilAI(
 
   // Call nilAI with streaming
   const stream = await client.chat.completions.create({
-    model: 'openai/gpt-oss-20b',
+    model: modelId,
     messages: messages as any,
     max_tokens: maxTokens || 131072,
     temperature,
@@ -425,10 +430,10 @@ async function* streamOllama(
   reasoningEffort: 'low' | 'medium' | 'high',
   address?: string,
   port?: number,
-  model?: string
+  modelId?: string
 ): AsyncGenerator<string, void, unknown> {
   const baseURL = `http://${address || 'localhost'}:${port || 11434}`;
-  const modelName = model || 'gpt-oss:latest';
+  const modelName = modelId || 'gpt-oss:latest';
 
   const response = await fetch(`${baseURL}/api/chat`, {
     method: 'POST',
@@ -489,7 +494,8 @@ async function* streamHuggingFace(
   maxTokens: number | undefined,
   temperature: number,
   reasoningEffort: 'low' | 'medium' | 'high',
-  apiKey: string
+  apiKey: string,
+  modelId: string
 ): AsyncGenerator<string, void, unknown> {
   const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
     method: 'POST',
@@ -498,7 +504,7 @@ async function* streamHuggingFace(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'openai/gpt-oss-20b:together',
+      model: modelId,
       messages,
       max_tokens: maxTokens || 131072,
       temperature,
@@ -552,14 +558,15 @@ async function* streamHuggingFace(
  */
 export function getLLMDescription(): string {
   const config = getLLMConfig();
+  const modelId = getModelIdentifier(config);
 
   switch (config.provider) {
     case 'nilai':
-      return `🛡️ Powered by Nillion nilAI using ${config.model} in TEE (Trusted Execution Environment)`;
+      return `🛡️ Powered by Nillion nilAI using ${modelId} in TEE (Trusted Execution Environment)`;
     case 'ollama':
-      return `🖥️ Using local Ollama (${config.model}) at ${config.ollamaAddress || 'localhost'}:${config.ollamaPort || 11434}`;
+      return `🖥️ Using local Ollama (${modelId}) at ${config.ollamaAddress || 'localhost'}:${config.ollamaPort || 11434}`;
     case 'huggingface':
-      return `☁️ Using HuggingFace Router (${config.model})`;
+      return `☁️ Using HuggingFace Router (${modelId})`;
     default:
       return 'LLM analysis';
   }

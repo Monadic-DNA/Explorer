@@ -171,18 +171,27 @@ export async function checkCombinedSubscription(walletAddress: string): Promise<
   const [blockchainSub, stripeSub] = await Promise.all([
     withTimeout(
       checkBlockchainSubscription(walletAddress).catch(err => {
-        console.error('[Combined Check] Blockchain subscription check failed:', err);
+        console.error('[Combined Check] ❌ Blockchain subscription check FAILED with error:', err);
+        console.error('[Combined Check] Error message:', err.message);
+        console.error('[Combined Check] Error stack:', err.stack);
         return emptySubscription;
       }),
-      3000, // 3 second timeout for blockchain check
+      10000, // 10 second timeout for blockchain check (multiple chains can be slow)
       emptySubscription
-    ),
+    ).then(result => {
+      if (result === emptySubscription && result.payments.length === 0) {
+        console.log('[Combined Check] ⚠️  Blockchain check returned empty (likely timeout or error)');
+      } else {
+        console.log('[Combined Check] ✅ Blockchain check completed successfully');
+      }
+      return result;
+    }),
     withTimeout(
       checkStripeSubscription(walletAddress).catch(err => {
         console.error('[Combined Check] Stripe subscription check failed:', err);
         return emptySubscription;
       }),
-      3000, // 3 second timeout for Stripe API check
+      5000, // 5 second timeout for Stripe API check
       emptySubscription
     ),
   ]);

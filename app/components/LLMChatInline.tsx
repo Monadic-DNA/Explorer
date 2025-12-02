@@ -9,25 +9,41 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
+import { getLLMConfig } from "@/lib/llm-config";
 import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 
+type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv';
+
+type Attachment = {
+  name: string;
+  content: string;
+  type: AttachmentType;
+  size: number; // in bytes
+};
+
 type Message = {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   studiesUsed?: SavedResult[];
+  attachments?: Attachment[];
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const MAX_CONTEXT_RESULTS = 500;
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB in bytes
+const ALLOWED_FILE_TYPES = ['.txt', '.pdf', '.csv', '.tsv'];
+const MAX_ATTACHMENTS = 5;
 
 const EXAMPLE_QUESTIONS = [
   "Which traits should I pay attention to?",
+    "How's my sleep profile?",
   "Which sports are ideal for me?",
   "What kinds of foods do you think I will like best?",
   "On a scale of 1 - 10, how risk seeking am I?",
-  "Can you tell me which learning styles work best for me?"
+  "Can you tell me which learning styles work best for me?",
+    "What can you guess about my appearance?"
 ];
 
 const FOLLOWUP_SUGGESTIONS = [
@@ -55,8 +71,13 @@ export default function AIChatInline() {
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [expandedAttachmentIndex, setExpandedAttachmentIndex] = useState<number | null>(null);
+  const [showProviderTip, setShowProviderTip] = useState(true);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -142,6 +163,182 @@ export default function AIChatInline() {
     return `${score.toFixed(2)}x`;
   };
 
+  const getProviderTip = () => {
+    if (!mounted) return null;
+
+    const config = getLLMConfig();
+
+    if (config.provider === 'nilai' || config.provider === 'ollama') {
+      return {
+        icon: '🔒',
+        type: 'privacy',
+        message: config.provider === 'nilai'
+          ? 'You\'re using nilAI (privacy-preserving TEE) - your data is maximally protected!'
+          : 'You\'re using Ollama (local processing) - your data never leaves your device!',
+        tip: 'Want more advanced models? Use the ⚙️ LLM button (top right) to switch to HuggingFace for better performance. Note: HuggingFace requires creating your own account and involves some privacy tradeoffs.',
+      };
+    } else if (config.provider === 'huggingface') {
+      return {
+        icon: '⚡',
+        type: 'performance',
+        message: 'You\'re using HuggingFace - maximizing model performance!',
+        tip: 'Want maximum privacy? Use the ⚙️ LLM button (top right) to switch to nilAI for privacy-preserving processing in a Trusted Execution Environment.',
+      };
+    }
+
+    return null;
+  };
+
+  const handleAttachmentClick = () => {
+    setAttachmentError(null);
+    fileInputRef.current?.click();
+  };
+
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File "${file.name}" is too large. Maximum size is 1MB.`;
+    }
+
+    // Check file type
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!ALLOWED_FILE_TYPES.includes(extension)) {
+      return `File "${file.name}" has an unsupported format. Allowed: ${ALLOWED_FILE_TYPES.join(', ')}`;
+    }
+
+    return null;
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setAttachmentError(null);
+
+    // Check total number of attachments
+    if (attachedFiles.length + files.length > MAX_ATTACHMENTS) {
+      setAttachmentError(`Maximum ${MAX_ATTACHMENTS} files can be attached at once.`);
+      return;
+    }
+
+    const newFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const error = validateFile(file);
+      if (error) {
+        setAttachmentError(error);
+        return;
+      }
+      newFiles.push(file);
+    }
+
+    setAttachedFiles(prev => [...prev, ...newFiles]);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+    setAttachmentError(null);
+  };
+
+  const processAttachments = async (files: File[]): Promise<Attachment[]> => {
+    const attachments: Attachment[] = [];
+
+    for (const file of files) {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+
+      try {
+        if (extension === 'pdf') {
+          // For PDF, we'll need to use pdfjs-dist
+          const content = await extractTextFromPDF(file);
+          attachments.push({
+            name: file.name,
+            content,
+            type: 'pdf',
+            size: file.size
+          });
+        } else {
+          // For text, csv, tsv - read as text
+          const content = await file.text();
+          attachments.push({
+            name: file.name,
+            content,
+            type: extension as AttachmentType,
+            size: file.size
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to process file ${file.name}:`, err);
+        throw new Error(`Failed to process file "${file.name}"`);
+      }
+    }
+
+    return attachments;
+  };
+
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    try {
+      // Load PDF.js from CDN dynamically to avoid webpack issues
+      if (typeof window !== 'undefined' && !(window as any).pdfjsLib) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load PDF.js'));
+          document.head.appendChild(script);
+        });
+      }
+
+      const pdfjsLib = (window as any).pdfjsLib;
+      if (!pdfjsLib) {
+        throw new Error('PDF.js library not loaded');
+      }
+
+      // Set worker
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      // Read file as ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Load PDF document
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      let fullText = '';
+
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n\n';
+      }
+
+      return fullText.trim() || 'PDF file contains no extractable text';
+    } catch (error) {
+      console.error('Failed to extract text from PDF:', error);
+      throw new Error(`Failed to extract text from PDF file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const formatAttachmentsForMessage = (attachments: Attachment[], query: string): string => {
+    let message = `User question:\n${query}`;
+
+    if (attachments.length > 0) {
+      message += '\n\n---\n';
+      for (const attachment of attachments) {
+        const sizeKB = (attachment.size / 1024).toFixed(1);
+        message += `\nAttached file: ${attachment.name} (${attachment.type.toUpperCase()}, ${sizeKB}KB):\n${attachment.content}\n`;
+      }
+      message += '---';
+    }
+
+    return message;
+  };
+
   const handleSendMessage = async () => {
     const query = inputValue.trim();
     if (!query) return;
@@ -171,18 +368,28 @@ export default function AIChatInline() {
       return;
     }
 
-    const userMessage: Message = {
-      role: 'user',
-      content: query,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
     setError(null);
+    setAttachmentError(null);
 
     // Track LLM question
     trackLLMQuestionAsked();
+
+    // Process attachments if any
+    let processedAttachments: Attachment[] = [];
+    if (attachedFiles.length > 0) {
+      try {
+        setLoadingStatus("📎 Processing attachments...");
+        processedAttachments = await processAttachments(attachedFiles);
+        console.log(`[LLM Chat] Processed ${processedAttachments.length} attachments`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to process attachments";
+        setError(errorMessage);
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       let relevantResults: SavedResult[] = [];
@@ -264,13 +471,32 @@ Consider how this user's background, lifestyle factors (smoking, alcohol, diet),
         }
       }
 
-      const conversationHistory = messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
       const llmDescription = getLLMDescription();
-      const systemPrompt = `You are an expert genetic counselor LLM assistant providing personalized, holistic insights about GWAS results. ${llmDescription}
+
+      // Conversational system prompt for follow-up questions
+      const conversationalSystemPrompt = `You are continuing a conversation about the user's genetic results. ${llmDescription}
+
+CONTEXT:
+- You previously provided a detailed analysis of their GWAS data
+- The user is now asking follow-up questions about that analysis
+- All the detailed genetic findings were already discussed in your first response
+
+INSTRUCTIONS FOR FOLLOW-UP RESPONSES:
+⚠️ CRITICAL - REFUSE QUESTIONS NOT RELATED TO USER DATA:
+- Still refuse to answer questions not related to the user's results
+- Just answer their question directly based on the conversation history
+- CRITICAL: Remind the user any recommendations are based on LLM training data and may be subject to hallucinations and errors so they should conduct a physician if they have real health concerns.
+
+RESPONSE STYLE:
+- Answer naturally and conversationally (NO rigid 5-section structure needed)
+- Keep responses focused and concise (200-400 words unless more detail is specifically requested)
+- Reference your previous detailed analysis when relevant
+- Maintain the same helpful, educational tone as before
+- NO need for comprehensive action plans or structured sections unless specifically asked
+
+Remember: This is educational, not medical advice. The detailed disclaimers were already provided in your initial response.`;
+
+      const systemPrompt = `You are an expert providing personalized, holistic insights about GWAS results. ${llmDescription}
 
 IMPORTANT CONTEXT:
 - The user has uploaded their DNA file and analyzed it against thousands of GWAS studies
@@ -285,10 +511,9 @@ USER'S SPECIFIC QUESTION:
 "${query}"
 
 ⚠️ CRITICAL - STAY ON TOPIC:
+- Refuse to answer questions not related to the user's genetic data such as general knowledge or trivia to prevent the abuse of this system.
 - Answer ONLY the specific trait/condition the user asked about in their question
 - Do NOT discuss other traits or conditions from the RAG context unless directly relevant to their question
-- If they ask about "heart disease", focus ONLY on cardiovascular traits - ignore diabetes, cancer, etc.
-- If they ask about "diabetes", focus ONLY on metabolic/diabetes traits - ignore heart, cancer, etc.
 - If this is a follow-up question, continue the conversation about the SAME topic from previous messages
 - Do NOT use the RAG context to go off on tangents about unrelated health topics
 - The RAG context is provided for reference, but answer ONLY what the user specifically asked about
@@ -300,24 +525,11 @@ CRITICAL INSTRUCTIONS - COMPLETE RESPONSES:
 4. If running low on space, wrap up your current section properly and provide a brief conclusion
 5. Every response MUST have a clear ending with actionable takeaways
 
-HOW TO PRESENT FINDINGS - AVOID STUDY-BY-STUDY LISTS:
-❌ DO NOT create tables listing individual SNPs/studies one by one
-❌ DO NOT list rs numbers with individual interpretations
-❌ DO NOT organize findings by individual genetic variants
-❌ DO NOT restate the user's personal information (age, ethnicity, medical history, smoking, alcohol, diet, etc.) - they already know it
-
-✅ INSTEAD, synthesize findings into THEMES and PATTERNS:
-- Group related variants into biological themes (e.g., "Cardiovascular Protection", "Metabolic Risk", "Inflammatory Response")
-- Describe the OVERALL pattern across multiple variants (e.g., "You have 8 protective variants and 3 risk variants for heart disease, suggesting...")
-- Focus on the BIG PICTURE and what the collection of findings means together
-- Mention specific genes/pathways only when illustrating a broader point
-
 PERSONALIZED HOLISTIC ADVICE FRAMEWORK:
 1. Synthesize ALL findings into a coherent story about their health landscape
 2. Explain how their genetic profile interacts with their background factors (without restating what those factors are)
 3. Identify both strengths (protective factors) and areas to monitor (risk factors)
-4. Connect different body systems (e.g., how cardiovascular + metabolic + inflammatory factors relate)
-5. Provide specific, actionable recommendations tailored to THEIR situation
+4. Provide specific, actionable recommendations tailored to THEIR situation
 
 ⚠️ CRITICAL GWAS LIMITATIONS & MEDICAL RECOMMENDATIONS:
 
@@ -328,9 +540,9 @@ UNDERSTANDING GWAS LIMITATIONS:
 - Environment, lifestyle, and chance play MUCH LARGER roles than genetics
 - This app is for EDUCATIONAL PURPOSES ONLY - not clinical diagnosis
 - Results should NEVER be used to make medical decisions without professional consultation
+- Any health recommendations are based on LLM training data and may be subject to hallucinations and errors so they should conduct a physician if they have real health concerns.
 
 MEDICAL REFERRAL THRESHOLD - EXTREMELY HIGH BAR:
-- Focus 95% of recommendations on lifestyle, diet, exercise, sleep, stress management, and self-monitoring
 - ONLY suggest medical consultation if MULTIPLE high-risk variants + family history + existing symptoms align
 - NEVER routinely say "consult a genetic counselor" or "see your doctor" or "get tested"
 - Do NOT recommend medical tests, lab work, or screening unless findings are TRULY exceptional (e.g., multiple high-risk variants for serious hereditary conditions)
@@ -382,32 +594,66 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('System Prompt:', systemPrompt);
       console.log('User Query:', query);
       console.log('Relevant Results Count:', relevantResults.length);
+      console.log('Attachments Count:', processedAttachments.length);
       console.log('======================');
+
+      // Format the user query with attachments for LLM
+      const userQueryWithAttachments = processedAttachments.length > 0
+        ? formatAttachmentsForMessage(processedAttachments, query)
+        : query;
+
+      // Build the message history to send to LLM FIRST (before updating state)
+      // For first message: [system, user]
+      // For follow-ups: [conversational system, user1, assistant1, ..., userN]
+      const messagesToSend = shouldIncludeContext
+        ? [
+            { role: "system" as const, content: systemPrompt },
+            { role: "user" as const, content: userQueryWithAttachments }
+          ]
+        : [
+            // Use conversational system prompt for follow-ups (replace the detailed one from history)
+            { role: "system" as const, content: conversationalSystemPrompt },
+            // Include all user/assistant messages from history (filter out old system message)
+            ...messages.filter(m => m.role !== 'system').map(m => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.content
+            })),
+            // Add the new user question
+            { role: "user" as const, content: userQueryWithAttachments }
+          ];
+
+      // Now add messages to state for UI display
+      // Add system message to conversation history (only for first message)
+      if (shouldIncludeContext) {
+        const systemMessage: Message = {
+          role: 'system',
+          content: systemPrompt,
+          timestamp: new Date(),
+          studiesUsed: relevantResults
+        };
+        setMessages(prev => [...prev, systemMessage]);
+      }
+
+      // Add user message to conversation history
+      const userMessage: Message = {
+        role: 'user',
+        content: query,
+        timestamp: new Date(),
+        attachments: processedAttachments.length > 0 ? processedAttachments : undefined
+      };
+      setMessages(prev => [...prev, userMessage]);
 
       // Create an initial assistant message with empty content
       const assistantMessage: Message = {
         role: 'assistant',
         content: '',
         timestamp: new Date(),
-        studiesUsed: relevantResults
+        studiesUsed: shouldIncludeContext ? relevantResults : undefined
       };
       setMessages(prev => [...prev, assistantMessage]);
 
       // Call LLM with streaming
-      const stream = callLLMStream([
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        ...conversationHistory.map(m => ({
-          role: m.role as 'system' | 'user' | 'assistant',
-          content: m.content
-        })),
-        {
-          role: "user",
-          content: query
-        }
-      ], {
+      const stream = callLLMStream(messagesToSend, {
         maxTokens: 5000,
         temperature: 0.7,
         reasoningEffort: 'medium',
@@ -440,6 +686,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       if (!accumulatedContent) {
         throw new Error("No response generated from LLM");
       }
+
+      // Clear attachments after successful send
+      setAttachedFiles([]);
 
     } catch (err) {
       console.error('[LLM Chat] Error:', err);
@@ -686,6 +935,27 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           )}
         </div>
 
+        {/* Provider tip banner */}
+        {showProviderTip && (() => {
+          const tip = getProviderTip();
+          if (!tip) return null;
+
+          return (
+            <div className={`provider-tip ${tip.type}`}>
+              <div className="provider-tip-content">
+                <span className="provider-tip-icon">{tip.icon}</span>
+                <div className="provider-tip-text">
+                  <div className="provider-tip-message">{tip.message}</div>
+                  <div className="provider-tip-suggestion">{tip.tip}</div>
+                </div>
+              </div>
+              <button className="provider-tip-dismiss" onClick={() => setShowProviderTip(false)} title="Dismiss">
+                ×
+              </button>
+            </div>
+          );
+        })()}
+
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
@@ -714,13 +984,26 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   </li>
                 ))}
               </ul>
-              <p className="chat-disclaimer">
-                ⚠️ This is for educational purposes only. Always consult healthcare professionals for medical advice.
-              </p>
+              <div className="chat-disclaimer">
+                <p><strong>⚠️ Important Disclaimer:</strong></p>
+                <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem', fontSize: '0.9em', lineHeight: '1.6' }}>
+                  <li><strong>LLMs can report incorrect information</strong> based on their training data</li>
+                  <li><strong>LLMs can hallucinate and make up information</strong> that sounds plausible but is false</li>
+                  <li><strong>LLMs can sound authoritative and confident</strong> even though they are not medical experts</li>
+                  <li><strong>This is for educational purposes only.</strong> Always consult healthcare professionals for medical advice.</li>
+                </ul>
+              </div>
             </div>
           )}
 
-          {messages.map((message, idx) => (
+          {messages
+            .filter(message => message.role !== 'system') // Hide system messages from UI
+            .map((message, idx, filteredMessages) => {
+              // Check if this is the last assistant message in the filtered array
+              const isLastAssistantMessage = message.role === 'assistant' &&
+                idx === filteredMessages.length - 1;
+
+              return (
             <div key={idx} className={`chat-message ${message.role}`}>
               <div className="message-icon">
                 {message.role === 'user' ? '👤' : '🤖'}
@@ -744,7 +1027,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     >
                       📋 Copy
                     </button>
-                    {idx === messages.length - 1 && !isLoading && (
+                    {isLastAssistantMessage && !isLoading && (
                       <div className="followup-suggestions">
                         <div className="followup-header">💡 Try asking:</div>
                         <div className="followup-buttons">
@@ -796,12 +1079,40 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     )}
                   </div>
                 )}
+                {message.role === 'user' && message.attachments && message.attachments.length > 0 && (
+                  <div className="attachments-used">
+                    <button
+                      className="attachments-toggle"
+                      onClick={() => setExpandedAttachmentIndex(expandedAttachmentIndex === idx ? null : idx)}
+                    >
+                      {expandedAttachmentIndex === idx ? '▼' : '▶'} 📎 {message.attachments.length} file{message.attachments.length > 1 ? 's' : ''} attached
+                    </button>
+                    {expandedAttachmentIndex === idx && (
+                      <div className="attachments-list">
+                        {message.attachments.map((attachment, attIdx) => (
+                          <div key={attIdx} className="attachment-item">
+                            <div className="attachment-header">
+                              <span className="attachment-file-name">📄 {attachment.name}</span>
+                              <span className="attachment-meta">
+                                {attachment.type.toUpperCase()} • {(attachment.size / 1024).toFixed(1)}KB
+                              </span>
+                            </div>
+                            <div className="attachment-content-preview">
+                              <pre>{attachment.content.substring(0, 500)}{attachment.content.length > 500 ? '...' : ''}</pre>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="message-time">
                   {message.timestamp.toLocaleTimeString()}
                 </div>
               </div>
             </div>
-          ))}
+              );
+            })}
 
           {isLoading && (
             <div className="chat-message assistant">
@@ -825,6 +1136,43 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         </div>
 
         <div className="chat-input-area">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.csv,.tsv"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+
+          {/* Attachment preview chips */}
+          {attachedFiles.length > 0 && (
+            <div className="attachment-preview-area">
+              {attachedFiles.map((file, idx) => (
+                <div key={idx} className="attachment-chip">
+                  <span className="attachment-icon">📎</span>
+                  <span className="attachment-name">{file.name}</span>
+                  <span className="attachment-size">({(file.size / 1024).toFixed(1)}KB)</span>
+                  <button
+                    className="attachment-remove"
+                    onClick={() => handleRemoveAttachment(idx)}
+                    title="Remove attachment"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Attachment error display */}
+          {attachmentError && (
+            <div className="attachment-error">
+              ⚠️ {attachmentError}
+            </div>
+          )}
+
           <textarea
             ref={inputRef}
             className="chat-input"
@@ -845,14 +1193,24 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 💬 Follow-up question (no RAG)
               </div>
             )}
-            <button
-              className="chat-send-button"
-              onClick={handleSendMessage}
-              disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
-              title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
-            >
-              {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
-            </button>
+            <div className="chat-buttons">
+              <button
+                className="chat-attachment-button"
+                onClick={handleAttachmentClick}
+                disabled={isLoading || attachedFiles.length >= MAX_ATTACHMENTS}
+                title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, pdf, csv, tsv, max 1MB)'}
+              >
+                📎
+              </button>
+              <button
+                className="chat-send-button"
+                onClick={handleSendMessage}
+                disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
+                title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
+              >
+                {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
+              </button>
+            </div>
           </div>
         </div>
 

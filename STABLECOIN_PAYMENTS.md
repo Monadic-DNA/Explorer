@@ -73,12 +73,15 @@ NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=your_dynamic_environment_id
 
 ### 2. Supported Chains
 
-The system supports 5 EVM chains:
+The system supports 5 EVM chains (production):
 - **Ethereum**
 - **Base**
 - **Arbitrum**
 - **Optimism**
 - **Polygon**
+
+The system also supports **Sepolia testnet** when explicitly enabled:
+- **Sepolia** (Ethereum testnet) - Enable by setting `NEXT_PUBLIC_ENABLE_TESTNET_CHAINS=true` in `.env.local`
 
 **USDC**, **USDT**, and **DAI** are accepted on all chains.
 
@@ -212,10 +215,39 @@ Response:
 
 ### Testnet Testing (Recommended)
 
-1. Get testnet stablecoins from faucets (Sepolia, Base Sepolia, etc.)
-2. Configure testnet payment wallet in `.env.local`
-3. Send test transaction
-4. Verify subscription activates
+**Enable Sepolia testnet by adding this to your `.env.local` file:**
+```bash
+NEXT_PUBLIC_ENABLE_TESTNET_CHAINS=true
+```
+
+Then restart your development server (`npm run dev`).
+
+1. **Get testnet ETH for gas fees:**
+   - [Alchemy Sepolia Faucet](https://sepoliafaucet.com/)
+   - [Infura Sepolia Faucet](https://www.infura.io/faucet/sepolia)
+
+2. **Get testnet stablecoins:**
+   - **USDC (Sepolia)**: [Circle Testnet Faucet](https://faucet.circle.com/) - Use address `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`
+   - **USDT (Sepolia)**: Deploy your own or use testnet faucet at `0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0`
+   - **DAI (Sepolia)**: [MakerDAO Testnet Faucet](https://app.spark.fi/faucet/) - Use address `0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357`
+
+3. **Configure payment wallet:**
+   - Set `NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS` in `.env.local` to your test wallet address
+   - This is where testnet payments will be sent
+
+4. **Switch wallet to Sepolia network:**
+   - Connect wallet via Dynamic.xyz
+   - Switch to Sepolia network in your wallet
+   - The UI will show "🧪 TESTNET" indicator when connected to Sepolia
+
+5. **Send test transaction:**
+   - Choose amount (e.g., $1 USD = 1 USDC)
+   - Select stablecoin (USDC, USDT, or DAI)
+   - Confirm transaction in wallet
+
+6. **Verify subscription activates:**
+   - Wait ~30 seconds for transaction confirmation
+   - Refresh page to check subscription status
 
 ### Mainnet Testing (Small Amount)
 

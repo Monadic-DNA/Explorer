@@ -10,6 +10,7 @@ export type LLMProvider = 'nilai' | 'ollama' | 'huggingface';
 export interface LLMConfig {
   provider: LLMProvider;
   model: string;
+  customModel?: string;
   ollamaAddress?: string;
   ollamaPort?: number;
   huggingfaceApiKey?: string;
@@ -80,13 +81,24 @@ export function getProviderDisplayName(provider: LLMProvider): string {
  * Get the full model identifier for API calls
  */
 export function getModelIdentifier(config: LLMConfig): string {
+  // If custom model is selected, use the custom model name
+  if (config.model === 'custom' && config.customModel) {
+    return config.customModel;
+  }
+
   switch (config.provider) {
     case 'nilai':
-      return 'openai/gpt-oss-20b';
+      return config.model === 'gpt-oss-20b' ? 'openai/gpt-oss-20b' : config.model;
     case 'ollama':
       return config.model;
     case 'huggingface':
-      return 'openai/gpt-oss-20b:together';
+      // For HuggingFace, append :together suffix if not already present
+      if (config.model === 'gpt-oss-20b') {
+        return 'openai/gpt-oss-20b:together';
+      } else if (config.model === 'openai/gpt-oss-120b') {
+        return 'openai/gpt-oss-120b:together';
+      }
+      return config.model.includes(':') ? config.model : `${config.model}:together`;
   }
 }
 
@@ -135,6 +147,10 @@ export function getAvailableModels(provider: LLMProvider): string[] {
 export function isConfigValid(config: LLMConfig): { valid: boolean; error?: string } {
   if (config.provider === 'huggingface' && !config.huggingfaceApiKey) {
     return { valid: false, error: 'HuggingFace API key is required' };
+  }
+
+  if (config.model === 'custom' && !config.customModel?.trim()) {
+    return { valid: false, error: 'Custom model name is required when "Custom..." is selected' };
   }
 
   // Ollama address and port have defaults ('localhost' and 11434) so always valid

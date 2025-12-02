@@ -265,7 +265,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Comprehensive Genetic Overview Report</title>
+          <title>Comprehensive Genetic Overview Report - Monadic DNA Explorer</title>
           <meta charset="UTF-8">
           <style>
             body {
@@ -276,41 +276,81 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               color: #333;
               line-height: 1.6;
             }
+            .report-header {
+              text-align: center;
+              margin-bottom: 3rem;
+              padding-bottom: 2rem;
+              border-bottom: 3px solid #3B82F6;
+            }
+            .report-header h1 {
+              font-size: 2.5rem;
+              color: #111;
+              margin: 0 0 0.5rem 0;
+              border: none;
+              padding: 0;
+            }
+            .report-header .subtitle {
+              font-size: 1.25rem;
+              color: #666;
+              margin: 0.5rem 0 1.5rem 0;
+            }
+            .report-header .tool-info {
+              background: #F0F9FF;
+              border: 2px solid #3B82F6;
+              border-radius: 8px;
+              padding: 1.5rem;
+              margin: 1.5rem 0;
+              text-align: left;
+            }
+            .report-header .tool-info h3 {
+              margin-top: 0;
+              color: #1E40AF;
+              font-size: 1.1rem;
+            }
+            .report-header .tool-info p {
+              margin: 0.5rem 0;
+              color: #374151;
+              line-height: 1.7;
+            }
             h1 {
               color: #111;
               border-bottom: 3px solid #3B82F6;
               padding-bottom: 0.75rem;
+              margin-top: 2rem;
               margin-bottom: 1.5rem;
+              font-size: 2rem;
             }
             h2 {
               color: #222;
-              margin-top: 2rem;
+              margin-top: 2.5rem;
               margin-bottom: 1rem;
               font-size: 1.5rem;
-              border-bottom: 1px solid #ddd;
+              border-bottom: 2px solid #ddd;
               padding-bottom: 0.5rem;
             }
             h3 {
               color: #333;
-              margin-top: 1.5rem;
+              margin-top: 2rem;
               margin-bottom: 0.75rem;
               font-size: 1.25rem;
             }
             h4 {
               color: #444;
-              margin-top: 1rem;
+              margin-top: 1.5rem;
               margin-bottom: 0.5rem;
               font-size: 1.1rem;
             }
             p {
-              margin: 1rem 0;
+              margin: 1.25rem 0;
+              line-height: 1.8;
             }
             ul, ol {
-              margin: 1rem 0;
+              margin: 1.25rem 0;
               padding-left: 2rem;
+              line-height: 1.7;
             }
             li {
-              margin: 0.5rem 0;
+              margin: 0.75rem 0;
             }
             strong {
               color: #111;
@@ -331,6 +371,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               padding: 1rem;
               border-radius: 6px;
               overflow-x: auto;
+              line-height: 1.5;
             }
             pre code {
               background: none;
@@ -343,13 +384,17 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             a:hover {
               text-decoration: underline;
             }
-            .header-info {
+            .metadata-box {
               color: #666;
               font-size: 0.9rem;
               margin-bottom: 2rem;
-              padding: 1rem;
+              padding: 1.5rem;
               background: #f5f5f5;
-              border-radius: 6px;
+              border-radius: 8px;
+              border: 1px solid #ddd;
+            }
+            .metadata-box strong {
+              color: #333;
             }
             .disclaimer {
               background: #FEF3C7;
@@ -358,28 +403,80 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               padding: 1.5rem;
               margin: 2rem 0;
             }
+            .disclaimer h4 {
+              margin-top: 0;
+              color: #92400E;
+            }
+            .disclaimer p {
+              margin: 0.5rem 0;
+              color: #78350F;
+            }
             hr {
               border: none;
               border-top: 2px solid #ddd;
               margin: 2rem 0;
             }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 1.5rem 0;
+            }
+            table th {
+              background: #f5f5f5;
+              padding: 0.75rem;
+              text-align: left;
+              border: 1px solid #ddd;
+              font-weight: 600;
+            }
+            table td {
+              padding: 0.75rem;
+              border: 1px solid #ddd;
+            }
+            table tr:nth-child(even) {
+              background: #fafafa;
+            }
             @media print {
               body { padding: 1rem; }
               @page { margin: 1.5cm; }
+              .report-header { page-break-after: avoid; }
             }
           </style>
         </head>
         <body>
-          <div class="header-info">
-            <strong>Generated:</strong> ${new Date().toLocaleString()}<br>
-            <strong>Results Analyzed:</strong> ${savedResults.length.toLocaleString()} high-confidence genetic variants<br>
-            <strong>Batches Processed:</strong> ${progress.groupSummaries.length}<br>
-            <strong>Powered by:</strong> OpenAI GPT-4o
+          <div class="report-header">
+            <h1>Comprehensive Genetic Overview Report</h1>
+            <div class="subtitle">Generated by Monadic DNA Explorer</div>
+
+            <div class="tool-info">
+              <h3>About Monadic DNA Explorer</h3>
+              <p><strong>Monadic DNA Explorer</strong> is a personal genomics analysis tool that processes publicly available GWAS (Genome-Wide Association Studies) data to generate personalized genetic insights. This report synthesizes findings from ${savedResults.length.toLocaleString()} high-confidence genetic variants that matched the user's genetic profile out of over 1 million available traits.</p>
+              <p><strong>Analysis Method:</strong> This report uses a map-reduce LLM approach, where genetic data is divided into ${progress.groupSummaries.length} batches, each analyzed independently before being synthesized into comprehensive insights.</p>
+              <p><strong>Data Sources:</strong> Analysis is based on peer-reviewed GWAS studies from the GWAS Catalog and other publicly available genomic databases.</p>
+            </div>
+
+            <div class="disclaimer">
+              <h4>⚠️ Important Medical Disclaimer</h4>
+              <p><strong>This report is for educational and informational purposes only.</strong> It is not intended to diagnose, treat, cure, or prevent any disease or medical condition.</p>
+              <p>The information provided should not be used as a substitute for professional medical advice, diagnosis, or treatment. Always seek the advice of a qualified healthcare provider with any questions regarding a medical condition or genetic findings.</p>
+              <p>Genetic analysis is complex and constantly evolving. Results should be interpreted by qualified medical professionals in the context of complete medical history, family history, and clinical examination.</p>
+            </div>
+
+            <div class="metadata-box">
+              <strong>Report Generated:</strong> ${new Date().toLocaleString()}<br>
+              <strong>Genetic Variants Analyzed:</strong> ${savedResults.length.toLocaleString()} high-confidence variants<br>
+              <strong>Analysis Batches:</strong> ${progress.groupSummaries.length}<br>
+              <strong>LLM Model:</strong> OpenAI GPT-4o<br>
+              <strong>Tool Version:</strong> Monadic DNA Explorer (Experimental)
+            </div>
           </div>
+
           ${finalReportHTML}
           ${mapReportsHTML}
-          <div style="margin-top: 3rem; padding-top: 1rem; border-top: 2px solid #ddd; color: #666; font-size: 0.9rem; text-align: center;">
-            Generated by GWASifier • For Educational Purposes Only
+
+          <div style="margin-top: 3rem; padding-top: 1.5rem; border-top: 2px solid #ddd; color: #666; font-size: 0.9rem; text-align: center;">
+            <p style="margin: 0.5rem 0;"><strong>Generated by Monadic DNA Explorer</strong></p>
+            <p style="margin: 0.5rem 0;">https://monadicdna.com</p>
+            <p style="margin: 0.5rem 0;">For Educational Purposes Only • Not Medical Advice</p>
           </div>
         </body>
       </html>
@@ -425,49 +522,67 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content large-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>📊 Comprehensive Genetic Overview Report <span style={{color: '#ff9800', fontSize: '0.8em'}}>(Experimental)</span></h2>
-          <button className="close-button" onClick={handleClose}>×</button>
-        </div>
+        <button className="close-button" onClick={handleClose} style={{
+          position: 'absolute',
+          top: '1rem',
+          right: '1rem',
+          zIndex: 10,
+          background: 'var(--surface-bg)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '6px',
+          width: '32px',
+          height: '32px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '1.5rem',
+          cursor: 'pointer',
+          color: 'var(--text-primary)'
+        }}>×</button>
 
         <div className="modal-body">
           {isBlocked ? (
             <div style={{
               textAlign: 'center',
               padding: '3rem',
-              background: '#FEF3C7',
+              background: 'var(--modal-bg)',
               borderRadius: '8px',
               border: '2px solid #F59E0B'
             }}>
-              <h3 style={{ marginTop: 0, color: '#92400e' }}>🔒 Premium Feature</h3>
-              <p style={{ color: '#92400e', marginBottom: '1rem' }}>
+              <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>🔒 Premium Feature</h3>
+              <p style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
                 Overview Report requires an active premium subscription.
               </p>
-              <p style={{ fontSize: '0.875rem', color: '#78350f' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                 Subscribe for $4.99/month to unlock comprehensive LLM-powered analysis
                 of all your genetic results.
               </p>
             </div>
           ) : progress.phase === 'idle' ? (
-            <div>
+            <div style={{
+              background: 'var(--modal-bg)',
+              borderRadius: '8px',
+              padding: '1.5rem'
+            }}>
               <div className="overview-report-intro">
-                <p>
+                <h2 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--text-primary)' }}>
+                  📊 Comprehensive Genetic Overview Report <span style={{color: 'var(--accent-yellow)', fontSize: '0.8em'}}>(Experimental)</span>
+                </h2>
+                <p style={{ color: 'var(--text-primary)' }}>
                   <strong>Generate a comprehensive overview report</strong> analyzing all {savedResults.length.toLocaleString()} of your high-confidence genetic results.
                 </p>
-                <p>
-                  This report uses advanced LLM to identify patterns, themes, and actionable insights across your entire genetic profile.
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  This report uses AI to identify patterns, themes, and actionable insights across your entire genetic profile.
                 </p>
 
                 <div style={{
-                  background: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  borderRadius: '6px',
-                  padding: '1rem',
+                  borderLeft: '3px solid var(--accent-blue)',
+                  paddingLeft: '1rem',
                   margin: '1.5rem 0'
                 }}>
-                  <h4 style={{ marginTop: 0, fontSize: '1rem' }}>What's included:</h4>
-                  <ul style={{ marginBottom: 0, paddingLeft: '1.5rem' }}>
-                    <li>Analysis by major health categories (cardiovascular, metabolic, neurological, etc.)</li>
+                  <h4 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1rem', color: 'var(--text-primary)' }}>What's included:</h4>
+                  <ul style={{ marginBottom: 0, marginTop: 0, paddingLeft: '1.5rem', color: 'var(--text-primary)' }}>
+                    <li>Analysis by major categories (traits, conditions, physiological factors, etc.)</li>
                     <li>Identification of genetic strengths and areas to monitor</li>
                     <li>Personalized action plan based on your background</li>
                     <li>Cross-system insights and connections</li>
@@ -476,20 +591,34 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                 </div>
 
                 <div style={{
-                  background: '#FEF3C7',
-                  border: '1px solid #FDE68A',
-                  borderRadius: '6px',
-                  padding: '1rem',
+                  borderLeft: '3px solid var(--accent-yellow)',
+                  paddingLeft: '1rem',
                   margin: '1.5rem 0'
                 }}>
-                  <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                    <strong>⏱️ Generation time:</strong> Approximately 3-4 minutes
-                    <br />
-                    <strong>🔒 Privacy:</strong> All processing happens in your browser - data never leaves your device except via nilAI TEE
-                    <br />
-                    <strong>📊 Analysis depth:</strong> {savedResults.length.toLocaleString()} genetic variants analyzed in 5 groups
-                    <br />
-                    <strong>🤖 LLM calls:</strong> 6 total (5 analysis + 1 synthesis)
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                    <strong>⚠️ Experimental Feature:</strong> This feature uses a map/reduce approach where your data is split into batches, each analyzed separately by an LLM, then synthesized into a final report. Generation time is highly variable and difficult to predict. This process involves multiple LLM calls and may take several minutes to complete.
+                  </p>
+                </div>
+
+                <div style={{
+                  borderLeft: '3px solid var(--accent-green)',
+                  paddingLeft: '1rem',
+                  margin: '1.5rem 0'
+                }}>
+                  <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                    <strong>🔒 Privacy:</strong> Your genetic data is processed securely through nilAI's confidential computing environment. Analysis requests are encrypted and processed in a trusted execution environment that prevents any access to your data.
+                  </p>
+                  <p style={{ margin: '0.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    <strong>📊 Analysis depth:</strong> {savedResults.length.toLocaleString()} genetic variants
+                  </p>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    <strong>🤖 LLM calls:</strong> {(() => {
+                      const highConfResults = savedResults.filter(r =>
+                        (typeof r.sampleSize === 'number' ? r.sampleSize : 0) >= 5000
+                      );
+                      const batchCount = Math.max(4, Math.min(32, Math.ceil(highConfResults.length / 3000)));
+                      return `${batchCount + 1} total (${batchCount} batch analyses + 1 synthesis)`;
+                    })()}
                   </p>
                 </div>
 
@@ -497,13 +626,13 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   className="primary-button"
                   onClick={handleGenerate}
                   disabled={savedResults.length === 0}
-                  style={{ width: '100%', padding: '1rem', fontSize: '1rem' }}
+                  style={{ width: '100%', padding: '1rem', fontSize: '1rem', marginTop: '1.5rem' }}
                 >
                   Generate Overview Report
                 </button>
 
                 {savedResults.length < 10000 && (
-                  <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666', textAlign: 'center' }}>
+                  <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                     ⚠️ You have {savedResults.length.toLocaleString()} results. For best results, run "Run All" to analyze more studies.
                   </p>
                 )}
@@ -533,9 +662,13 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
               </button>
             </div>
           ) : progress.phase === 'complete' && progress.finalReport ? (
-            <div className="overview-report-result">
+            <div style={{
+              background: 'var(--modal-bg)',
+              borderRadius: '8px',
+              padding: '1.5rem'
+            }}>
               <div style={{
-                marginBottom: '1rem',
+                marginBottom: '1.5rem',
                 display: 'flex',
                 gap: '0.5rem',
                 justifyContent: 'flex-end'
@@ -548,24 +681,108 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                 </button>
               </div>
 
-              <div className="markdown-content">
+              <div style={{
+                background: 'var(--surface-bg)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                padding: '1rem',
+                marginBottom: '2rem',
+                fontSize: '0.9rem',
+                color: 'var(--text-secondary)'
+              }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Generated:</strong> {new Date().toLocaleString()}<br/>
+                <strong style={{ color: 'var(--text-primary)' }}>Results Analyzed:</strong> {savedResults.length.toLocaleString()} high-confidence genetic variants<br/>
+                <strong style={{ color: 'var(--text-primary)' }}>Batches Processed:</strong> {progress.groupSummaries.length}
+              </div>
+
+              <div className="markdown-content" style={{
+                color: 'var(--text-primary)',
+                lineHeight: '1.7'
+              }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {progress.finalReport}
                 </ReactMarkdown>
               </div>
+
+              {progress.groupSummaries.length > 0 && (
+                <div style={{
+                  marginTop: '3rem',
+                  paddingTop: '2rem',
+                  borderTop: '2px solid var(--border-color)'
+                }}>
+                  <h2 style={{
+                    color: 'var(--text-primary)',
+                    marginTop: 0,
+                    marginBottom: '1rem',
+                    fontSize: '1.5rem',
+                    borderBottom: '2px solid var(--accent-blue)',
+                    paddingBottom: '0.5rem'
+                  }}>
+                    Appendix: Detailed Batch Analysis
+                  </h2>
+                  <p style={{
+                    color: 'var(--text-secondary)',
+                    marginBottom: '2rem',
+                    fontSize: '0.95rem'
+                  }}>
+                    The following sections contain the detailed analysis from each batch of genetic variants that were synthesized into the main report above.
+                  </p>
+
+                  {progress.groupSummaries.map((gs, idx) => (
+                    <div key={idx} style={{
+                      marginBottom: '3rem',
+                      paddingBottom: '2rem',
+                      borderBottom: idx < progress.groupSummaries.length - 1 ? `1px solid var(--border-color)` : 'none'
+                    }}>
+                      <h3 style={{
+                        color: 'var(--accent-blue)',
+                        marginTop: 0,
+                        marginBottom: '1rem',
+                        fontSize: '1.25rem'
+                      }}>
+                        Batch {gs.groupNumber}
+                      </h3>
+                      <div className="markdown-content" style={{
+                        color: 'var(--text-primary)',
+                        lineHeight: '1.7'
+                      }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {gs.summary}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{
+                marginTop: '3rem',
+                paddingTop: '1rem',
+                borderTop: '2px solid var(--border-color)',
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                textAlign: 'center'
+              }}>
+                Generated by GWASifier • For Educational Purposes Only
+              </div>
             </div>
           ) : (
-            <div className="generation-progress">
-              <div style={{ textAlign: 'center', padding: '2rem' }}>
-                <h3>
+            <div style={{
+              background: 'var(--modal-bg)',
+              borderRadius: '8px',
+              padding: '1.5rem'
+            }}>
+              <div style={{ textAlign: 'center', padding: '1rem' }}>
+                <h2 style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
                   {progress.phase === 'map' ? '🔍 Analyzing Results' : '🤖 Synthesizing Report'}
-                </h3>
-                <p style={{ fontSize: '0.9rem', color: '#666' }}>{progress.message}</p>
+                </h2>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{progress.message}</p>
 
                 <div style={{
                   width: '100%',
                   height: '24px',
-                  background: '#E5E7EB',
+                  background: 'var(--surface-bg)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '12px',
                   overflow: 'hidden',
                   margin: '1.5rem 0'
@@ -573,91 +790,89 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   <div style={{
                     width: `${progress.progress}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, #3B82F6, #10B981)',
+                    background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-green))',
                     transition: 'width 0.5s ease'
                   }} />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-                  <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#3B82F6' }}>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent-blue)' }}>
                     {progress.progress}%
                   </p>
-                  <p style={{ fontSize: '1.2rem', fontWeight: '600', color: '#10B981' }}>
+                  <p style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--accent-green)' }}>
                     ⏱️ {formatTime(elapsedTime)}
                   </p>
                 </div>
 
                 {progress.currentGroup && progress.totalGroups && (
-                  <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '1rem' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '1rem' }}>
                     Batch {progress.currentGroup} of {progress.totalGroups}
                   </p>
                 )}
 
                 {progress.estimatedTimeRemaining !== undefined && progress.estimatedTimeRemaining > 0 ? (
-                  <p style={{ fontSize: '0.85rem', color: '#3B82F6', marginTop: '0.5rem', fontWeight: '600' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--accent-blue)', marginTop: '0.5rem', fontWeight: '600' }}>
                     ETA: {formatTime(progress.estimatedTimeRemaining)} remaining
                     {progress.averageTimePerGroup && (
-                      <span style={{ fontSize: '0.75rem', color: '#666', display: 'block', marginTop: '0.25rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginTop: '0.25rem' }}>
                         (~{progress.averageTimePerGroup.toFixed(0)}s per batch)
                       </span>
                     )}
                   </p>
                 ) : (
-                  <p style={{ fontSize: '0.75rem', color: '#999', marginTop: '1.5rem' }}>
-                    Analyzing your genetic data... This may take 60-90 minutes.
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>
+                    Analyzing your genetic data... This may take up to 10 minutes.
                   </p>
                 )}
-              </div>
 
-              {/* Show intermediate reports as they come in */}
-              {progress.groupSummaries.length > 0 && (
-                <div style={{
-                  marginTop: '2rem',
-                  padding: '1.5rem',
-                  background: '#F9FAFB',
-                  borderRadius: '8px',
-                  border: '1px solid #E5E7EB'
-                }}>
-                  <h4 style={{ margin: '0 0 1rem 0', color: '#374151' }}>
-                    📝 Intermediate Analysis ({progress.groupSummaries.length} batches completed)
-                  </h4>
+                {/* Show intermediate reports as they come in */}
+                {progress.groupSummaries.length > 0 && (
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                    gap: '0.5rem',
-                    maxHeight: '300px',
-                    overflowY: 'auto'
+                    marginTop: '2rem',
+                    paddingTop: '1.5rem',
+                    borderTop: '1px solid var(--border-color)'
                   }}>
-                    {progress.groupSummaries.map((gs, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedBatchIndex(idx)}
-                        style={{
-                          padding: '0.75rem',
-                          background: '#FFFFFF',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '0.875rem',
-                          color: '#374151',
-                          transition: 'all 0.2s',
-                          fontWeight: '500'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.background = '#F3F4F6';
-                          e.currentTarget.style.borderColor = '#3B82F6';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.background = '#FFFFFF';
-                          e.currentTarget.style.borderColor = '#D1D5DB';
-                        }}
-                      >
-                        Batch {gs.groupNumber}
-                      </button>
-                    ))}
+                    <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                      📝 Intermediate Analysis ({progress.groupSummaries.length} batches completed)
+                    </h4>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                      gap: '0.5rem',
+                      maxHeight: '300px',
+                      overflowY: 'auto'
+                    }}>
+                      {progress.groupSummaries.map((gs, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedBatchIndex(idx)}
+                          style={{
+                            padding: '0.75rem',
+                            background: 'var(--surface-bg)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.875rem',
+                            color: 'var(--text-primary)',
+                            transition: 'all 0.2s',
+                            fontWeight: '500'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'var(--border-color)';
+                            e.currentTarget.style.borderColor = 'var(--accent-blue)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'var(--surface-bg)';
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                          }}
+                        >
+                          Batch {gs.groupNumber}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Batch Detail Modal */}
               {selectedBatchIndex !== null && progress.groupSummaries[selectedBatchIndex] && (

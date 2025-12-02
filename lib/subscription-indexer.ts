@@ -4,20 +4,8 @@
  * Calculates subscription status without database
  */
 
-// Fix Next.js + Alchemy SDK compatibility by polyfilling global fetch
-// This intercepts all fetch calls (including nested ones in ethers.js) to handle invalid referrer
-// The Alchemy SDK (via ethers.js) passes referrer: "client" which is valid in browsers
-// but throws "Referrer 'client' is not a valid URL" in Node.js
-const originalFetch = global.fetch;
-global.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-  const options = { ...init };
-  // Set referrer to empty string to avoid Node.js validation errors
-  // Empty string is valid in Node.js fetch, while "client" is not
-  if (options) {
-    options.referrer = '';
-  }
-  return originalFetch(input, options);
-};
+// CRITICAL: Import fetch polyfill FIRST before any other imports
+import './fetch-polyfill';
 
 import { Alchemy, Network, AssetTransfersCategory, SortingOrder } from 'alchemy-sdk';
 import { convertToUsd } from './alchemy-prices';
@@ -45,6 +33,9 @@ export interface PaymentRecord {
 const MONTHLY_PRICE = 4.99; // USD
 const DAYS_PER_MONTH = 30;
 
+// Check if testnet chains are enabled
+const TESTNET_ENABLED = process.env.NEXT_PUBLIC_ENABLE_TESTNET_CHAINS === 'true';
+
 // Network configurations for Alchemy
 const NETWORKS: Record<string, Network> = {
   ethereum: Network.ETH_MAINNET,
@@ -52,6 +43,9 @@ const NETWORKS: Record<string, Network> = {
   arbitrum: Network.ARB_MAINNET,
   optimism: Network.OPT_MAINNET,
   polygon: Network.MATIC_MAINNET,
+  ...(TESTNET_ENABLED ? {
+    sepolia: Network.ETH_SEPOLIA,
+  } : {}),
 };
 
 // USDC contract addresses for each chain
@@ -61,6 +55,9 @@ const USDC_CONTRACTS: Record<string, string> = {
   arbitrum: process.env.USDC_CONTRACT_ARBITRUM || '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
   optimism: process.env.USDC_CONTRACT_OPTIMISM || '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
   polygon: process.env.USDC_CONTRACT_POLYGON || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+  ...(TESTNET_ENABLED ? {
+    sepolia: process.env.USDC_CONTRACT_SEPOLIA || '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+  } : {}),
 };
 
 // USDT contract addresses for each chain
@@ -70,6 +67,9 @@ const USDT_CONTRACTS: Record<string, string> = {
   arbitrum: process.env.USDT_CONTRACT_ARBITRUM || '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
   optimism: process.env.USDT_CONTRACT_OPTIMISM || '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
   polygon: process.env.USDT_CONTRACT_POLYGON || '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+  ...(TESTNET_ENABLED ? {
+    sepolia: process.env.USDT_CONTRACT_SEPOLIA || '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0',
+  } : {}),
 };
 
 // DAI contract addresses for each chain
@@ -79,6 +79,9 @@ const DAI_CONTRACTS: Record<string, string> = {
   arbitrum: process.env.DAI_CONTRACT_ARBITRUM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
   optimism: process.env.DAI_CONTRACT_OPTIMISM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
   polygon: process.env.DAI_CONTRACT_POLYGON || '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+  ...(TESTNET_ENABLED ? {
+    sepolia: process.env.DAI_CONTRACT_SEPOLIA || '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357',
+  } : {}),
 };
 
 /**
@@ -97,10 +100,16 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
     throw new Error('ALCHEMY_API_KEY environment variable not set');
   }
 
+  console.log('[Subscription Indexer] Starting subscription check for wallet:', walletAddress);
+  console.log('[Subscription Indexer] Payment wallet:', paymentWallet);
+  console.log('[Subscription Indexer] Testnet enabled:', TESTNET_ENABLED);
+  console.log('[Subscription Indexer] Chains to query:', Object.keys(NETWORKS));
+
   const payments: PaymentRecord[] = [];
 
   // Query all supported chains
   for (const [chainName, network] of Object.entries(NETWORKS)) {
+    console.log(`\n[Subscription Indexer] Querying chain: ${chainName}`);
     try {
       const alchemy = new Alchemy({
         apiKey: process.env.ALCHEMY_API_KEY!,
@@ -115,6 +124,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         contractAddresses: [USDC_CONTRACTS[chainName]],
         order: SortingOrder.ASCENDING,
       });
+      console.log(`[Subscription Indexer] USDC payments ${usdcTransfers.transfers.length > 0 ? 'found' : 'not found'} on chain ${chainName} (${usdcTransfers.transfers.length} transfers)`);
 
       // Get USDC refunds (from payment wallet to user)
       const usdcRefunds = await alchemy.core.getAssetTransfers({
@@ -124,6 +134,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         contractAddresses: [USDC_CONTRACTS[chainName]],
         order: SortingOrder.ASCENDING,
       });
+      console.log(`[Subscription Indexer] USDC refunds ${usdcRefunds.transfers.length > 0 ? 'found' : 'not found'} on chain ${chainName} (${usdcRefunds.transfers.length} transfers)`);
 
       // Get USDT payments (from user to payment wallet)
       const usdtTransfers = await alchemy.core.getAssetTransfers({
@@ -133,6 +144,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         contractAddresses: [USDT_CONTRACTS[chainName]],
         order: SortingOrder.ASCENDING,
       });
+      console.log(`[Subscription Indexer] USDT payments ${usdtTransfers.transfers.length > 0 ? 'found' : 'not found'} on chain ${chainName} (${usdtTransfers.transfers.length} transfers)`);
 
       // Get USDT refunds (from payment wallet to user)
       const usdtRefunds = await alchemy.core.getAssetTransfers({
@@ -142,6 +154,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         contractAddresses: [USDT_CONTRACTS[chainName]],
         order: SortingOrder.ASCENDING,
       });
+      console.log(`[Subscription Indexer] USDT refunds ${usdtRefunds.transfers.length > 0 ? 'found' : 'not found'} on chain ${chainName} (${usdtRefunds.transfers.length} transfers)`);
 
       // Get DAI payments (from user to payment wallet)
       const daiTransfers = await alchemy.core.getAssetTransfers({
@@ -151,6 +164,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         contractAddresses: [DAI_CONTRACTS[chainName]],
         order: SortingOrder.ASCENDING,
       });
+      console.log(`[Subscription Indexer] DAI payments ${daiTransfers.transfers.length > 0 ? 'found' : 'not found'} on chain ${chainName} (${daiTransfers.transfers.length} transfers)`);
 
       // Get DAI refunds (from payment wallet to user)
       const daiRefunds = await alchemy.core.getAssetTransfers({
@@ -160,6 +174,7 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
         contractAddresses: [DAI_CONTRACTS[chainName]],
         order: SortingOrder.ASCENDING,
       });
+      console.log(`[Subscription Indexer] DAI refunds ${daiRefunds.transfers.length > 0 ? 'found' : 'not found'} on chain ${chainName} (${daiRefunds.transfers.length} transfers)`);
 
       // Process USDC payments
       for (const transfer of usdcTransfers.transfers) {
@@ -343,8 +358,19 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
   // Sort payments and refunds by timestamp
   payments.sort((a, b) => a.timestamp - b.timestamp);
 
+  console.log(`\n[Subscription Indexer] =================================`);
+  console.log(`[Subscription Indexer] Total payments found: ${payments.length}`);
+  if (payments.length > 0) {
+    console.log(`[Subscription Indexer] Payment details:`);
+    payments.forEach((p, idx) => {
+      console.log(`  ${idx + 1}. ${p.type.toUpperCase()} - ${p.currency} on ${p.chain}: ${p.usdValue} USD (${p.daysPurchased} days) - TX: ${p.transactionHash.slice(0, 10)}...`);
+    });
+  }
+  console.log(`[Subscription Indexer] =================================\n`);
+
   // Calculate subscription status
   if (payments.length === 0) {
+    console.log('[Subscription Indexer] No payments found - subscription inactive');
     return {
       isActive: false,
       expiresAt: null,
@@ -375,6 +401,13 @@ export async function checkSubscription(walletAddress: string): Promise<Subscrip
   const daysRemaining = isActive
     ? Math.ceil((expiresAt.getTime() - now) / (24 * 60 * 60 * 1000))
     : 0;
+
+  console.log('[Subscription Indexer] Subscription calculation complete:');
+  console.log(`  - Total paid: $${totalPaid.toFixed(2)} USD`);
+  console.log(`  - Total days purchased: ${Math.floor(totalDaysPurchased)}`);
+  console.log(`  - Expires at: ${expiresAt.toISOString()}`);
+  console.log(`  - Is active: ${isActive}`);
+  console.log(`  - Days remaining: ${daysRemaining}`);
 
   return {
     isActive,

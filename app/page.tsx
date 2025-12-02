@@ -204,7 +204,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized, refreshSubscription } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -469,7 +469,7 @@ function MainContent() {
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, genotypeData]);
+  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, filters.searchMode, genotypeData]);
 
   const qualitySummary = useMemo<QualitySummary>(() => {
     return studies.reduce<QualitySummary>(
@@ -1126,7 +1126,9 @@ function MainContent() {
           <div className="premium-header-content">
             {!isAuthenticated ? (
               <div className="auth-prompt-inline">
-                <span>Sign in to access premium features →</span>
+                <span title={"We do not store user information on our servers\nWe use dynamic.xyz for sign in\nLogin is needed to track subscription status"}>
+                  Sign in to access premium features →
+                </span>
               </div>
             ) : !hasActiveSubscription ? (
               <div className="subscription-prompt-inline">
@@ -1184,6 +1186,22 @@ function MainContent() {
                         </div>
                       </div>
                       <div className="subscription-menu-divider"></div>
+                      <button
+                        onClick={async () => {
+                          setShowSubscriptionMenu(false);
+                          try {
+                            await refreshSubscription();
+                            alert('✓ Subscription status refreshed!');
+                          } catch (error) {
+                            console.error('Failed to refresh subscription:', error);
+                            alert('Failed to refresh subscription. Please try again.');
+                          }
+                        }}
+                        className="subscription-menu-item"
+                        disabled={checkingSubscription}
+                      >
+                        {checkingSubscription ? '⏳ Checking...' : '🔄 Refresh Subscription'}
+                      </button>
                       <button
                         onClick={async () => {
                           setShowSubscriptionMenu(false);

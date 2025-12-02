@@ -72,8 +72,8 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
         // Ignore
       }
     }
-    // Also refresh subscription
-    setTimeout(() => refreshSubscription(), 5000);
+    // PaymentModal now handles subscription polling automatically
+    // No need to refresh here
   };
 
   // Always show content

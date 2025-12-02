@@ -108,17 +108,48 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
                 <>
                   <option value="gpt-oss:latest">gpt-oss:latest (Ollama format)</option>
                   <option value="gpt-oss-20b">gpt-oss-20b</option>
+                  <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
+                  <option value="custom">Custom...</option>
+                </>
+              ) : config.provider === 'nilai' ? (
+                <>
+                  <option value="gpt-oss-20b">gpt-oss-20b</option>
+                  <option value="custom">Custom...</option>
                 </>
               ) : (
-                <option value="gpt-oss-20b">gpt-oss-20b</option>
+                <>
+                  <option value="gpt-oss-20b">gpt-oss-20b</option>
+                  <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
+                  <option value="custom">Custom...</option>
+                </>
               )}
             </select>
             <p className="config-help">
-              {config.provider === 'ollama' 
-                ? 'Select the model format that matches your Ollama installation.'
-                : 'Currently only gpt-oss-20b is supported across all providers.'}
+              {config.provider === 'ollama'
+                ? 'Select the model format that matches your Ollama installation or choose Custom to enter your own.'
+                : 'Select a preset model or choose Custom to enter your own model name.'}
             </p>
           </div>
+
+          {config.model === 'custom' && (
+            <div className="config-section">
+              <label className="config-label">
+                <strong>Custom Model Name</strong>
+              </label>
+              <input
+                type="text"
+                className="config-input"
+                value={config.customModel || ''}
+                onChange={(e) =>
+                  setConfig({ ...config, customModel: e.target.value })
+                }
+                placeholder="Enter model name (e.g., gpt-oss-20b, openai/gpt-oss-120b)"
+              />
+              <p className="config-help">
+                Enter the exact model identifier for your provider.
+              </p>
+            </div>
+          )}
 
           {config.provider === 'ollama' && (
             <>
