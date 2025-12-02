@@ -614,7 +614,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                   <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                     <strong>🤖 LLM calls:</strong> {(() => {
                       const highConfResults = savedResults.filter(r =>
-                        r.sampleSize >= 5000 && r.relevanceScore >= 9
+                        (typeof r.sampleSize === 'number' ? r.sampleSize : 0) >= 5000
                       );
                       const batchCount = Math.max(4, Math.min(32, Math.ceil(highConfResults.length / 3000)));
                       return `${batchCount + 1} total (${batchCount} batch analyses + 1 synthesis)`;

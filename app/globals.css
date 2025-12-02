@@ -4555,6 +4555,178 @@ details[open] .summary-arrow {
   cursor: not-allowed;
 }
 
+/* Attachment UI Styles */
+.ai-chat-inline .chat-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.ai-chat-inline .chat-attachment-button {
+  padding: 0.6rem 1rem;
+  background: var(--surface-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-chat-inline .chat-attachment-button:hover:not(:disabled) {
+  background: var(--secondary-bg);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+}
+
+.ai-chat-inline .chat-attachment-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-chat-inline .attachment-preview-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  border-radius: 6px;
+}
+
+.ai-chat-inline .attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.ai-chat-inline .attachment-icon {
+  font-size: 1rem;
+}
+
+.ai-chat-inline .attachment-name {
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-chat-inline .attachment-size {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.ai-chat-inline .attachment-remove {
+  background: none;
+  border: none;
+  color: var(--accent-red);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.ai-chat-inline .attachment-remove:hover {
+  color: #dc2626;
+  transform: scale(1.2);
+}
+
+.ai-chat-inline .attachment-error {
+  padding: 0.5rem 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: var(--accent-red);
+  font-size: 0.85rem;
+}
+
+/* Attachment display in messages */
+.ai-chat-inline .attachments-used {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.ai-chat-inline .attachments-toggle {
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-chat-inline .attachments-toggle:hover {
+  background: var(--secondary-bg);
+  border-color: var(--accent-blue);
+}
+
+.ai-chat-inline .attachments-list {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ai-chat-inline .attachment-item {
+  padding: 0.75rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.ai-chat-inline .attachment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ai-chat-inline .attachment-file-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.ai-chat-inline .attachment-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.ai-chat-inline .attachment-content-preview {
+  margin-top: 0.5rem;
+}
+
+.ai-chat-inline .attachment-content-preview pre {
+  background: var(--primary-bg);
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  border: 1px solid var(--border-color);
+}
+
 .ai-chat-inline .chat-input {
   flex: 1;
   padding: 0.75rem;

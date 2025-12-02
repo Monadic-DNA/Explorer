@@ -12,15 +12,28 @@ import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
 import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 
+type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv';
+
+type Attachment = {
+  name: string;
+  content: string;
+  type: AttachmentType;
+  size: number; // in bytes
+};
+
 type Message = {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   studiesUsed?: SavedResult[];
+  attachments?: Attachment[];
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const MAX_CONTEXT_RESULTS = 500;
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB in bytes
+const ALLOWED_FILE_TYPES = ['.txt', '.pdf', '.csv', '.tsv'];
+const MAX_ATTACHMENTS = 5;
 
 const EXAMPLE_QUESTIONS = [
   "Which traits should I pay attention to?",
@@ -57,8 +70,12 @@ export default function AIChatInline() {
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [expandedAttachmentIndex, setExpandedAttachmentIndex] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -144,6 +161,156 @@ export default function AIChatInline() {
     return `${score.toFixed(2)}x`;
   };
 
+  const handleAttachmentClick = () => {
+    setAttachmentError(null);
+    fileInputRef.current?.click();
+  };
+
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File "${file.name}" is too large. Maximum size is 1MB.`;
+    }
+
+    // Check file type
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!ALLOWED_FILE_TYPES.includes(extension)) {
+      return `File "${file.name}" has an unsupported format. Allowed: ${ALLOWED_FILE_TYPES.join(', ')}`;
+    }
+
+    return null;
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setAttachmentError(null);
+
+    // Check total number of attachments
+    if (attachedFiles.length + files.length > MAX_ATTACHMENTS) {
+      setAttachmentError(`Maximum ${MAX_ATTACHMENTS} files can be attached at once.`);
+      return;
+    }
+
+    const newFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const error = validateFile(file);
+      if (error) {
+        setAttachmentError(error);
+        return;
+      }
+      newFiles.push(file);
+    }
+
+    setAttachedFiles(prev => [...prev, ...newFiles]);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+    setAttachmentError(null);
+  };
+
+  const processAttachments = async (files: File[]): Promise<Attachment[]> => {
+    const attachments: Attachment[] = [];
+
+    for (const file of files) {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+
+      try {
+        if (extension === 'pdf') {
+          // For PDF, we'll need to use pdfjs-dist
+          const content = await extractTextFromPDF(file);
+          attachments.push({
+            name: file.name,
+            content,
+            type: 'pdf',
+            size: file.size
+          });
+        } else {
+          // For text, csv, tsv - read as text
+          const content = await file.text();
+          attachments.push({
+            name: file.name,
+            content,
+            type: extension as AttachmentType,
+            size: file.size
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to process file ${file.name}:`, err);
+        throw new Error(`Failed to process file "${file.name}"`);
+      }
+    }
+
+    return attachments;
+  };
+
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    try {
+      // Load PDF.js from CDN dynamically to avoid webpack issues
+      if (typeof window !== 'undefined' && !(window as any).pdfjsLib) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load PDF.js'));
+          document.head.appendChild(script);
+        });
+      }
+
+      const pdfjsLib = (window as any).pdfjsLib;
+      if (!pdfjsLib) {
+        throw new Error('PDF.js library not loaded');
+      }
+
+      // Set worker
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+      // Read file as ArrayBuffer
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Load PDF document
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      let fullText = '';
+
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n\n';
+      }
+
+      return fullText.trim() || 'PDF file contains no extractable text';
+    } catch (error) {
+      console.error('Failed to extract text from PDF:', error);
+      throw new Error(`Failed to extract text from PDF file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const formatAttachmentsForMessage = (attachments: Attachment[], query: string): string => {
+    let message = `User question:\n${query}`;
+
+    if (attachments.length > 0) {
+      message += '\n\n---\n';
+      for (const attachment of attachments) {
+        const sizeKB = (attachment.size / 1024).toFixed(1);
+        message += `\nAttached file: ${attachment.name} (${attachment.type.toUpperCase()}, ${sizeKB}KB):\n${attachment.content}\n`;
+      }
+      message += '---';
+    }
+
+    return message;
+  };
+
   const handleSendMessage = async () => {
     const query = inputValue.trim();
     if (!query) return;
@@ -176,9 +343,25 @@ export default function AIChatInline() {
     setInputValue("");
     setIsLoading(true);
     setError(null);
+    setAttachmentError(null);
 
     // Track LLM question
     trackLLMQuestionAsked();
+
+    // Process attachments if any
+    let processedAttachments: Attachment[] = [];
+    if (attachedFiles.length > 0) {
+      try {
+        setLoadingStatus("📎 Processing attachments...");
+        processedAttachments = await processAttachments(attachedFiles);
+        console.log(`[LLM Chat] Processed ${processedAttachments.length} attachments`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to process attachments";
+        setError(errorMessage);
+        setIsLoading(false);
+        return;
+      }
+    }
 
     try {
       let relevantResults: SavedResult[] = [];
@@ -383,7 +566,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('System Prompt:', systemPrompt);
       console.log('User Query:', query);
       console.log('Relevant Results Count:', relevantResults.length);
+      console.log('Attachments Count:', processedAttachments.length);
       console.log('======================');
+
+      // Format the user query with attachments for LLM
+      const userQueryWithAttachments = processedAttachments.length > 0
+        ? formatAttachmentsForMessage(processedAttachments, query)
+        : query;
 
       // Build the message history to send to LLM FIRST (before updating state)
       // For first message: [system, user]
@@ -391,7 +580,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       const messagesToSend = shouldIncludeContext
         ? [
             { role: "system" as const, content: systemPrompt },
-            { role: "user" as const, content: query }
+            { role: "user" as const, content: userQueryWithAttachments }
           ]
         : [
             // Use conversational system prompt for follow-ups (replace the detailed one from history)
@@ -402,7 +591,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               content: m.content
             })),
             // Add the new user question
-            { role: "user" as const, content: query }
+            { role: "user" as const, content: userQueryWithAttachments }
           ];
 
       // Now add messages to state for UI display
@@ -421,7 +610,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       const userMessage: Message = {
         role: 'user',
         content: query,
-        timestamp: new Date()
+        timestamp: new Date(),
+        attachments: processedAttachments.length > 0 ? processedAttachments : undefined
       };
       setMessages(prev => [...prev, userMessage]);
 
@@ -468,6 +658,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       if (!accumulatedContent) {
         throw new Error("No response generated from LLM");
       }
+
+      // Clear attachments after successful send
+      setAttachedFiles([]);
 
     } catch (err) {
       console.error('[LLM Chat] Error:', err);
@@ -837,6 +1030,33 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     )}
                   </div>
                 )}
+                {message.role === 'user' && message.attachments && message.attachments.length > 0 && (
+                  <div className="attachments-used">
+                    <button
+                      className="attachments-toggle"
+                      onClick={() => setExpandedAttachmentIndex(expandedAttachmentIndex === idx ? null : idx)}
+                    >
+                      {expandedAttachmentIndex === idx ? '▼' : '▶'} 📎 {message.attachments.length} file{message.attachments.length > 1 ? 's' : ''} attached
+                    </button>
+                    {expandedAttachmentIndex === idx && (
+                      <div className="attachments-list">
+                        {message.attachments.map((attachment, attIdx) => (
+                          <div key={attIdx} className="attachment-item">
+                            <div className="attachment-header">
+                              <span className="attachment-file-name">📄 {attachment.name}</span>
+                              <span className="attachment-meta">
+                                {attachment.type.toUpperCase()} • {(attachment.size / 1024).toFixed(1)}KB
+                              </span>
+                            </div>
+                            <div className="attachment-content-preview">
+                              <pre>{attachment.content.substring(0, 500)}{attachment.content.length > 500 ? '...' : ''}</pre>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="message-time">
                   {message.timestamp.toLocaleTimeString()}
                 </div>
@@ -867,6 +1087,43 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         </div>
 
         <div className="chat-input-area">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.csv,.tsv"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
+
+          {/* Attachment preview chips */}
+          {attachedFiles.length > 0 && (
+            <div className="attachment-preview-area">
+              {attachedFiles.map((file, idx) => (
+                <div key={idx} className="attachment-chip">
+                  <span className="attachment-icon">📎</span>
+                  <span className="attachment-name">{file.name}</span>
+                  <span className="attachment-size">({(file.size / 1024).toFixed(1)}KB)</span>
+                  <button
+                    className="attachment-remove"
+                    onClick={() => handleRemoveAttachment(idx)}
+                    title="Remove attachment"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Attachment error display */}
+          {attachmentError && (
+            <div className="attachment-error">
+              ⚠️ {attachmentError}
+            </div>
+          )}
+
           <textarea
             ref={inputRef}
             className="chat-input"
@@ -887,14 +1144,24 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 💬 Follow-up question (no RAG)
               </div>
             )}
-            <button
-              className="chat-send-button"
-              onClick={handleSendMessage}
-              disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
-              title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
-            >
-              {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
-            </button>
+            <div className="chat-buttons">
+              <button
+                className="chat-attachment-button"
+                onClick={handleAttachmentClick}
+                disabled={isLoading || attachedFiles.length >= MAX_ATTACHMENTS}
+                title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, pdf, csv, tsv, max 1MB)'}
+              >
+                📎
+              </button>
+              <button
+                className="chat-send-button"
+                onClick={handleSendMessage}
+                disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
+                title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
+              >
+                {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
+              </button>
+            </div>
           </div>
         </div>
 
