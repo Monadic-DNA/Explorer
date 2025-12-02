@@ -9,6 +9,7 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
+import { getLLMConfig } from "@/lib/llm-config";
 import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 
@@ -73,6 +74,7 @@ export default function AIChatInline() {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [expandedAttachmentIndex, setExpandedAttachmentIndex] = useState<number | null>(null);
+  const [showProviderTip, setShowProviderTip] = useState(true);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +161,32 @@ export default function AIChatInline() {
       return `β=${score >= 0 ? '+' : ''}${score.toFixed(3)} units`;
     }
     return `${score.toFixed(2)}x`;
+  };
+
+  const getProviderTip = () => {
+    if (!mounted) return null;
+
+    const config = getLLMConfig();
+
+    if (config.provider === 'nilai' || config.provider === 'ollama') {
+      return {
+        icon: '🔒',
+        type: 'privacy',
+        message: config.provider === 'nilai'
+          ? 'You\'re using nilAI (privacy-preserving TEE) - your data is maximally protected!'
+          : 'You\'re using Ollama (local processing) - your data never leaves your device!',
+        tip: 'Want more advanced models? Use the ⚙️ LLM button (top right) to switch to HuggingFace for better performance. Note: HuggingFace requires creating your own account and involves some privacy tradeoffs.',
+      };
+    } else if (config.provider === 'huggingface') {
+      return {
+        icon: '⚡',
+        type: 'performance',
+        message: 'You\'re using HuggingFace - maximizing model performance!',
+        tip: 'Want maximum privacy? Use the ⚙️ LLM button (top right) to switch to nilAI for privacy-preserving processing in a Trusted Execution Environment.',
+      };
+    }
+
+    return null;
   };
 
   const handleAttachmentClick = () => {
@@ -906,6 +934,27 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             </div>
           )}
         </div>
+
+        {/* Provider tip banner */}
+        {showProviderTip && (() => {
+          const tip = getProviderTip();
+          if (!tip) return null;
+
+          return (
+            <div className={`provider-tip ${tip.type}`}>
+              <div className="provider-tip-content">
+                <span className="provider-tip-icon">{tip.icon}</span>
+                <div className="provider-tip-text">
+                  <div className="provider-tip-message">{tip.message}</div>
+                  <div className="provider-tip-suggestion">{tip.tip}</div>
+                </div>
+              </div>
+              <button className="provider-tip-dismiss" onClick={() => setShowProviderTip(false)} title="Dismiss">
+                ×
+              </button>
+            </div>
+          );
+        })()}
 
         <div className="chat-messages">
           {messages.length === 0 && (

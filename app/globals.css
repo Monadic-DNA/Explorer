@@ -4727,6 +4727,76 @@ details[open] .summary-arrow {
   border: 1px solid var(--border-color);
 }
 
+/* Provider tip banner */
+.ai-chat-inline .provider-tip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  margin: 0;
+  border-bottom: 1px solid var(--border-color);
+  gap: 1rem;
+  transition: all 0.3s ease;
+}
+
+.ai-chat-inline .provider-tip.privacy {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+  border-left: 4px solid var(--accent-green);
+}
+
+.ai-chat-inline .provider-tip.performance {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%);
+  border-left: 4px solid var(--accent-yellow);
+}
+
+.ai-chat-inline .provider-tip-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.ai-chat-inline .provider-tip-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.ai-chat-inline .provider-tip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ai-chat-inline .provider-tip-message {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.ai-chat-inline .provider-tip-suggestion {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.ai-chat-inline .provider-tip-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-left: 0.5rem;
+}
+
+.ai-chat-inline .provider-tip-dismiss:hover {
+  color: var(--text-primary);
+  transform: scale(1.2);
+}
+
 .ai-chat-inline .chat-input {
   flex: 1;
   padding: 0.75rem;
