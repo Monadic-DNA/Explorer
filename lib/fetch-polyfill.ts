@@ -10,18 +10,18 @@ if (typeof globalThis !== 'undefined' && globalThis.fetch) {
   // Store original fetch
   const originalFetch = globalThis.fetch;
 
-  // Create patched version
-  const patchedFetch = async function (
+  // Create patched version (arrow function to avoid 'this' context issues)
+  const patchedFetch = async (
     input: RequestInfo | URL,
     init?: RequestInit
-  ): Promise<Response> {
+  ): Promise<Response> => {
     // Always remove referrer to avoid issues
     if (init && typeof init === 'object') {
       const newInit = { ...init };
       delete (newInit as any).referrer;
-      return originalFetch.call(this, input, newInit);
+      return originalFetch(input, newInit);
     }
-    return originalFetch.call(this, input, init);
+    return originalFetch(input, init);
   };
 
   // Override global fetch using defineProperty for better reliability
