@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
-import { mainnet, base, arbitrum, optimism, polygon } from 'viem/chains';
+import { mainnet, base, arbitrum, optimism, polygon, sepolia } from 'viem/chains';
 import { verifyPromoCode } from '@/lib/prime-verification';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
 import { trackSubscribedWithPromoCode, trackSubscribedWithCreditCard, trackSubscribedWithStablecoin } from '@/lib/analytics';
@@ -16,7 +16,7 @@ interface PaymentModalProps {
 
 type Currency = 'USDC' | 'USDT' | 'DAI';
 type PaymentType = 'stablecoin' | 'card' | 'promo';
-type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing' | 'card-payment' | 'card-success';
+type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing' | 'confirming' | 'card-payment' | 'card-success';
 
 export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModalProps) {
   const { primaryWallet } = useDynamicContext();
@@ -28,8 +28,26 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   const [error, setError] = useState('');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
+  const [transactionHash, setTransactionHash] = useState<string>('');
+  const [retryCount, setRetryCount] = useState(0);
 
   const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '';
+  const testnetEnabled = process.env.NEXT_PUBLIC_ENABLE_TESTNET_CHAINS === 'true';
+
+  // Block explorer URLs for each chain
+  const BLOCK_EXPLORERS: Record<string, string> = {
+    'Ethereum': 'https://etherscan.io',
+    'Base': 'https://basescan.org',
+    'Arbitrum One': 'https://arbiscan.io',
+    'OP Mainnet': 'https://optimistic.etherscan.io',
+    'Polygon': 'https://polygonscan.com',
+    'Sepolia': 'https://sepolia.etherscan.io',
+  };
+
+  const getBlockExplorerLink = (txHash: string, chain: string): string => {
+    const baseUrl = BLOCK_EXPLORERS[chain] || 'https://etherscan.io';
+    return `${baseUrl}/tx/${txHash}`;
+  };
 
   const USDC_CONTRACTS: Record<string, string> = {
     'Ethereum': process.env.NEXT_PUBLIC_USDC_CONTRACT_ETHEREUM || '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
@@ -37,6 +55,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     'Arbitrum One': process.env.NEXT_PUBLIC_USDC_CONTRACT_ARBITRUM || '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     'OP Mainnet': process.env.NEXT_PUBLIC_USDC_CONTRACT_OPTIMISM || '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
     'Polygon': process.env.NEXT_PUBLIC_USDC_CONTRACT_POLYGON || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+    ...(testnetEnabled ? {
+      'Sepolia': process.env.NEXT_PUBLIC_USDC_CONTRACT_SEPOLIA || '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    } : {}),
   };
 
   const USDT_CONTRACTS: Record<string, string> = {
@@ -45,6 +66,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     'Arbitrum One': process.env.NEXT_PUBLIC_USDT_CONTRACT_ARBITRUM || '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
     'OP Mainnet': process.env.NEXT_PUBLIC_USDT_CONTRACT_OPTIMISM || '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
     'Polygon': process.env.NEXT_PUBLIC_USDT_CONTRACT_POLYGON || '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
+    ...(testnetEnabled ? {
+      'Sepolia': process.env.NEXT_PUBLIC_USDT_CONTRACT_SEPOLIA || '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0',
+    } : {}),
   };
 
   const DAI_CONTRACTS: Record<string, string> = {
@@ -53,6 +77,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     'Arbitrum One': process.env.NEXT_PUBLIC_DAI_CONTRACT_ARBITRUM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
     'OP Mainnet': process.env.NEXT_PUBLIC_DAI_CONTRACT_OPTIMISM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
     'Polygon': process.env.NEXT_PUBLIC_DAI_CONTRACT_POLYGON || '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
+    ...(testnetEnabled ? {
+      'Sepolia': process.env.NEXT_PUBLIC_DAI_CONTRACT_SEPOLIA || '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357',
+    } : {}),
   };
 
   // Map chain names to viem chain objects
@@ -62,6 +89,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     'Arbitrum One': arbitrum,
     'OP Mainnet': optimism,
     'Polygon': polygon,
+    ...(testnetEnabled ? {
+      'Sepolia': sepolia,
+    } : {}),
   };
 
   // Check token balance for user's wallet
@@ -155,6 +185,50 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     } else {
       setPromoMessage({ type: 'error', text: result.message });
     }
+  };
+
+  // Poll subscription status after blockchain payment
+  const pollSubscriptionStatus = async (walletAddress: string, maxAttempts: number = 18) => {
+    const POLL_INTERVAL = 10000; // 10 seconds
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      setRetryCount(attempt);
+
+      try {
+        console.log(`[PaymentModal] Checking subscription status (attempt ${attempt}/${maxAttempts})...`);
+
+        // Query API directly
+        const response = await fetch('/api/check-subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+
+          if (result.success && result.subscription.isActive) {
+            console.log('[PaymentModal] Subscription activated!');
+            // Success! Subscription is active
+            setTimeout(() => {
+              onSuccess();
+              onClose();
+            }, 1000);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('[PaymentModal] Error checking subscription:', error);
+      }
+
+      // Wait before next attempt (unless it's the last attempt)
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+      }
+    }
+
+    // Max attempts reached - show timeout message
+    setError('Transaction confirmed but subscription verification is taking longer than expected. Please refresh the page in a few minutes to check your subscription status.');
   };
 
   const handleCardPaymentSuccess = () => {
@@ -273,11 +347,13 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       const durationDays = Math.round((parseFloat(amount || '0') / 4.99) * 30);
       trackSubscribedWithStablecoin(durationDays);
 
-      // Success
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1000);
+      // Store transaction hash and switch to confirming step
+      setTransactionHash(txHash);
+      setStep('confirming');
+      setRetryCount(0);
+
+      // Start polling for subscription status
+      await pollSubscriptionStatus(primaryWallet.address!);
 
     } catch (err: any) {
       console.error('Payment failed:', err);
@@ -482,6 +558,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             {connectedChain && (
               <div className="chain-badge">
                 Connected to: <strong>{connectedChain}</strong>
+                {connectedChain === 'Sepolia' && <span style={{ marginLeft: '0.5rem' }}>🧪 TESTNET</span>}
               </div>
             )}
 
@@ -633,6 +710,48 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             <h3>Processing payment...</h3>
             <p>Please confirm the transaction in your wallet</p>
             <p className="processing-note">This may take a moment. Do not close this window.</p>
+          </div>
+        )}
+
+        {step === 'confirming' && (
+          <div className="payment-step processing">
+            <div className="spinner-large"></div>
+            <h3>Waiting for confirmation...</h3>
+            <p>Your transaction has been sent to the blockchain</p>
+
+            {transactionHash && connectedChain && (
+              <div style={{ margin: '1.5rem 0', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
+                  Transaction Hash:
+                </p>
+                <a
+                  href={getBlockExplorerLink(transactionHash, connectedChain)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: '0.875rem',
+                    color: '#3b82f6',
+                    wordBreak: 'break-all',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
+                </a>
+              </div>
+            )}
+
+            <p className="processing-note">
+              Checking subscription status... (attempt {retryCount} of 18)
+            </p>
+            <p className="processing-note" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>
+              Usually takes 1-2 minutes. Do not close this window.
+            </p>
+
+            {error && (
+              <div className="error-message" style={{ marginTop: '1rem' }}>
+                ⚠️ {error}
+              </div>
+            )}
           </div>
         )}
 

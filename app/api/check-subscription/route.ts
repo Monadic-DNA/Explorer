@@ -1,3 +1,6 @@
+// CRITICAL: Apply fetch polyfill BEFORE any other imports
+import '@/lib/fetch-polyfill';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { checkCombinedSubscription } from '@/lib/subscription-manager';
 
