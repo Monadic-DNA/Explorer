@@ -204,7 +204,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized, refreshSubscription } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized, refreshSubscription, openAuthModal } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -1277,9 +1277,7 @@ function MainContent() {
                   className="feature-quick-action"
                   onClick={() => {
                     if (!isAuthenticated) {
-                      // Trigger Dynamic widget to open
-                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
-                      if (dynamicButton) dynamicButton.click();
+                      openAuthModal();
                     } else if (!hasActiveSubscription) {
                       const event = new CustomEvent('openPaymentModal');
                       window.dispatchEvent(event);
@@ -1287,10 +1285,10 @@ function MainContent() {
                       handleRunAll();
                     }
                   }}
-                  disabled={isRunningAll || !mounted || !isUploaded}
+                  disabled={isRunningAll || !mounted || (isAuthenticated && hasActiveSubscription && !isUploaded)}
                 >
                   {isRunningAll ? 'Running...' :
-                   !isAuthenticated ? 'Login' :
+                   !isAuthenticated ? 'Sign In' :
                    !hasActiveSubscription ? 'Subscribe' :
                    !isUploaded ? 'Upload DNA File' :
                    resultsContext.savedResults.length > 0 ? 'Run Again' : 'Start'}
@@ -1317,9 +1315,7 @@ function MainContent() {
                   className="feature-quick-action"
                   onClick={() => {
                     if (!isAuthenticated) {
-                      // Trigger Dynamic widget to open
-                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
-                      if (dynamicButton) dynamicButton.click();
+                      openAuthModal();
                     } else if (!hasActiveSubscription) {
                       const event = new CustomEvent('openPaymentModal');
                       window.dispatchEvent(event);
@@ -1327,9 +1323,9 @@ function MainContent() {
                       setShowOverviewReportModal(true);
                     }
                   }}
-                  disabled={!mounted || (!isAuthenticated || !hasActiveSubscription ? false : resultsContext.savedResults.length < 1000)}
+                  disabled={!mounted || (isAuthenticated && hasActiveSubscription && resultsContext.savedResults.length < 1000)}
                 >
-                  {!isAuthenticated ? 'Login' :
+                  {!isAuthenticated ? 'Sign In' :
                    !hasActiveSubscription ? 'Subscribe' :
                    resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
                 </button>

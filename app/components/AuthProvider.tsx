@@ -24,6 +24,7 @@ interface AuthContextType {
   refreshSubscription: () => Promise<void>;
   initializeDynamic: () => void;
   isDynamicInitialized: boolean;
+  openAuthModal: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -35,6 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   refreshSubscription: async () => {},
   initializeDynamic: () => {},
   isDynamicInitialized: false,
+  openAuthModal: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -43,10 +45,12 @@ export const useAuth = () => useContext(AuthContext);
 // NOTE: No longer automatically checks subscription - must be triggered manually
 function AuthStateSync({
   onAuthStateChange,
+  onOpenAuthModal,
 }: {
   onAuthStateChange: (isAuth: boolean, user: any) => void;
+  onOpenAuthModal: (openFn: () => void) => void;
 }) {
-  const { user: dynamicUser } = useDynamicContext();
+  const { user: dynamicUser, setShowAuthFlow } = useDynamicContext();
 
   useEffect(() => {
     console.log('[AuthStateSync] Dynamic state:', {
@@ -61,6 +65,13 @@ function AuthStateSync({
     onAuthStateChange(isAuth, dynamicUser);
   }, [dynamicUser, onAuthStateChange]);
 
+  // Provide the openAuthModal function to the parent
+  useEffect(() => {
+    if (setShowAuthFlow) {
+      onOpenAuthModal(() => setShowAuthFlow(true));
+    }
+  }, [setShowAuthFlow, onOpenAuthModal]);
+
   return null;
 }
 
@@ -71,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(false); // Changed default to false
   const [isDynamicInitialized, setIsDynamicInitialized] = useState(false);
+  const [openAuthModalFn, setOpenAuthModalFn] = useState<(() => void) | null>(null);
 
   // If environment ID is not set, render without Dynamic (useful for CI/CD builds)
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
@@ -176,6 +188,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isDynamicInitialized, checkSubscription, isAuthenticated]);
 
+  const handleOpenAuthModal = useCallback((openFn: () => void) => {
+    setOpenAuthModalFn(() => openFn);
+  }, []);
+
+  const openAuthModal = useCallback(() => {
+    if (openAuthModalFn) {
+      openAuthModalFn();
+    }
+  }, [openAuthModalFn]);
+
   // If Dynamic is not enabled (no environment ID), render children with default auth context
   if (!isDynamicEnabled) {
     return (
@@ -189,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refreshSubscription: async () => {},
           initializeDynamic: () => {},
           isDynamicInitialized: false,
+          openAuthModal: () => {},
         }}
       >
         {children}
@@ -209,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refreshSubscription,
           initializeDynamic,
           isDynamicInitialized,
+          openAuthModal: () => {},
         }}
       >
         {children}
@@ -234,6 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     >
       <AuthStateSync
         onAuthStateChange={handleAuthStateChange}
+        onOpenAuthModal={handleOpenAuthModal}
       />
       <AuthContext.Provider
         value={{
@@ -245,6 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           refreshSubscription,
           initializeDynamic,
           isDynamicInitialized,
+          openAuthModal,
         }}
       >
         {children}
