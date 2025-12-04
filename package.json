@@ -13,8 +13,9 @@
   "author": "Monadic DNA / Recherché Inc",
   "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
-    "@dynamic-labs/ethereum": "^3.6.5",
-    "@dynamic-labs/sdk-react-core": "^3.6.5",
+    "@dynamic-labs/ethereum": "^4.48.2",
+    "@dynamic-labs/ethereum-aa": "^4.48.2",
+    "@dynamic-labs/sdk-react-core": "^4.48.2",
     "@nillion/nilai-ts": "^0.0.0-alpha.5",
     "@stripe/react-stripe-js": "^2.8.0",
     "@stripe/stripe-js": "^3.5.0",

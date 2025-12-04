@@ -132,13 +132,36 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     const detectChain = async () => {
       if (primaryWallet) {
         try {
-          // Type assertion for getWalletClient which exists at runtime but not in types
-          const walletClient = await (primaryWallet as any).getWalletClient?.();
-          if (walletClient && 'chain' in walletClient && walletClient.chain) {
-            setConnectedChain(walletClient.chain.name);
+          // Try multiple methods to get chain info (compatibility with smart wallets and regular wallets)
+
+          // Method 1: Try connector.getNetwork() for smart wallets
+          if ((primaryWallet as any).connector?.getNetwork) {
+            const network = await (primaryWallet as any).connector.getNetwork();
+            if (network?.name) {
+              setConnectedChain(network.name);
+              return;
+            }
           }
+
+          // Method 2: Try getWalletClient for regular wallets
+          if ((primaryWallet as any).getWalletClient) {
+            const walletClient = await (primaryWallet as any).getWalletClient();
+            if (walletClient && 'chain' in walletClient && walletClient.chain) {
+              setConnectedChain(walletClient.chain.name);
+              return;
+            }
+          }
+
+          // Method 3: Fall back to checking connector chain directly
+          if ((primaryWallet as any).connector?.chain?.name) {
+            setConnectedChain((primaryWallet as any).connector.chain.name);
+            return;
+          }
+
+          console.log('Could not detect chain, will default to user selection');
         } catch (err) {
           console.error('Failed to detect chain:', err);
+          // Non-critical error - user can still manually select chain
         }
       }
     };
