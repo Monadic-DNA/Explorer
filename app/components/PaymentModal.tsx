@@ -30,6 +30,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
   const [transactionHash, setTransactionHash] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
+  const [successfulChecks, setSuccessfulChecks] = useState(0);
 
   const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '';
   const testnetEnabled = process.env.NEXT_PUBLIC_ENABLE_TESTNET_CHAINS === 'true';
@@ -211,8 +212,9 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   };
 
   // Poll subscription status after blockchain payment
-  const pollSubscriptionStatus = async (walletAddress: string, maxAttempts: number = 18) => {
+  const pollSubscriptionStatus = async (walletAddress: string, maxAttempts: number = 12) => {
     const POLL_INTERVAL = 10000; // 10 seconds
+    let consecutiveSuccessfulChecks = 0;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       setRetryCount(attempt);
@@ -230,18 +232,30 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
         if (response.ok) {
           const result = await response.json();
 
-          if (result.success && result.subscription.isActive) {
-            console.log('[PaymentModal] Subscription activated!');
-            // Success! Subscription is active
-            setTimeout(() => {
-              onSuccess();
-              onClose();
-            }, 1000);
-            return;
+          if (result.success) {
+            consecutiveSuccessfulChecks++;
+            setSuccessfulChecks(consecutiveSuccessfulChecks);
+
+            if (result.subscription.isActive) {
+              console.log('[PaymentModal] ✅ Subscription activated!');
+              // Success! Subscription is active
+              setTimeout(() => {
+                onSuccess();
+                onClose();
+              }, 1000);
+              return;
+            } else {
+              console.log(`[PaymentModal] ⏳ API responded successfully but subscription not yet active (check ${consecutiveSuccessfulChecks})`);
+              console.log('[PaymentModal] This is normal - blockchain indexer needs time to process the transaction');
+            }
+          } else {
+            console.warn('[PaymentModal] ⚠️ API returned success=false:', result.error);
           }
+        } else {
+          console.error('[PaymentModal] ❌ API request failed with status:', response.status);
         }
       } catch (error) {
-        console.error('[PaymentModal] Error checking subscription:', error);
+        console.error('[PaymentModal] ❌ Error checking subscription:', error);
       }
 
       // Wait before next attempt (unless it's the last attempt)
@@ -251,7 +265,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     }
 
     // Max attempts reached - show timeout message
-    setError('Transaction confirmed but subscription verification is taking longer than expected. Please refresh the page in a few minutes to check your subscription status.');
+    setError(`Transaction submitted to blockchain but not yet indexed. This can take a few minutes. You can close this modal and refresh the page in 2-3 minutes to check your subscription status, or view your transaction on the block explorer using the link above.`);
   };
 
   const handleCardPaymentSuccess = () => {
@@ -374,6 +388,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
       setTransactionHash(txHash);
       setStep('confirming');
       setRetryCount(0);
+      setSuccessfulChecks(0);
 
       // Start polling for subscription status
       await pollSubscriptionStatus(primaryWallet.address!);
@@ -764,8 +779,13 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             )}
 
             <p className="processing-note">
-              Checking subscription status... (attempt {retryCount} of 18)
+              Checking subscription status... (attempt {retryCount} of 12)
             </p>
+            {successfulChecks > 0 && (
+              <p className="processing-note" style={{ fontSize: '0.875rem', marginTop: '0.5rem', color: '#3b82f6' }}>
+                ✓ Blockchain indexer processing transaction ({successfulChecks} {successfulChecks === 1 ? 'check' : 'checks'} completed)
+              </p>
+            )}
             <p className="processing-note" style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>
               Usually takes 1-2 minutes. Do not close this window.
             </p>
