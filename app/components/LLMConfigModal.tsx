@@ -78,7 +78,7 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
                 setConfig(newConfig);
               }}
             >
-              <option value="nilai">Nillion nilAI (Default)</option>
+              <option value="nilai">nilAI (Default)</option>
               <option value="ollama">Ollama (Local)</option>
               <option value="huggingface">HuggingFace</option>
             </select>
@@ -219,7 +219,7 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
             <div className="privacy-details">
               <p><strong>How it works:</strong></p>
               <ul>
-                <li><strong>Nillion nilAI (Default):</strong> Your genetic variants are sent to a Trusted Execution Environment (TEE) where analysis happens in an encrypted, isolated environment. No one, not even Nillion, can see your raw data. Usage is covered by your Monadic DNA subscription.</li>
+                <li><strong>nilAI (Default):</strong> Your genetic variants are sent to a Trusted Execution Environment (TEE) where analysis happens in an encrypted, isolated environment. No one, not even Nillion, can see your raw data. Usage is covered by your Monadic DNA subscription.</li>
                 <li><strong>Ollama (Advanced):</strong> Everything runs locally on your computer. No data leaves your device. <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="inline-link">Download Ollama</a> and note that you need a powerful GPU (8GB+ VRAM recommended) for acceptable performance.</li>
                 <li><strong>HuggingFace:</strong> Your variants are sent directly from your browser to HuggingFace's servers for analysis. Requires your own HuggingFace account and paid subscription. We never see or store your data.</li>
               </ul>

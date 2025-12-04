@@ -69,7 +69,7 @@ export function saveLLMConfig(config: LLMConfig): void {
 export function getProviderDisplayName(provider: LLMProvider): string {
   switch (provider) {
     case 'nilai':
-      return 'Nillion nilAI';
+      return 'nilAI';
     case 'ollama':
       return 'Ollama (Local)';
     case 'huggingface':
