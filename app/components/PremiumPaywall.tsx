@@ -60,7 +60,7 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     setPromoCode('');
   };
 
-  const handleModalSuccess = () => {
+  const handleModalSuccess = async () => {
     // Refresh promo access state
     const stored = localStorage.getItem('promo_access');
     if (stored) {
@@ -72,8 +72,8 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
         // Ignore
       }
     }
-    // PaymentModal now handles subscription polling automatically
-    // No need to refresh here
+    // Refresh subscription status in AuthProvider to update UI immediately
+    await refreshSubscription();
   };
 
   // Always show content

@@ -204,7 +204,7 @@ function MainContent() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized, refreshSubscription } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, subscriptionData, checkingSubscription, user, initializeDynamic, isDynamicInitialized, refreshSubscription, openAuthModal } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -246,6 +246,7 @@ function MainContent() {
 
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
+  const [debouncedTrait, setDebouncedTrait] = useState<string>(defaultFilters.trait);
   const scrollPositionRef = useRef<number>(0);
   const isLoadingMoreRef = useRef<boolean>(false);
   const [traits, setTraits] = useState<string[]>([]);
@@ -295,15 +296,15 @@ function MainContent() {
   // Check if user has accepted terms and show tour on mount
   useEffect(() => {
     const termsAccepted = localStorage.getItem('terms_accepted');
-    if (!termsAccepted) {
-      setShowTermsModal(true);
-    }
-
-    // Check if user wants to see the guided tour
     const tourDismissed = localStorage.getItem('tour_dismissed');
-    if (!tourDismissed && termsAccepted) {
+
+    // Show tour first if not dismissed
+    if (!tourDismissed) {
       // Show tour after a short delay to allow UI to settle
-      setTimeout(() => setShowGuidedTour(true), 1000);
+      setTimeout(() => setShowGuidedTour(true), 500);
+    } else if (!termsAccepted) {
+      // If tour was already dismissed but terms not accepted, show terms modal
+      setShowTermsModal(true);
     }
 
     // Listen for custom event from Help menu to restart tour
@@ -324,6 +325,14 @@ function MainContent() {
     }, 400);
     return () => clearTimeout(timer);
   }, [filters.search]);
+
+  // Debounce trait input to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTrait(filters.trait);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filters.trait]);
 
   const updateFilter = useCallback(<Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
     setFilters((prev) => {
@@ -377,8 +386,8 @@ function MainContent() {
 
   useEffect(() => {
     const controller = new AbortController();
-    // Use debounced search value for API call
-    const apiFilters = { ...filters, search: debouncedSearch };
+    // Use debounced search and trait values for API call
+    const apiFilters = { ...filters, search: debouncedSearch, trait: debouncedTrait };
     const query = buildQuery(apiFilters);
     const startTime = performance.now();
     setLoading(true);
@@ -469,7 +478,7 @@ function MainContent() {
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, filters.searchMode, genotypeData]);
+  }, [debouncedSearch, debouncedTrait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, filters.searchMode, genotypeData]);
 
   const qualitySummary = useMemo<QualitySummary>(() => {
     return studies.reduce<QualitySummary>(
@@ -1268,9 +1277,7 @@ function MainContent() {
                   className="feature-quick-action"
                   onClick={() => {
                     if (!isAuthenticated) {
-                      // Trigger Dynamic widget to open
-                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
-                      if (dynamicButton) dynamicButton.click();
+                      openAuthModal();
                     } else if (!hasActiveSubscription) {
                       const event = new CustomEvent('openPaymentModal');
                       window.dispatchEvent(event);
@@ -1278,10 +1285,10 @@ function MainContent() {
                       handleRunAll();
                     }
                   }}
-                  disabled={isRunningAll || !mounted || !isUploaded}
+                  disabled={isRunningAll || !mounted || (isAuthenticated && hasActiveSubscription && !isUploaded)}
                 >
                   {isRunningAll ? 'Running...' :
-                   !isAuthenticated ? 'Login' :
+                   !isAuthenticated ? 'Sign In' :
                    !hasActiveSubscription ? 'Subscribe' :
                    !isUploaded ? 'Upload DNA File' :
                    resultsContext.savedResults.length > 0 ? 'Run Again' : 'Start'}
@@ -1308,9 +1315,7 @@ function MainContent() {
                   className="feature-quick-action"
                   onClick={() => {
                     if (!isAuthenticated) {
-                      // Trigger Dynamic widget to open
-                      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
-                      if (dynamicButton) dynamicButton.click();
+                      openAuthModal();
                     } else if (!hasActiveSubscription) {
                       const event = new CustomEvent('openPaymentModal');
                       window.dispatchEvent(event);
@@ -1318,9 +1323,9 @@ function MainContent() {
                       setShowOverviewReportModal(true);
                     }
                   }}
-                  disabled={!mounted || (!isAuthenticated || !hasActiveSubscription ? false : resultsContext.savedResults.length < 1000)}
+                  disabled={!mounted || (isAuthenticated && hasActiveSubscription && resultsContext.savedResults.length < 1000)}
                 >
-                  {!isAuthenticated ? 'Login' :
+                  {!isAuthenticated ? 'Sign In' :
                    !hasActiveSubscription ? 'Subscribe' :
                    resultsContext.savedResults.length < 1000 ? 'Run Analysis First' : 'Generate Report'}
                 </button>
@@ -1357,10 +1362,22 @@ function MainContent() {
       />
       <GuidedTour
         isOpen={showGuidedTour}
-        onClose={() => setShowGuidedTour(false)}
+        onClose={() => {
+          setShowGuidedTour(false);
+          // Show terms modal after tour if not yet accepted
+          const termsAccepted = localStorage.getItem('terms_accepted');
+          if (!termsAccepted) {
+            setTimeout(() => setShowTermsModal(true), 300);
+          }
+        }}
         onNeverShowAgain={() => {
           localStorage.setItem('tour_dismissed', 'true');
           setShowGuidedTour(false);
+          // Show terms modal after tour if not yet accepted
+          const termsAccepted = localStorage.getItem('terms_accepted');
+          if (!termsAccepted) {
+            setTimeout(() => setShowTermsModal(true), 300);
+          }
         }}
       />
     </div>

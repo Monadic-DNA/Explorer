@@ -38,6 +38,12 @@ const nextConfig = {
       poll: 1000, // Enable polling for better compatibility on Linux
     };
 
+    // Ignore React Native dependencies in MetaMask SDK (for both client and server)
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@react-native-async-storage/async-storage': false,
+    };
+
     // Fix sql.js Node.js polyfills for browser-only usage
     if (!isServer) {
       config.resolve.fallback = {

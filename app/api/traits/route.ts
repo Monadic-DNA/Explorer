@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       `SELECT DISTINCT COALESCE(NULLIF(TRIM(mapped_trait), ''), NULLIF(TRIM(disease_trait), '')) AS trait
        FROM gwas_catalog
        WHERE COALESCE(NULLIF(TRIM(mapped_trait), ''), NULLIF(TRIM(disease_trait), '')) IS NOT NULL
-       ORDER BY COALESCE(NULLIF(TRIM(mapped_trait), ''), NULLIF(TRIM(disease_trait), '')) COLLATE NOCASE`
+       ORDER BY trait`
     );
 
     const traits = rows

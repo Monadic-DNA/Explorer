@@ -175,7 +175,7 @@ export default function AIChatInline() {
         message: config.provider === 'nilai'
           ? 'You\'re using nilAI (privacy-preserving TEE) - your data is maximally protected!'
           : 'You\'re using Ollama (local processing) - your data never leaves your device!',
-        tip: 'Want more advanced models? Use the ⚙️ LLM button (top right) to switch to HuggingFace for better performance. Note: HuggingFace requires creating your own account and involves some privacy tradeoffs.',
+        tip: 'Want more advanced models by going easier on privacy? Use the LLM button (top right) to switch to HuggingFace for more model choices. You will need to create your own HuggingFace account with a subscription.',
       };
     } else if (config.provider === 'huggingface') {
       return {
