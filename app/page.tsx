@@ -246,6 +246,7 @@ function MainContent() {
 
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
+  const [debouncedTrait, setDebouncedTrait] = useState<string>(defaultFilters.trait);
   const scrollPositionRef = useRef<number>(0);
   const isLoadingMoreRef = useRef<boolean>(false);
   const [traits, setTraits] = useState<string[]>([]);
@@ -325,6 +326,14 @@ function MainContent() {
     return () => clearTimeout(timer);
   }, [filters.search]);
 
+  // Debounce trait input to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedTrait(filters.trait);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filters.trait]);
+
   const updateFilter = useCallback(<Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
     setFilters((prev) => {
       const next = { ...prev, [key]: value };
@@ -377,8 +386,8 @@ function MainContent() {
 
   useEffect(() => {
     const controller = new AbortController();
-    // Use debounced search value for API call
-    const apiFilters = { ...filters, search: debouncedSearch };
+    // Use debounced search and trait values for API call
+    const apiFilters = { ...filters, search: debouncedSearch, trait: debouncedTrait };
     const query = buildQuery(apiFilters);
     const startTime = performance.now();
     setLoading(true);
@@ -469,7 +478,7 @@ function MainContent() {
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, filters.trait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, filters.searchMode, genotypeData]);
+  }, [debouncedSearch, debouncedTrait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, filters.searchMode, genotypeData]);
 
   const qualitySummary = useMemo<QualitySummary>(() => {
     return studies.reduce<QualitySummary>(
