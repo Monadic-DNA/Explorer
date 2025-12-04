@@ -296,15 +296,15 @@ function MainContent() {
   // Check if user has accepted terms and show tour on mount
   useEffect(() => {
     const termsAccepted = localStorage.getItem('terms_accepted');
-    if (!termsAccepted) {
-      setShowTermsModal(true);
-    }
-
-    // Check if user wants to see the guided tour
     const tourDismissed = localStorage.getItem('tour_dismissed');
-    if (!tourDismissed && termsAccepted) {
+
+    // Show tour first if not dismissed
+    if (!tourDismissed) {
       // Show tour after a short delay to allow UI to settle
-      setTimeout(() => setShowGuidedTour(true), 1000);
+      setTimeout(() => setShowGuidedTour(true), 500);
+    } else if (!termsAccepted) {
+      // If tour was already dismissed but terms not accepted, show terms modal
+      setShowTermsModal(true);
     }
 
     // Listen for custom event from Help menu to restart tour
@@ -1362,10 +1362,22 @@ function MainContent() {
       />
       <GuidedTour
         isOpen={showGuidedTour}
-        onClose={() => setShowGuidedTour(false)}
+        onClose={() => {
+          setShowGuidedTour(false);
+          // Show terms modal after tour if not yet accepted
+          const termsAccepted = localStorage.getItem('terms_accepted');
+          if (!termsAccepted) {
+            setTimeout(() => setShowTermsModal(true), 300);
+          }
+        }}
         onNeverShowAgain={() => {
           localStorage.setItem('tour_dismissed', 'true');
           setShowGuidedTour(false);
+          // Show terms modal after tour if not yet accepted
+          const termsAccepted = localStorage.getItem('terms_accepted');
+          if (!termsAccepted) {
+            setTimeout(() => setShowTermsModal(true), 300);
+          }
         }}
       />
     </div>
