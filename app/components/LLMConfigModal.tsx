@@ -120,6 +120,9 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
                 <>
                   <option value="gpt-oss-20b">gpt-oss-20b</option>
                   <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
+                  <option value="deepseek-ai/DeepSeek-V3.2">deepseek-ai/DeepSeek-V3.2</option>
+                  <option value="moonshotai/Kimi-K2-Thinking">moonshotai/Kimi-K2-Thinking</option>
+                  <option value="zai-org/GLM-4.6">zai-org/GLM-4.6</option>
                   <option value="custom">Custom...</option>
                 </>
               )}
