@@ -5876,8 +5876,8 @@ details[open] .summary-arrow {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(1px);
   z-index: 10000;
   opacity: 0;
   transition: opacity 0.3s ease;
