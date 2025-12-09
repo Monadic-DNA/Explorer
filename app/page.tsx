@@ -20,6 +20,7 @@ import GuidedTour from "./components/GuidedTour";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
+import { hasValidPromoAccess, clearPromoAccess } from "@/lib/promo-access";
 import {
   trackSearch,
   trackRunAllStarted,
@@ -1244,6 +1245,22 @@ function MainContent() {
                       >
                         Cancel Subscription
                       </button>
+                      {hasValidPromoAccess() && (
+                        <button
+                          onClick={() => {
+                            setShowSubscriptionMenu(false);
+                            if (!confirm('Are you sure you want to remove your promo code? You will lose premium access immediately.')) {
+                              return;
+                            }
+                            clearPromoAccess();
+                            alert('✓ Promo code removed');
+                            window.location.reload();
+                          }}
+                          className="subscription-menu-item cancel"
+                        >
+                          Remove Promo Code
+                        </button>
+                      )}
                     </div>
                   </>
                 )}

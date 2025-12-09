@@ -5,6 +5,7 @@ import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
 import { mainnet, base, arbitrum, optimism, polygon, sepolia } from 'viem/chains';
 import { verifyPromoCode } from '@/lib/prime-verification';
+import { setPromoAccess } from '@/lib/promo-access';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
 import { trackSubscribedWithPromoCode, trackSubscribedWithCreditCard, trackSubscribedWithStablecoin } from '@/lib/analytics';
 
@@ -195,7 +196,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
     if (result.valid && result.discount === 0) {
       // Free access granted!
-      localStorage.setItem('promo_access', JSON.stringify({ code: promoCode, granted: Date.now() }));
+      setPromoAccess(promoCode);
       setPromoMessage({ type: 'success', text: result.message });
 
       // Track promo code subscription
