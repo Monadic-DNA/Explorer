@@ -5,6 +5,7 @@ import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { ZeroDevSmartWalletConnectors } from '@dynamic-labs/ethereum-aa';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { trackUserLoggedIn } from '@/lib/analytics';
+import { hasValidPromoAccess } from '@/lib/promo-access';
 
 interface SubscriptionData {
   isActive: boolean;
@@ -92,6 +93,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('[AuthProvider] Checking subscription for:', walletAddress);
       setCheckingSubscription(true);
+
+      // OPTIMIZATION: Check promo code first (client-side, instant)
+      if (hasValidPromoAccess()) {
+        console.log('[AuthProvider] ✅ Valid promo code found - skipping API call');
+        setHasActiveSubscription(true);
+        setSubscriptionData({
+          isActive: true,
+          expiresAt: null,
+          daysRemaining: 999, // Promo access (no expiration currently)
+          totalDaysPurchased: 0,
+          totalPaid: 0,
+          paymentCount: 0,
+        });
+        setCheckingSubscription(false);
+        return;
+      }
+
+      console.log('[AuthProvider] No promo code, checking Stripe/blockchain...');
 
       // Query API directly - no caching
       const response = await fetch('/api/check-subscription', {

@@ -139,7 +139,7 @@ export function trackOverviewReportGenerated(resultCount: number) {
  */
 export function trackSubscribedWithPromoCode(promoCode: string) {
   trackEvent('subscribed_promo_code', {
-    promo_code: promoCode,
+    code_type: 'delicate_prime',
   });
 }
 

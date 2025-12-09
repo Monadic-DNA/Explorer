@@ -132,7 +132,7 @@ export function verifyPromoCode(code: string): { valid: boolean; discount: numbe
     return {
       valid: true,
       discount: 0, // 0 = free (100% discount)
-      message: '🎉 Delicate prime verified! Free access granted.'
+      message: '🎉 Valid promo code! Free access granted.'
     };
   }
 

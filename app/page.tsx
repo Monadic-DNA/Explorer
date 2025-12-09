@@ -20,6 +20,7 @@ import GuidedTour from "./components/GuidedTour";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
+import { hasValidPromoAccess, clearPromoAccess } from "@/lib/promo-access";
 import {
   trackSearch,
   trackRunAllStarted,
@@ -219,6 +220,9 @@ function MainContent() {
   // Premium features overview collapsed state
   const [featuresOverviewCollapsed, setFeaturesOverviewCollapsed] = useState(false);
 
+  // Guided tour state (declare early since it's used in useEffect below)
+  const [showGuidedTour, setShowGuidedTour] = useState(false);
+
   // Load saved tab from localStorage after mount (dev mode only)
   useEffect(() => {
     if (isDevModeEnabled()) {
@@ -242,7 +246,12 @@ function MainContent() {
       console.log('[MainContent] Premium tab accessed, initializing Dynamic...');
       initializeDynamic();
     }
-  }, [activeTab, isDynamicInitialized, initializeDynamic]);
+    // Dismiss guided tour when switching to Premium tab
+    if (activeTab === 'premium' && showGuidedTour) {
+      setShowGuidedTour(false);
+      localStorage.setItem('tour_dismissed', 'true');
+    }
+  }, [activeTab, isDynamicInitialized, initializeDynamic, showGuidedTour]);
 
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
@@ -267,7 +276,6 @@ function MainContent() {
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
-  const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
     phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
     fetchedBatches: number;
@@ -1244,6 +1252,22 @@ function MainContent() {
                       >
                         Cancel Subscription
                       </button>
+                      {hasValidPromoAccess() && (
+                        <button
+                          onClick={() => {
+                            setShowSubscriptionMenu(false);
+                            if (!confirm('Are you sure you want to remove your promo code? You will lose premium access immediately.')) {
+                              return;
+                            }
+                            clearPromoAccess();
+                            alert('✓ Promo code removed');
+                            window.location.reload();
+                          }}
+                          className="subscription-menu-item cancel"
+                        >
+                          Remove Promo Code
+                        </button>
+                      )}
                     </div>
                   </>
                 )}

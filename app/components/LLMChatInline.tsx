@@ -12,6 +12,7 @@ import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
 import { getLLMConfig } from "@/lib/llm-config";
 import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
+import { hasValidPromoAccess } from "@/lib/promo-access";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv';
 
@@ -83,16 +84,8 @@ export default function AIChatInline() {
     setMounted(true);
 
     // Check for promo code access
-    const promoStored = localStorage.getItem('promo_access');
-    if (promoStored) {
-      try {
-        const data = JSON.parse(promoStored);
-        if (data.code) {
-          setHasPromoAccess(true);
-        }
-      } catch (err) {
-        // Invalid promo data
-      }
+    if (hasValidPromoAccess()) {
+      setHasPromoAccess(true);
     }
 
     // Check consent

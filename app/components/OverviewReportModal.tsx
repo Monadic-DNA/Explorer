@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { trackOverviewReportGenerated } from "@/lib/analytics";
+import { hasValidPromoAccess } from "@/lib/promo-access";
 
 type GenerationPhase = 'idle' | 'map' | 'reduce' | 'complete' | 'error';
 
@@ -516,7 +517,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   if (!isOpen) return null;
 
   // Check subscription
-  const hasPromoAccess = typeof window !== 'undefined' && localStorage.getItem('promo_access');
+  const hasPromoAccess = hasValidPromoAccess();
   const isBlocked = !hasActiveSubscription && !hasPromoAccess;
 
   return (
