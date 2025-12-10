@@ -104,29 +104,100 @@ export async function POST(request: NextRequest) {
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
+        payment_method_types: ['card'],
       },
       expand: ['latest_invoice.payment_intent'],
       metadata: {
         walletAddress: walletAddress.toLowerCase(),
       },
+      // Always require payment method collection, even if first invoice is $0
+      // This ensures we can charge after promotional period ends
+      collection_method: 'charge_automatically',
     };
 
     // Add promotion code if provided
     if (promotion_code_id) {
-      subscriptionParams.promotion_code = promotion_code_id;
+      // For subscriptions, use discounts array with promotion_code
+      subscriptionParams.discounts = [{ promotion_code: promotion_code_id }];
+      console.log(`[Stripe] Adding promotion code ${promotion_code_id} to subscription via discounts array`);
     }
 
     const subscription = await stripe.subscriptions.create(subscriptionParams);
 
-    const invoice = subscription.latest_invoice as Stripe.Invoice;
-    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
-
     console.log(`[Stripe] Created subscription: ${subscription.id} for wallet ${walletAddress}`);
+
+    const invoice = subscription.latest_invoice as Stripe.Invoice;
+
+    if (!invoice) {
+      console.error(`[Stripe] No invoice found for subscription ${subscription.id}`);
+      return NextResponse.json(
+        { error: 'Failed to create invoice' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[Stripe] Invoice ID: ${invoice.id}, Status: ${invoice.status}, Amount: ${invoice.amount_due}`);
+
+    // Get discount information if available
+    let discountInfo = null;
+    if (invoice.discount || invoice.total_discount_amounts?.length > 0) {
+      const discountAmount = invoice.total_discount_amounts?.[0]?.amount || 0;
+      const originalAmount = invoice.subtotal || 0;
+      const finalAmount = invoice.amount_due || 0;
+
+      discountInfo = {
+        originalAmount: (originalAmount / 100).toFixed(2), // Convert cents to dollars
+        discountAmount: (discountAmount / 100).toFixed(2),
+        finalAmount: (finalAmount / 100).toFixed(2),
+        promotionCode: invoice.discount?.promotion_code || null,
+      };
+
+      console.log(`[Stripe] Discount applied:`, discountInfo);
+    }
+
+    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
+
+    // If there's no payment intent (e.g., $0 invoice due to 100% discount)
+    // We need to create a SetupIntent to collect payment method for future charges
+    if (!paymentIntent) {
+      console.log(`[Stripe] No payment intent for $0 invoice - creating SetupIntent to collect payment method`);
+
+      const setupIntent = await stripe.setupIntents.create({
+        customer: customer.id,
+        payment_method_types: ['card'],
+        metadata: {
+          subscription_id: subscription.id,
+          wallet_address: walletAddress.toLowerCase(),
+        },
+      });
+
+      console.log(`[Stripe] SetupIntent created: ${setupIntent.id}`);
+
+      return NextResponse.json({
+        success: true,
+        subscriptionId: subscription.id,
+        clientSecret: setupIntent.client_secret,
+        isSetupIntent: true, // Flag to indicate this is setup, not payment
+        discount: discountInfo,
+      });
+    }
+
+    if (!paymentIntent.client_secret) {
+      console.error(`[Stripe] Payment intent exists but has no client_secret:`, paymentIntent.id);
+      return NextResponse.json(
+        { error: 'Failed to get payment client secret' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[Stripe] Payment intent: ${paymentIntent.id}, Status: ${paymentIntent.status}`);
 
     return NextResponse.json({
       success: true,
       subscriptionId: subscription.id,
       clientSecret: paymentIntent.client_secret,
+      isSetupIntent: false,
+      discount: discountInfo,
     });
   } catch (error: any) {
     console.error('Stripe subscription creation error:', error);

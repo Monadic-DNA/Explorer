@@ -447,23 +447,23 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
             <div className="choice-options">
               <button
                 className="choice-option"
-                onClick={() => { setPaymentType('stablecoin'); setStep('amount'); }}
-              >
-                <div className="choice-icon">💵</div>
-                <div className="choice-details">
-                  <div className="choice-title">Pay with Stablecoin</div>
-                  <div className="choice-description">Use USDC, USDT, or DAI to subscribe</div>
-                </div>
-              </button>
-
-              <button
-                className="choice-option"
                 onClick={() => { setPaymentType('card'); setStep('card-payment'); }}
               >
                 <div className="choice-icon">💳</div>
                 <div className="choice-details">
                   <div className="choice-title">Pay with Card</div>
                   <div className="choice-description">$4.99/month subscription (Stripe)</div>
+                </div>
+              </button>
+
+              <button
+                className="choice-option"
+                onClick={() => { setPaymentType('stablecoin'); setStep('amount'); }}
+              >
+                <div className="choice-icon">💵</div>
+                <div className="choice-details">
+                  <div className="choice-title">Pay with Stablecoin</div>
+                  <div className="choice-description">Use USDC, USDT, or DAI to subscribe</div>
                 </div>
               </button>
 
@@ -719,12 +719,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
             <h3>Subscribe with Card</h3>
             <p className="step-description">$4.99/month • Recurring subscription via Stripe</p>
-
-            <div className="payment-notes" style={{ marginBottom: '1.5rem' }}>
-              <p style={{ fontSize: '0.9rem', color: '#888' }}>
-                Wallet: {primaryWallet.address.slice(0, 6)}...{primaryWallet.address.slice(-4)}
-              </p>
-            </div>
 
             <StripeSubscriptionForm
               walletAddress={primaryWallet.address}
