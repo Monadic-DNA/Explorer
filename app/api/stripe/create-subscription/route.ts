@@ -7,7 +7,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder'
 
 export async function POST(request: NextRequest) {
   try {
-    const { walletAddress } = await request.json();
+    const { walletAddress, couponCode } = await request.json();
 
     // Validate inputs
     if (!walletAddress) {
@@ -50,8 +50,51 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Validate promotion code if provided
+    let promotion_code_id = undefined;
+    if (couponCode && couponCode.trim()) {
+      try {
+        console.log(`[Stripe] Validating promotion code: ${couponCode.trim()}`);
+        // Search for the promotion code
+        const promotionCodes = await stripe.promotionCodes.list({
+          code: couponCode.trim(),
+          limit: 1,
+        });
+
+        if (promotionCodes.data.length === 0) {
+          console.log(`[Stripe] Promotion code not found`);
+          return NextResponse.json(
+            { error: 'Invalid promotion code' },
+            { status: 400 }
+          );
+        }
+
+        const promotionCode = promotionCodes.data[0];
+        console.log(`[Stripe] Promotion code retrieved:`, promotionCode.id);
+
+        if (!promotionCode.active) {
+          console.log(`[Stripe] Promotion code is not active`);
+          return NextResponse.json(
+            { error: 'This promotion code is no longer active' },
+            { status: 400 }
+          );
+        }
+
+        // Apply the promotion code
+        promotion_code_id = promotionCode.id;
+        console.log(`[Stripe] Promotion code ${promotion_code_id} will be applied to subscription`);
+      } catch (error: any) {
+        // Promotion code lookup failed
+        console.error(`[Stripe] Error validating promotion code:`, error.message);
+        return NextResponse.json(
+          { error: `Invalid promotion code: ${error.message || 'Not found'}` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create subscription
-    const subscription = await stripe.subscriptions.create({
+    const subscriptionParams: any = {
       customer: customer.id,
       items: [
         {
@@ -66,7 +109,14 @@ export async function POST(request: NextRequest) {
       metadata: {
         walletAddress: walletAddress.toLowerCase(),
       },
-    });
+    };
+
+    // Add promotion code if provided
+    if (promotion_code_id) {
+      subscriptionParams.promotion_code = promotion_code_id;
+    }
+
+    const subscription = await stripe.subscriptions.create(subscriptionParams);
 
     const invoice = subscription.latest_invoice as Stripe.Invoice;
     const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;

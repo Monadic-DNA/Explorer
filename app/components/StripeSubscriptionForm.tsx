@@ -157,24 +157,28 @@ interface StripeSubscriptionFormProps {
 
 export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCancel }: StripeSubscriptionFormProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [showCouponInput, setShowCouponInput] = useState(false);
 
-  React.useEffect(() => {
-    let cancelled = false;
+  const handleInitializePayment = () => {
+    setIsLoading(true);
+    setError(null);
 
     console.log('[StripeForm] Initializing subscription for wallet:', walletAddress);
 
-    // Create subscription on mount
+    // Create subscription
     fetch('/api/stripe/create-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ walletAddress }),
+      body: JSON.stringify({
+        walletAddress,
+        couponCode: couponCode.trim() || undefined
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled) return;
-
         console.log('[StripeForm] Subscription response:', data);
 
         if (data.success && data.clientSecret) {
@@ -186,19 +190,13 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
         }
       })
       .catch((err) => {
-        if (cancelled) return;
         setError('Network error. Please try again.');
         console.error('[StripeForm] Network error:', err);
       })
       .finally(() => {
-        if (cancelled) return;
         setIsLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [walletAddress]);
+  };
 
   if (isLoading) {
     return (
@@ -212,6 +210,9 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
     return (
       <div style={{ textAlign: 'center', padding: '2rem' }}>
         <p style={{ color: '#dc3545', marginBottom: '1rem' }}>{error}</p>
+        <button onClick={() => { setError(null); setClientSecret(null); }} className="btn-secondary" style={{ marginRight: '0.5rem' }}>
+          Try Again
+        </button>
         <button onClick={onCancel} className="btn-secondary">
           Go Back
         </button>
@@ -220,7 +221,66 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   }
 
   if (!clientSecret) {
-    return null;
+    return (
+      <div>
+        <div style={{ marginBottom: '1.5rem' }}>
+          <button
+            type="button"
+            onClick={() => setShowCouponInput(!showCouponInput)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#3b82f6',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              fontSize: '0.9rem',
+              padding: 0,
+            }}
+          >
+            {showCouponInput ? '- Hide coupon code' : '+ Have a coupon code?'}
+          </button>
+        </div>
+
+        {showCouponInput && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#374151' }}>
+              Coupon Code
+            </label>
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              placeholder="Enter coupon code"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.95rem',
+              }}
+            />
+          </div>
+        )}
+
+        <button
+          onClick={handleInitializePayment}
+          className="btn-primary"
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: '1rem',
+          }}
+        >
+          Continue to Payment
+        </button>
+      </div>
+    );
   }
 
   const options = {
