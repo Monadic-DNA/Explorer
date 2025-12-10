@@ -65,6 +65,7 @@ type Study = {
   p_value: string | null;
   pvalue_mlog: string | null;
   or_or_beta: string | null;
+  ci_text: string | null;
   risk_allele_frequency: string | null;
   strongest_snp_risk_allele: string | null;
   snps: string | null;
@@ -1076,6 +1077,8 @@ function MainContent() {
                         traitName={trait}
                         studyTitle={study.study || "Untitled study"}
                         riskAllele={study.strongest_snp_risk_allele}
+                        orOrBeta={study.or_or_beta}
+                        ciText={study.ci_text}
                         isAnalyzable={study.isAnalyzable}
                         nonAnalyzableReason={study.nonAnalyzableReason}
                       />

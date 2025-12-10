@@ -33,6 +33,7 @@ type RawStudy = {
   p_value: string | null;
   pvalue_mlog: string | null;
   or_or_beta: string | null;
+  ci_text: string | null;
   risk_allele_frequency: string | null;
   strongest_snp_risk_allele: string | null;
   snps: string | null;
@@ -420,6 +421,7 @@ export async function GET(request: NextRequest) {
        gc.p_value,
        gc.pvalue_mlog,
        gc.or_or_beta,
+       gc.ci_text,
        gc.risk_allele_frequency,
        gc.strongest_snp_risk_allele,
        gc.snps${similarityColumn}
@@ -544,6 +546,7 @@ export async function GET(request: NextRequest) {
        gc.p_value,
        gc.pvalue_mlog,
        gc.or_or_beta,
+       gc.ci_text,
        gc.risk_allele_frequency,
        gc.strongest_snp_risk_allele,
        gc.snps

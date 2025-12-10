@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
-import { analyzeStudyClientSide, UserStudyResult } from "@/lib/risk-calculator";
+import { analyzeStudyClientSide, UserStudyResult, determineEffectTypeAndSize } from "@/lib/risk-calculator";
 import DisclaimerModal from "./DisclaimerModal";
 import LLMCommentaryModal from "./LLMCommentaryModal";
 import { SavedResult } from "@/lib/results-manager";
@@ -17,11 +17,13 @@ type StudyResultRevealProps = {
   traitName: string;
   studyTitle: string;
   riskAllele?: string | null;
+  orOrBeta?: string | null;
+  ciText?: string | null;
   isAnalyzable?: boolean;
   nonAnalyzableReason?: string;
 };
 
-export default function StudyResultReveal({ studyId, studyAccession, snps, traitName, studyTitle, riskAllele, isAnalyzable, nonAnalyzableReason }: StudyResultRevealProps) {
+export default function StudyResultReveal({ studyId, studyAccession, snps, traitName, studyTitle, riskAllele, orOrBeta, ciText, isAnalyzable, nonAnalyzableReason }: StudyResultRevealProps) {
   const { genotypeData, isUploaded } = useGenotype();
   const { addResult, hasResult, getResult, getResultByGwasId, resultsVersion } = useResults();
   const [result, setResult] = useState<UserStudyResult | null>(null);
@@ -97,36 +99,27 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
       return;
     }
 
+    if (!snps || !riskAllele) {
+      setError('Missing study data required for analysis');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      // Fetch study metadata only (no user data sent to server)
-      const response = await fetch('/api/analyze-study', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studyId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to load study data');
-      }
+      // Determine effect type and size from ci_text (client-side, instant)
+      const { effectType, effectSize } = determineEffectTypeAndSize(orOrBeta || null, ciText || null);
 
       // Perform analysis entirely client-side
       const analysisResult = analyzeStudyClientSide(
         genotypeData,
-        data.study.snps,
-        data.study.riskAllele,
-        data.study.effectSize,
-        data.study.gwasId,
-        data.study.effectType || 'OR',
-        data.study.confidenceInterval
+        snps,
+        riskAllele,
+        effectSize,
+        studyAccession || null,
+        effectType,
+        ciText || null
       );
 
       setResult(analysisResult);
@@ -136,7 +129,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
       trackStudyResultReveal(
         analysisResult.hasMatch,
         analysisResult.hasMatch ? 1 : 0,
-        data.study.confidenceBand || 'unknown'
+        'unknown' // confidenceBand not available here but not critical
       );
 
       // Save the result (including non-matches) so we don't re-analyze on reload

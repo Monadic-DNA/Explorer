@@ -1,5 +1,40 @@
 import { parseVariantIds } from './snp-utils';
 
+/**
+ * Determines effect type and adjusts effect size based on ci_text
+ * GWAS Catalog stores ALL beta values as positive numbers
+ * Direction is encoded in ci_text ("increase" vs "decrease")
+ */
+export function determineEffectTypeAndSize(
+  orOrBeta: string | null,
+  ciText: string | null
+): { effectType: 'OR' | 'beta'; effectSize: string } {
+  if (!orOrBeta) {
+    return { effectType: 'OR', effectSize: '1' };
+  }
+
+  // Determine effect type from ci_text
+  // Beta coefficients have "increase" or "decrease" in CI text
+  // e.g., "[NR] unit increase", "[0.0068-0.0139] unit increase", "[112.27-112.33] increase"
+  // Odds ratios are just numbers: e.g., "[1.08-1.15]"
+  const ciTextLower = ciText?.toLowerCase() ?? '';
+  const hasIncrease = ciTextLower.includes('increase');
+  const hasDecrease = ciTextLower.includes('decrease');
+  const isBeta = hasIncrease || hasDecrease;
+  const effectType = isBeta ? 'beta' : 'OR';
+
+  // CRITICAL FIX: GWAS Catalog stores ALL beta values as positive numbers
+  // Direction is encoded in ci_text ("increase" vs "decrease")
+  // We must negate the value for "decrease" studies
+  let effectSize = orOrBeta;
+  if (isBeta && hasDecrease && !hasIncrease) {
+    const numericValue = parseFloat(orOrBeta);
+    effectSize = (-Math.abs(numericValue)).toString();
+  }
+
+  return { effectType, effectSize };
+}
+
 export type UserStudyResult = {
   hasMatch: boolean;
   userGenotype?: string;
