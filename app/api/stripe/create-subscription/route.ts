@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     // Get discount information if available
     let discountInfo = null;
-    if (invoice.discount || invoice.total_discount_amounts?.length > 0) {
+    if (invoice.discount || (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0)) {
       const discountAmount = invoice.total_discount_amounts?.[0]?.amount || 0;
       const originalAmount = invoice.subtotal || 0;
       const finalAmount = invoice.amount_due || 0;
@@ -176,6 +176,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         subscriptionId: subscription.id,
+        customerId: customer.id,
         clientSecret: setupIntent.client_secret,
         isSetupIntent: true, // Flag to indicate this is setup, not payment
         discount: discountInfo,

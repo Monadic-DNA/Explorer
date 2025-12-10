@@ -19,11 +19,13 @@ interface SubscriptionFormProps {
   couponCode: string;
   discount: DiscountInfo | null;
   isSetupIntent: boolean;
+  subscriptionId: string | null;
+  customerId: string | null;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, isSetupIntent, onSuccess, onCancel }: SubscriptionFormProps) {
+function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, isSetupIntent, subscriptionId, customerId, onSuccess, onCancel }: SubscriptionFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -57,8 +59,33 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         } else if (setupIntent) {
           console.log('[StripeForm] Payment method saved, status:', setupIntent.status);
           if (setupIntent.status === 'succeeded') {
-            console.log('[StripeForm] Setup succeeded, activating subscription');
-            onSuccess();
+            console.log('[StripeForm] Setup succeeded, payment method ID:', setupIntent.payment_method);
+
+            // Attach payment method to subscription
+            try {
+              const response = await fetch('/api/stripe/attach-payment-method', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  subscriptionId,
+                  customerId,
+                  paymentMethodId: setupIntent.payment_method,
+                }),
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                console.log('[StripeForm] Payment method attached to subscription');
+                onSuccess();
+              } else {
+                setErrorMessage(data.error || 'Failed to attach payment method to subscription');
+                setIsProcessing(false);
+              }
+            } catch (err) {
+              console.error('[StripeForm] Error attaching payment method:', err);
+              setErrorMessage('Failed to complete subscription setup');
+              setIsProcessing(false);
+            }
           } else {
             setErrorMessage(`Setup status: ${setupIntent.status}`);
             setIsProcessing(false);
@@ -465,17 +492,21 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   const [discount, setDiscount] = useState<DiscountInfo | null>(null);
   const [showCouponInput, setShowCouponInput] = useState(false);
   const [isSetupIntent, setIsSetupIntent] = useState(false);
+  const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    // Initialize payment on mount (without coupon initially)
-    initializePayment('');
-  }, [walletAddress]);
+  const [hasInitialized, setHasInitialized] = React.useState(false);
 
   const initializePayment = (promoCode: string) => {
+    // Prevent double initialization
+    if (hasInitialized && !promoCode) {
+      return;
+    }
+
     setIsInitializing(true);
     setError(null);
 
-    console.log('[StripeForm] Initializing subscription for wallet:', walletAddress);
+    console.log('[StripeForm] Initializing subscription for wallet:', walletAddress, 'with promo:', promoCode || 'none');
 
     // Create subscription
     fetch('/api/stripe/create-subscription', {
@@ -494,6 +525,9 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
           if (data.clientSecret) {
             setClientSecret(data.clientSecret);
             setIsSetupIntent(data.isSetupIntent || false);
+            setSubscriptionId(data.subscriptionId || null);
+            setCustomerId(data.customerId || null);
+            setHasInitialized(true);
             if (promoCode) {
               setAppliedCoupon(promoCode);
             }
@@ -502,7 +536,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
               setDiscount(data.discount);
               console.log('[StripeForm] Discount info:', data.discount);
             }
-            console.log('[StripeForm] Client secret received, isSetupIntent:', data.isSetupIntent);
+            console.log('[StripeForm] Client secret received, isSetupIntent:', data.isSetupIntent, 'subscriptionId:', data.subscriptionId);
           } else {
             setError('Failed to initialize payment');
             console.error('[StripeForm] No client secret received');
@@ -524,8 +558,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   const handleApplyCoupon = () => {
     if (!couponCode.trim()) return;
 
-    // Reinitialize with coupon
-    setClientSecret(null);
+    // Create subscription with coupon
     initializePayment(couponCode);
     setShowCouponInput(false);
   };
@@ -624,7 +657,194 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   }
 
   if (!clientSecret) {
-    return null;
+    // Show promo code input and continue button before initializing
+    return (
+      <div>
+        <div className="pre-payment-section">
+          {!showCouponInput ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCouponInput(true)}
+                className="promo-toggle-link"
+              >
+                <span className="coupon-icon">🎟️</span>
+                Have a promo code?
+              </button>
+              <button
+                onClick={() => initializePayment('')}
+                disabled={isInitializing}
+                className="btn-continue"
+              >
+                Continue to Payment
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="coupon-input-section">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                  placeholder="Enter promo code"
+                  className="coupon-input-field"
+                  autoFocus
+                />
+                <button
+                  onClick={handleApplyCoupon}
+                  disabled={!couponCode.trim() || isInitializing}
+                  className="coupon-apply-button"
+                >
+                  Apply
+                </button>
+                <button
+                  onClick={() => setShowCouponInput(false)}
+                  className="coupon-cancel-button"
+                >
+                  ✕
+                </button>
+              </div>
+              <button
+                onClick={() => initializePayment('')}
+                disabled={isInitializing}
+                className="btn-continue-alt"
+              >
+                Continue without promo code
+              </button>
+            </>
+          )}
+        </div>
+
+        <style jsx>{`
+          .pre-payment-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+          }
+
+          .promo-toggle-link {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+            transition: all 0.2s;
+          }
+
+          .promo-toggle-link:hover {
+            color: #764ba2;
+          }
+
+          .coupon-icon {
+            font-size: 1.1rem;
+          }
+
+          .coupon-input-section {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+          }
+
+          .coupon-input-field {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+          }
+
+          .coupon-input-field:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          }
+
+          .coupon-apply-button {
+            padding: 0.75rem 1.25rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+          }
+
+          .coupon-apply-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          }
+
+          .coupon-apply-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+
+          .coupon-cancel-button {
+            padding: 0.75rem;
+            background: white;
+            color: #6b7280;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1rem;
+            line-height: 1;
+          }
+
+          .coupon-cancel-button:hover {
+            background: #f9fafb;
+          }
+
+          .btn-continue,
+          .btn-continue-alt {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1rem;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          }
+
+          .btn-continue:hover:not(:disabled),
+          .btn-continue-alt:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+          }
+
+          .btn-continue:disabled,
+          .btn-continue-alt:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+          }
+
+          .btn-continue-alt {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            box-shadow: none;
+          }
+
+          .btn-continue-alt:hover:not(:disabled) {
+            background: #f3f4ff;
+          }
+        `}</style>
+      </div>
+    );
   }
 
   const options = {
@@ -645,46 +865,6 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
 
   return (
     <div>
-      {!appliedCoupon && (
-        <div className="coupon-section">
-          {!showCouponInput ? (
-            <button
-              type="button"
-              onClick={() => setShowCouponInput(true)}
-              className="coupon-toggle"
-            >
-              <span className="coupon-icon">🎟️</span>
-              Have a promo code?
-            </button>
-          ) : (
-            <div className="coupon-input-container">
-              <input
-                type="text"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
-                placeholder="Enter promo code"
-                className="coupon-input"
-                autoFocus
-              />
-              <button
-                onClick={handleApplyCoupon}
-                disabled={!couponCode.trim()}
-                className="coupon-apply-btn"
-              >
-                Apply
-              </button>
-              <button
-                onClick={() => setShowCouponInput(false)}
-                className="coupon-cancel-btn"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       <Elements stripe={stripePromise} options={options}>
         <SubscriptionForm
           clientSecret={clientSecret}
@@ -692,6 +872,8 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
           couponCode={appliedCoupon}
           discount={discount}
           isSetupIntent={isSetupIntent}
+          subscriptionId={subscriptionId}
+          customerId={customerId}
           onSuccess={onSuccess}
           onCancel={onCancel}
         />

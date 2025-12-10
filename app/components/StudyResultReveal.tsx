@@ -117,9 +117,9 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
         snps,
         riskAllele,
         effectSize,
-        studyAccession || undefined,
+        studyAccession || null,
         effectType,
-        ciText || undefined
+        ciText || null
       );
 
       setResult(analysisResult);
