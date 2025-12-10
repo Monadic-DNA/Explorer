@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
         study_accession,
         disease_trait
       FROM gwas_catalog
-      WHERE id = ?
+      WHERE id = $1
       AND snps IS NOT NULL AND snps != ''
       AND strongest_snp_risk_allele IS NOT NULL AND strongest_snp_risk_allele != ''
       AND or_or_beta IS NOT NULL AND or_or_beta != ''
