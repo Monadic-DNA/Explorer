@@ -165,36 +165,49 @@ export async function checkCombinedSubscription(walletAddress: string): Promise<
     payments: [],
   };
 
-  console.log('[Combined Check] Checking both blockchain and Stripe subscriptions for:', walletAddress);
+  console.log('[Combined Check] Checking subscription sources for:', walletAddress);
 
-  // Query both sources in parallel with timeout
-  const [blockchainSub, stripeSub] = await Promise.all([
-    withTimeout(
-      checkBlockchainSubscription(walletAddress).catch(err => {
-        console.error('[Combined Check] ❌ Blockchain subscription check FAILED with error:', err);
-        console.error('[Combined Check] Error message:', err.message);
-        console.error('[Combined Check] Error stack:', err.stack);
-        return emptySubscription;
-      }),
-      10000, // 10 second timeout for blockchain check (multiple chains can be slow)
-      emptySubscription
-    ).then(result => {
-      if (result === emptySubscription && result.payments.length === 0) {
-        console.log('[Combined Check] ⚠️  Blockchain check returned empty (likely timeout or error)');
-      } else {
-        console.log('[Combined Check] ✅ Blockchain check completed successfully');
-      }
-      return result;
+  // Check Stripe first (faster, more common for new users)
+  console.log('[Combined Check] Checking Stripe subscription first...');
+  const stripeSub = await withTimeout(
+    checkStripeSubscription(walletAddress).catch(err => {
+      console.error('[Combined Check] Stripe subscription check failed:', err);
+      return emptySubscription;
     }),
-    withTimeout(
-      checkStripeSubscription(walletAddress).catch(err => {
-        console.error('[Combined Check] Stripe subscription check failed:', err);
-        return emptySubscription;
-      }),
-      5000, // 5 second timeout for Stripe API check
-      emptySubscription
-    ),
-  ]);
+    5000, // 5 second timeout for Stripe API check
+    emptySubscription
+  );
+
+  console.log('[Combined Check] Stripe check result:', {
+    stripeActive: stripeSub.isActive,
+    stripePayments: stripeSub.payments.length,
+  });
+
+  // If Stripe subscription is active, no need to check blockchain (optimization)
+  if (stripeSub.isActive) {
+    console.log('[Combined Check] ✅ Active Stripe subscription found - skipping blockchain check');
+    return stripeSub;
+  }
+
+  // No active Stripe subscription, check blockchain
+  console.log('[Combined Check] No active Stripe subscription, checking blockchain...');
+  const blockchainSub = await withTimeout(
+    checkBlockchainSubscription(walletAddress).catch(err => {
+      console.error('[Combined Check] ❌ Blockchain subscription check FAILED with error:', err);
+      console.error('[Combined Check] Error message:', err.message);
+      console.error('[Combined Check] Error stack:', err.stack);
+      return emptySubscription;
+    }),
+    10000, // 10 second timeout for blockchain check (multiple chains can be slow)
+    emptySubscription
+  ).then(result => {
+    if (result === emptySubscription && result.payments.length === 0) {
+      console.log('[Combined Check] ⚠️  Blockchain check returned empty (likely timeout or error)');
+    } else {
+      console.log('[Combined Check] ✅ Blockchain check completed successfully');
+    }
+    return result;
+  });
 
   console.log('[Combined Check] Results:', {
     blockchainActive: blockchainSub.isActive,

@@ -281,11 +281,13 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
     const durationDays = Math.round((parseFloat(amount || '0') / 4.99) * 30);
     trackSubscribedWithCreditCard(durationDays);
 
-    // Close modal after 3 seconds and trigger success callback
+    // Trigger success callback immediately to refresh subscription
+    onSuccess();
+
+    // Close modal after 2 seconds
     setTimeout(() => {
       onClose();
-      onSuccess();
-    }, 3000);
+    }, 2000);
   };
 
   const handleSendPayment = async () => {

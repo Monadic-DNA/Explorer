@@ -138,10 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         daysRemaining: subData.daysRemaining,
       });
 
+      return subData.isActive; // Return whether subscription is active
+
     } catch (error) {
       console.error('[AuthProvider] Failed to check subscription:', error);
       setHasActiveSubscription(false);
       setSubscriptionData(null);
+      return false;
     } finally {
       setCheckingSubscription(false);
     }
@@ -150,7 +153,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSubscription = async () => {
     const walletAddress = user?.verifiedCredentials?.[0]?.address;
     if (walletAddress) {
-      await checkSubscription(walletAddress);
+      // Clear any cached subscription data first
+      localStorage.removeItem(`subscription_${walletAddress.toLowerCase()}`);
+
+      // Check immediately
+      const isActive = await checkSubscription(walletAddress);
+
+      // If still not active, retry up to 3 times with increasing delays
+      if (!isActive) {
+        console.log('[AuthProvider] Subscription not active yet, will retry...');
+
+        const retryDelays = [1000, 2000, 3000]; // 1s, 2s, 3s
+        for (const delay of retryDelays) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          console.log(`[AuthProvider] Retry after ${delay}ms...`);
+          const isNowActive = await checkSubscription(walletAddress);
+          if (isNowActive) {
+            console.log('[AuthProvider] ✅ Subscription is now active!');
+            break;
+          }
+        }
+      }
     }
   };
 
