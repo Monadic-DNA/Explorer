@@ -109,7 +109,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
 
     try {
       // Determine effect type and size from ci_text (client-side, instant)
-      const { effectType, effectSize } = determineEffectTypeAndSize(orOrBeta, ciText);
+      const { effectType, effectSize } = determineEffectTypeAndSize(orOrBeta, ciText || null);
 
       // Perform analysis entirely client-side
       const analysisResult = analyzeStudyClientSide(
