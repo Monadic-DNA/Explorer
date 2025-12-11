@@ -261,27 +261,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // Render without Dynamic until explicitly initialized
-  if (!isDynamicInitialized) {
-    return (
-      <AuthContext.Provider
-        value={{
-          isAuthenticated,
-          user,
-          hasActiveSubscription,
-          checkingSubscription,
-          subscriptionData,
-          refreshSubscription,
-          initializeDynamic,
-          isDynamicInitialized,
-          openAuthModal: () => {},
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
-    );
-  }
-
+  // Always render DynamicContextProvider to avoid unmounting/remounting children
+  // Control visibility through isDynamicInitialized flag
   return (
     <DynamicContextProvider
       settings={{
@@ -298,10 +279,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       }}
     >
-      <AuthStateSync
-        onAuthStateChange={handleAuthStateChange}
-        onOpenAuthModal={handleOpenAuthModal}
-      />
+      {isDynamicInitialized && (
+        <AuthStateSync
+          onAuthStateChange={handleAuthStateChange}
+          onOpenAuthModal={handleOpenAuthModal}
+        />
+      )}
       <AuthContext.Provider
         value={{
           isAuthenticated,

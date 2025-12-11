@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { GenotypeProvider, useGenotype } from "./components/UserDataUpload";
-import { ResultsProvider, useResults } from "./components/ResultsContext";
-import { CustomizationProvider } from "./components/CustomizationContext";
+import { useGenotype } from "./components/UserDataUpload";
+import { useResults } from "./components/ResultsContext";
 import { AuthButton, useAuth } from "./components/AuthProvider";
 import { RunAllIcon, LLMChatIcon, OverviewReportIcon } from "./components/Icons";
 import StudyResultReveal from "./components/StudyResultReveal";
@@ -1412,13 +1411,5 @@ function MainContent() {
 }
 
 export default function HomePage() {
-  return (
-    <GenotypeProvider>
-      <ResultsProvider>
-        <CustomizationProvider>
-          <MainContent />
-        </CustomizationProvider>
-      </ResultsProvider>
-    </GenotypeProvider>
-  );
+  return <MainContent />;
 }

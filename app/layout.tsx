@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "./components/AuthProvider";
+import { GenotypeProvider } from "./components/UserDataUpload";
+import { ResultsProvider } from "./components/ResultsContext";
+import { CustomizationProvider } from "./components/CustomizationContext";
 
 export const metadata: Metadata = {
   title: "Monadic DNA Explorer",
@@ -72,7 +75,15 @@ export default function RootLayout({
         </Script>
       </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <GenotypeProvider>
+            <ResultsProvider>
+              <CustomizationProvider>
+                {children}
+              </CustomizationProvider>
+            </ResultsProvider>
+          </GenotypeProvider>
+        </AuthProvider>
       </body>
     </html>
   );
