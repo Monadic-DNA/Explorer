@@ -99,7 +99,7 @@ type QualitySummary = {
 };
 
 const defaultFilters: Filters = {
-  search: "",
+  search: "sleep",
   searchMode: "similarity",
   trait: "",
   minSampleSize: "500",
@@ -109,7 +109,7 @@ const defaultFilters: Filters = {
   requireUserSNPs: false,
   sort: "relevance",
   sortDirection: "desc",
-  limit: 200,
+  limit: 1000,
   confidenceBand: null,
   offset: 0,
 };
