@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { GenotypeProvider, useGenotype } from "./components/UserDataUpload";
-import { ResultsProvider, useResults } from "./components/ResultsContext";
-import { CustomizationProvider } from "./components/CustomizationContext";
+import { useGenotype } from "./components/UserDataUpload";
+import { useResults } from "./components/ResultsContext";
 import { AuthButton, useAuth } from "./components/AuthProvider";
 import { RunAllIcon, LLMChatIcon, OverviewReportIcon } from "./components/Icons";
 import StudyResultReveal from "./components/StudyResultReveal";
@@ -100,7 +99,7 @@ type QualitySummary = {
 };
 
 const defaultFilters: Filters = {
-  search: "",
+  search: "sleep",
   searchMode: "similarity",
   trait: "",
   minSampleSize: "500",
@@ -110,7 +109,7 @@ const defaultFilters: Filters = {
   requireUserSNPs: false,
   sort: "relevance",
   sortDirection: "desc",
-  limit: 200,
+  limit: 1000,
   confidenceBand: null,
   offset: 0,
 };
@@ -625,6 +624,9 @@ function MainContent() {
       await addResultsBatch(results); // Embeddings will be fetched on-demand during LLM analysis
       const addTime = Date.now() - startAdd;
       console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+
+      // Notify MenuBar that cache has been updated
+      window.dispatchEvent(new CustomEvent('cacheUpdated'));
     } catch (error) {
       console.error('Run All failed:', error);
       setRunAllStatus(prev => ({
@@ -1412,13 +1414,5 @@ function MainContent() {
 }
 
 export default function HomePage() {
-  return (
-    <GenotypeProvider>
-      <ResultsProvider>
-        <CustomizationProvider>
-          <MainContent />
-        </CustomizationProvider>
-      </ResultsProvider>
-    </GenotypeProvider>
-  );
+  return <MainContent />;
 }

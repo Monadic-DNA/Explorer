@@ -33,6 +33,21 @@ export default function MenuBar() {
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
   const [llmProvider, setLlmProvider] = useState<string>('');
 
+  // Extract loadCacheInfo for reusability
+  const loadCacheInfo = async () => {
+    const { gwasDB } = await import('@/lib/gwas-db');
+    const metadata = await gwasDB.getMetadata();
+    if (metadata) {
+      const size = await gwasDB.getStorageSize();
+      setCacheInfo({
+        studies: metadata.totalStudies,
+        sizeMB: Math.round(size / 1024 / 1024)
+      });
+    } else {
+      setCacheInfo(null);
+    }
+  };
+
   useEffect(() => {
     // Mark component as mounted
     setMounted(true);
@@ -45,19 +60,29 @@ export default function MenuBar() {
     const config = getLLMConfig();
     setLlmProvider(getProviderDisplayName(config.provider));
 
-    // Load cache info
-    const loadCacheInfo = async () => {
-      const { gwasDB } = await import('@/lib/gwas-db');
-      const metadata = await gwasDB.getMetadata();
-      if (metadata) {
-        const size = await gwasDB.getStorageSize();
-        setCacheInfo({
-          studies: metadata.totalStudies,
-          sizeMB: Math.round(size / 1024 / 1024)
-        });
+    // Load cache info on mount
+    loadCacheInfo();
+
+    // Listen for cache updates
+    const handleCacheUpdated = () => {
+      console.log('[MenuBar] Cache updated event received, refreshing cache info');
+      loadCacheInfo();
+    };
+
+    // Listen for visibility changes to refresh cache when user returns to tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadCacheInfo();
       }
     };
-    loadCacheInfo();
+
+    window.addEventListener('cacheUpdated', handleCacheUpdated);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('cacheUpdated', handleCacheUpdated);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
