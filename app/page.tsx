@@ -624,6 +624,9 @@ function MainContent() {
       await addResultsBatch(results); // Embeddings will be fetched on-demand during LLM analysis
       const addTime = Date.now() - startAdd;
       console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+
+      // Notify MenuBar that cache has been updated
+      window.dispatchEvent(new CustomEvent('cacheUpdated'));
     } catch (error) {
       console.error('Run All failed:', error);
       setRunAllStatus(prev => ({
