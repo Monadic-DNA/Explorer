@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { callLLM } from "@/lib/llm-client";
 import { useResults } from "./ResultsContext";
+import { useAuth } from "./AuthProvider";
 
 type NillionModalProps = {
   isOpen: boolean;
@@ -64,6 +65,7 @@ type StudyData = {
 
 export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
   const { savedResults } = useResults();
+  const { user } = useAuth();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isCalculating, setIsCalculating] = useState(false);
   const [calculationStep, setCalculationStep] = useState<string>('');
@@ -94,6 +96,77 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       return `β=${score >= 0 ? '+' : ''}${score.toFixed(3)} units`;
     }
     return `${score.toFixed(2)}x`;
+  };
+
+  // Store degen score in nilDB (client-side with delegation)
+  const storeInNilDB = async (geneticScore: number) => {
+    try {
+      // Get user's wallet address from Dynamic
+      const walletAddress = user?.verifiedCredentials?.[0]?.address;
+      if (!walletAddress) {
+        console.warn('No wallet address available, skipping nilDB storage');
+        return;
+      }
+
+      setCalculationStep('Storing results in nilDB...');
+
+      // Import nilDB client libraries dynamically (client-side only)
+      const { Signer } = await import('@nillion/nuc');
+      const { SecretVaultUserClient } = await import('@nillion/secretvaults');
+      const { NILDB_CONFIG } = await import('@/lib/nildb-config');
+
+      // Request delegation token from our server
+      // Our server pays for storage, but data never goes through it
+      const delegationResponse = await fetch('/api/nildb-delegation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userDid: `did:eth:${walletAddress.toLowerCase()}`
+        })
+      });
+
+      if (!delegationResponse.ok) {
+        throw new Error('Failed to get delegation token');
+      }
+
+      const { delegationToken, collectionId } = await delegationResponse.json();
+
+      // Create temporary signer for this session
+      const signer = await Signer.generate();
+
+      // Create user client with delegation token
+      const userClient = await SecretVaultUserClient.from({
+        signer,
+        baseUrls: NILDB_CONFIG.nodes,
+        delegationToken
+      });
+
+      // Prepare data record
+      const record = {
+        _id: `${walletAddress.toLowerCase()}_${Date.now()}`, // Unique ID
+        userAddress: walletAddress.toLowerCase(),
+        timestamp: Date.now(),
+        blockchain: answers.blockchain,
+        lowCap: answers.lowCap,
+        midCap: answers.midCap,
+        bridge: answers.bridge,
+        selfScore: parseInt(answers.selfScore),
+        geneticRiskScore: parseFloat(geneticScore.toFixed(1))
+      };
+
+      // Store data directly from client to nilDB
+      await userClient.updateData({
+        collection: collectionId,
+        document: record._id,
+        data: record
+      });
+
+      console.log('Successfully stored in nilDB:', record._id);
+
+    } catch (error) {
+      // Non-blocking error - don't fail the entire flow
+      console.error('Failed to store in nilDB (non-critical):', error);
+    }
   };
 
   const calculateDegenScore = async () => {
@@ -188,6 +261,9 @@ Respond ONLY with JSON:
       const geneticScore = result.geneticScore || result.degenScore;
       const scoreReasoning = result.reasoning || 'No reasoning provided';
       const advice = result.tradingAdvice || '';
+
+      // Store in nilDB (non-blocking, privacy-preserving)
+      await storeInNilDB(geneticScore);
 
       setCalculationStep('Complete! Displaying results...');
       await new Promise(resolve => setTimeout(resolve, 500));

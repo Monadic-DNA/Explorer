@@ -61,6 +61,9 @@ const nextConfig = {
         'onnxruntime-node': 'commonjs onnxruntime-node',
         'sharp': 'commonjs sharp',
       });
+    } else {
+      // For server, mark sharp as external so it uses the actual installed module
+      config.externals.push('sharp');
     }
 
     // Ignore .node files in webpack processing
@@ -68,7 +71,7 @@ const nextConfig = {
     config.module.rules = config.module.rules || [];
     config.module.rules.push({
       test: /\.node$/,
-      use: 'ignore-loader',
+      loader: 'node-loader',
     });
 
     return config;
