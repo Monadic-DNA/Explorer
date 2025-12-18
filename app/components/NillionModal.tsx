@@ -138,7 +138,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       // Create user client with delegation token
       const userClient = await SecretVaultUserClient.from({
         signer: signer,
-        baseUrls: NILDB_CONFIG.nodes,
+        baseUrls: [...NILDB_CONFIG.nodes],
         //blindfold: { operation: "store" },
       });
 
@@ -154,21 +154,6 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
         selfScore: parseInt(answers.selfScore),
         geneticRiskScore: parseFloat(geneticScore.toFixed(1))
       };
-
-      console.log('Storing user record in nilDB:', record)
-
-      console.log('Using these parameters for storage', JSON.stringify({
-            owner: userDid.didString,
-            acl: {
-              grantee: builderDid,
-              read: true,
-              write: false,
-              execute: true,
-            },
-            collection: collectionId,
-            data: [record],
-          },
-          { auth: { delegation: delegationToken } }))
 
       // Store data directly from client to nilDB (owned collection)
       await userClient.createData(
@@ -412,7 +397,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
                             <span className="study-snp">SNP: {study.matchedSnp}</span>
                             <span className="study-genotype">Your genotype: {study.userGenotype}</span>
                             {study.riskScore !== undefined && study.riskLevel && (
-                              <span className="study-risk">Risk: {formatRiskScore(study.riskScore, study.riskLevel, study.effectType)}</span>
+                              <span className="study-risk">Risk: {formatRiskScore(study.riskScore, study.riskLevel, study.effectType as 'OR' | 'beta' | undefined)}</span>
                             )}
                             <span className="study-level" data-level={study.riskLevel}>{study.riskLevel}</span>
                             {study.similarity !== undefined && (

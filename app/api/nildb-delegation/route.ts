@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     const builderClient = await SecretVaultBuilderClient.from({
       signer: builderSigner,
       nilauthClient,
-      dbs: NILDB_CONFIG.nodes
+      dbs: [...NILDB_CONFIG.nodes]
     });
     console.log('SecretVaultBuilderClient created successfully');
 
