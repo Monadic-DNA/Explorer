@@ -78,6 +78,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
   const [showStudies, setShowStudies] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasEnoughResults, setHasEnoughResults] = useState(false);
+  const [processingSteps, setProcessingSteps] = useState<Array<{step: string, status: 'pending' | 'active' | 'complete'}>>([]);
 
   // Check if user has at least 10,000 results
   useEffect(() => {
@@ -183,7 +184,15 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
   const calculateDegenScore = async () => {
     setIsCalculating(true);
     setError(null);
-    setCalculationStep('Searching results for risk-related traits...');
+
+    // Initialize processing steps
+    setProcessingSteps([
+      { step: 'Searching genetic database for risk-related traits', status: 'active' },
+      { step: 'Matching studies with your genetic profile', status: 'pending' },
+      { step: 'Analyzing genetic risk factors with AI', status: 'pending' },
+      { step: 'Storing results securely in nilDB', status: 'pending' },
+      { step: 'Generating your degen score', status: 'pending' }
+    ]);
 
     try {
       // Step 1: Perform semantic search for "risk appetite" traits
@@ -202,6 +211,11 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
 
       const data = await response.json();
       const studiesData = data.studies || [];
+
+      // Complete step 1, start step 2
+      setProcessingSteps(prev => prev.map((s, i) =>
+        i === 0 ? { ...s, status: 'complete' } : i === 1 ? { ...s, status: 'active' } : s
+      ));
 
       // Enrich study data with details from savedResults
       // The API returns {study_accession: string, similarity: number}
@@ -231,13 +245,15 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       setStudies(enrichedStudies);
       setStudyCount(enrichedStudies.length);
 
-      setCalculationStep(`Found ${enrichedStudies.length} genetic studies. Analyzing risk profile...`);
-
       // Small delay to show the step
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // Step 2: Use LLM to calculate genetic degen score (purely genetic, no user behavior hints)
-      setCalculationStep('Calculating genetic risk appetite score...');
+      // Complete step 2, start step 3
+      setProcessingSteps(prev => prev.map((s, i) =>
+        i === 1 ? { ...s, status: 'complete' } : i === 2 ? { ...s, status: 'active' } : s
+      ));
+
+      // Step 3: Use LLM to calculate genetic degen score (purely genetic, no user behavior hints)
 
       const prompt = `Analyze genetic risk profile based on ${enrichedStudies.length} genetic studies related to risk-taking, impulsivity, and sensation seeking.
 
@@ -273,11 +289,25 @@ Respond ONLY with JSON:
       const scoreReasoning = result.reasoning || 'No reasoning provided';
       const advice = result.tradingAdvice || '';
 
+      // Complete step 3, start step 4
+      setProcessingSteps(prev => prev.map((s, i) =>
+        i === 2 ? { ...s, status: 'complete' } : i === 3 ? { ...s, status: 'active' } : s
+      ));
+
       // Store in nilDB
       await storeInNilDB(geneticScore);
 
-      setCalculationStep('Complete! Displaying results...');
+      // Complete step 4, start step 5
+      setProcessingSteps(prev => prev.map((s, i) =>
+        i === 3 ? { ...s, status: 'complete' } : i === 4 ? { ...s, status: 'active' } : s
+      ));
+
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Complete step 5
+      setProcessingSteps(prev => prev.map((s, i) =>
+        i === 4 ? { ...s, status: 'complete' } : s
+      ));
 
       setDegenScore(geneticScore);
       setReasoning(scoreReasoning);
@@ -329,7 +359,22 @@ Respond ONLY with JSON:
         </div>
 
         <div className="modal-body">
-          {degenScore === null ? (
+          {isCalculating ? (
+            // Processing screen
+            <div className="processing-screen">
+              <h3>Analyzing Your Genetic Risk Profile</h3>
+              <div className="processing-steps">
+                {processingSteps.map((step, idx) => (
+                  <div key={idx} className={`processing-step ${step.status}`}>
+                    <div className="step-icon">
+                      {step.status === 'complete' ? '✓' : step.status === 'active' ? '⟳' : '○'}
+                    </div>
+                    <div className="step-text">{step.step}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : degenScore === null ? (
             <>
               {!hasEnoughResults ? (
                 <div className="warning-message">
@@ -399,20 +444,13 @@ Respond ONLY with JSON:
 
               {error && <div className="error-message">{error}</div>}
 
-              {isCalculating && calculationStep && (
-                <div className="calculation-progress">
-                  <div className="progress-spinner"></div>
-                  <div className="progress-text">{calculationStep}</div>
-                </div>
-              )}
-
-                  <button
-                    className="primary-button"
-                    onClick={calculateDegenScore}
-                    disabled={!allQuestionsAnswered || isCalculating}
-                  >
-                    {isCalculating ? 'Analyzing...' : 'Calculate My Degen Score'}
-                  </button>
+              <button
+                className="primary-button"
+                onClick={calculateDegenScore}
+                disabled={!allQuestionsAnswered}
+              >
+                Calculate My Degen Score
+              </button>
                 </>
               )}
             </>
