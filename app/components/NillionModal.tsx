@@ -139,12 +139,12 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       const userClient = await SecretVaultUserClient.from({
         signer: signer,
         baseUrls: NILDB_CONFIG.nodes,
-        blindfold: { operation: "store" },
+        //blindfold: { operation: "store" },
       });
 
       // Prepare data record
       const record = {
-        _id: `${walletAddress.toLowerCase()}_${Date.now()}`, // Unique ID
+        _id: crypto.randomUUID(), // UUID string
         userAddress: walletAddress.toLowerCase(),
         timestamp: Date.now(),
         blockchain: answers.blockchain,
@@ -157,7 +157,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
 
       console.log('Storing user record in nilDB:', record)
 
-      console.log('Using these parameters for storage', {
+      console.log('Using these parameters for storage', JSON.stringify({
             owner: userDid.didString,
             acl: {
               grantee: builderDid,
@@ -168,7 +168,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
             collection: collectionId,
             data: [record],
           },
-          { auth: { delegation: delegationToken } })
+          { auth: { delegation: delegationToken } }))
 
       // Store data directly from client to nilDB (owned collection)
       await userClient.createData(
@@ -201,47 +201,17 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
     setCalculationStep('Calculating genetic risk appetite score...');
 
     try {
-      // TEMPORARY: Skip RAG for testing nilDB delegation
+      // TEMPORARY: Skip RAG and LLM for testing nilDB delegation
       const enrichedStudies: StudyData[] = [];
       setStudies(enrichedStudies);
       setStudyCount(0);
 
-      // Step 2: Use LLM to calculate genetic degen score (purely genetic, no user behavior hints)
-      const prompt = `Analyze genetic risk profile based on user responses.
+      // TEMPORARY: Use mock score for testing
+      const geneticScore = 7.5;
+      const scoreReasoning = 'This is a test score for nilDB delegation testing.';
+      const advice = 'Test advice for nilDB integration.';
 
-Provide a genetic risk score from 0.0-10.0 where:
-0.0 = risk-averse, 5.0 = average, 10.0 = high risk propensity
-
-Provide:
-1. A detailed 2-3 sentence explanation of the genetic score
-2. Brief, balanced trading behavior advice (1-2 sentences) considering this genetic profile
-
-Respond ONLY with JSON:
-{"geneticScore": 7.5, "reasoning": "detailed explanation", "tradingAdvice": "brief advice"}`;
-
-      const llmResponse = await callLLM([
-        { role: 'system', content: 'You are a genetics specialist.' },
-        { role: 'user', content: prompt }
-      ], {
-        maxTokens: 1000,
-        temperature: 0.7,
-        reasoningEffort: 'low'
-      });
-
-      // Parse LLM response
-      const responseText = llmResponse.content;
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-
-      if (!jsonMatch) {
-        throw new Error('Failed to parse LLM response');
-      }
-
-      const result = JSON.parse(jsonMatch[0]);
-      const geneticScore = result.geneticScore || result.degenScore;
-      const scoreReasoning = result.reasoning || 'No reasoning provided';
-      const advice = result.tradingAdvice || '';
-
-      // Store in nilDB (non-blocking, privacy-preserving)
+      // Store in nilDB
       await storeInNilDB(geneticScore);
 
       setCalculationStep('Complete! Displaying results...');
