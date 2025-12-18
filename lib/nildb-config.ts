@@ -3,7 +3,7 @@
 
 export const NILDB_CONFIG = {
   // Collection ID for degen score submissions
-  collectionId: 'dc0f83f2-7a84-45d8-b2db-03edc09c46fc',
+  collectionId: '87ca35ac-a81f-4f03-b466-082a8096dc68',
 
   // Mainnet URLs
   nilchainUrl: 'http://nilchain-rpc.nillion.network',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Signer, NilauthClient, Builder as NucTokenBuilder, Did } from '@nillion/nuc';
-import { SecretVaultBuilderClient } from '@nillion/secretvaults';
+import {Signer, NilauthClient, Builder as NucTokenBuilder, Did, Builder, Command} from '@nillion/nuc';
+import {NucCmd, SecretVaultBuilderClient } from '@nillion/secretvaults';
 import { validateOrigin } from '@/lib/origin-validator';
 import { NILDB_CONFIG } from '@/lib/nildb-config';
 
@@ -72,12 +72,13 @@ export async function POST(request: NextRequest) {
     console.log('Creating nilDB delegation token for user:', userDid);
 
     // Create signer from API key
-    const signer = await Signer.fromPrivateKey(apiKey);
+    const builderSigner = await Signer.fromPrivateKey(apiKey, "nil");
+    const builderDid = await builderSigner.getDid();
 
     // Create Nilauth client manually using the provided public key
     // (avoiding network call to /about endpoint)
     const nilauthClient = new NilauthClient({
-      payer: signer,
+      payer: builderSigner,
       nilauth: {
         baseUrl: NILDB_CONFIG.nilauthUrl,
         publicKey: NILDB_CONFIG.nilauthPublicKey,
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
     // Create builder client
     console.log('Creating SecretVaultBuilderClient with', NILDB_CONFIG.nodes.length, 'nodes');
     const builderClient = await SecretVaultBuilderClient.from({
-      signer,
+      signer: builderSigner,
       nilauthClient,
       dbs: NILDB_CONFIG.nodes
     });
@@ -115,20 +116,28 @@ export async function POST(request: NextRequest) {
     const expiresInSeconds = 10 * 60;
     const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
 
-    // Create delegation token from builderClient to user
+    /*// Create delegation token from builderClient to user
     // Don't specify command - let the user client add it
     // Note: Using signer.privateKey() since builderClient.keypair is not exposed in current API
-    const delegationToken = NucTokenBuilder.extending(rootToken)
+    const delegationToken = new NucTokenBuilder()
+      .extending(rootToken)
       .audience(userDid)
       .expiresAt(expiresAt)
-      .build(signer.privateKey());
+      .build(signer.privateKey());*/
+
+    const delegationToken = await Builder.delegationFrom(builderClient.rootToken)
+        .command(NucCmd.nil.db.data.create as Command)
+        .audience(userDid)
+        .expiresIn(3600)
+        .signAndSerialize(builderSigner);
 
     console.log('nilDB delegation token created successfully');
 
     return NextResponse.json({
       success: true,
       delegationToken,
-      collectionId: NILDB_CONFIG.collectionId
+      collectionId: NILDB_CONFIG.collectionId,
+      builderDid: builderDid.didString
     });
 
   } catch (error) {

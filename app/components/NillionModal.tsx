@@ -104,8 +104,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       // Get user's wallet address from Dynamic
       const walletAddress = user?.verifiedCredentials?.[0]?.address;
       if (!walletAddress) {
-        console.warn('No wallet address available, skipping nilDB storage');
-        return;
+        throw new Error('No wallet address available - please connect your wallet to store results in nilDB');
       }
 
       setCalculationStep('Storing results in nilDB...');
@@ -115,13 +114,17 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       const { SecretVaultUserClient } = await import('@nillion/secretvaults');
       const { NILDB_CONFIG } = await import('@/lib/nildb-config');
 
+      // Create temporary signer for this session
+      const signer = await Signer.generate();
+      const userDid = await signer.getDid();
+
       // Request delegation token from our server
       // Our server pays for storage, but data never goes through it
       const delegationResponse = await fetch('/api/nildb-delegation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userDid: `did:eth:${walletAddress.toLowerCase()}`
+          userDid: userDid.didString
         })
       });
 
@@ -129,16 +132,13 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
         throw new Error('Failed to get delegation token');
       }
 
-      const { delegationToken, collectionId } = await delegationResponse.json();
-
-      // Create temporary signer for this session
-      const signer = await Signer.generate();
+      const { delegationToken, collectionId, builderDid } = await delegationResponse.json();
 
       // Create user client with delegation token
       const userClient = await SecretVaultUserClient.from({
-        signer,
-        baseUrls: NILDB_CONFIG.nodes,
-        delegationToken
+        signer: userSigner,
+        baseUrls: urls,
+        blindfold: { operation: "store" },
       });
 
       // Prepare data record
@@ -154,81 +154,44 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
         geneticRiskScore: parseFloat(geneticScore.toFixed(1))
       };
 
-      // Store data directly from client to nilDB
-      await userClient.updateData({
-        collection: collectionId,
-        document: record._id,
-        data: record
-      });
+      // Store data directly from client to nilDB (owned collection)
+      await userClient.createData(
+        {
+          owner: userDid.didString,
+          acl: {
+            grantee: builderDid.didString,
+            read: true,
+            write: false,
+            execute: true,
+          },
+          collection: collectionId,
+          data: [record],
+        },
+        { auth: { delegation: delegationToken } }
+      );
 
       console.log('Successfully stored in nilDB:', record._id);
 
     } catch (error) {
-      // Non-blocking error - don't fail the entire flow
-      console.error('Failed to store in nilDB (non-critical):', error);
+      // Throw error to make nilDB failures visible
+      console.error('Failed to store in nilDB:', error);
+      throw new Error(`Failed to store results in nilDB: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   const calculateDegenScore = async () => {
     setIsCalculating(true);
     setError(null);
-    setCalculationStep('Searching results for risk-related traits...');
+    setCalculationStep('Calculating genetic risk appetite score...');
 
     try {
-      // Step 1: Perform semantic search for "risk appetite" traits
-      const response = await fetch('/api/similar-studies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: 'risk appetite, risk taking behavior, impulsivity, sensation seeking',
-          limit: 500
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch risk appetite studies');
-      }
-
-      const data = await response.json();
-      const studiesData = data.studies || [];
-
-      // Enrich study data with details from savedResults
-      // The API returns {study_accession: string, similarity: number}
-      // We need to find the matching SavedResult and use its full data
-      const enrichedStudies = studiesData.map((study: any) => {
-        // Match using gwasId (GWAS study accession)
-        const savedResult = savedResults.find(r => r.gwasId === study.study_accession);
-        if (savedResult) {
-          // Return the full SavedResult object with similarity added
-          return {
-            ...savedResult,
-            similarity: study.similarity
-          };
-        }
-        // If no match found, return minimal data
-        return {
-          study_accession: study.study_accession,
-          similarity: study.similarity,
-          traitName: study.study_accession,
-          studyTitle: 'Study details not available',
-          matchedSnp: 'N/A',
-          userGenotype: 'N/A',
-          riskLevel: 'neutral' as const
-        };
-      });
-
+      // TEMPORARY: Skip RAG for testing nilDB delegation
+      const enrichedStudies: StudyData[] = [];
       setStudies(enrichedStudies);
-      setStudyCount(enrichedStudies.length);
-
-      setCalculationStep(`Found ${enrichedStudies.length} genetic studies. Analyzing risk profile...`);
-
-      // Small delay to show the step
-      await new Promise(resolve => setTimeout(resolve, 800));
+      setStudyCount(0);
 
       // Step 2: Use LLM to calculate genetic degen score (purely genetic, no user behavior hints)
-      setCalculationStep('Calculating genetic risk appetite score...');
-
-      const prompt = `Analyze genetic risk profile based on ${enrichedStudies.length} genetic studies related to risk-taking, impulsivity, and sensation seeking.
+      const prompt = `Analyze genetic risk profile based on user responses.
 
 Provide a genetic risk score from 0.0-10.0 where:
 0.0 = risk-averse, 5.0 = average, 10.0 = high risk propensity
@@ -244,7 +207,7 @@ Respond ONLY with JSON:
         { role: 'system', content: 'You are a genetics specialist.' },
         { role: 'user', content: prompt }
       ], {
-        maxTokens: 500,
+        maxTokens: 1000,
         temperature: 0.7,
         reasoningEffort: 'low'
       });
