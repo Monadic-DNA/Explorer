@@ -242,7 +242,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
           }
           return null;
         })
-        .filter((study): study is StudyData => study !== null);
+        .filter((study: StudyData | null): study is StudyData => study !== null);
 
       console.log(`Matched ${enrichedStudies.length} risk-related studies from your ${savedResults.length} total results`);
 
