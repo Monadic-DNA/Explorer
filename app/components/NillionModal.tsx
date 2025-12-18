@@ -59,6 +59,7 @@ type StudyData = {
   mappedGene?: string;
   matchedSnp?: string;
   userGenotype?: string;
+  riskAllele?: string;
   riskScore?: number;
   riskLevel?: string;
   effectType?: string;
@@ -217,30 +218,33 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
         i === 0 ? { ...s, status: 'complete' } : i === 1 ? { ...s, status: 'active' } : s
       ));
 
-      // Enrich study data with details from savedResults
-      // The API returns {study_accession: string, similarity: number}
-      // We need to find the matching SavedResult and use its full data
-      const enrichedStudies = studiesData.map((study: any) => {
-        // Match using gwasId (GWAS study accession)
-        const savedResult = savedResults.find(r => r.gwasId === study.study_accession);
-        if (savedResult) {
-          // Return the full SavedResult object with similarity added
-          return {
-            ...savedResult,
-            similarity: study.similarity
-          };
-        }
-        // If no match found, return minimal data
-        return {
-          study_accession: study.study_accession,
-          similarity: study.similarity,
-          traitName: study.study_accession,
-          studyTitle: 'Study details not available',
-          matchedSnp: 'N/A',
-          userGenotype: 'N/A',
-          riskLevel: 'neutral' as const
-        };
-      });
+      // Match semantic search results with user's saved results
+      // Only include studies that the user has actually analyzed
+      const enrichedStudies = studiesData
+        .map((study: any) => {
+          // Match using gwasId (GWAS study accession)
+          const savedResult = savedResults.find(r => r.gwasId === study.study_accession);
+          if (savedResult) {
+            // Map SavedResult fields to StudyData format
+            return {
+              study_accession: savedResult.gwasId || study.study_accession,
+              similarity: study.similarity,
+              traitName: savedResult.traitName,
+              studyTitle: savedResult.studyTitle,
+              mappedGene: savedResult.mappedGene,
+              matchedSnp: savedResult.matchedSnp,
+              userGenotype: savedResult.userGenotype,
+              riskAllele: savedResult.riskAllele,
+              riskScore: savedResult.riskScore,
+              riskLevel: savedResult.riskLevel,
+              effectType: savedResult.effectType
+            };
+          }
+          return null;
+        })
+        .filter((study): study is StudyData => study !== null);
+
+      console.log(`Matched ${enrichedStudies.length} risk-related studies from your ${savedResults.length} total results`);
 
       setStudies(enrichedStudies);
       setStudyCount(enrichedStudies.length);
@@ -503,13 +507,17 @@ Respond ONLY with JSON:
                     <div className="studies-list">
                       {studies.slice(0, 50).map((study, idx) => (
                         <div key={idx} className="study-item">
-                          <div className="study-trait">{study.traitName}</div>
+                          <div className="study-header">
+                            <div className="study-trait">{study.traitName}</div>
+                            <span className="study-gwas-id">{study.study_accession}</span>
+                          </div>
                           {study.studyTitle && (
                             <div className="study-title">{study.studyTitle}</div>
                           )}
                           <div className="study-details">
                             {study.mappedGene && <span className="study-gene">Gene: {study.mappedGene}</span>}
                             <span className="study-snp">SNP: {study.matchedSnp}</span>
+                            {study.riskAllele && <span className="study-risk-allele">Risk allele: {study.riskAllele}</span>}
                             <span className="study-genotype">Your genotype: {study.userGenotype}</span>
                             {study.riskScore !== undefined && study.riskLevel && (
                               <span className="study-risk">Risk: {formatRiskScore(study.riskScore, study.riskLevel, study.effectType as 'OR' | 'beta' | undefined)}</span>

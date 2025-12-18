@@ -6507,14 +6507,35 @@ details[open] .summary-arrow {
 
 .study-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   padding: 0.75rem;
   margin-bottom: 0.5rem;
   background: var(--primary-bg);
   border: 1px solid var(--border-color);
   border-radius: 6px;
+  gap: 0.5rem;
+}
+
+.study-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
+}
+
+.study-gwas-id {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--surface-bg);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.study-risk-allele {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .study-accession {
