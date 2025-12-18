@@ -155,12 +155,27 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
         geneticRiskScore: parseFloat(geneticScore.toFixed(1))
       };
 
+      console.log('Storing user record in nilDB:', record)
+
+      console.log('Using these parameters for storage', {
+            owner: userDid.didString,
+            acl: {
+              grantee: builderDid,
+              read: true,
+              write: false,
+              execute: true,
+            },
+            collection: collectionId,
+            data: [record],
+          },
+          { auth: { delegation: delegationToken } })
+
       // Store data directly from client to nilDB (owned collection)
       await userClient.createData(
         {
           owner: userDid.didString,
           acl: {
-            grantee: builderDid.didString,
+            grantee: builderDid,
             read: true,
             write: false,
             execute: true,
