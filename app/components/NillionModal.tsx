@@ -183,18 +183,95 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
   const calculateDegenScore = async () => {
     setIsCalculating(true);
     setError(null);
-    setCalculationStep('Calculating genetic risk appetite score...');
+    setCalculationStep('Searching results for risk-related traits...');
 
     try {
-      // TEMPORARY: Skip RAG and LLM for testing nilDB delegation
-      const enrichedStudies: StudyData[] = [];
-      setStudies(enrichedStudies);
-      setStudyCount(0);
+      // Step 1: Perform semantic search for "risk appetite" traits
+      const response = await fetch('/api/similar-studies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: 'risk appetite, risk taking behavior, impulsivity, sensation seeking',
+          limit: 500
+        })
+      });
 
-      // TEMPORARY: Use mock score for testing
-      const geneticScore = 7.5;
-      const scoreReasoning = 'This is a test score for nilDB delegation testing.';
-      const advice = 'Test advice for nilDB integration.';
+      if (!response.ok) {
+        throw new Error('Failed to fetch risk appetite studies');
+      }
+
+      const data = await response.json();
+      const studiesData = data.studies || [];
+
+      // Enrich study data with details from savedResults
+      // The API returns {study_accession: string, similarity: number}
+      // We need to find the matching SavedResult and use its full data
+      const enrichedStudies = studiesData.map((study: any) => {
+        // Match using gwasId (GWAS study accession)
+        const savedResult = savedResults.find(r => r.gwasId === study.study_accession);
+        if (savedResult) {
+          // Return the full SavedResult object with similarity added
+          return {
+            ...savedResult,
+            similarity: study.similarity
+          };
+        }
+        // If no match found, return minimal data
+        return {
+          study_accession: study.study_accession,
+          similarity: study.similarity,
+          traitName: study.study_accession,
+          studyTitle: 'Study details not available',
+          matchedSnp: 'N/A',
+          userGenotype: 'N/A',
+          riskLevel: 'neutral' as const
+        };
+      });
+
+      setStudies(enrichedStudies);
+      setStudyCount(enrichedStudies.length);
+
+      setCalculationStep(`Found ${enrichedStudies.length} genetic studies. Analyzing risk profile...`);
+
+      // Small delay to show the step
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Step 2: Use LLM to calculate genetic degen score (purely genetic, no user behavior hints)
+      setCalculationStep('Calculating genetic risk appetite score...');
+
+      const prompt = `Analyze genetic risk profile based on ${enrichedStudies.length} genetic studies related to risk-taking, impulsivity, and sensation seeking.
+
+Provide a genetic risk score from 0.0-10.0 where:
+0.0 = risk-averse, 5.0 = average, 10.0 = high risk propensity
+
+Provide:
+1. A detailed 2-3 sentence explanation of the genetic score
+2. Brief, balanced trading behavior advice (1-2 sentences) considering this genetic profile
+
+Respond ONLY with JSON:
+{"geneticScore": 7.5, "reasoning": "detailed explanation", "tradingAdvice": "brief advice"}`;
+
+      const llmResponse = await callLLM([
+        { role: 'system', content: 'You are a genetics specialist.' },
+        { role: 'user', content: prompt }
+      ], {
+        maxTokens: 500,
+        temperature: 0.7,
+        reasoningEffort: 'low'
+      });
+
+      // Parse LLM response
+      const responseText = llmResponse.content;
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+      if (!jsonMatch) {
+        throw new Error('Failed to parse LLM response');
+      }
+
+      const result = JSON.parse(jsonMatch[0]);
+      const geneticScore = result.geneticScore || result.degenScore;
+      const scoreReasoning = result.reasoning || 'No reasoning provided';
+      const advice = result.tradingAdvice || '';
 
       // Store in nilDB
       await storeInNilDB(geneticScore);
