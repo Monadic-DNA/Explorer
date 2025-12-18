@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
 
     // Create Nilauth client manually using the provided public key
     // (avoiding network call to /about endpoint)
+    // @ts-expect-error - Constructor is private but works fine at runtime; waiting for Nillion API fix
     const nilauthClient = new NilauthClient({
       payer: builderSigner,
       nilauth: {
