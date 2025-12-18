@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { callLLM } from "@/lib/llm-client";
 import { useResults } from "./ResultsContext";
 import { useAuth } from "./AuthProvider";
+import {NILDB_CONFIG} from "@/lib/nildb-config";
 
 type NillionModalProps = {
   isOpen: boolean;
@@ -136,8 +137,8 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
 
       // Create user client with delegation token
       const userClient = await SecretVaultUserClient.from({
-        signer: userSigner,
-        baseUrls: urls,
+        signer: signer,
+        baseUrls: NILDB_CONFIG.nodes,
         blindfold: { operation: "store" },
       });
 
