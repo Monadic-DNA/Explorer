@@ -7,8 +7,9 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
-import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon } from "./Icons";
+import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, NillionIcon } from "./Icons";
 import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
+import NillionModal from "./NillionModal";
 
 export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
@@ -21,6 +22,7 @@ export default function MenuBar() {
   const [showResultsDropdown, setShowResultsDropdown] = useState(false);
   const [showCacheDropdown, setShowCacheDropdown] = useState(false);
   const [showHelpDropdown, setShowHelpDropdown] = useState(false);
+  const [showNillionModal, setShowNillionModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   // Initialize theme from localStorage (lazy initialization to avoid hydration issues)
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -187,6 +189,10 @@ export default function MenuBar() {
           window.dispatchEvent(event);
         }}
       />
+      <NillionModal
+        isOpen={showNillionModal}
+        onClose={() => setShowNillionModal(false)}
+      />
     <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
@@ -280,6 +286,17 @@ export default function MenuBar() {
               <HelpCircleIcon size={32} />
             </span>
             <span className="label">Help</span>
+          </button>
+
+          <button
+            className="menu-icon-button"
+            onClick={() => setShowNillionModal(true)}
+            title="x Nillion: Test your crypto degen score"
+          >
+            <span className="icon">
+              <NillionIcon size={32} />
+            </span>
+            <span className="label">x Nillion</span>
           </button>
 
           {mounted && (
