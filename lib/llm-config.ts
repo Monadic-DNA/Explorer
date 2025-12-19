@@ -16,7 +16,7 @@ export interface LLMConfig {
   huggingfaceApiKey?: string;
 }
 
-const STORAGE_KEY = 'gwasifier_llm_config';
+const STORAGE_KEY = 'monadic_dna_explorer_llm_config';
 
 const DEFAULT_CONFIG: LLMConfig = {
   provider: 'nilai',

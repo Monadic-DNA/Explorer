@@ -2,7 +2,7 @@
 
 ## Overview
 
-GWASifier Premium now uses a **database-free, stablecoin-based payment system**. Users pay with stablecoins (USDC, USDT, or DAI) from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API.
+Monadic DNA Explorer Premium now uses a **database-free, stablecoin-based payment system**. Users pay with stablecoins (USDC, USDT, or DAI) from their connected wallet, and subscription status is verified on-chain using Alchemy's indexer API.
 
 ## How It Works
 

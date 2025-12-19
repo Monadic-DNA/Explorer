@@ -98,7 +98,7 @@ npm run dev
 **Security Note:**
 - Dev mode ONLY activates when `NODE_ENV==='development'` AND `hostname==='localhost'`
 - Password stored in plain text in IndexedDB (local only, never sent to server)
-- Clear dev data: `indexedDB.deleteDatabase('gwasifier_dev_mode')` in browser console
+- Clear dev data: `indexedDB.deleteDatabase('monaidc_dna_explorer_dev_mode')` in browser console
 
 **Enable Full Auto-Load in Brave:**
 1. Open `brave://settings/`
@@ -378,7 +378,7 @@ WHERE accessed_at < NOW() - INTERVAL '90 days'
 
 ## Premium Features & Payments
 
-GWASifier offers premium features including LLM-powered genetic analysis chat, Run All analysis, and comprehensive reports.
+Monadic DNA Explorer offers premium features including LLM-powered genetic analysis chat, Run All analysis, and comprehensive reports.
 
 ### Dual Payment System
 

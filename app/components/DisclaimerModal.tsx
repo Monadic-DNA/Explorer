@@ -31,10 +31,10 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
     // More generous threshold for reaching bottom
     const threshold = 30;
     const isAtBottom = scrollTop + clientHeight >= scrollHeight - threshold;
-    
+
     // Also check if content is shorter than container (no scrolling needed)
     const needsScrolling = scrollHeight > clientHeight;
-    
+
     if (isAtBottom || !needsScrolling) {
       setHasScrolledToBottom(true);
     }
@@ -64,7 +64,7 @@ export default function DisclaimerModal({ isOpen, onClose, type, onAccept }: Dis
       <div className="disclaimer-text" onScroll={handleScroll}>
         <p><strong>This is an entertainment and educational application only.</strong></p>
 
-        <p>GWASifier is designed for entertainment, curiosity, and educational purposes. It is <strong>NOT</strong> a medical device, diagnostic tool, or healthcare application.</p>
+        <p>Monadic DNA Explorer is designed for entertainment, curiosity, and educational purposes. It is <strong>NOT</strong> a medical device, diagnostic tool, or healthcare application.</p>
 
         <h3>Critical Understanding:</h3>
         <ul>
