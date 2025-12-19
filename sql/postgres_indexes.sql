@@ -1,5 +1,5 @@
 -- PostgreSQL Index Optimization for GWAS Catalog
--- These indexes optimize the common query patterns used by GWASifier
+-- These indexes optimize the common query patterns used by Monadic DNA Explorer
 --
 -- Performance note: Run these after loading your data for optimal performance
 -- Consider running VACUUM ANALYZE after creating indexes

@@ -1,4 +1,4 @@
--- GWASifier Database Schema - PostgreSQL
+-- Monadic DNA Explorer Database Schema - PostgreSQL
 -- This is the complete schema including all tables and indexes
 
 -- ========================================

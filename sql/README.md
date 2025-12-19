@@ -1,6 +1,6 @@
-# Database Index Optimization for GWASifier
+# Database Index Optimization for Monadic DNA Explorer
 
-This directory contains SQL files to optimize database performance for the GWAS Catalog data used by GWASifier.
+This directory contains SQL files to optimize database performance for the GWAS Catalog data used by Monadic DNA Explorer.
 
 ## Files
 
@@ -9,7 +9,7 @@ This directory contains SQL files to optimize database performance for the GWAS 
 
 ## Performance Impact
 
-These indexes are designed to optimize the most common query patterns in GWASifier:
+These indexes are designed to optimize the most common query patterns in Monadic DNA Explorer:
 
 1. **Text searches** across studies, traits, authors, and genes
 2. **P-value filtering** for statistical significance

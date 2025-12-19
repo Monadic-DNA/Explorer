@@ -47,7 +47,7 @@ export default function TermsAcceptanceModal({ isOpen, onAccept }: TermsAcceptan
               <p>
                 Please read our full{" "}
                 <a
-                  href="https://github.com/Monadic-DNA/GWASifier/blob/main/terms_and_conditions.md"
+                  href="https://github.com/Monadic-DNA/Explorer/blob/main/terms_and_conditions.md"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="terms-link"
@@ -56,7 +56,7 @@ export default function TermsAcceptanceModal({ isOpen, onAccept }: TermsAcceptan
                 </a>
                 {" "}and{" "}
                 <a
-                  href="https://github.com/Monadic-DNA/GWASifier/blob/main/privacy_policy.md"
+                  href="https://github.com/Monadic-DNA/Explorer/blob/main/privacy_policy.md"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="terms-link"

@@ -190,7 +190,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
     setProcessingSteps([
       { step: 'Searching genetic database for risk-related traits', status: 'active' },
       { step: 'Matching studies with your genetic profile', status: 'pending' },
-      { step: 'Analyzing genetic risk factors with AI', status: 'pending' },
+      { step: 'Analyzing genetic risk factors with nilAI', status: 'pending' },
       { step: 'Storing results securely in nilDB', status: 'pending' },
       { step: 'Generating your degen score', status: 'pending' }
     ]);
@@ -269,15 +269,15 @@ Provide:
 2. Brief, balanced trading behavior advice (1-2 sentences) considering this genetic profile
 
 Respond ONLY with JSON:
-{"geneticScore": 7.5, "reasoning": "detailed explanation", "tradingAdvice": "brief advice"}`;
+{"geneticScore": x, "reasoning": "detailed explanation", "tradingAdvice": "brief advice"}`;
 
       const llmResponse = await callLLM([
         { role: 'system', content: 'You are a genetics specialist.' },
         { role: 'user', content: prompt }
       ], {
-        maxTokens: 500,
+        maxTokens: 10000,
         temperature: 0.7,
-        reasoningEffort: 'low'
+        reasoningEffort: 'high'
       });
 
       // Parse LLM response
@@ -401,7 +401,11 @@ Respond ONLY with JSON:
                     </p>
                     <p>
                       Answer a few questions about your trading behavior, then we'll calculate
-                      your degen score based on your genetic traits related to risk appetite.
+                      your degen score using nilAI based on your genetic traits related to risk appetite.
+                    </p>
+                    <p>
+                      Your responses will be stored securely in nilDB and we'll publish an analysis
+                      of the delta between self-reported and genetically-derived degen scores.
                     </p>
                   </div>
 

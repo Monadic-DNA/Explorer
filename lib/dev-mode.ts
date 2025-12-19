@@ -12,7 +12,7 @@
  * This should NEVER be enabled in production.
  */
 
-const DB_NAME = 'gwasifier_dev_mode';
+const DB_NAME = 'monadic_dna_explorer_dev_mode';
 const DB_VERSION = 1;
 const STORE_NAME = 'file_handles';
 const GENOTYPE_HANDLE_KEY = 'genotype_file_handle';
