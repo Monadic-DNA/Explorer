@@ -46,9 +46,8 @@ export default function MobileBlocker() {
         {/* Message */}
         <div className="mobile-blocker-message">
           <p>
-            <strong>Explorer</strong> provides a powerful, data-rich interface for exploring genetic studies
-            and analyzing your DNA data. For the best experience with complex visualizations and large datasets,
-            please visit us on a desktop or laptop computer.
+            Have you used a personal genomics service like 23andMe or AncestryDNA? <strong>Explorer</strong> provides a powerful, data-rich interface for exploring
+            your genetic makeup using private on-device analysis and secure AI usage.
           </p>
         </div>
 
@@ -73,8 +72,8 @@ export default function MobileBlocker() {
               <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
               <path d="M12 2V4M12 20V22M4 12H2M22 12H20M6.34 6.34L4.93 4.93M19.07 19.07L17.66 17.66M6.34 17.66L4.93 19.07M19.07 4.93L17.66 6.34" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
-            <h3>Explore 1M+ Studies</h3>
-            <p>Search the entire GWAS Catalog with semantic similarity and advanced filters</p>
+            <h3>Explore 1M+ Traits</h3>
+            <p>Search the scientifically-vetted GWAS Catalog with semantic similarity and advanced filters</p>
           </div>
 
           <div className="mobile-blocker-feature">
@@ -83,7 +82,7 @@ export default function MobileBlocker() {
               <path d="M12 14V21M9 18H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <h3>Analyze Your DNA</h3>
-            <p>Upload 23andMe or AncestryDNA files for personalized genetic insights — processed locally</p>
+            <p>Upload 23andMe or AncestryDNA files for personalized genetic insights, processed locally</p>
           </div>
 
           <div className="mobile-blocker-feature">
@@ -92,7 +91,7 @@ export default function MobileBlocker() {
               <circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="12" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/>
             </svg>
             <h3>AI-Powered Chat</h3>
-            <p>Ask an LLM questions about your genetic data with complete privacy and security</p>
+            <p>Ask an LLM questions about your genetic data with complete privacy and security using TEE technology</p>
           </div>
 
           <div className="mobile-blocker-feature">
@@ -100,7 +99,7 @@ export default function MobileBlocker() {
               <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <h3>Run All Analysis</h3>
-            <p>Test your genome against all 1M+ traits in the catalog instantly — offline-capable</p>
+            <p>Test your genome against all 1M+ traits in the catalog instantly, with offline capability.</p>
           </div>
 
           <div className="mobile-blocker-feature">
@@ -109,7 +108,7 @@ export default function MobileBlocker() {
               <path d="M14 2V8H20M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <h3>Overview Report</h3>
-            <p>Generate comprehensive AI-powered reports analyzing patterns across all your genetic traits</p>
+            <p>Generate comprehensive LLM-powered reports analyzing patterns across all your genetic traits</p>
           </div>
 
           <div className="mobile-blocker-feature">
