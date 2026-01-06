@@ -16,6 +16,7 @@ import LLMChatInline from "./components/LLMChatInline";
 import OverviewReportModal from "./components/OverviewReportModal";
 import { PremiumPaywall } from "./components/PremiumPaywall";
 import GuidedTour from "./components/GuidedTour";
+import MobileBlocker from "./components/MobileBlocker";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -1414,5 +1415,10 @@ function MainContent() {
 }
 
 export default function HomePage() {
-  return <MainContent />;
+  return (
+    <>
+      <MobileBlocker />
+      <MainContent />
+    </>
+  );
 }
