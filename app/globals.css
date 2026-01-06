@@ -6714,3 +6714,274 @@ details[open] .summary-arrow {
     align-self: flex-end;
   }
 }
+
+/* ==========================================
+   MOBILE BLOCKER STYLES
+   ========================================== */
+
+.mobile-blocker {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: var(--primary-bg);
+  background-image:
+    linear-gradient(135deg, var(--gradient-from) 0%, transparent 25%),
+    linear-gradient(225deg, var(--gradient-to) 0%, transparent 25%);
+  background-size: 100% 100%;
+  background-attachment: fixed;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .mobile-blocker {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 2rem 1.5rem;
+    min-height: 100vh;
+  }
+}
+
+.mobile-blocker-content {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  animation: mobileBlockerFadeIn 0.6s ease-out;
+}
+
+@keyframes mobileBlockerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-blocker-header {
+  margin-bottom: 1.5rem;
+}
+
+.mobile-blocker-logo {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.mobile-blocker-logo img {
+  background: transparent;
+  mix-blend-mode: darken;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.1));
+}
+
+:root[data-theme="dark"] .mobile-blocker-logo img {
+  mix-blend-mode: lighten;
+  opacity: 0.95;
+  filter: drop-shadow(0 4px 16px rgba(255, 255, 255, 0.15));
+}
+
+.mobile-blocker-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.mobile-blocker-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Security Badge */
+.mobile-blocker-security {
+  margin-bottom: 1.5rem;
+}
+
+.security-badge {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+  border: 2px solid var(--accent-green);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  backdrop-filter: blur(20px);
+}
+
+.security-icon {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  color: var(--accent-green);
+}
+
+.security-text {
+  flex: 1;
+}
+
+.security-text strong {
+  display: block;
+  color: var(--accent-green);
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.security-text p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mobile-blocker-message {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  backdrop-filter: blur(20px);
+}
+
+.mobile-blocker-message p {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.mobile-blocker-features {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.mobile-blocker-feature {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+  backdrop-filter: blur(20px);
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.mobile-blocker-feature:active {
+  transform: scale(0.98);
+  background: var(--secondary-bg);
+}
+
+.feature-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--accent-blue);
+  opacity: 0.9;
+}
+
+.mobile-blocker-feature h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.mobile-blocker-feature p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.mobile-blocker-cta {
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.mobile-blocker-button {
+  display: block;
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.mobile-blocker-button.primary {
+  background: var(--accent-blue);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.mobile-blocker-button.primary:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.mobile-blocker-button.secondary {
+  background: var(--surface-bg);
+  color: var(--text-primary);
+  border: 2px solid var(--border-color);
+  backdrop-filter: blur(20px);
+}
+
+.mobile-blocker-button.secondary:active {
+  transform: scale(0.96);
+  background: var(--secondary-bg);
+}
+
+.mobile-blocker-link {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.75rem;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-blocker-link:active {
+  opacity: 0.7;
+}
+
+.mobile-blocker-footer {
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.mobile-blocker-footer p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Hide main app content on mobile when blocker is active */
+@media (max-width: 767px) {
+  .mobile-blocker ~ .app-container {
+    display: none;
+  }
+}
