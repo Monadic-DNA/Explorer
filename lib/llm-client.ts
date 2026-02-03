@@ -8,6 +8,9 @@
 import { NilaiOpenAIClient, AuthType, NilAuthInstance } from '@nillion/nilai-ts';
 import { getLLMConfig, getModelIdentifier, getAPIEndpoint } from './llm-config';
 
+// Import the centralized nilAI endpoint
+const NILAI_API_ENDPOINT = getAPIEndpoint({ provider: 'nilai', model: 'gpt-oss-20b' });
+
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -170,7 +173,7 @@ async function callNilAI(
 ): Promise<LLMResponse> {
   // Initialize client
   const client = new NilaiOpenAIClient({
-    baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
+    baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
     nilauthInstance: NilAuthInstance.PRODUCTION,
   });
@@ -380,7 +383,7 @@ async function* streamNilAI(
   modelId: string
 ): AsyncGenerator<string, void, unknown> {
   const client = new NilaiOpenAIClient({
-    baseURL: 'https://nilai-f910.nillion.network/nuc/v1/',
+    baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
     nilauthInstance: NilAuthInstance.PRODUCTION,
   });
