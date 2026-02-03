@@ -23,7 +23,7 @@ Monadic DNA Explorer Premium now uses a **database-free, stablecoin-based paymen
        │
        ▼
 ┌─────────────┐
-│ Blockchain  │ Ethereum, Base, Arbitrum, Optimism, Polygon
+│ Blockchain  │ Ethereum mainnet
 │ Transaction │ Stablecoin transfer
 └──────┬──────┘
        │
@@ -73,17 +73,13 @@ NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID=your_dynamic_environment_id
 
 ### 2. Supported Chains
 
-The system supports 5 EVM chains (production):
-- **Ethereum**
-- **Base**
-- **Arbitrum**
-- **Optimism**
-- **Polygon**
+The system supports **Ethereum mainnet** only (no L2 networks):
+- **Ethereum** (L1)
 
 The system also supports **Sepolia testnet** when explicitly enabled:
 - **Sepolia** (Ethereum testnet) - Enable by setting `NEXT_PUBLIC_ENABLE_TESTNET_CHAINS=true` in `.env.local`
 
-**USDC**, **USDT**, and **DAI** are accepted on all chains.
+**USDC**, **USDT**, and **DAI** are accepted on Ethereum mainnet.
 
 ### 3. Pricing Model
 
@@ -270,7 +266,6 @@ If you were using the old Paddle + Database system:
 Potential improvements:
 - [ ] Add email notifications when subscription expires
 - [ ] Add QR code for mobile wallet payments
-- [ ] Support more chains (Polygon, Avalanche, etc.)
 - [ ] Add token price charts in UI
 - [ ] Add refund mechanism (for accidental overpayments)
 
