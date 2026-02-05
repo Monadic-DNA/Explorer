@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
-import { mainnet, base, arbitrum, optimism, polygon, sepolia } from 'viem/chains';
+import { mainnet, sepolia } from 'viem/chains';
 import { verifyPromoCode } from '@/lib/prime-verification';
 import { setPromoAccess } from '@/lib/promo-access';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
@@ -39,10 +39,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   // Block explorer URLs for each chain
   const BLOCK_EXPLORERS: Record<string, string> = {
     'Ethereum': 'https://etherscan.io',
-    'Base': 'https://basescan.org',
-    'Arbitrum One': 'https://arbiscan.io',
-    'OP Mainnet': 'https://optimistic.etherscan.io',
-    'Polygon': 'https://polygonscan.com',
     'Sepolia': 'https://sepolia.etherscan.io',
   };
 
@@ -53,10 +49,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
   const USDC_CONTRACTS: Record<string, string> = {
     'Ethereum': process.env.NEXT_PUBLIC_USDC_CONTRACT_ETHEREUM || '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-    'Base': process.env.NEXT_PUBLIC_USDC_CONTRACT_BASE || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    'Arbitrum One': process.env.NEXT_PUBLIC_USDC_CONTRACT_ARBITRUM || '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-    'OP Mainnet': process.env.NEXT_PUBLIC_USDC_CONTRACT_OPTIMISM || '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
-    'Polygon': process.env.NEXT_PUBLIC_USDC_CONTRACT_POLYGON || '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
     ...(testnetEnabled ? {
       'Sepolia': process.env.NEXT_PUBLIC_USDC_CONTRACT_SEPOLIA || '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
     } : {}),
@@ -64,10 +56,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
   const USDT_CONTRACTS: Record<string, string> = {
     'Ethereum': process.env.NEXT_PUBLIC_USDT_CONTRACT_ETHEREUM || '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-    'Base': process.env.NEXT_PUBLIC_USDT_CONTRACT_BASE || '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
-    'Arbitrum One': process.env.NEXT_PUBLIC_USDT_CONTRACT_ARBITRUM || '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
-    'OP Mainnet': process.env.NEXT_PUBLIC_USDT_CONTRACT_OPTIMISM || '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
-    'Polygon': process.env.NEXT_PUBLIC_USDT_CONTRACT_POLYGON || '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
     ...(testnetEnabled ? {
       'Sepolia': process.env.NEXT_PUBLIC_USDT_CONTRACT_SEPOLIA || '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0',
     } : {}),
@@ -75,10 +63,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
 
   const DAI_CONTRACTS: Record<string, string> = {
     'Ethereum': process.env.NEXT_PUBLIC_DAI_CONTRACT_ETHEREUM || '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-    'Base': process.env.NEXT_PUBLIC_DAI_CONTRACT_BASE || '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
-    'Arbitrum One': process.env.NEXT_PUBLIC_DAI_CONTRACT_ARBITRUM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
-    'OP Mainnet': process.env.NEXT_PUBLIC_DAI_CONTRACT_OPTIMISM || '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
-    'Polygon': process.env.NEXT_PUBLIC_DAI_CONTRACT_POLYGON || '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
     ...(testnetEnabled ? {
       'Sepolia': process.env.NEXT_PUBLIC_DAI_CONTRACT_SEPOLIA || '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357',
     } : {}),
@@ -87,10 +71,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   // Map chain names to viem chain objects
   const CHAIN_MAP: Record<string, any> = {
     'Ethereum': mainnet,
-    'Base': base,
-    'Arbitrum One': arbitrum,
-    'OP Mainnet': optimism,
-    'Polygon': polygon,
     ...(testnetEnabled ? {
       'Sepolia': sepolia,
     } : {}),

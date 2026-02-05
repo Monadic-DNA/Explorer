@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DelegationTokenServer, NilAuthInstance } from '@nillion/nilai-ts';
+import { DelegationTokenServer } from '@nillion/nilai-ts';
 import { validateOrigin } from '@/lib/origin-validator';
 
 // Simple in-memory rate limiter
@@ -97,7 +97,6 @@ export async function POST(request: NextRequest) {
 
     // Create delegation token server
     const server = new DelegationTokenServer(apiKey, {
-      nilauthInstance: NilAuthInstance.PRODUCTION,
       expirationTime: 600, // 10 minutes validity
       tokenMaxUses: 1 // Single use for privacy (fresh token fetched per message)
     });

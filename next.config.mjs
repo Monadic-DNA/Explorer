@@ -42,7 +42,17 @@ const nextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       '@react-native-async-storage/async-storage': false,
+      // Fix libsodium-wrappers-sumo ESM issue - use CommonJS build
+      'libsodium-wrappers-sumo': path.resolve(__dirname, 'node_modules/libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js'),
     };
+
+    // Stub out pino-pretty for client-side to prevent Node.js dependencies
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'pino-pretty': false,
+      };
+    }
 
     // Fix sql.js Node.js polyfills for browser-only usage
     if (!isServer) {
@@ -51,6 +61,12 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
+        worker_threads: false,
+        stream: false,
+        os: false,
+        util: false,
+        assert: false,
+        'pino-pretty': false,
       };
     }
 
