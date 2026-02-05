@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         date,
         journal
       FROM gwas_catalog
-      WHERE id = ?
+      WHERE id = $1
     `;
 
     const metadata = await executeQuerySingle<{
