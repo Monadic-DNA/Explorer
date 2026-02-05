@@ -5,7 +5,7 @@
  * All data is sent directly from client to LLM service - never through our server.
  */
 
-import { NilaiOpenAIClient, AuthType, NilAuthInstance } from '@nillion/nilai-ts';
+import { NilaiOpenAIClient, AuthType } from '@nillion/nilai-ts';
 import { getLLMConfig, getModelIdentifier, getAPIEndpoint } from './llm-config';
 
 // Import the centralized nilAI endpoint
@@ -175,7 +175,6 @@ async function callNilAI(
   const client = new NilaiOpenAIClient({
     baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
-    nilauthInstance: NilAuthInstance.PRODUCTION,
   });
 
   // Get delegation token from server
@@ -385,7 +384,6 @@ async function* streamNilAI(
   const client = new NilaiOpenAIClient({
     baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
-    nilauthInstance: NilAuthInstance.PRODUCTION,
   });
 
   // Get delegation token
