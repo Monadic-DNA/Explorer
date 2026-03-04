@@ -112,6 +112,10 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
 
       setCalculationStep('Storing results in nilDB...');
 
+      // nilDB functionality temporarily disabled - packages under migration
+      throw new Error('nilDB storage is temporarily unavailable during package migration');
+
+      /* DISABLED - nilDB code under migration
       // Import nilDB client libraries dynamically (client-side only)
       const { Signer } = await import('@nillion/nuc');
       const { SecretVaultUserClient } = await import('@nillion/secretvaults');
@@ -174,6 +178,7 @@ export default function NillionModal({ isOpen, onClose }: NillionModalProps) {
       );
 
       console.log('Successfully stored in nilDB:', record._id);
+      */
 
     } catch (error) {
       // Throw error to make nilDB failures visible
