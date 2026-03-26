@@ -334,6 +334,14 @@ export function HelpDropdown({
             </button>
           )}
           <a
+            href="mailto:support@monadicdna.com"
+            className="control-button"
+            onClick={onClose}
+            title="Contact support via email"
+          >
+            <MessageIcon size={14} /> Email Support
+          </a>
+          <a
             href="https://recherche.discourse.group/c/public/monadic-dna/30"
             target="_blank"
             rel="noopener noreferrer"
