@@ -7,15 +7,23 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   compress: true, // Enable gzip compression for API responses
-  eslint: {
-    ignoreDuringBuilds: false, // Keep linting during builds but don't fail on warnings
-  },
   typescript: {
     ignoreBuildErrors: false, // Keep type checking
   },
+  // Migrated from experimental in Next.js 16
+  serverExternalPackages: ['onnxruntime-node', 'sharp', 'alchemy-sdk', '@ethersproject/web', '@ethersproject/providers'],
   experimental: {
     optimizePackageImports: ["react", "react-dom", "viem", "react-markdown"],
-    serverComponentsExternalPackages: ['onnxruntime-node', 'sharp', 'alchemy-sdk', '@ethersproject/web', '@ethersproject/providers']
+  },
+  // Turbopack config for Next.js 16
+  turbopack: {
+    resolveAlias: {
+      // Polyfill Node.js modules for browser
+      'fs': { browser: './lib/empty-module.js' },
+      'path': { browser: 'path-browserify' },
+      'crypto': { browser: 'crypto-browserify' },
+      '@react-native-async-storage/async-storage': { browser: './lib/empty-module.js' },
+    },
   },
   async rewrites() {
     return [

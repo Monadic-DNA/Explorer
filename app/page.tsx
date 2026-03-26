@@ -17,6 +17,7 @@ import OverviewReportModal from "./components/OverviewReportModal";
 import { PremiumPaywall } from "./components/PremiumPaywall";
 import GuidedTour from "./components/GuidedTour";
 import MobileBlocker from "./components/MobileBlocker";
+import OnboardingFlow from "./components/OnboardingFlow";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -224,6 +225,9 @@ function MainContent() {
   // Guided tour state (declare early since it's used in useEffect below)
   const [showGuidedTour, setShowGuidedTour] = useState(false);
 
+  // Onboarding flow state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // Load saved tab from localStorage after mount (dev mode only)
   useEffect(() => {
     if (isDevModeEnabled()) {
@@ -302,12 +306,19 @@ function MainContent() {
   });
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  // Check if user has accepted terms and show tour on mount
+  // Check if user needs onboarding, then show terms/tour on mount
   useEffect(() => {
+    const onboardingCompleted = localStorage.getItem('onboarding_completed');
     const termsAccepted = localStorage.getItem('terms_accepted');
     const tourDismissed = localStorage.getItem('tour_dismissed');
 
-    // Show tour first if not dismissed
+    // Show onboarding first if not completed
+    if (!onboardingCompleted) {
+      setTimeout(() => setShowOnboarding(true), 500);
+      return;
+    }
+
+    // After onboarding, show tour first if not dismissed
     if (!tourDismissed) {
       // Show tour after a short delay to allow UI to settle
       setTimeout(() => setShowGuidedTour(true), 500);
@@ -545,6 +556,29 @@ function MainContent() {
 
     // Show disclaimer first
     setShowRunAllDisclaimer(true);
+  };
+
+  const handleOnboardingComplete = (userPath: "explore" | "own_dna" | null, showPremium: boolean) => {
+    setShowOnboarding(false);
+
+    // If user wants premium, trigger the payment modal with discount code
+    if (showPremium) {
+      // Dispatch custom event with promo code for welcome discount
+      setTimeout(() => {
+        const event = new CustomEvent('openPaymentModal', {
+          detail: { promoCode: 'FIRSTMONTH' }
+        });
+        window.dispatchEvent(event);
+      }, 300);
+    }
+
+    // Show disclaimer after a short delay
+    setTimeout(() => {
+      const tourDismissed = localStorage.getItem('tour_dismissed');
+      if (!tourDismissed) {
+        setShowGuidedTour(true);
+      }
+    }, showPremium ? 0 : 500); // No extra delay if showing premium modal
   };
 
   const handleRunAllDisclaimerAccept = async () => {
@@ -1389,6 +1423,10 @@ function MainContent() {
       <OverviewReportModal
         isOpen={showOverviewReportModal}
         onClose={() => setShowOverviewReportModal(false)}
+      />
+      <OnboardingFlow
+        isOpen={showOnboarding}
+        onComplete={handleOnboardingComplete}
       />
       <GuidedTour
         isOpen={showGuidedTour}

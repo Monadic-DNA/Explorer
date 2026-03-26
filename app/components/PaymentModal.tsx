@@ -13,13 +13,14 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  initialPromoCode?: string;
 }
 
 type Currency = 'USDC' | 'USDT' | 'DAI';
 type PaymentType = 'stablecoin' | 'card' | 'promo';
 type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing' | 'confirming' | 'card-payment' | 'card-success';
 
-export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoCode }: PaymentModalProps) {
   const { primaryWallet } = useDynamicContext();
   const [step, setStep] = useState<Step>('choice');
   const [paymentType, setPaymentType] = useState<PaymentType>('stablecoin');
@@ -32,6 +33,15 @@ export default function PaymentModal({ isOpen, onClose, onSuccess }: PaymentModa
   const [transactionHash, setTransactionHash] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
   const [successfulChecks, setSuccessfulChecks] = useState(0);
+
+  // If initialPromoCode is provided, auto-fill and navigate to promo step
+  useEffect(() => {
+    if (initialPromoCode && isOpen) {
+      setPromoCode(initialPromoCode);
+      setPaymentType('promo');
+      setStep('promo');
+    }
+  }, [initialPromoCode, isOpen]);
 
   const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '';
   const testnetEnabled = process.env.NEXT_PUBLIC_ENABLE_TESTNET_CHAINS === 'true';

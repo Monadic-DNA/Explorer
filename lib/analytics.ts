@@ -42,6 +42,31 @@ export function trackTermsAccepted() {
 }
 
 /**
+ * User completed onboarding flow
+ */
+export function trackOnboardingCompleted(userPath: 'explore' | 'own_dna' | 'own_dna_no_test' | 'own_dna_needs_help' | 'own_dna_premium' | 'own_dna_free') {
+  trackEvent('onboarding_completed', {
+    user_path: userPath,
+  });
+}
+
+/**
+ * User started onboarding flow
+ */
+export function trackOnboardingStarted() {
+  trackEvent('onboarding_started');
+}
+
+/**
+ * User progressed to a specific onboarding step
+ */
+export function trackOnboardingStepViewed(step: string) {
+  trackEvent('onboarding_step_viewed', {
+    step: step,
+  });
+}
+
+/**
  * User ran a search query to find studies
  */
 export function trackQueryRun(resultCount: number) {
