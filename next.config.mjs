@@ -22,7 +22,12 @@ const nextConfig = {
       'fs': { browser: './lib/empty-module.js' },
       'path': { browser: 'path-browserify' },
       'crypto': { browser: 'crypto-browserify' },
+      'worker_threads': { browser: './lib/empty-module.js' },
+      'stream': { browser: './lib/empty-module.js' },
+      'pino-pretty': { browser: './lib/empty-module.js' },
       '@react-native-async-storage/async-storage': { browser: './lib/empty-module.js' },
+      // Fix libsodium-wrappers-sumo ESM issue - use CommonJS build
+      'libsodium-wrappers-sumo': { browser: './node_modules/libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js' },
     },
   },
   async rewrites() {
