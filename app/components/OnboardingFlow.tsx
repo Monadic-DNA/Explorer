@@ -314,23 +314,23 @@ export default function OnboardingFlow({ isOpen, onComplete }: OnboardingFlowPro
       <div className="onboarding-header">
         <h2>🎉 Special Welcome Offer</h2>
         <p className="onboarding-subtitle">
-          Get Premium features with your first month free!
+          Get Premium features with your first week free!
         </p>
       </div>
 
       <div className="onboarding-body">
         <div className="premium-offer-box">
           <div className="premium-badge">WELCOME DISCOUNT</div>
-          <h3>🎁 Get Your First Month Free</h3>
+          <h3>🎁 Get Your First Week Free</h3>
 
           <div className="coupon-code-section">
             <p className="coupon-label">Your coupon code:</p>
             <div className="coupon-code-box">
-              <code className="coupon-code">FREEMONTH</code>
+              <code className="coupon-code">FREEWEEK</code>
               <button
                 className="copy-button"
                 onClick={() => {
-                  navigator.clipboard.writeText('FREEMONTH');
+                  navigator.clipboard.writeText('FREEWEEK');
                 }}
                 title="Copy to clipboard"
               >
