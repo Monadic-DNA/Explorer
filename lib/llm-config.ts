@@ -103,12 +103,17 @@ export function getModelIdentifier(config: LLMConfig): string {
 }
 
 /**
+ * nilAI API endpoint
+ */
+const NILAI_API_ENDPOINT = 'https://api.nilai.nillion.network/nuc/v1/';
+
+/**
  * Get the API endpoint for the current provider
  */
 export function getAPIEndpoint(config: LLMConfig): string {
   switch (config.provider) {
     case 'nilai':
-      return 'https://nilai-f910.nillion.network/nuc/v1/';
+      return NILAI_API_ENDPOINT;
     case 'ollama':
       const address = config.ollamaAddress || 'localhost';
       const port = config.ollamaPort || 11434;

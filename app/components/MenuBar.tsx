@@ -288,17 +288,6 @@ export default function MenuBar() {
             <span className="label">Help</span>
           </button>
 
-          <button
-            className="menu-icon-button"
-            onClick={() => setShowNillionModal(true)}
-            title="x Nillion: Test your crypto degen score"
-          >
-            <span className="icon">
-              <NillionIcon size={32} />
-            </span>
-            <span className="label">x Nillion</span>
-          </button>
-
           {mounted && (
             <button
               className="menu-icon-button"
