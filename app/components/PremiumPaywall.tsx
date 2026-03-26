@@ -33,15 +33,24 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     }
   }, []);
 
-  // Listen for payment modal trigger
+  // Listen for payment modal trigger (with optional promo code)
+  const [initialPromoCode, setInitialPromoCode] = useState<string | undefined>(undefined);
+
   useEffect(() => {
-    const handleOpenPaymentModal = () => {
+    const handleOpenPaymentModal = (event: Event) => {
+      const customEvent = event as CustomEvent<{ promoCode?: string }>;
+      const promoCodeFromEvent = customEvent.detail?.promoCode;
+
+      if (promoCodeFromEvent) {
+        setInitialPromoCode(promoCodeFromEvent);
+      }
+
       setShowPaymentModal(true);
       // Track when user views premium section
       trackPremiumSectionViewed();
     };
-    window.addEventListener('openPaymentModal', handleOpenPaymentModal);
-    return () => window.removeEventListener('openPaymentModal', handleOpenPaymentModal);
+    window.addEventListener('openPaymentModal', handleOpenPaymentModal as EventListener);
+    return () => window.removeEventListener('openPaymentModal', handleOpenPaymentModal as EventListener);
   }, []);
 
   const handleRemovePromoCode = () => {
@@ -68,8 +77,12 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     <>
       <PaymentModal
         isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setInitialPromoCode(undefined); // Clear initial promo code on close
+        }}
         onSuccess={handleModalSuccess}
+        initialPromoCode={initialPromoCode}
       />
       {children}
     </>

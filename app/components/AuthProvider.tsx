@@ -22,7 +22,7 @@ interface AuthContextType {
   hasActiveSubscription: boolean;
   checkingSubscription: boolean;
   subscriptionData: SubscriptionData | null;
-  refreshSubscription: () => Promise<void>;
+  refreshSubscription: (skipRetries?: boolean) => Promise<void>;
   initializeDynamic: () => void;
   isDynamicInitialized: boolean;
   openAuthModal: () => void;
@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const refreshSubscription = async () => {
+  const refreshSubscription = async (skipRetries = false) => {
     const walletAddress = user?.verifiedCredentials?.[0]?.address;
     if (walletAddress) {
       // Clear any cached subscription data first
@@ -159,8 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check immediately
       const isActive = await checkSubscription(walletAddress);
 
-      // If still not active, retry up to 3 times with increasing delays
-      if (!isActive) {
+      // Only retry if not skipping retries (used for payment success page, not manual refresh)
+      if (!isActive && !skipRetries) {
         console.log('[AuthProvider] Subscription not active yet, will retry...');
 
         const retryDelays = [1000, 2000, 3000]; // 1s, 2s, 3s
@@ -173,6 +173,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             break;
           }
         }
+      } else if (skipRetries) {
+        console.log('[AuthProvider] Retries skipped (manual refresh)');
       }
     }
   };
