@@ -1247,7 +1247,7 @@ function MainContent() {
                         onClick={async () => {
                           setShowSubscriptionMenu(false);
                           try {
-                            await refreshSubscription();
+                            await refreshSubscription(true); // Skip retries for manual refresh
                             alert('✓ Subscription status refreshed!');
                           } catch (error) {
                             console.error('Failed to refresh subscription:', error);

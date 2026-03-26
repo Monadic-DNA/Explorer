@@ -10,13 +10,22 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false, // Keep type checking
   },
-  // Migrated from experimental in Next.js 16
-  serverExternalPackages: ['onnxruntime-node', 'sharp', 'alchemy-sdk', '@ethersproject/web', '@ethersproject/providers'],
+  // Turbopack disabled - doesn't support complex polyfills needed for Nillion packages
+  // Issue: Can't properly alias libsodium-wrappers-sumo relative imports
+  // Will re-enable when Turbopack adds better resolve.fallback support
+  // Mark server-only packages as external (prevents bundling for browser)
+  // Nillion packages removed - need webpack bundling to apply libsodium alias
+  serverExternalPackages: [
+    'onnxruntime-node',
+    'sharp',
+    'alchemy-sdk',
+    '@ethersproject/web',
+    '@ethersproject/providers',
+  ],
   experimental: {
     optimizePackageImports: ["react", "react-dom", "viem", "react-markdown"],
   },
-  // Turbopack config disabled due to limitations with complex polyfills
-  // Using webpack configuration below instead
+  // Transpile Nillion packages - removed because they're in serverExternalPackages
   async rewrites() {
     return [
       {
@@ -37,6 +46,15 @@ const nextConfig = {
       aggregateTimeout: 200,
       poll: 1000, // Enable polling for better compatibility on Linux
     };
+
+    // Handle Nillion dependencies that are not compatible with webpack
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        "libsodium-wrappers-sumo": "commonjs libsodium-wrappers-sumo",
+        "@nillion/blindfold": "commonjs @nillion/blindfold",
+      });
+    }
 
     // Ignore React Native dependencies in MetaMask SDK (for both client and server)
     config.resolve.alias = {

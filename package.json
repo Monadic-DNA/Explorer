@@ -4,8 +4,8 @@
   "description": "Match your DNA data against an open ended catalogue of DNA traits",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint"
   },
