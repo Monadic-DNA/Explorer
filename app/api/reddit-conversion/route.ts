@@ -12,11 +12,11 @@ export async function POST(request: NextRequest) {
     const { eventType, metadata } = await request.json();
 
     // Get Reddit API credentials from environment
-    const pixelId = process.env.REDDIT_PIXEL_ID || 'a2_iom6tk9tutrs';
+    const pixelId = process.env.NEXT_PUBLIC_REDDIT_PIXEL_ID;
     const accessToken = process.env.REDDIT_CONVERSIONS_API_TOKEN;
 
-    if (!accessToken) {
-      console.warn('[Reddit Conversion] No access token configured');
+    if (!pixelId || !accessToken) {
+      console.warn('[Reddit Conversion] Reddit API not configured');
       return NextResponse.json(
         { error: 'Reddit Conversions API not configured' },
         { status: 500 }
