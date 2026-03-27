@@ -26,6 +26,7 @@ import {
   trackSearch,
   trackRunAllStarted,
   trackQueryRun,
+  trackExploreTabViewed,
 } from "@/lib/analytics";
 
 type SortOption = "relevance" | "power" | "recent" | "alphabetical";
@@ -212,6 +213,10 @@ function MainContent() {
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
 
+  // Track if search change is user-initiated (for Reddit analytics)
+  const userInitiatedSearchRef = useRef(false);
+  const previousSearchRef = useRef('');
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -237,6 +242,13 @@ function MainContent() {
       }
     }
   }, []);
+
+  // Track Explore tab view
+  useEffect(() => {
+    if (activeTab === 'explore' && mounted) {
+      trackExploreTabViewed();
+    }
+  }, [activeTab, mounted]);
 
   // Persist active tab in dev-mode
   useEffect(() => {
@@ -340,6 +352,12 @@ function MainContent() {
 
   // Debounce search input to avoid excessive API calls
   useEffect(() => {
+    // Check if this is a user-initiated change
+    if (filters.search !== previousSearchRef.current) {
+      userInitiatedSearchRef.current = true;
+      previousSearchRef.current = filters.search;
+    }
+
     const timer = setTimeout(() => {
       setDebouncedSearch(filters.search);
     }, 400);
@@ -453,9 +471,10 @@ function MainContent() {
         const totalLoadTime = endTime - startTime;
         setLoadTime(totalLoadTime);
 
-        // Track search if there's a search query
-        if (debouncedSearch.trim()) {
+        // Track search if there's a search query and it was user-initiated
+        if (debouncedSearch.trim() && userInitiatedSearchRef.current) {
           trackSearch(debouncedSearch, filteredData.length, totalLoadTime);
+          userInitiatedSearchRef.current = false; // Reset flag after tracking
         }
 
         // Append results if offset > 0 (Load More), otherwise replace

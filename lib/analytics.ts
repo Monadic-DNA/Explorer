@@ -110,12 +110,29 @@ export function trackOnboardingStepViewed(step: string) {
 }
 
 /**
+ * User viewed the Explore tab
+ */
+export function trackExploreTabViewed() {
+  trackEvent('explore_tab_viewed');
+
+  // Track as ViewContent event on Reddit
+  trackRedditEvent('ViewContent');
+  trackRedditConversion('ViewContent');
+}
+
+/**
  * User ran a search query to find studies
  */
-export function trackQueryRun(resultCount: number) {
+export function trackQueryRun(resultCount: number, shouldTrackReddit: boolean = false) {
   trackEvent('query_run', {
     result_count: resultCount,
   });
+
+  // Only track as Search event on Reddit if explicitly requested (user-initiated search)
+  if (shouldTrackReddit) {
+    trackRedditEvent('Search');
+    trackRedditConversion('Search');
+  }
 }
 
 /**
@@ -146,12 +163,12 @@ export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) 
 
   trackEvent('genotype_file_loaded', metadata);
 
-  // Track as SignUp event on Reddit (DNA upload is a key conversion)
+  // Track as Lead event on Reddit (DNA upload is a lead generation action)
   const conversionId = `dna_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  trackRedditEvent('SignUp', {
+  trackRedditEvent('Lead', {
     conversionId,
   });
-  trackRedditConversion('SignUp', {
+  trackRedditConversion('Lead', {
     conversion_id: conversionId,
   });
 }
@@ -186,6 +203,15 @@ export function trackPremiumSectionViewed() {
  */
 export function trackUserLoggedIn() {
   trackEvent('user_logged_in');
+
+  // Track as SignUp event on Reddit
+  const conversionId = `login_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  trackRedditEvent('SignUp', {
+    conversionId,
+  });
+  trackRedditConversion('SignUp', {
+    conversion_id: conversionId,
+  });
 }
 
 /**
@@ -302,7 +328,8 @@ export function trackFileUploadSuccess(fileSize: number, variantCount: number) {
 
 /** @deprecated Use trackQueryRun instead */
 export function trackSearch(query: string, resultCount: number, loadTime: number) {
-  trackQueryRun(resultCount);
+  // Pass true to indicate this is a user-initiated search (should track on Reddit)
+  trackQueryRun(resultCount, true);
 }
 
 /** @deprecated Use trackMatchRevealed instead */
