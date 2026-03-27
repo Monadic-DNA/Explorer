@@ -5,7 +5,7 @@
  * Privacy-compliant with no PII tracking.
  */
 
-// Extend Window interface to include gtag
+// Extend Window interface to include gtag and rdt
 declare global {
   interface Window {
     gtag?: (
@@ -14,6 +14,7 @@ declare global {
       params?: Record<string, any>
     ) => void;
     dataLayer?: any[];
+    rdt?: (command: string, ...args: any[]) => void;
   }
 }
 
@@ -26,6 +27,48 @@ function trackEvent(eventName: string, params?: Record<string, any>) {
       window.gtag('event', eventName, params);
     } catch (error) {
       console.warn('Analytics tracking failed:', error);
+    }
+  }
+}
+
+/**
+ * Safely send an event to Reddit Pixel
+ */
+function trackRedditEvent(eventName: string, metadata?: Record<string, any>) {
+  if (typeof window !== 'undefined' && window.rdt) {
+    try {
+      if (metadata) {
+        window.rdt('track', eventName, metadata);
+      } else {
+        window.rdt('track', eventName);
+      }
+    } catch (error) {
+      console.warn('Reddit Pixel tracking failed:', error);
+    }
+  }
+}
+
+/**
+ * Send event to Reddit Conversions API (server-side)
+ */
+async function trackRedditConversion(
+  eventType: string,
+  metadata?: Record<string, any>
+) {
+  if (typeof window !== 'undefined') {
+    try {
+      await fetch('/api/reddit-conversion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventType,
+          metadata,
+        }),
+      });
+    } catch (error) {
+      console.warn('Reddit Conversions API tracking failed:', error);
     }
   }
 }
@@ -96,9 +139,22 @@ export function trackAIAnalysisRun() {
  * User loaded a genotype file (DNA data)
  */
 export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) {
-  trackEvent('genotype_file_loaded', {
+  const metadata = {
     file_size_kb: Math.round(fileSize / 1024),
     variant_count: variantCount,
+  };
+
+  trackEvent('genotype_file_loaded', metadata);
+
+  // Track as SignUp event on Reddit (DNA upload is a key conversion)
+  const conversionId = `dna_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  trackRedditEvent('SignUp', {
+    conversionId,
+    item_count: 1,
+  });
+  trackRedditConversion('SignUp', {
+    conversion_id: conversionId,
+    item_count: 1,
   });
 }
 
@@ -175,6 +231,23 @@ export function trackSubscribedWithCreditCard(durationDays: number) {
   trackEvent('subscribed_credit_card', {
     duration_days: durationDays,
   });
+
+  // Track as Purchase event on Reddit
+  const conversionId = `sub_cc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const value = (durationDays / 30) * 4.99; // Monthly price is $4.99
+
+  trackRedditEvent('Purchase', {
+    conversionId,
+    currency: 'USD',
+    value: value,
+    item_count: 1,
+  });
+  trackRedditConversion('Purchase', {
+    conversion_id: conversionId,
+    currency: 'USD',
+    value: value,
+    item_count: 1,
+  });
 }
 
 /**
@@ -183,6 +256,23 @@ export function trackSubscribedWithCreditCard(durationDays: number) {
 export function trackSubscribedWithStablecoin(durationDays: number) {
   trackEvent('subscribed_stablecoin', {
     duration_days: durationDays,
+  });
+
+  // Track as Purchase event on Reddit
+  const conversionId = `sub_crypto_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const value = (durationDays / 30) * 4.99; // Monthly price is $4.99
+
+  trackRedditEvent('Purchase', {
+    conversionId,
+    currency: 'USD',
+    value: value,
+    item_count: 1,
+  });
+  trackRedditConversion('Purchase', {
+    conversion_id: conversionId,
+    currency: 'USD',
+    value: value,
+    item_count: 1,
   });
 }
 
