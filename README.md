@@ -149,6 +149,10 @@ npm start
 - `NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS`: EVM wallet address where users send ETH/USDC payments
 - `NEXT_PUBLIC_SUBSCRIPTION_CACHE_HOURS`: Cache duration in hours (default: 1)
 
+**Reddit Ads (Optional):**
+- `NEXT_PUBLIC_REDDIT_PIXEL_ID`: Reddit Pixel ID for tracking conversions (client + server)
+- `REDDIT_CONVERSIONS_API_TOKEN`: Reddit Conversions API access token (server-side only)
+
 See `.env.local.example` for complete configuration details.
 
 ### Database Schema
