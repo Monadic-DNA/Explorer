@@ -30,23 +30,26 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || 'unknown';
 
     // Build conversion event payload
+    // Remove undefined fields as Reddit API may reject them
+    const event: any = {
+      event_at: Date.now(),
+      action_source: 'WEBSITE',
+      type: {
+        tracking_type: eventType, // 'SignUp' or 'Purchase'
+      },
+    };
+
+    // Add optional fields only if they have values
+    const user: any = {};
+    if (ip !== 'unknown') user.ip_address = ip;
+    if (userAgent !== 'unknown') user.user_agent = userAgent;
+    if (Object.keys(user).length > 0) event.user = user;
+
+    if (metadata) event.metadata = metadata;
+
     const payload = {
       data: {
-        events: [
-          {
-            event_at: Date.now(),
-            action_source: 'web',
-            type: {
-              tracking_type: eventType, // 'SignUp' or 'Purchase'
-            },
-            click_id: undefined, // Reddit click ID if available from URL params
-            user: {
-              ip_address: ip !== 'unknown' ? ip : undefined,
-              user_agent: userAgent !== 'unknown' ? userAgent : undefined,
-            },
-            metadata: metadata || undefined,
-          },
-        ],
+        events: [event],
       },
     };
 

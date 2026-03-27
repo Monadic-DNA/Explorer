@@ -150,11 +150,9 @@ export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) 
   const conversionId = `dna_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   trackRedditEvent('SignUp', {
     conversionId,
-    item_count: 1,
   });
   trackRedditConversion('SignUp', {
     conversion_id: conversionId,
-    item_count: 1,
   });
 }
 
