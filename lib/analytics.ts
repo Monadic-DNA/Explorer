@@ -5,7 +5,7 @@
  * Privacy-compliant with no PII tracking.
  */
 
-// Extend Window interface to include gtag and rdt
+// Extend Window interface to include gtag, rdt, and twq
 declare global {
   interface Window {
     gtag?: (
@@ -15,6 +15,7 @@ declare global {
     ) => void;
     dataLayer?: any[];
     rdt?: (command: string, ...args: any[]) => void;
+    twq?: (command: string, ...args: any[]) => void;
   }
 }
 
@@ -73,6 +74,48 @@ async function trackRedditConversion(
   }
 }
 
+/**
+ * Safely send an event to X (Twitter) Pixel
+ */
+function trackXEvent(eventId: string, metadata?: Record<string, any>) {
+  if (typeof window !== 'undefined' && window.twq) {
+    try {
+      if (metadata) {
+        window.twq('track', eventId, metadata);
+      } else {
+        window.twq('track', eventId);
+      }
+    } catch (error) {
+      console.warn('X Pixel tracking failed:', error);
+    }
+  }
+}
+
+/**
+ * Send event to X Conversions API (server-side)
+ */
+async function trackXConversion(
+  eventType: string,
+  metadata?: Record<string, any>
+) {
+  if (typeof window !== 'undefined') {
+    try {
+      await fetch('/api/x-conversion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventType,
+          metadata,
+        }),
+      });
+    } catch (error) {
+      console.warn('X Conversions API tracking failed:', error);
+    }
+  }
+}
+
 // ============================================================================
 // CORE USER JOURNEY EVENTS (12 total)
 // ============================================================================
@@ -118,6 +161,10 @@ export function trackExploreTabViewed() {
   // Track as ViewContent event on Reddit
   trackRedditEvent('ViewContent');
   trackRedditConversion('ViewContent');
+
+  // Track as ViewContent event on X
+  trackXEvent('tw-r9lkr-rbs61');
+  trackXConversion('ViewContent');
 }
 
 /**
@@ -132,6 +179,10 @@ export function trackQueryRun(resultCount: number, shouldTrackReddit: boolean = 
   if (shouldTrackReddit) {
     trackRedditEvent('Search');
     trackRedditConversion('Search');
+
+    // Track as Search event on X
+    trackXEvent('tw-r9lkr-138c4u');
+    trackXConversion('Search');
   }
 }
 
@@ -169,6 +220,14 @@ export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) 
     conversionId,
   });
   trackRedditConversion('Lead', {
+    conversion_id: conversionId,
+  });
+
+  // Track as Lead event on X
+  trackXEvent('tw-r9lkr-138c4w', {
+    conversion_id: conversionId,
+  });
+  trackXConversion('Lead', {
     conversion_id: conversionId,
   });
 }
@@ -210,6 +269,14 @@ export function trackUserLoggedIn() {
     conversionId,
   });
   trackRedditConversion('SignUp', {
+    conversion_id: conversionId,
+  });
+
+  // Track as SignUp event on X
+  trackXEvent('tw-r9lkr-138c4x', {
+    conversion_id: conversionId,
+  });
+  trackXConversion('SignUp', {
     conversion_id: conversionId,
   });
 }
@@ -272,6 +339,18 @@ export function trackSubscribedWithCreditCard(durationDays: number) {
     value: value,
     item_count: 1,
   });
+
+  // Track as Purchase event on X
+  trackXEvent('tw-r9lkr-138c4y', {
+    conversion_id: conversionId,
+    value: value.toFixed(2),
+    currency: 'USD',
+  });
+  trackXConversion('Purchase', {
+    conversion_id: conversionId,
+    value: value,
+    currency: 'USD',
+  });
 }
 
 /**
@@ -297,6 +376,18 @@ export function trackSubscribedWithStablecoin(durationDays: number) {
     currency: 'USD',
     value: value,
     item_count: 1,
+  });
+
+  // Track as Purchase event on X
+  trackXEvent('tw-r9lkr-138c4y', {
+    conversion_id: conversionId,
+    value: value.toFixed(2),
+    currency: 'USD',
+  });
+  trackXConversion('Purchase', {
+    conversion_id: conversionId,
+    value: value,
+    currency: 'USD',
   });
 }
 
