@@ -153,6 +153,11 @@ npm start
 - `NEXT_PUBLIC_REDDIT_PIXEL_ID`: Reddit Pixel ID for tracking conversions (client + server)
 - `REDDIT_CONVERSIONS_API_TOKEN`: Reddit Conversions API access token (server-side only)
 
+**X Ads (Optional):**
+- `NEXT_PUBLIC_X_PIXEL_ID`: X (Twitter) Pixel ID for tracking conversions (client + server)
+- `X_CONVERSIONS_API_TOKEN`: X Conversions API OAuth 2.0 access token (server-side only)
+  - Get from: X Ads Manager → Events Manager → Your Pixel → Settings → Conversions API → Generate Access Token
+
 See `.env.local.example` for complete configuration details.
 
 ### Database Schema
