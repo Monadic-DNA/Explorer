@@ -81,9 +81,9 @@ function trackXEvent(eventId: string, metadata?: Record<string, any>) {
   if (typeof window !== 'undefined' && window.twq) {
     try {
       if (metadata) {
-        window.twq('track', eventId, metadata);
+        window.twq('event', eventId, metadata);
       } else {
-        window.twq('track', eventId);
+        window.twq('event', eventId, {});
       }
     } catch (error) {
       console.warn('X Pixel tracking failed:', error);
@@ -163,7 +163,7 @@ export function trackExploreTabViewed() {
   trackRedditConversion('ViewContent');
 
   // Track as ViewContent event on X
-  trackXEvent('tw-r9lkr-rbs61');
+  trackXEvent('tw-r9lkr-rbtjq'); // Custom event - Explore Tab Viewed
   trackXConversion('ViewContent');
 }
 
@@ -181,7 +181,7 @@ export function trackQueryRun(resultCount: number, shouldTrackReddit: boolean = 
     trackRedditConversion('Search');
 
     // Track as Search event on X
-    trackXEvent('tw-r9lkr-138c4u');
+    trackXEvent('tw-r9lkr-rbtjr'); // Custom event - User Search
     trackXConversion('Search');
   }
 }
@@ -224,7 +224,7 @@ export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) 
   });
 
   // Track as Lead event on X
-  trackXEvent('tw-r9lkr-138c4w', {
+  trackXEvent('tw-r9lkr-rbtjs', { // Custom event - DNA File Upload
     conversion_id: conversionId,
   });
   trackXConversion('Lead', {
@@ -273,7 +273,7 @@ export function trackUserLoggedIn() {
   });
 
   // Track as SignUp event on X
-  trackXEvent('tw-r9lkr-138c4x', {
+  trackXEvent('tw-r9lkr-rbtjt', { // Custom event - User login
     conversion_id: conversionId,
   });
   trackXConversion('SignUp', {
@@ -341,7 +341,7 @@ export function trackSubscribedWithCreditCard(durationDays: number) {
   });
 
   // Track as Purchase event on X
-  trackXEvent('tw-r9lkr-138c4y', {
+  trackXEvent('tw-r9lkr-rbtju', { // Correct Pixel ID
     conversion_id: conversionId,
     value: value.toFixed(2),
     currency: 'USD',
@@ -379,7 +379,7 @@ export function trackSubscribedWithStablecoin(durationDays: number) {
   });
 
   // Track as Purchase event on X
-  trackXEvent('tw-r9lkr-138c4y', {
+  trackXEvent('tw-r9lkr-rbtju', { // Correct Pixel ID
     conversion_id: conversionId,
     value: value.toFixed(2),
     currency: 'USD',
