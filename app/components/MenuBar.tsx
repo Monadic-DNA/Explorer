@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
@@ -12,6 +14,7 @@ import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 import NillionModal from "./NillionModal";
 
 export default function MenuBar() {
+  const pathname = usePathname();
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
   const { status: customizationStatus } = useCustomization();
@@ -196,17 +199,63 @@ export default function MenuBar() {
     <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
-          <a
-            href="https://monadicdna.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="monadic-link"
-          >
-            Monadic DNA
-          </a>{" "}
-          Explorer
+          <Link href="/">
+            <a
+              href="https://monadicdna.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="monadic-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Monadic DNA
+            </a>{" "}
+            Explorer
+          </Link>
         </h1>
         <span className="app-subtitle">Explore thousands of genetic traits from the GWAS Catalog, plug in your own DNA</span>
+
+        {/* Page Navigation */}
+        <nav className="page-nav" style={{ marginTop: "0.5rem", display: "flex", gap: "1rem" }}>
+          <Link
+            href="/"
+            className={pathname === "/" ? "nav-link active" : "nav-link"}
+            style={{
+              padding: "0.5rem 1rem",
+              textDecoration: "none",
+              color: pathname === "/" ? "var(--primary-color, #667eea)" : "inherit",
+              borderBottom: pathname === "/" ? "2px solid var(--primary-color, #667eea)" : "none",
+              fontWeight: pathname === "/" ? "600" : "normal"
+            }}
+          >
+            Home
+          </Link>
+          <Link
+            href="/explore"
+            className={pathname === "/explore" ? "nav-link active" : "nav-link"}
+            style={{
+              padding: "0.5rem 1rem",
+              textDecoration: "none",
+              color: pathname === "/explore" ? "var(--primary-color, #667eea)" : "inherit",
+              borderBottom: pathname === "/explore" ? "2px solid var(--primary-color, #667eea)" : "none",
+              fontWeight: pathname === "/explore" ? "600" : "normal"
+            }}
+          >
+            Explore
+          </Link>
+          <Link
+            href="/premium"
+            className={pathname === "/premium" ? "nav-link active" : "nav-link"}
+            style={{
+              padding: "0.5rem 1rem",
+              textDecoration: "none",
+              color: pathname === "/premium" ? "var(--primary-color, #667eea)" : "inherit",
+              borderBottom: pathname === "/premium" ? "2px solid var(--primary-color, #667eea)" : "none",
+              fontWeight: pathname === "/premium" ? "600" : "normal"
+            }}
+          >
+            Premium
+          </Link>
+        </nav>
       </div>
 
       <div className="menu-right">
