@@ -15,7 +15,6 @@ import TermsAcceptanceModal from "../components/TermsAcceptanceModal";
 import RunAllModal from "../components/RunAllModal";
 import GuidedTour from "../components/GuidedTour";
 import MobileBlocker from "../components/MobileBlocker";
-import OnboardingFlow from "../components/OnboardingFlow";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -207,7 +206,7 @@ function ExplorePage() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
   const resultsContext = useResults();
-  const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
+  const { isAuthenticated, hasActiveSubscription } = useAuth();
 
   // Track client-side mounting to prevent hydration errors
   const [mounted, setMounted] = useState(false);
@@ -222,9 +221,6 @@ function ExplorePage() {
 
   // Guided tour state (declare early since it's used in useEffect below)
   const [showGuidedTour, setShowGuidedTour] = useState(false);
-
-  // Onboarding flow state
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Track Explore page view
   useEffect(() => {
@@ -279,24 +275,14 @@ function ExplorePage() {
   });
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  // Check if user needs onboarding, then show terms/tour on mount
+  // Show product guidance directly in the explorer, not stacked onboarding modals.
   useEffect(() => {
-    const onboardingCompleted = localStorage.getItem('onboarding_completed');
     const termsAccepted = localStorage.getItem('terms_accepted');
     const tourDismissed = localStorage.getItem('tour_dismissed');
 
-    // Show onboarding first if not completed
-    if (!onboardingCompleted) {
-      setTimeout(() => setShowOnboarding(true), 500);
-      return;
-    }
-
-    // After onboarding, show tour first if not dismissed
     if (!tourDismissed) {
-      // Show tour after a short delay to allow UI to settle
       setTimeout(() => setShowGuidedTour(true), 500);
     } else if (!termsAccepted) {
-      // If tour was already dismissed but terms not accepted, show terms modal
       setShowTermsModal(true);
     }
 
@@ -536,29 +522,6 @@ function ExplorePage() {
 
     // Show disclaimer first
     setShowRunAllDisclaimer(true);
-  };
-
-  const handleOnboardingComplete = (userPath: "explore" | "own_dna" | null, showPremium: boolean) => {
-    setShowOnboarding(false);
-
-    // If user wants premium, trigger the payment modal with discount code
-    if (showPremium) {
-      // Dispatch custom event with promo code for welcome discount
-      setTimeout(() => {
-        const event = new CustomEvent('openPaymentModal', {
-          detail: { promoCode: 'FIRSTMONTH' }
-        });
-        window.dispatchEvent(event);
-      }, 300);
-    }
-
-    // Show disclaimer after a short delay
-    setTimeout(() => {
-      const tourDismissed = localStorage.getItem('tour_dismissed');
-      if (!tourDismissed) {
-        setShowGuidedTour(true);
-      }
-    }, showPremium ? 0 : 500); // No extra delay if showing premium modal
   };
 
   const handleRunAllDisclaimerAccept = async () => {
@@ -1130,10 +1093,6 @@ function ExplorePage() {
         isOpen={showRunAllModal}
         onClose={() => setShowRunAllModal(false)}
         status={runAllStatus}
-      />
-      <OnboardingFlow
-        isOpen={showOnboarding}
-        onComplete={handleOnboardingComplete}
       />
       <GuidedTour
         isOpen={showGuidedTour}

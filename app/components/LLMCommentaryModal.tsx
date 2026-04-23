@@ -14,6 +14,7 @@ type LLMCommentaryModalProps = {
   onClose: () => void;
   currentResult: SavedResult;
   allResults: SavedResult[]; // Deprecated - will use SQL query instead
+  skipPersonalizationPrompt?: boolean;
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_consent_accepted";
@@ -32,6 +33,7 @@ export default function LLMCommentaryModal({
   onClose,
   currentResult,
   allResults, // Deprecated parameter
+  skipPersonalizationPrompt = false,
 }: LLMCommentaryModalProps) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
@@ -62,6 +64,13 @@ export default function LLMCommentaryModal({
   useEffect(() => {
     console.log('[LLMCommentaryModal] isOpen changed:', isOpen, 'hasConsent:', hasConsent);
     if (isOpen) {
+      if (skipPersonalizationPrompt) {
+        console.log('[LLMCommentaryModal] Skipping personalization prompt');
+        setShowPersonalizationPrompt(false);
+        setShowConsentModal(true);
+        return;
+      }
+
       // Check if personalization is not set or locked
       if (customizationStatus === 'not-set' || customizationStatus === 'locked') {
         console.log('[LLMCommentaryModal] Showing personalization prompt');
@@ -73,7 +82,7 @@ export default function LLMCommentaryModal({
         setShowConsentModal(true);
       }
     }
-  }, [isOpen, customizationStatus]);
+  }, [isOpen, customizationStatus, skipPersonalizationPrompt]);
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {

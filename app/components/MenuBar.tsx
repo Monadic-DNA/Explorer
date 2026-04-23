@@ -97,6 +97,23 @@ export default function MenuBar() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const handleOpenDNAUpload = () => {
+      setShowMyDataDropdown(true);
+
+      // Wait for the dropdown and uploader to mount, then open the file picker.
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('openDNAUploadPicker'));
+      }, 60);
+    };
+
+    window.addEventListener('openDNAUpload', handleOpenDNAUpload);
+
+    return () => {
+      window.removeEventListener('openDNAUpload', handleOpenDNAUpload);
+    };
+  }, []);
+
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
@@ -199,17 +216,8 @@ export default function MenuBar() {
     <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
-          <Link href="/">
-            <a
-              href="https://monadicdna.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="monadic-link"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Monadic DNA
-            </a>{" "}
-            Explorer
+          <Link href="/" style={{ textDecoration: "none", color: "inherit" }}>
+            Monadic DNA Explorer
           </Link>
         </h1>
         <span className="app-subtitle">Explore thousands of genetic traits from the GWAS Catalog, plug in your own DNA</span>

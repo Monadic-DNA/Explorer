@@ -14,7 +14,7 @@ import {
 
 type GenotypeContextType = {
   genotypeData: Map<string, string> | null;
-  uploadGenotype: (file: File) => Promise<void>;
+  uploadGenotype: (file: File) => Promise<boolean>;
   clearGenotype: () => void;
   isUploaded: boolean;
   isLoading: boolean;
@@ -82,9 +82,11 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       if (onDataLoadedRef.current) {
         onDataLoadedRef.current();
       }
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMessage);
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -130,6 +132,22 @@ export function useGenotype() {
 export default function UserDataUpload() {
   const { uploadGenotype, clearGenotype, isUploaded, isLoading, error } = useGenotype();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const openFilePicker = () => {
+      if (!isLoading) {
+        fileInputRef.current?.click();
+      }
+    };
+
+    window.addEventListener('openDNAUploadPicker', openFilePicker);
+    window.addEventListener('triggerDNAUpload', openFilePicker);
+
+    return () => {
+      window.removeEventListener('openDNAUploadPicker', openFilePicker);
+      window.removeEventListener('triggerDNAUpload', openFilePicker);
+    };
+  }, [isLoading]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
