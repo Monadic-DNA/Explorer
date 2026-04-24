@@ -1,10 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "./components/AuthProvider";
 import { GenotypeProvider } from "./components/UserDataUpload";
 import { ResultsProvider } from "./components/ResultsContext";
 import { CustomizationProvider } from "./components/CustomizationContext";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "Monadic DNA Explorer",
