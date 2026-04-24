@@ -40,6 +40,7 @@ type SampleLoadProgress = {
 interface ConversionOnboardingProps {
   isOpen: boolean;
   onComplete: () => void;
+  onDismiss?: () => void;
   mode?: FlowMode;
 }
 
@@ -207,6 +208,7 @@ function getBackStep(step: OnboardingStep, completionPath: CompletionPath): Onbo
 export default function ConversionOnboarding({
   isOpen,
   onComplete,
+  onDismiss,
   mode = "guided",
 }: ConversionOnboardingProps) {
   const { genotypeData, isUploaded, isLoading, error, originalFileName, uploadGenotype } = useGenotype();
@@ -597,6 +599,11 @@ RESPONSE STRUCTURE:
       <div className="wire-onboarding-overlay">
         <div className="wire-onboarding-shell">
           <div className="wire-onboarding-frame" ref={frameRef}>
+            {onDismiss && (
+              <button className="wire-onboarding-close" onClick={onDismiss} aria-label="Close onboarding">
+                ✕
+              </button>
+            )}
             <div className="wire-onboarding-step">Step {slideNumber} of 6</div>
 
             {currentStep === "intro" && (

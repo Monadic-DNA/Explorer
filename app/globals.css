@@ -8320,12 +8320,32 @@ details[open] .summary-arrow {
 }
 
 .wire-onboarding-frame {
+  position: relative;
   padding: 2rem 2.2rem;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
   max-height: calc(100vh - 2.5rem);
   overflow-y: auto;
+}
+
+.wire-onboarding-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+
+.wire-onboarding-close:hover {
+  color: #666;
 }
 
 .wire-onboarding-step,

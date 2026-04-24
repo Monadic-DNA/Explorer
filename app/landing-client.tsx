@@ -80,6 +80,7 @@ export default function LandingClient() {
           setShowFlow(false);
           router.push("/explore");
         }}
+        onDismiss={() => setShowFlow(false)}
       />
 
       <main className="page landing-page landing-home-page">
