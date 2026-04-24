@@ -6,7 +6,7 @@ import Link from "next/link";
 import MenuBar from "../../components/MenuBar";
 import Footer from "../../components/Footer";
 import VariantChips from "../../components/VariantChips";
-import StudyResultReveal from "../../components/StudyResultReveal";
+import StudyPersonalResultBanner from "../../components/StudyPersonalResultBanner";
 
 type Study = {
   id: number;
@@ -135,6 +135,34 @@ export default function StudyDetailPage() {
     : null;
   const studyLink = gwasLink || study.link || pubmedLink;
 
+  const interpretSampleSize = (n: number | null): string => {
+    if (n === null) return "";
+    if (n >= 100000) return "Very large study";
+    if (n >= 10000) return "Large study";
+    if (n >= 1000) return "Mid-size study";
+    return "Smaller study";
+  };
+
+  const interpretPValue = (logP: number | null): string => {
+    if (logP === null) return "";
+    if (logP >= 10) return "Exceptionally strong evidence";
+    if (logP >= 7.3) return "Very strong evidence";
+    if (logP >= 5) return "Strong evidence";
+    if (logP >= 3) return "Moderate evidence";
+    return "Suggestive evidence";
+  };
+
+  const interpretEffectSize = (orBeta: string | null): string => {
+    if (!orBeta) return "";
+    const val = parseFloat(orBeta);
+    if (isNaN(val)) return "";
+    // OR interpretation
+    if (val >= 2 || val <= 0.5) return "Large effect";
+    if (val >= 1.3 || val <= 0.77) return "Moderate effect";
+    if (val >= 1.1 || val <= 0.91) return "Subtle effect";
+    return "Very subtle effect";
+  };
+
   return (
     <>
       <div className="app-container">
@@ -150,231 +178,139 @@ export default function StudyDetailPage() {
           </div>
 
           {/* Study Header */}
-          <section style={{
-            padding: "2rem",
-            backgroundColor: "var(--bg-secondary, #fafafa)",
-            borderRadius: "8px",
-            marginBottom: "2rem"
-          }}>
-            <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
-              {study.study || "Untitled Study"}
-            </h1>
+          <section className="study-header-card">
+            <h1 className="study-header-title">{study.study || "Untitled Study"}</h1>
 
-            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.5rem 1rem", marginBottom: "1.5rem" }}>
-              <strong>Trait:</strong>
-              <span>{trait}</span>
-
-              {study.first_author && (
-                <>
-                  <strong>Author:</strong>
-                  <span>{study.first_author}</span>
-                </>
-              )}
-
-              {study.date && (
-                <>
-                  <strong>Date:</strong>
-                  <span>{new Date(study.date).toLocaleDateString()}</span>
-                </>
-              )}
-
-              {study.journal && (
-                <>
-                  <strong>Journal:</strong>
-                  <span>{study.journal}</span>
-                </>
-              )}
-
-              {study.study_accession && (
-                <>
-                  <strong>Accession:</strong>
-                  <span>{study.study_accession}</span>
-                </>
-              )}
-
-              {study.mapped_gene && (
-                <>
-                  <strong>Gene:</strong>
-                  <span>{study.mapped_gene}</span>
-                </>
-              )}
+            <div className="study-header-meta">
+              <span className="study-meta-item"><strong>Trait:</strong> {trait}</span>
+              {study.first_author && <span className="study-meta-item"><strong>Author:</strong> {study.first_author}</span>}
+              {study.date && <span className="study-meta-item"><strong>Date:</strong> {new Date(study.date).toLocaleDateString()}</span>}
+              {study.journal && <span className="study-meta-item"><strong>Journal:</strong> {study.journal}</span>}
+              {study.study_accession && <span className="study-meta-item"><strong>Accession:</strong> {study.study_accession}</span>}
+              {study.mapped_gene && <span className="study-meta-item"><strong>Gene:</strong> {study.mapped_gene}</span>}
             </div>
 
-            {/* External Links */}
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <div className="study-header-links">
               {gwasLink && (
-                <a
-                  href={gwasLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    backgroundColor: "#667eea",
-                    color: "white",
-                    textDecoration: "none",
-                    borderRadius: "6px",
-                    fontWeight: "500"
-                  }}
-                >
-                  View in GWAS Catalog →
+                <a href={gwasLink} target="_blank" rel="noopener noreferrer" className="study-ext-link study-ext-link--gwas">
+                  <span className="study-ext-link-title">Source data →</span>
+                  <span className="study-ext-link-desc">Full dataset on GWAS Catalog</span>
                 </a>
               )}
-
               {pubmedLink && (
-                <a
-                  href={pubmedLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    padding: "0.75rem 1.5rem",
-                    backgroundColor: "#34a853",
-                    color: "white",
-                    textDecoration: "none",
-                    borderRadius: "6px",
-                    fontWeight: "500"
-                  }}
-                >
-                  View on PubMed →
+                <a href={pubmedLink} target="_blank" rel="noopener noreferrer" className="study-ext-link study-ext-link--pubmed">
+                  <span className="study-ext-link-title">Research paper →</span>
+                  <span className="study-ext-link-desc">Published article on PubMed</span>
                 </a>
               )}
             </div>
           </section>
 
+          {/* Personal Result Banner */}
+          <StudyPersonalResultBanner
+            studyId={study.id}
+            studyAccession={study.study_accession}
+            snps={study.snps}
+            traitName={trait}
+            studyTitle={study.study || "Untitled study"}
+            riskAllele={study.strongest_snp_risk_allele}
+            orOrBeta={study.or_or_beta}
+            ciText={study.ci_text}
+            isAnalyzable={study.isAnalyzable}
+            nonAnalyzableReason={study.nonAnalyzableReason}
+          />
+
           {/* Study Details */}
-          <section style={{
-            padding: "2rem",
-            backgroundColor: "white",
-            borderRadius: "8px",
-            marginBottom: "2rem",
-            border: "1px solid #e0e0e0"
-          }}>
-            <h2 style={{ marginBottom: "1.5rem" }}>Study Details</h2>
-
-            <div style={{ display: "grid", gap: "2rem" }}>
-              {/* Genetic Variants */}
-              <div>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Genetic Variants</h3>
-                <VariantChips snps={study.snps} riskAllele={study.strongest_snp_risk_allele} />
-              </div>
-
-              {/* Statistical Significance */}
-              <div>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Statistical Significance</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.5rem 1rem" }}>
-                  {study.pValueNumeric !== null && (
-                    <>
-                      <strong>P-value:</strong>
-                      <span>{study.pValueLabel}</span>
-                    </>
-                  )}
-
-                  {study.logPValue !== null && (
-                    <>
-                      <strong>-log₁₀(p):</strong>
-                      <span>{study.logPValue.toFixed(2)}</span>
-                    </>
-                  )}
+          <section className="study-details-card">
+            {/* Stat grid */}
+            <div className="study-stats-grid">
+              {study.date && (
+                <div className="study-stat-tile">
+                  <span className="sst-label">Published</span>
+                  <span className="sst-value">{new Date(study.date).getFullYear()}</span>
+                  <span className="sst-context">{study.journal || "Peer-reviewed"}</span>
                 </div>
-              </div>
-
-              {/* Sample Size */}
-              <div>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Sample Size</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.5rem 1rem" }}>
-                  {study.sampleSize !== null && (
-                    <>
-                      <strong>Total:</strong>
-                      <span>{study.sampleSizeLabel}</span>
-                    </>
-                  )}
-
-                  {study.initial_sample_size && (
-                    <>
-                      <strong>Initial:</strong>
-                      <span>{study.initial_sample_size}</span>
-                    </>
-                  )}
-
-                  {study.replication_sample_size && (
-                    <>
-                      <strong>Replication:</strong>
-                      <span>{study.replication_sample_size}</span>
-                    </>
-                  )}
+              )}
+              {study.sampleSize !== null && (
+                <div className="study-stat-tile">
+                  <span className="sst-label">Participants</span>
+                  <span className="sst-value">{study.sampleSizeLabel}</span>
+                  <span className="sst-context">{interpretSampleSize(study.sampleSize)}</span>
                 </div>
-              </div>
-
-              {/* Effect Size */}
-              <div>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Effect Size</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.5rem 1rem" }}>
-                  {study.or_or_beta && (
-                    <>
-                      <strong>OR/Beta:</strong>
-                      <span>{study.or_or_beta}</span>
-                    </>
-                  )}
-
-                  {study.ci_text && (
-                    <>
-                      <strong>Confidence Interval:</strong>
-                      <span>{study.ci_text}</span>
-                    </>
-                  )}
-
-                  {study.risk_allele_frequency && (
-                    <>
-                      <strong>Risk Allele Frequency:</strong>
-                      <span>{study.risk_allele_frequency}</span>
-                    </>
-                  )}
+              )}
+              {study.pValueNumeric !== null && (
+                <div className="study-stat-tile" title="How statistically significant the finding is">
+                  <span className="sst-label">P-value</span>
+                  <span className="sst-value">{study.pValueLabel}</span>
+                  <span className="sst-context">{interpretPValue(study.logPValue)}</span>
                 </div>
-              </div>
-
-              {/* Quality Assessment */}
-              <div>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Quality Assessment</h3>
-                <div style={{ marginBottom: "1rem" }}>
-                  <span className={`quality-pill ${study.confidenceBand}`}>
-                    {study.confidenceBand === "high" ? "High Confidence" :
-                     study.confidenceBand === "medium" ? "Medium Confidence" :
-                     "Lower Confidence"}
+              )}
+              {study.or_or_beta && (
+                <div className="study-stat-tile" title="How strongly this variant influences the trait">
+                  <span className="sst-label">Effect size</span>
+                  <span className="sst-value">
+                    {study.or_or_beta}
+                    {study.ci_text ? <span className="sst-ci"> {study.ci_text}</span> : null}
                   </span>
+                  <span className="sst-context">{interpretEffectSize(study.or_or_beta)}</span>
                 </div>
-
-                {study.qualityFlags.length > 0 && (
-                  <div style={{ marginTop: "0.5rem" }}>
-                    {study.qualityFlags.map((flag, index) => (
-                      <div key={index} className={`quality-flag quality-flag-${flag.severity}`} style={{
-                        marginTop: "0.25rem",
-                        padding: "0.5rem",
-                        backgroundColor: flag.severity === "major" ? "#fff3cd" : "#d1ecf1",
-                        borderRadius: "4px"
-                      }}>
-                        {flag.message}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Your Personal Result */}
-              <div>
-                <h3 style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>Your Personal Result</h3>
-                <StudyResultReveal
-                  studyId={study.id}
-                  studyAccession={study.study_accession}
-                  snps={study.snps}
-                  traitName={trait}
-                  studyTitle={study.study || "Untitled study"}
-                  riskAllele={study.strongest_snp_risk_allele}
-                  orOrBeta={study.or_or_beta}
-                  ciText={study.ci_text}
-                  isAnalyzable={study.isAnalyzable}
-                  nonAnalyzableReason={study.nonAnalyzableReason}
-                />
+              )}
+              {study.risk_allele_frequency && (
+                <div className="study-stat-tile" title="How common this genetic variant is in the population">
+                  <span className="sst-label">Variant frequency</span>
+                  <span className="sst-value">{study.risk_allele_frequency}</span>
+                  <span className="sst-context">In population</span>
+                </div>
+              )}
+              <div className="study-stat-tile">
+                <span className="sst-label">Confidence</span>
+                <span className="sst-value">
+                  <span className={`quality-pill ${study.confidenceBand}`}>
+                    {study.confidenceBand === "high" ? "High" : study.confidenceBand === "medium" ? "Medium" : "Lower"}
+                  </span>
+                </span>
+                <span className="sst-context">
+                  {study.confidenceBand === "high" ? "Well-replicated" : study.confidenceBand === "medium" ? "Some caveats" : "Interpret carefully"}
+                </span>
               </div>
             </div>
+
+            {/* Genetic variants */}
+            {study.snps && (
+              <div className="study-variants-row">
+                <span className="study-variants-label">Variants tested</span>
+                <VariantChips snps={study.snps} riskAllele={study.strongest_snp_risk_allele} />
+              </div>
+            )}
+
+            {/* Sample breakdown */}
+            {(study.initial_sample_size || study.replication_sample_size) && (
+              <div className="study-sample-detail">
+                {study.initial_sample_size && (
+                  <p className="study-sample-row">
+                    <span className="study-sample-key">Initial sample</span>
+                    <span>{study.initial_sample_size}</span>
+                  </p>
+                )}
+                {study.replication_sample_size && (
+                  <p className="study-sample-row">
+                    <span className="study-sample-key">Replication</span>
+                    <span>{study.replication_sample_size}</span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Quality flags */}
+            {study.qualityFlags.length > 0 && (
+              <div className="study-quality-flags">
+                {study.qualityFlags.map((flag, index) => (
+                  <div key={index} className={`quality-flag quality-flag-${flag.severity}`}>
+                    {flag.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Back Button */}
