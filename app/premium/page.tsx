@@ -13,7 +13,6 @@ import RunAllModal from "../components/RunAllModal";
 import LLMChatInline from "../components/LLMChatInline";
 import OverviewReportModal from "../components/OverviewReportModal";
 import { PremiumPaywall } from "../components/PremiumPaywall";
-import MobileBlocker from "../components/MobileBlocker";
 import { hasValidPromoAccess, clearPromoAccess } from "@/lib/promo-access";
 
 // Note: Can't export metadata from client component
@@ -171,9 +170,7 @@ function PremiumPage() {
   };
 
   return (
-    <>
-      <MobileBlocker />
-      <div className="app-container">
+    <div className="app-container">
         <MenuBar />
         <main className="page">
           {/* Show loading state while Dynamic initializes */}
@@ -431,8 +428,7 @@ function PremiumPage() {
           isOpen={showOverviewReportModal}
           onClose={() => setShowOverviewReportModal(false)}
         />
-      </div>
-    </>
+    </div>
   );
 }
 

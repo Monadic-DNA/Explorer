@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import MenuBar from "../../components/MenuBar";
 import Footer from "../../components/Footer";
-import MobileBlocker from "../../components/MobileBlocker";
 import VariantChips from "../../components/VariantChips";
 import StudyResultReveal from "../../components/StudyResultReveal";
 
@@ -86,7 +85,6 @@ export default function StudyDetailPage() {
   if (loading) {
     return (
       <>
-        <MobileBlocker />
         <div className="app-container">
           <MenuBar />
           <main className="page">
@@ -103,7 +101,6 @@ export default function StudyDetailPage() {
   if (error || !study) {
     return (
       <>
-        <MobileBlocker />
         <div className="app-container">
           <MenuBar />
           <main className="page">
@@ -140,7 +137,6 @@ export default function StudyDetailPage() {
 
   return (
     <>
-      <MobileBlocker />
       <div className="app-container">
         <MenuBar />
         <main className="page">

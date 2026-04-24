@@ -13,7 +13,6 @@ import Footer from "../components/Footer";
 import DisclaimerModal from "../components/DisclaimerModal";
 import TermsAcceptanceModal from "../components/TermsAcceptanceModal";
 import RunAllModal from "../components/RunAllModal";
-import MobileBlocker from "../components/MobileBlocker";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -1159,10 +1158,5 @@ function ExplorePage() {
 }
 
 export default function ExplorePageWrapper() {
-  return (
-    <>
-      <MobileBlocker />
-      <ExplorePage />
-    </>
-  );
+  return <ExplorePage />;
 }

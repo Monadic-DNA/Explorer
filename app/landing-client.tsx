@@ -1,18 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConversionOnboarding from "./components/ConversionOnboarding";
 import { useGenotype } from "./components/UserDataUpload";
-import { useResults } from "./components/ResultsContext";
 
 type FlowMode = "guided" | "instant_preview";
+
+const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
+const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
+
+const introCopy = [
+  {
+    label: "DNA insights",
+    text: "Monadic DNA Explorer lets you unlock the potential of DNA data to inform diet, lifestyle, and health.",
+  },
+  {
+    label: "GWAS Catalog",
+    text: "We use over one million scientifically vetted traits from the GWAS Catalog to help you understand your DNA.",
+  },
+  {
+    label: "Privacy first",
+    text: "Your DNA is the most sensitive data you own, so we ensure your data stays private and secure. We do not store, snoop on, or sell your data.",
+  },
+  {
+    label: "Secure AI",
+    text: "Using local processing in your browser and AI running in Trusted Execution Environments, we maximize your anonymity and privacy.",
+  },
+];
 
 export default function LandingClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { genotypeData, isUploaded, error, originalFileName } = useGenotype();
-  const { savedResults } = useResults();
+  const { isUploaded, error } = useGenotype();
   const [showFlow, setShowFlow] = useState(false);
   const [flowMode, setFlowMode] = useState<FlowMode>("guided");
 
@@ -51,26 +71,6 @@ export default function LandingClient() {
     };
   }, [openOnboarding]);
 
-  const homeStatus = useMemo(() => {
-    return [
-      {
-        label: "DNA Data",
-        value: isUploaded && genotypeData ? `${genotypeData.size.toLocaleString()} variants loaded` : "No DNA file loaded yet",
-        detail: isUploaded ? (originalFileName || "Your current file is ready for analysis.") : "Upload your raw file or use the onboarding sample path.",
-      },
-      {
-        label: "Results Cache",
-        value: savedResults.length ? `${savedResults.length.toLocaleString()} saved results` : "No saved results yet",
-        detail: savedResults.length ? "Jump into Explore to filter, inspect, and export your results." : "Run the onboarding preview or explore the catalog directly.",
-      },
-      {
-        label: "Privacy Model",
-        value: "Local raw DNA, explicit AI consent",
-        detail: "Your raw DNA is parsed in-browser. Secure AI remains optional and consent-gated.",
-      },
-    ];
-  }, [genotypeData, isUploaded, originalFileName, savedResults.length]);
-
   return (
     <>
       <ConversionOnboarding
@@ -83,97 +83,49 @@ export default function LandingClient() {
       />
 
       <main className="page landing-page landing-home-page">
-        <section className="landing-home-hero">
+        <section className="landing-home-intro">
           <div className="landing-home-copy">
-            <span className="landing-badge">private DNA workspace</span>
-            <h1>Explore the GWAS catalog, analyze your DNA locally, and use secure AI only when you want it.</h1>
-            <p>
-              The onboarding flow handles first-time setup. This page should just make the app legible: start the private preview, open the explorer, or load your own data into the workspace.
-            </p>
+            <h1>Understand your DNA without giving it away.</h1>
 
-            <div className="landing-privacy-strip">
-              <span>Anonymous first run</span>
-              <span>Raw DNA stays in-browser</span>
-              <span>Secure AI is explicit and optional</span>
+            <div className="landing-home-explainer" aria-label="Monadic DNA Explorer overview">
+              {introCopy.map((item) => (
+                <p key={item.label}>
+                  <span>{item.label}</span>
+                  {item.text}
+                </p>
+              ))}
             </div>
 
             {error && <p className="landing-upload-error">{error}</p>}
-
-            <div className="landing-cta-row">
-              <button
-                className="landing-primary-button"
-                onClick={() => openOnboarding(isUploaded ? "instant_preview" : "guided")}
-              >
-                {isUploaded ? "Resume Private Preview" : "Start Private Preview"}
-              </button>
-              <button className="landing-secondary-button" onClick={() => router.push("/explore")}>
-                Open Explorer
-              </button>
-              <button
-                className="landing-text-button"
-                onClick={() => window.dispatchEvent(new CustomEvent("openDNAUpload"))}
-              >
-                {isUploaded ? "Replace DNA File" : "Upload DNA File"}
-              </button>
-            </div>
           </div>
 
-          <div className="landing-home-status-grid">
-            {homeStatus.map((item) => (
-              <article key={item.label} className="landing-home-status-card">
-                <span className="landing-home-status-label">{item.label}</span>
-                <strong>{item.value}</strong>
-                <p>{item.detail}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="landing-home-launch-grid">
-          <article className="landing-home-panel landing-home-panel-primary">
-            <span className="landing-action-label">First Run</span>
-            <h2>Use the onboarding preview to get immediate value before committing to the rest of the app.</h2>
-            <p>
-              Upload your raw DNA file or follow the sample-data branch. The flow runs a lightweight local preview, shows curated traits, and then lets you try secure AI questions.
-            </p>
-            <div className="landing-card-actions">
+          <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
+            <h2 id="landing-start-heading">Get Started</h2>
+            <div className="landing-start-actions">
               <button
-                className="landing-primary-button compact"
+                className="landing-secondary-button"
                 onClick={() => openOnboarding(isUploaded ? "instant_preview" : "guided")}
               >
-                Open Onboarding
+                Take an Onboarding Tour
               </button>
-            </div>
-          </article>
-
-          <article className="landing-home-panel">
-            <span className="landing-action-label">Research Mode</span>
-            <h2>Browse and filter the full GWAS catalog without waiting for the onboarding flow.</h2>
-            <p>
-              Explore studies directly, inspect variants, and use the app like a research workspace even if you do not have your own DNA file ready yet.
-            </p>
-            <div className="landing-card-actions">
-              <button className="landing-secondary-button compact" onClick={() => router.push("/explore")}>
-                Browse Catalog
-              </button>
-            </div>
-          </article>
-
-          <article className="landing-home-panel">
-            <span className="landing-action-label">Workspace</span>
-            <h2>Manage your own data locally and pick up where you left off.</h2>
-            <p>
-              Load or replace your DNA file, keep results cached in the browser, and move into deeper exploration or premium chat only when you decide it is worth doing.
-            </p>
-            <div className="landing-card-actions">
-              <button
-                className="landing-secondary-button compact"
-                onClick={() => window.dispatchEvent(new CustomEvent("openDNAUpload"))}
+              <a
+                className="landing-secondary-button"
+                href={INSTRUCTIONAL_VIDEO_URL}
+                target="_blank"
+                rel="noreferrer"
               >
-                {isUploaded ? "Manage My DNA File" : "Load My DNA File"}
-              </button>
+                Watch Instructional Video
+              </a>
+              <a
+                className="landing-secondary-button"
+                href={SCHEDULE_CALL_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Schedule Video Call
+              </a>
             </div>
-          </article>
+          </aside>
         </section>
       </main>
     </>

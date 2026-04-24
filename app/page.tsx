@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import MenuBar from "./components/MenuBar";
 import Footer from "./components/Footer";
-import MobileBlocker from "./components/MobileBlocker";
 import LandingClient from "./landing-client";
 
 export const metadata: Metadata = {
@@ -17,13 +16,10 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <>
-      <MobileBlocker />
-      <div className="app-container">
-        <MenuBar />
-        <LandingClient />
-        <Footer />
-      </div>
-    </>
+    <div className="app-container">
+      <MenuBar />
+      <LandingClient />
+      <Footer />
+    </div>
   );
 }
