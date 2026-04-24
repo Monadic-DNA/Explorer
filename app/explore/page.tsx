@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, startTransition, memo } from "react";
 import Link from "next/link";
 import { useGenotype } from "../components/UserDataUpload";
 import { useResults } from "../components/ResultsContext";
@@ -13,7 +13,6 @@ import Footer from "../components/Footer";
 import DisclaimerModal from "../components/DisclaimerModal";
 import TermsAcceptanceModal from "../components/TermsAcceptanceModal";
 import RunAllModal from "../components/RunAllModal";
-import GuidedTour from "../components/GuidedTour";
 import MobileBlocker from "../components/MobileBlocker";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
@@ -202,6 +201,90 @@ function buildQuery(filters: Filters): string {
   return params.toString();
 }
 
+type DebouncedTextInputProps = {
+  id: string;
+  type?: "text" | "search";
+  placeholder?: string;
+  list?: string;
+  value: string;
+  delay?: number;
+  onDebouncedChange: (value: string) => void;
+};
+
+const DebouncedTextInput = memo(function DebouncedTextInput({
+  id,
+  type = "text",
+  placeholder,
+  list,
+  value,
+  delay = 500,
+  onDebouncedChange,
+}: DebouncedTextInputProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const committedValueRef = useRef(value);
+
+  useEffect(() => {
+    committedValueRef.current = value;
+
+    if (inputRef.current && inputRef.current.value !== value) {
+      inputRef.current.value = value;
+    }
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleCommit = useCallback((nextValue: string) => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      if (nextValue !== committedValueRef.current) {
+        onDebouncedChange(nextValue);
+      }
+    }, delay);
+  }, [delay, onDebouncedChange]);
+
+  const commitImmediately = useCallback(() => {
+    const nextValue = inputRef.current?.value ?? "";
+
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (nextValue !== committedValueRef.current) {
+      onDebouncedChange(nextValue);
+    }
+  }, [onDebouncedChange]);
+
+  return (
+    <input
+      ref={inputRef}
+      id={id}
+      type={type}
+      placeholder={placeholder}
+      list={list}
+      defaultValue={value}
+      onChange={(event) => scheduleCommit(event.target.value)}
+      onBlur={commitImmediately}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          commitImmediately();
+        }
+      }}
+    />
+  );
+});
+
 function ExplorePage() {
   const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
   const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
@@ -213,14 +296,10 @@ function ExplorePage() {
 
   // Track if search change is user-initiated (for Reddit analytics)
   const userInitiatedSearchRef = useRef(false);
-  const previousSearchRef = useRef('');
 
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // Guided tour state (declare early since it's used in useEffect below)
-  const [showGuidedTour, setShowGuidedTour] = useState(false);
 
   // Track Explore page view
   useEffect(() => {
@@ -230,8 +309,6 @@ function ExplorePage() {
   }, [mounted]);
 
   const [filters, setFilters] = useState<Filters>(defaultFilters);
-  const [debouncedSearch, setDebouncedSearch] = useState<string>(defaultFilters.search);
-  const [debouncedTrait, setDebouncedTrait] = useState<string>(defaultFilters.trait);
   const scrollPositionRef = useRef<number>(0);
   const isLoadingMoreRef = useRef<boolean>(false);
   const [traits, setTraits] = useState<string[]>([]);
@@ -275,49 +352,12 @@ function ExplorePage() {
   });
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  // Show product guidance directly in the explorer, not stacked onboarding modals.
   useEffect(() => {
     const termsAccepted = localStorage.getItem('terms_accepted');
-    const tourDismissed = localStorage.getItem('tour_dismissed');
-
-    if (!tourDismissed) {
-      setTimeout(() => setShowGuidedTour(true), 500);
-    } else if (!termsAccepted) {
+    if (!termsAccepted) {
       setShowTermsModal(true);
     }
-
-    // Listen for custom event from Help menu to restart tour
-    const handleStartTour = () => {
-      setShowGuidedTour(true);
-    };
-    window.addEventListener('startGuidedTour', handleStartTour);
-
-    return () => {
-      window.removeEventListener('startGuidedTour', handleStartTour);
-    };
   }, []);
-
-  // Debounce search input to avoid excessive API calls
-  useEffect(() => {
-    // Check if this is a user-initiated change
-    if (filters.search !== previousSearchRef.current) {
-      userInitiatedSearchRef.current = true;
-      previousSearchRef.current = filters.search;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(filters.search);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [filters.search]);
-
-  // Debounce trait input to avoid excessive API calls
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedTrait(filters.trait);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [filters.trait]);
 
   const updateFilter = useCallback(<Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
     setFilters((prev) => {
@@ -338,6 +378,23 @@ function ExplorePage() {
       return next;
     });
   }, []);
+
+  const handleDebouncedSearchChange = useCallback((value: string) => {
+    if (value !== filters.search) {
+      userInitiatedSearchRef.current = true;
+      startTransition(() => {
+        updateFilter("search", value);
+      });
+    }
+  }, [filters.search, updateFilter]);
+
+  const handleDebouncedTraitChange = useCallback((value: string) => {
+    if (value !== filters.trait) {
+      startTransition(() => {
+        updateFilter("trait", value);
+      });
+    }
+  }, [filters.trait, updateFilter]);
 
   // Set up callback to auto-check "Only my variants" when genotype data is loaded
   useEffect(() => {
@@ -371,9 +428,7 @@ function ExplorePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    // Use debounced search and trait values for API call
-    const apiFilters = { ...filters, search: debouncedSearch, trait: debouncedTrait };
-    const query = buildQuery(apiFilters);
+    const query = buildQuery(filters);
     const startTime = performance.now();
     setLoading(true);
     setError(null);
@@ -394,14 +449,14 @@ function ExplorePage() {
         let filteredData = payload.data ?? [];
 
         // Client-side filtering for user SNPs
-        if (apiFilters.requireUserSNPs && genotypeData) {
+        if (filters.requireUserSNPs && genotypeData) {
           filteredData = filteredData.filter(study => {
             // STRICT MODE: Only show studies where user has the specific SNP with the specific allele
             const hasUserSNPs = hasMatchingSNPs(genotypeData, study.snps, study.strongest_snp_risk_allele, true);
             if (!hasUserSNPs) return false;
 
             // If "Require genotype" is also enabled, ensure the study has genotype data
-            if (apiFilters.excludeMissingGenotype) {
+            if (filters.excludeMissingGenotype) {
               const hasGenotype = study.strongest_snp_risk_allele &&
                 study.strongest_snp_risk_allele.trim().length > 0 &&
                 study.strongest_snp_risk_allele.trim() !== '?' &&
@@ -419,17 +474,17 @@ function ExplorePage() {
         setLoadTime(totalLoadTime);
 
         // Track search if there's a search query and it was user-initiated
-        if (debouncedSearch.trim() && userInitiatedSearchRef.current) {
-          trackSearch(debouncedSearch, filteredData.length, totalLoadTime);
+        if (filters.search.trim() && userInitiatedSearchRef.current) {
+          trackSearch(filters.search, filteredData.length, totalLoadTime);
           userInitiatedSearchRef.current = false; // Reset flag after tracking
         }
 
         // Append results if offset > 0 (Load More), otherwise replace
-        if (apiFilters.offset > 0) {
+        if (filters.offset > 0) {
           setStudies(prev => [...prev, ...filteredData]);
           setMeta(prev => ({
             total: prev.total + filteredData.length,
-            limit: payload.limit ?? apiFilters.limit,
+            limit: payload.limit ?? filters.limit,
             truncated: payload.truncated ?? false,
             sourceCount: payload.sourceCount ?? 0,
           }));
@@ -437,7 +492,7 @@ function ExplorePage() {
           setStudies(filteredData);
           setMeta({
             total: filteredData.length,
-            limit: payload.limit ?? apiFilters.limit,
+            limit: payload.limit ?? filters.limit,
             truncated: payload.truncated ?? false,
             sourceCount: payload.sourceCount ?? 0,
           });
@@ -464,7 +519,7 @@ function ExplorePage() {
       });
 
     return () => controller.abort();
-  }, [debouncedSearch, debouncedTrait, filters.minSampleSize, filters.maxPValue, filters.excludeLowQuality, filters.excludeMissingGenotype, filters.requireUserSNPs, filters.sort, filters.sortDirection, filters.limit, filters.confidenceBand, filters.offset, filters.searchMode, genotypeData]);
+  }, [filters, genotypeData]);
 
   const qualitySummary = useMemo<QualitySummary>(() => {
     return studies.reduce<QualitySummary>(
@@ -481,7 +536,7 @@ function ExplorePage() {
 
   const resetFilters = () => {
     setFilters(defaultFilters);
-    setDebouncedSearch(defaultFilters.search);
+    userInitiatedSearchRef.current = false;
   };
 
 
@@ -711,12 +766,12 @@ function ExplorePage() {
                 <label htmlFor="search">
                   Search <InfoIcon text="Search titles, authors, genes, accessions." />
                 </label>
-                <input
+                <DebouncedTextInput
                   id="search"
                   type="search"
                   placeholder="Keywords..."
                   value={filters.search}
-                  onChange={(event) => updateFilter("search", event.target.value)}
+                  onDebouncedChange={handleDebouncedSearchChange}
                 />
                 <div style={{ marginTop: "0.5rem", display: "flex", gap: "1rem" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
@@ -745,13 +800,13 @@ function ExplorePage() {
                 <label htmlFor="trait">
                   Trait <InfoIcon text="Autocomplete from GWAS Catalog traits." />
                 </label>
-                <input
+                <DebouncedTextInput
                   id="trait"
                   type="text"
                   list="trait-options"
                   placeholder="All traits"
                   value={filters.trait}
-                  onChange={(event) => updateFilter("trait", event.target.value)}
+                  onDebouncedChange={handleDebouncedTraitChange}
                 />
                 <datalist id="trait-options">
                   {traits.map((traitOption) => (
@@ -872,8 +927,11 @@ function ExplorePage() {
                   <span className="sort-indicator"> ↓</span>
                 </th>
               )}
-              <th scope="col" title="The health condition, disease, or measurable characteristic that was studied. For example: height, diabetes, or blood pressure.">
+              <th scope="col" title="The original disease or trait label reported for the study. This is usually the most human-readable description of what was actually studied.">
                 Trait <span className="info-icon">ⓘ</span>
+              </th>
+              <th scope="col" title="The ontology-mapped trait label from the GWAS Catalog. This is the standardized mapped-trait field used for trait normalization and catalog grouping.">
+                Mapped Trait <span className="info-icon">ⓘ</span>
               </th>
               <th scope="col" title="The specific genetic variant (SNP) associated with the trait. These are locations in DNA where people differ from each other. Click variants to see detailed genetic information.">
                 Variant <span className="info-icon">ⓘ</span>
@@ -916,21 +974,22 @@ function ExplorePage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={studies.some(s => s.similarity !== undefined) ? 9 : 8} className="loading-row">
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 10 : 9} className="loading-row">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && studies.length === 0 && (
               <tr>
-                <td colSpan={studies.some(s => s.similarity !== undefined) ? 9 : 8} className="empty-row">
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 10 : 9} className="empty-row">
                   No studies found. Try widening your filters.
                 </td>
               </tr>
             )}
             {!loading &&
               studies.map((study, index) => {
-                const trait = study.mapped_trait ?? study.disease_trait ?? "-";
+                const trait = study.disease_trait ?? study.mapped_trait ?? "-";
+                const mappedTrait = study.mapped_trait ?? "-";
                 const date = study.publicationDate
                   ? new Date(study.publicationDate).toLocaleDateString()
                   : study.date
@@ -977,6 +1036,7 @@ function ExplorePage() {
                       </td>
                     )}
                     <td data-label="Trait">{trait}</td>
+                    <td data-label="Mapped Trait">{mappedTrait}</td>
                     <td data-label="Variant & Genotype">
                       <VariantChips snps={study.snps} riskAllele={study.strongest_snp_risk_allele} />
                     </td>
@@ -1093,26 +1153,6 @@ function ExplorePage() {
         isOpen={showRunAllModal}
         onClose={() => setShowRunAllModal(false)}
         status={runAllStatus}
-      />
-      <GuidedTour
-        isOpen={showGuidedTour}
-        onClose={() => {
-          setShowGuidedTour(false);
-          // Show terms modal after tour if not yet accepted
-          const termsAccepted = localStorage.getItem('terms_accepted');
-          if (!termsAccepted) {
-            setTimeout(() => setShowTermsModal(true), 300);
-          }
-        }}
-        onNeverShowAgain={() => {
-          localStorage.setItem('tour_dismissed', 'true');
-          setShowGuidedTour(false);
-          // Show terms modal after tour if not yet accepted
-          const termsAccepted = localStorage.getItem('terms_accepted');
-          if (!termsAccepted) {
-            setTimeout(() => setShowTermsModal(true), 300);
-          }
-        }}
       />
     </div>
   );

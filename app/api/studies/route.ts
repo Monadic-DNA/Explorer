@@ -54,6 +54,47 @@ type Study = RawStudy & {
   nonAnalyzableReason?: string;
 };
 
+function getSearchTerms(search: string): string[] {
+  const tokens = Array.from(
+    new Set(
+      search
+        .trim()
+        .split(/\s+/)
+        .map((token) => token.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+
+  return tokens.length > 1 ? tokens : [search.trim().toLowerCase()];
+}
+
+function rowMatchesSearchTerms(
+  row: Pick<
+    RawStudy,
+    "study" | "disease_trait" | "mapped_trait" | "first_author" | "mapped_gene" | "study_accession" | "snps"
+  >,
+  searchTerms: string[],
+): boolean {
+  if (searchTerms.length === 0) {
+    return false;
+  }
+
+  const haystack = [
+    row.study,
+    row.disease_trait,
+    row.mapped_trait,
+    row.first_author,
+    row.mapped_gene,
+    row.study_accession,
+    row.snps,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return searchTerms.every((term) => haystack.includes(term));
+}
+
 function normalizeYear(value: string): number | null {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -195,6 +236,57 @@ function parseInteger(value: string | null): number | null {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function buildKeywordSearchClause(search: string, startParamIndex: number) {
+  const trimmed = search.trim();
+  const searchTerms = getSearchTerms(search);
+  const candidateSubqueries: string[] = [];
+  const params: string[] = [];
+  let paramIndex = startParamIndex;
+
+  const studyTsQueryPlaceholder = `$${paramIndex}`;
+  paramIndex += 1;
+  params.push(trimmed);
+  candidateSubqueries.push(
+    `SELECT id FROM gwas_catalog WHERE to_tsvector('english', study) @@ websearch_to_tsquery('english', ${studyTsQueryPlaceholder})`
+  );
+
+  const traitTsQueryPlaceholder = `$${paramIndex}`;
+  paramIndex += 1;
+  params.push(trimmed);
+  candidateSubqueries.push(
+    `SELECT id FROM gwas_catalog WHERE to_tsvector('english', COALESCE(disease_trait, '') || ' ' || COALESCE(mapped_trait, '')) @@ websearch_to_tsquery('english', ${traitTsQueryPlaceholder})`
+  );
+
+  if (searchTerms.length === 1) {
+    const exactTermPlaceholder = `$${paramIndex}`;
+    paramIndex += 1;
+    params.push(trimmed);
+    candidateSubqueries.push(
+      `SELECT id FROM gwas_catalog WHERE study_accession = UPPER(${exactTermPlaceholder})`
+    );
+
+    const snpTermPlaceholder = `$${paramIndex}`;
+    paramIndex += 1;
+    params.push(trimmed);
+    candidateSubqueries.push(
+      `SELECT id FROM gwas_catalog WHERE snps = LOWER(${snpTermPlaceholder})`
+    );
+
+    const geneTermPlaceholder = `$${paramIndex}`;
+    paramIndex += 1;
+    params.push(trimmed);
+    candidateSubqueries.push(
+      `SELECT id FROM gwas_catalog WHERE mapped_gene = UPPER(${geneTermPlaceholder})`
+    );
+  }
+
+  return {
+    clause: `gc.id IN (${candidateSubqueries.join(" UNION ")})`,
+    params,
+    nextParamIndex: paramIndex,
+  };
+}
+
 function determineConfidenceBand(
   sampleSize: number | null,
   pValue: number | null,
@@ -239,6 +331,7 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const search = searchParams.get("search")?.trim();
+  const searchTerms = search ? getSearchTerms(search) : [];
   const trait = searchParams.get("trait")?.trim();
   const searchMode = searchParams.get("searchMode") ?? "similarity"; // "similarity" or "exact"
   const useSemanticSearch = searchMode === "similarity"; // Use semantic search only for similarity mode
@@ -269,6 +362,7 @@ export async function GET(request: NextRequest) {
   let orderByClause = "";
   let useSemanticQuery = false;
   let queryEmbedding: number[] = [];
+  let keywordMatchedIds = new Set<number>();
 
   // Semantic search: Generate embedding for query
   if (search && useSemanticSearch) {
@@ -291,12 +385,10 @@ export async function GET(request: NextRequest) {
   // Build search filters
   if (search && !useSemanticQuery) {
     // Keyword search (fallback or when semantic is disabled)
-    const wildcard = `%${search}%`;
-    filters.push(
-      `(gc.study LIKE $${paramIndex} OR gc.disease_trait LIKE $${paramIndex+1} OR gc.mapped_trait LIKE $${paramIndex+2} OR gc.first_author LIKE $${paramIndex+3} OR gc.mapped_gene LIKE $${paramIndex+4} OR gc.study_accession LIKE $${paramIndex+5} OR gc.snps LIKE $${paramIndex+6})`,
-    );
-    params.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
-    paramIndex += 7;
+    const keywordSearch = buildKeywordSearchClause(search, paramIndex);
+    filters.push(keywordSearch.clause);
+    params.push(...keywordSearch.params);
+    paramIndex = keywordSearch.nextParamIndex;
   } else if (useSemanticQuery) {
     // Semantic search: Use separate study_embeddings table
     // PostgreSQL: Semantic search handled in FROM clause subquery
@@ -469,12 +561,10 @@ export async function GET(request: NextRequest) {
 
       // Re-add search as keyword search
       if (search) {
-        const wildcard = `%${search}%`;
-        fallbackFilters.push(
-          `(gc.study LIKE $${fallbackParamIndex} OR gc.disease_trait LIKE $${fallbackParamIndex+1} OR gc.mapped_trait LIKE $${fallbackParamIndex+2} OR gc.first_author LIKE $${fallbackParamIndex+3} OR gc.mapped_gene LIKE $${fallbackParamIndex+4} OR gc.study_accession LIKE $${fallbackParamIndex+5} OR gc.snps LIKE $${fallbackParamIndex+6})`,
-        );
-        fallbackParams.push(wildcard, wildcard, wildcard, wildcard, wildcard, wildcard, wildcard);
-        fallbackParamIndex += 7;
+        const keywordSearch = buildKeywordSearchClause(search, fallbackParamIndex);
+        fallbackFilters.push(keywordSearch.clause);
+        fallbackParams.push(...keywordSearch.params);
+        fallbackParamIndex = keywordSearch.nextParamIndex;
       }
 
       if (trait) {
@@ -563,6 +653,98 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  if (useSemanticQuery && search) {
+    keywordMatchedIds = new Set(
+      rawRows.filter((row) => rowMatchesSearchTerms(row, searchTerms)).map((row) => row.id)
+    );
+
+    if (keywordMatchedIds.size === 0) {
+      const keywordFilters: string[] = [];
+      const keywordParams: unknown[] = [];
+      let keywordParamIndex = 1;
+
+      const keywordSearch = buildKeywordSearchClause(search, keywordParamIndex);
+      keywordFilters.push(keywordSearch.clause);
+      keywordParams.push(...keywordSearch.params);
+      keywordParamIndex = keywordSearch.nextParamIndex;
+
+      if (trait) {
+        keywordFilters.push(`(gc.mapped_trait = $${keywordParamIndex} OR gc.disease_trait = $${keywordParamIndex + 1})`);
+        keywordParams.push(trait, trait);
+        keywordParamIndex += 2;
+      }
+
+      if (fetchAll) {
+        keywordFilters.push("(gc.snps IS NOT NULL AND gc.snps != '')");
+        keywordFilters.push("(gc.strongest_snp_risk_allele IS NOT NULL AND gc.strongest_snp_risk_allele != '')");
+      }
+
+      if (minSampleSize !== null) {
+        keywordFilters.push(`((NULLIF(regexp_replace((regexp_match(gc.initial_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${keywordParamIndex}::numeric) OR (NULLIF(regexp_replace((regexp_match(gc.replication_sample_size, '[0-9,]+'))[1], ',', '', 'g'), '')::numeric >= $${keywordParamIndex + 1}::numeric))`);
+        keywordParams.push(minSampleSize, minSampleSize);
+        keywordParamIndex += 2;
+      }
+
+      if (maxPValue !== null) {
+        const minLogPFromMaxP = -Math.log10(maxPValue);
+        keywordFilters.push(`(gc.pvalue_mlog IS NULL OR gc.pvalue_mlog::numeric >= $${keywordParamIndex}::numeric)`);
+        keywordParams.push(minLogPFromMaxP);
+        keywordParamIndex += 1;
+      }
+
+      if (minLogP !== null) {
+        keywordFilters.push(`gc.pvalue_mlog::numeric >= $${keywordParamIndex}::numeric`);
+        keywordParams.push(minLogP);
+        keywordParamIndex += 1;
+      }
+
+      if (excludeMissingGenotype) {
+        keywordFilters.push("(gc.strongest_snp_risk_allele IS NOT NULL AND gc.strongest_snp_risk_allele != '' AND gc.strongest_snp_risk_allele != '?' AND gc.strongest_snp_risk_allele != 'NR' AND gc.strongest_snp_risk_allele NOT LIKE '%?%')");
+      }
+
+      const keywordWhereClause = keywordFilters.length ? `WHERE ${keywordFilters.join(" AND ")}` : "";
+      const keywordRescueLimit = Math.min(Math.max(limit, 25), 200);
+      const keywordQuery = `SELECT ${idSelection},
+       gc.study_accession,
+       gc.study,
+       gc.disease_trait,
+       gc.mapped_trait,
+       gc.mapped_trait_uri,
+       gc.mapped_gene,
+       gc.first_author,
+       gc.date,
+       gc.journal,
+       gc.pubmedid,
+       gc.link,
+       gc.initial_sample_size,
+       gc.replication_sample_size,
+       gc.p_value,
+       gc.pvalue_mlog,
+       gc.or_or_beta,
+       gc.ci_text,
+       gc.risk_allele_frequency,
+       gc.strongest_snp_risk_allele,
+       gc.snps
+    FROM gwas_catalog gc
+    ${keywordWhereClause}
+    ORDER BY gc.pvalue_mlog::numeric DESC NULLS LAST
+    LIMIT ${keywordRescueLimit}`;
+
+      const keywordRows = await executeQuery<RawStudy>(keywordQuery, keywordParams);
+      keywordMatchedIds = new Set(keywordRows.map((row) => row.id));
+
+      if (keywordRows.length > 0) {
+        const mergedRows = new Map<number, RawStudy>();
+        keywordRows.forEach((row) => mergedRows.set(row.id, row));
+        rawRows.forEach((row) => {
+          const existing = mergedRows.get(row.id);
+          mergedRows.set(row.id, existing ? { ...row, ...existing, similarity: row.similarity ?? existing.similarity } : row);
+        });
+        rawRows = Array.from(mergedRows.values());
+      }
+    }
+  }
+
   try {
 
   const studies: Study[] = rawRows
@@ -619,23 +801,41 @@ export async function GET(request: NextRequest) {
 
     // Get source count (may fail if numeric overflow in WHERE clause, that's ok)
     let sourceCount = 0;
-    try {
-      const countQuery = useSemanticQuery
-        ? `SELECT COUNT(*) as count ${fromClause} ${whereClause}`
-        : `SELECT COUNT(*) as count FROM gwas_catalog gc ${whereClause}`;
-      const countResult = await executeQuerySingle<{ count: number }>(countQuery, params);
-      sourceCount = countResult?.count ?? 0;
-    } catch (error: any) {
-      console.warn('[Query] Count query failed:', error?.message || 'Unknown error');
-      console.warn('[Query] Using result length as count instead');
+    const skipExactCount = Boolean(search);
+
+    if (skipExactCount) {
       sourceCount = rawRows.length;
+    } else {
+      try {
+        const countQuery = useSemanticQuery
+          ? `SELECT COUNT(*) as count ${fromClause} ${whereClause}`
+          : `SELECT COUNT(*) as count FROM gwas_catalog gc ${whereClause}`;
+        const countResult = await executeQuerySingle<{ count: number }>(countQuery, params);
+        sourceCount = countResult?.count ?? 0;
+      } catch (error: any) {
+        console.warn('[Query] Count query failed:', error?.message || 'Unknown error');
+        console.warn('[Query] Using result length as count instead');
+        sourceCount = rawRows.length;
+      }
     }
+
+    sourceCount = Math.max(sourceCount, rawRows.length);
 
   const sortedStudies = [...studies];
   const directionFactor = direction === "asc" ? 1 : -1;
 
-  // Skip client-side sorting if semantic search already ordered by relevance
-  if (!useSemanticQuery) {
+  if (useSemanticQuery) {
+    sortedStudies.sort((a, b) => {
+      const aKeyword = keywordMatchedIds.has(a.id) ? 1 : 0;
+      const bKeyword = keywordMatchedIds.has(b.id) ? 1 : 0;
+
+      if (aKeyword !== bKeyword) {
+        return bKeyword - aKeyword;
+      }
+
+      return (b.similarity ?? -Infinity) - (a.similarity ?? -Infinity);
+    });
+  } else {
     switch (sort) {
       case "power":
         sortedStudies.sort((a, b) => directionFactor * ((a.sampleSize ?? 0) - (b.sampleSize ?? 0)));

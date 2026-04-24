@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
@@ -15,6 +15,7 @@ import NillionModal from "./NillionModal";
 
 export default function MenuBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
   const { status: customizationStatus } = useCustomization();
@@ -203,10 +204,13 @@ export default function MenuBar() {
       <HelpDropdown
         isOpen={showHelpDropdown}
         onClose={() => setShowHelpDropdown(false)}
-        onStartTour={() => {
-          // Dispatch custom event that page.tsx can listen to
-          const event = new CustomEvent('startGuidedTour');
-          window.dispatchEvent(event);
+        onRestartOnboarding={() => {
+          if (pathname === "/") {
+            window.dispatchEvent(new CustomEvent("openConversionOnboarding", { detail: { mode: "guided" } }));
+            return;
+          }
+
+          router.push("/?onboarding=1");
         }}
       />
       <NillionModal
@@ -337,7 +341,7 @@ export default function MenuBar() {
           <button
             className="menu-icon-button"
             onClick={() => setShowHelpDropdown(!showHelpDropdown)}
-            title="Get help and restart the guided tour"
+            title="Get help and reopen onboarding"
           >
             <span className="icon">
               <HelpCircleIcon size={32} />

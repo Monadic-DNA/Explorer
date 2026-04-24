@@ -293,11 +293,11 @@ export function CacheDropdown({
 export function HelpDropdown({
   isOpen,
   onClose,
-  onStartTour
+  onRestartOnboarding,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onStartTour?: () => void;
+  onRestartOnboarding?: () => void;
 }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -321,16 +321,16 @@ export function HelpDropdown({
       <div className="dropdown-content">
         <h3>Help & Feedback</h3>
         <div className="dropdown-actions">
-          {onStartTour && (
+          {onRestartOnboarding && (
             <button
               className="control-button"
               onClick={() => {
-                onStartTour();
+                onRestartOnboarding();
                 onClose();
               }}
-              title="Take a guided tour of the app"
+              title="Open the new onboarding flow again"
             >
-              🎯 Start Guided Tour
+              ↺ Restart Onboarding
             </button>
           )}
           <a
