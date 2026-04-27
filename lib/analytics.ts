@@ -153,6 +153,24 @@ export function trackOnboardingStepViewed(step: string) {
 }
 
 /**
+ * User selected a path on the onboarding path step
+ */
+export function trackOnboardingPathChosen(path: string) {
+  trackEvent('onboarding_path_chosen', {
+    path: path,
+  });
+}
+
+/**
+ * User dismissed the onboarding modal without completing it
+ */
+export function trackOnboardingDismissed(step: string) {
+  trackEvent('onboarding_dismissed', {
+    step_at_dismissal: step,
+  });
+}
+
+/**
  * User viewed the Explore tab
  */
 export function trackExploreTabViewed() {

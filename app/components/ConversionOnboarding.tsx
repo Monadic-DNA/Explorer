@@ -14,6 +14,8 @@ import { callLLM, getLLMDescription } from "@/lib/llm-client";
 import {
   trackLLMQuestionAsked,
   trackOnboardingCompleted,
+  trackOnboardingDismissed,
+  trackOnboardingPathChosen,
   trackOnboardingStarted,
   trackOnboardingStepViewed,
   trackRunAllStarted,
@@ -600,7 +602,11 @@ RESPONSE STRUCTURE:
         <div className="wire-onboarding-shell">
           <div className="wire-onboarding-frame" ref={frameRef}>
             {onDismiss && (
-              <button className="wire-onboarding-close" onClick={onDismiss} aria-label="Close onboarding">
+              <button
+                className="wire-onboarding-close"
+                onClick={() => { trackOnboardingDismissed(currentStep); onDismiss(); }}
+                aria-label="Close onboarding"
+              >
                 ✕
               </button>
             )}
@@ -624,6 +630,7 @@ RESPONSE STRUCTURE:
                     className="wire-onboarding-choice primary"
                     onClick={() => {
                       setCompletionPath("own_dna");
+                      trackOnboardingPathChosen("own_dna");
                       setCurrentStep("upload");
                     }}
                   >
@@ -633,6 +640,7 @@ RESPONSE STRUCTURE:
                     className="wire-onboarding-choice"
                     onClick={() => {
                       setCompletionPath("own_dna_needs_help");
+                      trackOnboardingPathChosen("own_dna_needs_help");
                       setCurrentStep("need_file");
                     }}
                   >
@@ -642,6 +650,7 @@ RESPONSE STRUCTURE:
                     className="wire-onboarding-choice"
                     onClick={() => {
                       setCompletionPath("own_dna_no_test");
+                      trackOnboardingPathChosen("own_dna_no_test");
                       setCurrentStep("need_sequencing");
                     }}
                   >
