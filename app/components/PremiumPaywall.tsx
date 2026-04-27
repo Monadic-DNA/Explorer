@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from './AuthProvider';
 import { trackPremiumSectionViewed } from '@/lib/analytics';
-import { hasValidPromoAccess, getPromoCode, clearPromoAccess } from '@/lib/promo-access';
 
 // Lazy load PaymentModal to reduce initial bundle size (viem + @dynamic-labs = ~86MB)
 const PaymentModal = dynamic(() => import('./PaymentModal'), {
@@ -17,21 +16,8 @@ interface PremiumPaywallProps {
 }
 
 export function PremiumPaywall({ children }: PremiumPaywallProps) {
-  const { isAuthenticated, hasActiveSubscription, subscriptionData, refreshSubscription } = useAuth();
+  const { refreshSubscription } = useAuth();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [hasPromoAccess, setHasPromoAccess] = useState(false);
-  const [promoCode, setPromoCode] = useState('');
-
-  // Check localStorage for existing promo access on mount
-  useEffect(() => {
-    if (hasValidPromoAccess()) {
-      setHasPromoAccess(true);
-      const code = getPromoCode();
-      if (code) {
-        setPromoCode(code);
-      }
-    }
-  }, []);
 
   // Listen for payment modal trigger (with optional promo code)
   const [initialPromoCode, setInitialPromoCode] = useState<string | undefined>(undefined);
@@ -53,23 +39,10 @@ export function PremiumPaywall({ children }: PremiumPaywallProps) {
     return () => window.removeEventListener('openPaymentModal', handleOpenPaymentModal as EventListener);
   }, []);
 
-  const handleRemovePromoCode = () => {
-    clearPromoAccess();
-    setHasPromoAccess(false);
-    setPromoCode('');
-  };
-
   const handleModalSuccess = async () => {
-    // Refresh promo access state
-    if (hasValidPromoAccess()) {
-      setHasPromoAccess(true);
-      const code = getPromoCode();
-      if (code) {
-        setPromoCode(code);
-      }
-    }
     // Refresh subscription status in AuthProvider to update UI immediately
     await refreshSubscription();
+    window.dispatchEvent(new CustomEvent('premiumAccessUpdated'));
   };
 
   // Always show content

@@ -153,6 +153,35 @@ body {
   gap: 0.5rem;
 }
 
+.nav-link-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.nav-premium-badge,
+.premium-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  font-size: 0.55rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.18rem 0.35rem;
+  text-transform: uppercase;
+}
+
+[data-theme="dark"] .nav-premium-badge,
+[data-theme="dark"] .premium-tab-badge {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
 .menu-icon-button {
   background: var(--surface-bg);
   border: 2px solid var(--border-color);
@@ -267,6 +296,14 @@ body {
 
 .menu-icon-button.unlocked::before {
   border-color: rgba(16, 185, 129, 0.3);
+}
+
+.menu-icon-button.running {
+  border-color: rgba(16, 185, 129, 0.55);
+}
+
+.menu-icon-button.running::before {
+  border-color: rgba(16, 185, 129, 0.35);
 }
 
 .menu-icon-button.subscribed {
@@ -2849,12 +2886,24 @@ details[open] .summary-arrow {
     margin-top: 0 !important;
     gap: 0 !important;
     margin-left: auto;
-    flex-shrink: 0;
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .page-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-link {
     padding: 0.35rem 0.5rem !important;
     font-size: 0.8rem;
+  }
+
+  .nav-premium-badge {
+    display: none;
   }
 
   .menu-right {
@@ -2894,6 +2943,21 @@ details[open] .summary-arrow {
 
   .menu-icon-button .badge {
     display: none;
+  }
+
+  .overview-report-panel {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .overview-report-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .overview-report-actions .primary-button {
+    width: 100%;
+    white-space: normal;
   }
 
   .status-section {
@@ -4351,6 +4415,98 @@ details[open] .summary-arrow {
   gap: 1.5rem;
 }
 
+.premium-feature-page {
+  flex: 1;
+}
+
+.premium-feature-section {
+  gap: 1rem;
+}
+
+.premium-feature-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 920px;
+}
+
+.premium-feature-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.premium-feature-title-row h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.65rem;
+}
+
+.premium-feature-intro p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.overview-report-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.25rem;
+  max-width: 980px;
+}
+
+.overview-report-icon {
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overview-report-copy h3 {
+  margin: 0 0 0.35rem 0;
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.overview-report-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.overview-report-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.overview-report-stats span {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+}
+
+.overview-report-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.overview-report-actions .primary-button {
+  white-space: nowrap;
+}
+
 /* Premium Features Header */
 .premium-features-header {
   display: flex;
@@ -4514,6 +4670,21 @@ details[open] .summary-arrow {
 
   .premium-section {
     padding: 1.5rem;
+  }
+
+  .overview-report-panel {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .overview-report-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .overview-report-actions .primary-button {
+    width: 100%;
+    white-space: normal;
   }
 
   .feature-icon {

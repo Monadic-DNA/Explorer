@@ -634,7 +634,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
                 {savedResults.length < 10000 && (
                   <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                    ⚠️ You have {savedResults.length.toLocaleString()} results. For best results, run "Run All" to analyze more studies.
+                    ⚠️ You have {savedResults.length.toLocaleString()} results. For best results, use Run All from the Menu Bar to analyze more studies.
                   </p>
                 )}
               </div>

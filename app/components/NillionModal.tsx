@@ -393,7 +393,7 @@ Respond ONLY with JSON:
                     You currently have <strong>{savedResults.length.toLocaleString()}</strong> results.
                   </p>
                   <p>
-                    Please use <strong>Run All</strong> under the <strong>Premium</strong> tab to generate
+                    Please use <strong>Run All</strong> from the <strong>Menu Bar</strong> to generate
                     enough results first.
                   </p>
                 </div>
@@ -553,7 +553,7 @@ Respond ONLY with JSON:
               <div className="follow-up-note">
                 <h4>📊 Want to Explore Further?</h4>
                 <p>
-                  Use <strong>LLM Chat</strong> under the <strong>Premium</strong> tab to ask questions
+                  Use the <strong>LLM Chat</strong> tab to ask questions
                   about your genetic risk profile and get personalized insights.
                 </p>
               </div>

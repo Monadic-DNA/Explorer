@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
@@ -9,15 +9,33 @@ import { useCustomization } from "./CustomizationContext";
 import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
-import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, NillionIcon } from "./Icons";
+import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, RunAllIcon } from "./Icons";
 import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 import NillionModal from "./NillionModal";
+import DisclaimerModal from "./DisclaimerModal";
+import RunAllModal from "./RunAllModal";
+import { trackRunAllStarted } from "@/lib/analytics";
+
+type RunAllStatus = {
+  phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
+  fetchedBatches: number;
+  totalStudiesFetched: number;
+  totalInDatabase: number;
+  matchingStudies: number;
+  processedCount: number;
+  totalToProcess: number;
+  matchCount: number;
+  startTime?: number;
+  elapsedSeconds?: number;
+  etaSeconds?: number;
+  errorMessage?: string;
+};
 
 export default function MenuBar() {
   const pathname = usePathname();
   const router = useRouter();
   const { isUploaded, genotypeData, fileHash } = useGenotype();
-  const { savedResults, saveToFile, loadFromFile, clearResults } = useResults();
+  const { savedResults, saveToFile, loadFromFile, clearResults, addResultsBatch, hasResult } = useResults();
   const { status: customizationStatus } = useCustomization();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
@@ -27,7 +45,20 @@ export default function MenuBar() {
   const [showCacheDropdown, setShowCacheDropdown] = useState(false);
   const [showHelpDropdown, setShowHelpDropdown] = useState(false);
   const [showNillionModal, setShowNillionModal] = useState(false);
+  const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
+  const [showRunAllModal, setShowRunAllModal] = useState(false);
+  const [isRunningAll, setIsRunningAll] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [runAllStatus, setRunAllStatus] = useState<RunAllStatus>({
+    phase: 'fetching',
+    fetchedBatches: 0,
+    totalStudiesFetched: 0,
+    totalInDatabase: 0,
+    matchingStudies: 0,
+    processedCount: 0,
+    totalToProcess: 0,
+    matchCount: 0,
+  });
   // Initialize theme from localStorage (lazy initialization to avoid hydration issues)
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window !== 'undefined') {
@@ -132,6 +163,106 @@ export default function MenuBar() {
     }
   };
 
+  const handleRunAll = () => {
+    if (isRunningAll) {
+      setShowRunAllModal(true);
+      return;
+    }
+
+    if (!genotypeData || genotypeData.size === 0) {
+      setShowMyDataDropdown(true);
+      alert("Upload your DNA file before running all traits.");
+      return;
+    }
+
+    setShowRunAllDisclaimer(true);
+  };
+
+  const handleRunAllDisclaimerAccept = async () => {
+    setShowRunAllDisclaimer(false);
+
+    const { gwasDB } = await import('@/lib/gwas-db');
+    const metadata = await gwasDB.getMetadata();
+
+    if (!metadata) {
+      const confirmDownload = window.confirm(
+        `First-time setup: Download ~54MB GWAS Catalog data?\n\n` +
+        `This will be cached locally for instant future analysis.\n` +
+        `Estimated storage: ~500MB after decompression.\n\n` +
+        `Continue?`
+      );
+      if (!confirmDownload) return;
+    } else {
+      const confirmRun = window.confirm(
+        `Analyze all ${metadata.totalStudies.toLocaleString()} studies where you have matching SNPs?\n\n` +
+        `Using cached data from ${new Date(metadata.downloadDate).toLocaleDateString()}\n\n` +
+        `Continue?`
+      );
+      if (!confirmRun) return;
+    }
+
+    setIsRunningAll(true);
+    setShowRunAllModal(true);
+    const startTime = Date.now();
+    setRunAllStatus({
+      phase: 'fetching',
+      fetchedBatches: 0,
+      totalStudiesFetched: 0,
+      totalInDatabase: 0,
+      matchingStudies: 0,
+      processedCount: 0,
+      totalToProcess: 0,
+      matchCount: 0,
+      startTime,
+    });
+
+    trackRunAllStarted(metadata?.totalStudies || 0);
+
+    try {
+      if (!genotypeData) {
+        throw new Error('No genotype data loaded. Please upload your genetic data first.');
+      }
+
+      const { runAllAnalysisIndexed } = await import('@/lib/run-all-indexed');
+
+      const results = await runAllAnalysisIndexed(
+        genotypeData,
+        (progress) => {
+          setRunAllStatus(prev => ({
+            ...prev,
+            phase: progress.phase,
+            totalStudiesFetched: progress.loaded,
+            totalInDatabase: progress.total,
+            matchingStudies: progress.matchingStudies,
+            matchCount: progress.matchCount,
+            elapsedSeconds: progress.elapsedSeconds,
+            fetchedBatches: 0,
+            processedCount: progress.matchingStudies,
+            totalToProcess: progress.matchingStudies,
+          }));
+        },
+        hasResult
+      );
+
+      console.log(`Adding ${results.length} results to the results manager...`);
+      const startAdd = Date.now();
+      await addResultsBatch(results);
+      const addTime = Date.now() - startAdd;
+      console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+
+      window.dispatchEvent(new CustomEvent('cacheUpdated'));
+    } catch (error) {
+      console.error('Run All failed:', error);
+      setRunAllStatus(prev => ({
+        ...prev,
+        phase: 'error',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      }));
+    } finally {
+      setIsRunningAll(false);
+    }
+  };
+
   const getCustomizationTooltip = () => {
     switch (customizationStatus) {
       case 'not-set':
@@ -162,6 +293,17 @@ export default function MenuBar() {
       }
     }
   };
+
+  const getNavLinkStyle = (active: boolean): CSSProperties => ({
+    padding: "0.5rem 1rem",
+    textDecoration: "none",
+    color: active ? "var(--primary-color, #667eea)" : "inherit",
+    borderBottom: active ? "2px solid var(--primary-color, #667eea)" : "none",
+    fontWeight: active ? 600 : 400
+  });
+
+  const isLlmChatActive = pathname === "/llm-chat";
+  const isOverviewReportActive = pathname === "/overview-report";
 
   return (
     <>
@@ -217,7 +359,18 @@ export default function MenuBar() {
         isOpen={showNillionModal}
         onClose={() => setShowNillionModal(false)}
       />
-    <div className="menu-bar">
+      <DisclaimerModal
+        isOpen={showRunAllDisclaimer}
+        onClose={() => setShowRunAllDisclaimer(false)}
+        type="initial"
+        onAccept={handleRunAllDisclaimerAccept}
+      />
+      <RunAllModal
+        isOpen={showRunAllModal}
+        onClose={() => setShowRunAllModal(false)}
+        status={runAllStatus}
+      />
+      <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
           <Link href="/" style={{ textDecoration: "none", color: "inherit" }}>
@@ -231,41 +384,36 @@ export default function MenuBar() {
           <Link
             href="/"
             className={pathname === "/" ? "nav-link active" : "nav-link"}
-            style={{
-              padding: "0.5rem 1rem",
-              textDecoration: "none",
-              color: pathname === "/" ? "var(--primary-color, #667eea)" : "inherit",
-              borderBottom: pathname === "/" ? "2px solid var(--primary-color, #667eea)" : "none",
-              fontWeight: pathname === "/" ? "600" : "normal"
-            }}
+            style={getNavLinkStyle(pathname === "/")}
           >
             Home
           </Link>
           <Link
             href="/explore"
             className={pathname === "/explore" ? "nav-link active" : "nav-link"}
-            style={{
-              padding: "0.5rem 1rem",
-              textDecoration: "none",
-              color: pathname === "/explore" ? "var(--primary-color, #667eea)" : "inherit",
-              borderBottom: pathname === "/explore" ? "2px solid var(--primary-color, #667eea)" : "none",
-              fontWeight: pathname === "/explore" ? "600" : "normal"
-            }}
+            style={getNavLinkStyle(pathname === "/explore")}
           >
             Explore
           </Link>
           <Link
-            href="/premium"
-            className={pathname === "/premium" ? "nav-link active" : "nav-link"}
-            style={{
-              padding: "0.5rem 1rem",
-              textDecoration: "none",
-              color: pathname === "/premium" ? "var(--primary-color, #667eea)" : "inherit",
-              borderBottom: pathname === "/premium" ? "2px solid var(--primary-color, #667eea)" : "none",
-              fontWeight: pathname === "/premium" ? "600" : "normal"
-            }}
+            href="/llm-chat"
+            className={isLlmChatActive ? "nav-link active nav-premium-link" : "nav-link nav-premium-link"}
+            style={getNavLinkStyle(isLlmChatActive)}
           >
-            Premium
+            <span className="nav-link-content">
+              LLM Chat
+              <span className="nav-premium-badge">Premium</span>
+            </span>
+          </Link>
+          <Link
+            href="/overview-report"
+            className={isOverviewReportActive ? "nav-link active nav-premium-link" : "nav-link nav-premium-link"}
+            style={getNavLinkStyle(isOverviewReportActive)}
+          >
+            <span className="nav-link-content">
+              Overview Report
+              <span className="nav-premium-badge">Premium</span>
+            </span>
           </Link>
         </nav>
       </div>
@@ -298,6 +446,20 @@ export default function MenuBar() {
             <span className="label">Results</span>
             {savedResults.length > 0 && (
               <span className="badge">{savedResults.length}</span>
+            )}
+          </button>
+
+          <button
+            className={isRunningAll ? "menu-icon-button running" : "menu-icon-button"}
+            onClick={handleRunAll}
+            title="Analyze your DNA against all matching GWAS traits"
+          >
+            <span className="icon">
+              <RunAllIcon size={32} />
+            </span>
+            <span className="label">Run All</span>
+            {isRunningAll && (
+              <span className="badge">Running</span>
             )}
           </button>
 
@@ -364,7 +526,7 @@ export default function MenuBar() {
           )}
         </div>
       </div>
-    </div>
+      </div>
     </>
   );
 }

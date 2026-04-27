@@ -157,10 +157,6 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
           </div>
           <div className="feature-item">
             <span className="feature-icon">✓</span>
-            <span>Run All Analysis</span>
-          </div>
-          <div className="feature-item">
-            <span className="feature-icon">✓</span>
             <span>Overview Report</span>
           </div>
         </div>

@@ -422,7 +422,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
 
         <div className="modal-header">
           <h2>💳 Subscribe to Premium</h2>
-          <p>Get LLM Chat, Run All Analysis, and more</p>
+          <p>Get LLM Chat and Overview Report</p>
         </div>
 
         {step === 'choice' && (

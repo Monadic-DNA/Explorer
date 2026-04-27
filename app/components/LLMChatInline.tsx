@@ -962,7 +962,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     you can either:
                   </p>
                   <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
-                    <li>Run "Run All" to analyze your DNA against all available studies, or</li>
+                    <li>Use Run All from the Menu Bar to analyze your DNA against all available studies, or</li>
                     <li>Load results from a prior run if you've previously completed analysis</li>
                   </ul>
                   <p style={{ marginTop: '0.5rem' }}>This will give the LLM more comprehensive data to provide personalized insights.</p>
