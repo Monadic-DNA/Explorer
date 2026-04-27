@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function PremiumPage() {
-  redirect("/llm-chat");
+  redirect("/dna-chat");
 }

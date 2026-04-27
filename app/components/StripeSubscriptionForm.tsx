@@ -153,7 +153,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         <div className="features-list">
           <div className="feature-item">
             <span className="feature-icon">✓</span>
-            <span>LLM Chat Assistant</span>
+            <span>DNA Chat Assistant</span>
           </div>
           <div className="feature-item">
             <span className="feature-icon">✓</span>

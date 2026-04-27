@@ -302,7 +302,7 @@ export default function MenuBar() {
     fontWeight: active ? 600 : 400
   });
 
-  const isLlmChatActive = pathname === "/llm-chat";
+  const isDNAChatActive = pathname === "/dna-chat" || pathname === "/llm-chat";
   const isOverviewReportActive = pathname === "/overview-report";
 
   return (
@@ -396,12 +396,12 @@ export default function MenuBar() {
             Explore
           </Link>
           <Link
-            href="/llm-chat"
-            className={isLlmChatActive ? "nav-link active nav-premium-link" : "nav-link nav-premium-link"}
-            style={getNavLinkStyle(isLlmChatActive)}
+            href="/dna-chat"
+            className={isDNAChatActive ? "nav-link active nav-premium-link" : "nav-link nav-premium-link"}
+            style={getNavLinkStyle(isDNAChatActive)}
           >
             <span className="nav-link-content">
-              LLM Chat
+              DNA Chat
               <span className="nav-premium-badge">Premium</span>
             </span>
           </Link>

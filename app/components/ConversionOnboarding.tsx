@@ -961,7 +961,7 @@ RESPONSE STRUCTURE:
 
             {currentStep === "responses" && (
               <section className="wire-onboarding-slide">
-                <h1>Here is an advance look at our premium LLM Chat feature.</h1>
+                <h1>Here is an advance look at our premium DNA Chat feature.</h1>
                 <p>Tap one of these starter questions to see how premium chat answers with the most relevant traits from your full dataset.</p>
 
                 <div className="wire-question-list">
@@ -1045,7 +1045,7 @@ RESPONSE STRUCTURE:
 
                 {!responsesLoading && !responseError && previewResponses.length > 0 && (
                   <>
-                    <p>The LLM Chat feature is available for only $4.99 a month.</p>
+                    <p>The DNA Chat feature is available for only $4.99 a month.</p>
                     <p>Personalize your answers by entering your demographics, history, reports documents in the app.</p>
                     <p>Nobody apart from you can ever look at your chat logs or personalization information.</p>
                     <p><strong>You&apos;re now ready to start using the app to unlock your diet, lifestyle and health insights!</strong></p>

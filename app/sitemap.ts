@@ -18,7 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/llm-chat`,
+      url: `${baseUrl}/dna-chat`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,

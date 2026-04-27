@@ -2,7 +2,7 @@ import type { Metadata} from "next";
 
 export const metadata: Metadata = {
   title: "Premium Features - Monadic DNA Explorer",
-  description: "Unlock advanced AI-powered genetic analysis with LLM Chat and comprehensive overview reports. Privacy-preserving analysis with Trusted Execution Environment.",
+  description: "Unlock advanced AI-powered genetic analysis with DNA Chat and comprehensive overview reports. Privacy-preserving analysis with Trusted Execution Environment.",
   keywords: ["LLM genetic analysis", "AI DNA analysis", "premium genomics", "genetic AI chat", "comprehensive DNA report"],
   openGraph: {
     title: "Premium Features - Monadic DNA Explorer",
