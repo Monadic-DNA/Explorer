@@ -5524,7 +5524,7 @@ details[open] .summary-arrow {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.09), rgba(16, 185, 129, 0.06));
 }
 
@@ -5536,8 +5536,8 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-title-mark {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -5550,12 +5550,12 @@ details[open] .summary-arrow {
 
 .dna-chat-section .ai-chat-inline .chat-header h2 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   line-height: 1.1;
 }
 
 .dna-chat-section .ai-chat-inline .powered-by {
-  margin: 0.3rem 0 0;
+  margin: 0.2rem 0 0;
   padding: 0;
   background: transparent;
   border: 0;
@@ -5564,7 +5564,7 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section .ai-chat-inline .chat-info {
-  padding: 0.65rem 1.25rem;
+  padding: 0.45rem 1rem;
   background: var(--primary-bg);
 }
 
@@ -5575,7 +5575,7 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section .ai-chat-inline .provider-tip {
-  padding: 0.75rem 1.25rem;
+  padding: 0.5rem 1rem;
 }
 
 .dna-chat-section .ai-chat-inline .provider-tip-icon {
@@ -5594,7 +5594,7 @@ details[open] .summary-arrow {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1rem 1.25rem;
+  padding: 0.65rem 1rem;
   background: var(--primary-bg);
 }
 
@@ -5605,9 +5605,25 @@ details[open] .summary-arrow {
   text-align: left;
 }
 
-.dna-chat-section .chat-welcome h3 {
-  font-size: 1rem;
+.chat-welcome-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 0.35rem;
+}
+
+.dna-chat-section .chat-welcome h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.chat-welcome-heading span {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .chat-disclaimer-inline {
@@ -5618,31 +5634,36 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section .example-questions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.5rem 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  gap: 0.35rem;
+  margin: 0.35rem 0;
 }
 
 .dna-chat-section .example-questions li {
   margin: 0;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  white-space: nowrap;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(16, 185, 129, 0.08));
+  border-color: rgba(59, 130, 246, 0.22);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1.2;
 }
 
 .dna-chat-section .example-questions li:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(16, 185, 129, 0.14));
   transform: translateY(-1px);
 }
 
 .dna-chat-section .chat-disclaimer,
 .dna-chat-section .chat-warning {
-  padding: 0.5rem 0.75rem;
-  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.6rem;
+  margin: 0.4rem 0 0;
   border-radius: 8px;
-  font-size: 0.82rem;
-  line-height: 1.5;
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 
 .dna-chat-section .chat-message {
@@ -5691,13 +5712,13 @@ details[open] .summary-arrow {
 
 .dna-chat-section .chat-input-area {
   flex-shrink: 0;
-  padding: 0.85rem 1rem;
-  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  gap: 0.5rem;
   box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.05);
 }
 
 .dna-chat-section .ai-chat-inline .chat-input {
-  min-height: 52px;
+  min-height: 46px;
   max-height: 140px;
   border-radius: 8px;
 }
@@ -5723,8 +5744,8 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section .chat-footer-disclaimer {
-  padding: 0.45rem 1rem;
-  font-size: 0.72rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.68rem;
 }
 
 @media (max-width: 900px) {
@@ -8288,19 +8309,32 @@ details[open] .summary-arrow {
 .landing-home-start-panel {
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background: var(--surface-bg);
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.06), transparent 42%),
+    var(--surface-bg);
   display: flex;
   flex-direction: column;
-  align-self: start;
-  gap: 1.1rem;
-  padding: 1.4rem;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
+  align-self: center;
+  gap: 0.85rem;
+  padding: 1rem;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-home-start-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--accent-blue), var(--accent-green));
 }
 
 .landing-home-start-panel h2 {
   margin: 0;
+  padding-left: 0.35rem;
   color: var(--text-primary);
-  font-size: 1.45rem;
+  font-size: 1.05rem;
   line-height: 1.25;
   letter-spacing: 0;
 }
@@ -8308,15 +8342,33 @@ details[open] .summary-arrow {
 .landing-start-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.45rem;
 }
 
 .landing-start-actions .landing-secondary-button {
   width: 100%;
+  min-height: 2.55rem;
+  justify-content: space-between;
+  padding: 0.65rem 0.75rem 0.65rem 0.85rem;
+  background: rgba(255, 255, 255, 0.62);
+  border-color: rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.88rem;
+  text-align: left;
 }
 
-.landing-start-actions .landing-secondary-button {
-  background: transparent;
+.landing-start-actions .landing-secondary-button::after {
+  content: "→";
+  color: var(--accent-blue);
+  font-weight: 800;
+  margin-left: 0.75rem;
+}
+
+.landing-start-actions .landing-secondary-button:hover {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.32);
+  transform: translateY(-1px);
 }
 
 :root[data-theme="dark"] .landing-home-intro {
@@ -8325,6 +8377,10 @@ details[open] .summary-arrow {
 
 :root[data-theme="dark"] .landing-home-start-panel {
   background: rgba(17, 24, 39, 0.8);
+}
+
+:root[data-theme="dark"] .landing-start-actions .landing-secondary-button {
+  background: rgba(15, 23, 42, 0.78);
 }
 
 @media (max-width: 1080px) {

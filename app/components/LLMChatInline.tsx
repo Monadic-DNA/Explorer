@@ -39,12 +39,12 @@ const MAX_ATTACHMENTS = 5;
 
 const EXAMPLE_QUESTIONS = [
   "Which traits should I pay attention to?",
-    "How's my sleep profile?",
+  "How is my sleep profile?",
   "Which sports are ideal for me?",
   "What kinds of foods do you think I will like best?",
-  "On a scale of 1 - 10, how risk seeking am I?",
-  "Can you tell me which learning styles work best for me?",
-    "What can you guess about my appearance?"
+  "On a scale of 1 to 10, how risk seeking am I?",
+  "Which learning styles work best for me?",
+  "What can you guess about my appearance?"
 ];
 
 const FOLLOWUP_SUGGESTIONS = [
@@ -957,7 +957,10 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
-              <h3>Start with a question about your DNA results</h3>
+              <div className="chat-welcome-heading">
+                <h3>Ask about your DNA results</h3>
+                <span>Suggested prompts</span>
+              </div>
 
               {mounted && resultsContext.savedResults.length < 1000 && (
                 <div className="chat-warning">
@@ -975,13 +978,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               )}
 
               <ul className="example-questions">
-                {EXAMPLE_QUESTIONS.map((question, idx) => (
-                  <li key={idx} onClick={() => handleExampleClick(question)}>
+                {EXAMPLE_QUESTIONS.map((question) => (
+                  <li key={question} onClick={() => handleExampleClick(question)}>
                     {question}
                   </li>
                 ))}
               </ul>
-              <div className="chat-disclaimer">
+              <div className="chat-disclaimer chat-disclaimer-inline">
                 <strong>Disclaimer:</strong> LLMs can report incorrect or fabricated information and are not medical experts. <strong>For educational purposes only.</strong> Consult a healthcare professional for medical advice.
               </div>
             </div>
@@ -1196,7 +1199,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               <button
                 className="chat-send-button"
                 onClick={handleSendMessage}
-                disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
+                disabled={isLoading || !inputValue.trim()}
                 title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
               >
                 {isLoading ? 'Sending...' : (!hasActiveSubscription && !hasPromoAccess) ? 'Login/Subscribe' : 'Send'}

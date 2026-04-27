@@ -23,13 +23,16 @@ interface SubscriptionFormProps {
   customerId: string | null;
   onSuccess: () => void;
   onCancel: () => void;
+  onApplyPromo: (code: string) => void;
 }
 
-function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, isSetupIntent, subscriptionId, customerId, onSuccess, onCancel }: SubscriptionFormProps) {
+function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, isSetupIntent, subscriptionId, customerId, onSuccess, onCancel, onApplyPromo }: SubscriptionFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [promoInputValue, setPromoInputValue] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +51,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         const { error, setupIntent } = await stripe.confirmSetup({
           elements,
           confirmParams: {
-            return_url: `${window.location.origin}/payment/success`,
+            return_url: `${window.location.origin}/subscribe/confirmed`,
           },
           redirect: 'if_required',
         });
@@ -99,7 +102,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         const { error, paymentIntent } = await stripe.confirmPayment({
           elements,
           confirmParams: {
-            return_url: `${window.location.origin}/payment/success`,
+            return_url: `${window.location.origin}/subscribe/confirmed`,
           },
           redirect: 'if_required',
         });
@@ -187,6 +190,36 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         )}
       </div>
 
+      {/* Promo code */}
+      {!couponCode && (
+        <div className="inline-promo">
+          {!showPromoInput ? (
+            <button type="button" className="promo-toggle" onClick={() => setShowPromoInput(true)}>
+              🎟️ Have a promo code?
+            </button>
+          ) : (
+            <div className="promo-row">
+              <input
+                className="promo-field"
+                type="text"
+                placeholder="Promo code"
+                value={promoInputValue}
+                onChange={(e) => setPromoInputValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && promoInputValue.trim()) { onApplyPromo(promoInputValue.trim()); setShowPromoInput(false); } }}
+                autoFocus
+              />
+              <button
+                type="button"
+                className="promo-apply"
+                disabled={!promoInputValue.trim()}
+                onClick={() => { onApplyPromo(promoInputValue.trim()); setShowPromoInput(false); }}
+              >Apply</button>
+              <button type="button" className="promo-dismiss" onClick={() => setShowPromoInput(false)}>✕</button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Payment Element */}
       <div className="payment-section">
         <PaymentElement />
@@ -237,25 +270,29 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         .pricing-card {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           border-radius: 12px;
-          padding: 1.5rem;
-          margin-bottom: 1.5rem;
+          padding: 1rem 1.25rem;
+          margin-bottom: 1rem;
           color: white;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
         }
 
         .pricing-header {
-          margin-bottom: 1.25rem;
+          margin-bottom: 0;
         }
 
         .pricing-header h4 {
-          margin: 0 0 0.5rem 0;
-          font-size: 1.25rem;
+          margin: 0 0 0.2rem 0;
+          font-size: 1rem;
           font-weight: 600;
         }
 
         .price-display {
           display: flex;
           align-items: baseline;
-          gap: 0.5rem;
+          gap: 0.3rem;
         }
 
         .original-price {
@@ -266,29 +303,29 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
 
         .discounted-price,
         .current-price {
-          font-size: 2rem;
+          font-size: 1.5rem;
           font-weight: 700;
         }
 
         .billing-period {
-          font-size: 1rem;
+          font-size: 0.85rem;
           opacity: 0.9;
         }
 
         .features-list {
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
-          padding: 1rem 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.2);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+          gap: 0.4rem;
+          padding: 0;
+          border: none;
         }
 
         .feature-item {
           display: flex;
           align-items: center;
-          gap: 0.75rem;
-          font-size: 0.95rem;
+          gap: 0.5rem;
+          font-size: 0.85rem;
+          opacity: 0.92;
         }
 
         .feature-icon {
@@ -362,6 +399,67 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
           text-align: center;
           padding-top: 0.75rem;
           border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .inline-promo {
+          margin-bottom: 1rem;
+        }
+
+        .promo-toggle {
+          background: none;
+          border: none;
+          color: #667eea;
+          cursor: pointer;
+          font-size: 0.85rem;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+        }
+
+        .promo-toggle:hover { color: #764ba2; }
+
+        .promo-row {
+          display: flex;
+          gap: 0.4rem;
+          align-items: center;
+        }
+
+        .promo-field {
+          flex: 1;
+          padding: 0.5rem 0.75rem;
+          border: 2px solid #e5e7eb;
+          border-radius: 6px;
+          font-size: 0.9rem;
+        }
+
+        .promo-field:focus {
+          outline: none;
+          border-color: #667eea;
+        }
+
+        .promo-apply {
+          padding: 0.5rem 0.9rem;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 0.85rem;
+        }
+
+        .promo-apply:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .promo-dismiss {
+          padding: 0.5rem 0.6rem;
+          background: white;
+          color: #6b7280;
+          border: 2px solid #e5e7eb;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.9rem;
+          line-height: 1;
         }
 
         .payment-section {
@@ -483,10 +581,8 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState('');
   const [discount, setDiscount] = useState<DiscountInfo | null>(null);
-  const [showCouponInput, setShowCouponInput] = useState(false);
   const [isSetupIntent, setIsSetupIntent] = useState(false);
   const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -551,12 +647,13 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
       });
   };
 
-  const handleApplyCoupon = () => {
-    if (!couponCode.trim()) return;
+  React.useEffect(() => {
+    initializePayment('');
+  }, []);
 
-    // Create subscription with coupon
-    initializePayment(couponCode);
-    setShowCouponInput(false);
+  const handleApplyPromo = (code: string) => {
+    setHasInitialized(false);
+    initializePayment(code);
   };
 
   if (isInitializing) {
@@ -652,195 +749,8 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
     );
   }
 
-  if (!clientSecret) {
-    // Show promo code input and continue button before initializing
-    return (
-      <div>
-        <div className="pre-payment-section">
-          {!showCouponInput ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowCouponInput(true)}
-                className="promo-toggle-link"
-              >
-                <span className="coupon-icon">🎟️</span>
-                Have a promo code?
-              </button>
-              <button
-                onClick={() => initializePayment('')}
-                disabled={isInitializing}
-                className="btn-continue"
-              >
-                Continue to Payment
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="coupon-input-section">
-                <input
-                  type="text"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
-                  placeholder="Enter promo code"
-                  className="coupon-input-field"
-                  autoFocus
-                />
-                <button
-                  onClick={handleApplyCoupon}
-                  disabled={!couponCode.trim() || isInitializing}
-                  className="coupon-apply-button"
-                >
-                  Apply
-                </button>
-                <button
-                  onClick={() => setShowCouponInput(false)}
-                  className="coupon-cancel-button"
-                >
-                  ✕
-                </button>
-              </div>
-              <button
-                onClick={() => initializePayment('')}
-                disabled={isInitializing}
-                className="btn-continue-alt"
-              >
-                Continue without promo code
-              </button>
-            </>
-          )}
-        </div>
-
-        <style jsx>{`
-          .pre-payment-section {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-          }
-
-          .promo-toggle-link {
-            background: none;
-            border: none;
-            color: #667eea;
-            cursor: pointer;
-            font-size: 0.9rem;
-            padding: 0.5rem 0;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            justify-content: center;
-            transition: all 0.2s;
-          }
-
-          .promo-toggle-link:hover {
-            color: #764ba2;
-          }
-
-          .coupon-icon {
-            font-size: 1.1rem;
-          }
-
-          .coupon-input-section {
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-          }
-
-          .coupon-input-field {
-            flex: 1;
-            padding: 0.75rem 1rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            transition: all 0.2s;
-          }
-
-          .coupon-input-field:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-          }
-
-          .coupon-apply-button {
-            padding: 0.75rem 1.25rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.9rem;
-          }
-
-          .coupon-apply-button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-          }
-
-          .coupon-apply-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-
-          .coupon-cancel-button {
-            padding: 0.75rem;
-            background: white;
-            color: #6b7280;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 1rem;
-            line-height: 1;
-          }
-
-          .coupon-cancel-button:hover {
-            background: #f9fafb;
-          }
-
-          .btn-continue,
-          .btn-continue-alt {
-            width: 100%;
-            padding: 0.875rem 1.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 1rem;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-          }
-
-          .btn-continue:hover:not(:disabled),
-          .btn-continue-alt:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-          }
-
-          .btn-continue:disabled,
-          .btn-continue-alt:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-          }
-
-          .btn-continue-alt {
-            background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
-            box-shadow: none;
-          }
-
-          .btn-continue-alt:hover:not(:disabled) {
-            background: #f3f4ff;
-          }
-        `}</style>
-      </div>
-    );
+  if (!clientSecret && !isInitializing) {
+    return null;
   }
 
   const options = {
@@ -872,6 +782,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
           customerId={customerId}
           onSuccess={onSuccess}
           onCancel={onCancel}
+          onApplyPromo={handleApplyPromo}
         />
       </Elements>
 

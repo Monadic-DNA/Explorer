@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
 import PremiumFeatureHeader from "../components/PremiumFeatureHeader";
@@ -12,6 +13,7 @@ import { useResults } from "../components/ResultsContext";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 
 export default function OverviewReportPage() {
+  const router = useRouter();
   const { savedResults } = useResults();
   const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
@@ -41,7 +43,7 @@ export default function OverviewReportPage() {
         return;
       }
 
-      window.dispatchEvent(new CustomEvent('openPaymentModal'));
+      router.push('/subscribe');
       return;
     }
 

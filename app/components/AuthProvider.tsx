@@ -84,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [checkingSubscription, setCheckingSubscription] = useState(false); // Changed default to false
   const [isDynamicInitialized, setIsDynamicInitialized] = useState(false);
   const [openAuthModalFn, setOpenAuthModalFn] = useState<(() => void) | null>(null);
+  const [pendingAuthModalOpen, setPendingAuthModalOpen] = useState(false);
 
   // If environment ID is not set, render without Dynamic (useful for CI/CD builds)
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
@@ -236,11 +237,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOpenAuthModalFn(() => openFn);
   }, []);
 
+  useEffect(() => {
+    if (!pendingAuthModalOpen || !isDynamicInitialized || !openAuthModalFn) {
+      return;
+    }
+
+    openAuthModalFn();
+    setPendingAuthModalOpen(false);
+  }, [isDynamicInitialized, openAuthModalFn, pendingAuthModalOpen]);
+
   const openAuthModal = useCallback(() => {
+    if (!isDynamicEnabled) {
+      return;
+    }
+
+    if (!isDynamicInitialized) {
+      setPendingAuthModalOpen(true);
+      initializeDynamic();
+      return;
+    }
+
     if (openAuthModalFn) {
       openAuthModalFn();
+      return;
     }
-  }, [openAuthModalFn]);
+
+    setPendingAuthModalOpen(true);
+  }, [initializeDynamic, isDynamicEnabled, isDynamicInitialized, openAuthModalFn]);
 
   // If Dynamic is not enabled (no environment ID), render children with default auth context
   if (!isDynamicEnabled) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AuthButton, useAuth } from "./AuthProvider";
 import { clearPromoAccess, hasValidPromoAccess } from "@/lib/promo-access";
 
@@ -67,14 +68,9 @@ export default function PremiumFeatureHeader({
               <strong>Premium subscription required</strong>
               <span>Subscribe for $4.99/month to access {featureName}.</span>
             </div>
-            <button
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('openPaymentModal'));
-              }}
-              className="subscribe-button"
-            >
+            <Link href="/subscribe" className="subscribe-button">
               Subscribe
-            </button>
+            </Link>
           </div>
         ) : (
           <div className="subscription-active-inline">

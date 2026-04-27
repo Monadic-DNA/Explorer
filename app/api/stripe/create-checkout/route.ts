@@ -5,8 +5,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder'
   apiVersion: '2025-02-24.acacia',
 });
 
-const DAYS_PER_MONTH = 30;
-
 export async function POST(request: NextRequest) {
   try {
     const { walletAddress, couponCode } = await request.json();
@@ -99,8 +97,8 @@ export async function POST(request: NextRequest) {
         },
       ],
       discounts,
-      success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/payment/cancel`,
+      success_url: `${origin}/subscribe/confirmed?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/subscribe?payment=cancelled`,
       metadata: {
         walletAddress: walletAddress.toLowerCase(),
       },
