@@ -8,19 +8,22 @@ import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
+import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
 import { getLLMConfig } from "@/lib/llm-config";
 import { RobotIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 
-type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv';
+type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
+
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
 type Attachment = {
   name: string;
-  content: string;
+  content: string; // text content for documents; data URL for images
   type: AttachmentType;
   size: number; // in bytes
+  mimeType?: string; // set for images
 };
 
 type Message = {
@@ -33,8 +36,10 @@ type Message = {
 
 const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const MAX_CONTEXT_RESULTS = 500;
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB in bytes
-const ALLOWED_FILE_TYPES = ['.txt', '.pdf', '.csv', '.tsv'];
+const MAX_TEXT_FILE_SIZE = 2 * 1024 * 1024; // 2MB for text/csv/tsv
+const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;  // 5MB for PDF
+const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024; // 5MB for images
+const ALLOWED_FILE_TYPES = ['.txt', '.pdf', '.csv', '.tsv', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
 const MAX_ATTACHMENTS = 5;
 
 const EXAMPLE_QUESTIONS = [
@@ -188,15 +193,19 @@ export default function AIChatInline() {
   };
 
   const validateFile = (file: File): string | null => {
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 1MB.`;
-    }
-
-    // Check file type
     const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+
     if (!ALLOWED_FILE_TYPES.includes(extension)) {
       return `File "${file.name}" has an unsupported format. Allowed: ${ALLOWED_FILE_TYPES.join(', ')}`;
+    }
+
+    const isImage = IMAGE_EXTENSIONS.includes(extension);
+    const isPDF = extension === '.pdf';
+    const maxSize = isImage ? MAX_IMAGE_FILE_SIZE : isPDF ? MAX_PDF_FILE_SIZE : MAX_TEXT_FILE_SIZE;
+    const maxLabel = isImage || isPDF ? '5MB' : '2MB';
+
+    if (file.size > maxSize) {
+      return `File "${file.name}" is too large. Maximum size is ${maxLabel}.`;
     }
 
     return null;
@@ -243,23 +252,19 @@ export default function AIChatInline() {
 
       try {
         if (extension === 'pdf') {
-          // For PDF, we'll need to use pdfjs-dist
           const content = await extractTextFromPDF(file);
-          attachments.push({
-            name: file.name,
-            content,
-            type: 'pdf',
-            size: file.size
+          attachments.push({ name: file.name, content, type: 'pdf', size: file.size });
+        } else if (extension && IMAGE_EXTENSIONS.includes('.' + extension)) {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
           });
+          attachments.push({ name: file.name, content: dataUrl, type: 'image', size: file.size, mimeType: file.type });
         } else {
-          // For text, csv, tsv - read as text
           const content = await file.text();
-          attachments.push({
-            name: file.name,
-            content,
-            type: extension as AttachmentType,
-            size: file.size
-          });
+          attachments.push({ name: file.name, content, type: extension as AttachmentType, size: file.size });
         }
       } catch (err) {
         console.error(`Failed to process file ${file.name}:`, err);
@@ -317,19 +322,29 @@ export default function AIChatInline() {
     }
   };
 
-  const formatAttachmentsForMessage = (attachments: Attachment[], query: string): string => {
-    let message = `User question:\n${query}`;
+  const buildUserMessageContent = (attachments: Attachment[], query: string): string | MessageContentPart[] => {
+    const docAttachments = attachments.filter(a => a.type !== 'image');
+    const imageAttachments = attachments.filter(a => a.type === 'image');
 
-    if (attachments.length > 0) {
-      message += '\n\n---\n';
-      for (const attachment of attachments) {
+    let textPart = `User question:\n${query}`;
+    if (docAttachments.length > 0) {
+      textPart += '\n\n---\n';
+      for (const attachment of docAttachments) {
         const sizeKB = (attachment.size / 1024).toFixed(1);
-        message += `\nAttached file: ${attachment.name} (${attachment.type.toUpperCase()}, ${sizeKB}KB):\n${attachment.content}\n`;
+        textPart += `\nAttached file: ${attachment.name} (${attachment.type.toUpperCase()}, ${sizeKB}KB):\n${attachment.content}\n`;
       }
-      message += '---';
+      textPart += '---';
     }
 
-    return message;
+    if (imageAttachments.length === 0) {
+      return textPart;
+    }
+
+    const parts: MessageContentPart[] = [{ type: 'text', text: textPart }];
+    for (const img of imageAttachments) {
+      parts.push({ type: 'image_url', image_url: { url: img.content } });
+    }
+    return parts;
   };
 
   const handleSendMessage = async () => {
@@ -590,9 +605,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('Attachments Count:', processedAttachments.length);
       console.log('======================');
 
-      // Format the user query with attachments for LLM
+      // Format the user query with attachments for LLM (multimodal when images present)
       const userQueryWithAttachments = processedAttachments.length > 0
-        ? formatAttachmentsForMessage(processedAttachments, query)
+        ? buildUserMessageContent(processedAttachments, query)
         : query;
 
       // Build the message history to send to LLM FIRST (before updating state)
@@ -719,6 +734,34 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter(item => item.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+    setAttachmentError(null);
+
+    if (attachedFiles.length + imageItems.length > MAX_ATTACHMENTS) {
+      setAttachmentError(`Maximum ${MAX_ATTACHMENTS} files can be attached at once.`);
+      return;
+    }
+
+    const newFiles: File[] = [];
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (!file) continue;
+      // Clipboard images have no extension; name them with a timestamp
+      const ext = item.type.split('/')[1] || 'png';
+      const named = new File([file], `pasted-image-${Date.now()}.${ext}`, { type: item.type });
+      const error = validateFile(named);
+      if (error) { setAttachmentError(error); return; }
+      newFiles.push(named);
+    }
+
+    setAttachedFiles(prev => [...prev, ...newFiles]);
   };
 
   const handleClearChat = () => {
@@ -1092,7 +1135,11 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                               </span>
                             </div>
                             <div className="attachment-content-preview">
-                              <pre>{attachment.content.substring(0, 500)}{attachment.content.length > 500 ? '...' : ''}</pre>
+                              {attachment.type === 'image' ? (
+                                <img src={attachment.content} alt={attachment.name} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '4px' }} />
+                              ) : (
+                                <pre>{attachment.content.substring(0, 500)}{attachment.content.length > 500 ? '...' : ''}</pre>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1134,7 +1181,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.pdf,.csv,.tsv"
+            accept=".txt,.pdf,.csv,.tsv,.jpg,.jpeg,.png,.gif,.webp"
             multiple
             style={{ display: 'none' }}
             onChange={handleFileSelect}
@@ -1143,9 +1190,12 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           {/* Attachment preview chips */}
           {attachedFiles.length > 0 && (
             <div className="attachment-preview-area">
-              {attachedFiles.map((file, idx) => (
+              {attachedFiles.map((file, idx) => {
+                const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+                const isImg = IMAGE_EXTENSIONS.includes(ext);
+                return (
                 <div key={idx} className="attachment-chip">
-                  <span className="attachment-icon">File</span>
+                  <span className="attachment-icon">{isImg ? 'Image' : 'File'}</span>
                   <span className="attachment-name">{file.name}</span>
                   <span className="attachment-size">({(file.size / 1024).toFixed(1)}KB)</span>
                   <button
@@ -1156,7 +1206,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     ×
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1174,6 +1225,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             rows={2}
             disabled={isLoading}
           />
@@ -1193,7 +1245,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 onClick={handleAttachmentClick}
                 disabled={isLoading || attachedFiles.length >= MAX_ATTACHMENTS}
                 data-tour="attach-button"
-                title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, pdf, csv, tsv, max 1MB)'}
+                title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, csv, tsv up to 2MB; pdf, images up to 5MB)'}
               >
                 Attach
               </button>
