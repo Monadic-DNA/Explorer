@@ -9047,6 +9047,29 @@ details[open] .summary-arrow {
   color: #111111;
 }
 
+.wire-onboarding-text-link {
+  background: none;
+  border: none;
+  color: #b0b0b0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  cursor: pointer;
+  padding: 0.5rem 0;
+  text-align: center;
+  display: block;
+  width: 100%;
+  margin-top: 1.5rem;
+  text-decoration: none;
+}
+
+.wire-onboarding-text-link:hover {
+  color: #777777;
+}
+
+.wire-onboarding-text-link + .wire-onboarding-text-link {
+  margin-top: 0.35rem;
+}
+
 .wire-onboarding-choice-list,
 .wire-onboarding-actions,
 .wire-response-list {
@@ -9342,6 +9365,11 @@ details[open] .summary-arrow {
   color: #6b7280;
   font-size: 0.88rem;
   line-height: 1.35;
+}
+
+.wire-trait-label {
+  font-weight: 600;
+  color: #374151;
 }
 
 .wire-trait-row-actions {

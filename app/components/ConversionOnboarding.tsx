@@ -648,6 +648,27 @@ RESPONSE STRUCTURE:
                 >
                   Let&apos;s Go
                 </button>
+                <button
+                  className="wire-onboarding-text-link"
+                  onClick={() => {
+                    trackOnboardingAction("intro_skip_never_show");
+                    localStorage.setItem("conversion_onboarding_completed", "true");
+                    onDismiss?.();
+                  }}
+                >
+                  Skip this tour and do not show it again
+                </button>
+                <button
+                  className="wire-onboarding-text-link"
+                  onClick={() => {
+                    trackOnboardingAction("intro_researcher_path");
+                    localStorage.setItem("conversion_onboarding_completed", "true");
+                    localStorage.setItem("user_path", "researcher");
+                    onComplete();
+                  }}
+                >
+                  I am just a researcher who wants to explore the GWAS Catalog
+                </button>
               </section>
             )}
 
@@ -984,8 +1005,9 @@ RESPONSE STRUCTURE:
                           <div className="wire-trait-row-body">
                             <div className="wire-trait-row-top">
                               <div className="wire-trait-row-copy">
-                                <span className="wire-trait-row-study">{result.studyTitle}</span>
-                                <span className="wire-trait-row-meta">{result.mappedGene || result.matchedSnp}</span>
+                                <span className="wire-trait-row-study"><span className="wire-trait-label">Study Title: </span>{result.studyTitle}</span>
+                                {result.mappedGene && <span className="wire-trait-row-meta"><span className="wire-trait-label">Gene: </span>{result.mappedGene}</span>}
+                                <span className="wire-trait-row-meta"><span className="wire-trait-label">SNP: </span>{result.matchedSnp}</span>
                               </div>
                               <div className="wire-trait-row-actions">
                                 <button
@@ -1030,7 +1052,7 @@ RESPONSE STRUCTURE:
                 <div className="wire-next-step-panel">
                   <span className="wire-next-step-kicker">Next Step</span>
                   <strong>Now ask questions about your whole dataset with secure AI.</strong>
-                  <p>Use premium-style LLM analysis to answer broader questions using the most relevant traits from your uploaded DNA data.</p>
+                  <p>Use premium LLM analysis to answer broader questions using the most relevant traits from your uploaded DNA data.</p>
                   <button
                     className="wire-onboarding-primary"
                     onClick={() => {
@@ -1132,7 +1154,7 @@ RESPONSE STRUCTURE:
 
                 {!responsesLoading && !responseError && previewResponses.length > 0 && (
                   <>
-                    <p>The DNA Chat feature is available for only $4.99 a month.</p>
+                    <p>The DNA Chat feature is available for only $4.99 a month. Use promo code <strong>FREEWEEK</strong> for a free week.</p>
                     <p>Personalize your answers by entering your demographics, history, reports documents in the app.</p>
                     <p>Nobody apart from you can ever look at your chat logs or personalization information.</p>
                     <p><strong>You&apos;re now ready to start using the app to unlock your diet, lifestyle and health insights!</strong></p>
