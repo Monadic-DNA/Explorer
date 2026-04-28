@@ -1,21 +1,27 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MenuBar from "../../components/MenuBar";
 import Footer from "../../components/Footer";
 import { useAuth } from "../../components/AuthProvider";
+import { trackSubscriptionConfirmationViewed } from "@/lib/analytics";
 
 function SubscribeConfirmedContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refreshSubscription } = useAuth();
   const sessionId = searchParams.get("session_id");
+  const trackedRef = useRef(false);
 
   useEffect(() => {
     refreshSubscription(true);
     window.dispatchEvent(new CustomEvent("premiumAccessUpdated"));
-  }, [refreshSubscription]);
+    if (!trackedRef.current) {
+      trackedRef.current = true;
+      trackSubscriptionConfirmationViewed(!!sessionId);
+    }
+  }, [refreshSubscription, sessionId]);
 
   return (
     <div className="app-container">

@@ -4,7 +4,7 @@ import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynam
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { ZeroDevSmartWalletConnectors } from '@dynamic-labs/ethereum-aa';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { trackUserLoggedIn } from '@/lib/analytics';
+import { trackSignInStarted, trackUserLoggedIn } from '@/lib/analytics';
 import { hasValidPromoAccess } from '@/lib/promo-access';
 
 interface SubscriptionData {
@@ -250,6 +250,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isDynamicEnabled) {
       return;
     }
+
+    trackSignInStarted();
 
     if (!isDynamicInitialized) {
       setPendingAuthModalOpen(true);

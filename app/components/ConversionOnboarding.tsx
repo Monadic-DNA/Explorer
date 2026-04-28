@@ -12,13 +12,21 @@ import LLMCommentaryModal from "./LLMCommentaryModal";
 import NilAIConsentModal from "./NilAIConsentModal";
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
 import {
+  trackAIConsentDeclined,
+  trackAIConsentGiven,
   trackLLMQuestionAsked,
+  trackOnboardingAction,
   trackOnboardingCompleted,
   trackOnboardingDismissed,
   trackOnboardingPathChosen,
   trackOnboardingStarted,
   trackOnboardingStepViewed,
+  trackRunAllCompleted,
+  trackRunAllFailed,
   trackRunAllStarted,
+  trackSampleDataFailed,
+  trackSampleDataLoaded,
+  trackSampleDataStarted,
 } from "@/lib/analytics";
 
 type FlowMode = "guided" | "instant_preview";
@@ -286,14 +294,19 @@ export default function ConversionOnboarding({
       matchCount: 0,
       message: "Downloading the lightweight study catalog for your preview.",
     });
-    trackOnboardingStarted();
+    trackOnboardingStarted(mode);
   }, [isOpen, mode]);
 
   useEffect(() => {
     if (isOpen && mounted) {
-      trackOnboardingStepViewed(currentStep);
+      trackOnboardingStepViewed(currentStep, {
+        stepNumber: HAPPY_PATH_STEP_INDEX[currentStep] || 1,
+        totalSteps: 6,
+        mode,
+        userPath: completionPath,
+      });
     }
-  }, [currentStep, isOpen, mounted]);
+  }, [completionPath, currentStep, isOpen, mode, mounted]);
 
   useEffect(() => {
     if (typeof window === "undefined" || commentaryResult) return;
@@ -418,6 +431,7 @@ RESPONSE STRUCTURE:
 
     setSampleDataError(null);
     setIsSampleLoading(true);
+    trackSampleDataStarted("onboarding");
     setSampleLoadProgress({
       phase: "downloading",
       downloadedBytes: 0,
@@ -474,6 +488,7 @@ RESPONSE STRUCTURE:
         throw new Error("The sample data could not be loaded into the app.");
       }
 
+      trackSampleDataLoaded("onboarding", sampleFile.size);
       setSampleLoadProgress({
         phase: "complete",
         downloadedBytes: resolvedTotalBytes,
@@ -484,6 +499,10 @@ RESPONSE STRUCTURE:
       setCurrentStep("run_all");
     } catch (sampleError) {
       console.error("[ConversionOnboarding] Sample data load failed:", sampleError);
+      trackSampleDataFailed(
+        "onboarding",
+        sampleError instanceof Error ? sampleError.message : "sample_data_failed"
+      );
       setSampleDataError(
         sampleError instanceof Error
           ? sampleError.message
@@ -525,9 +544,11 @@ RESPONSE STRUCTURE:
         total: prev.processedStudies || prev.total,
         message: "Preview analysis complete.",
       }));
+      trackRunAllCompleted(0, results.length, candidates.length, "onboarding");
     } catch (runError) {
       console.error("[ConversionOnboarding] Onboarding preview failed:", runError);
       const message = runError instanceof Error ? runError.message : "The onboarding preview did not complete cleanly.";
+      trackRunAllFailed("onboarding", message);
       setAnalysisError(message);
       setRunAllProgress((prev) => ({
         ...prev,
@@ -585,6 +606,7 @@ RESPONSE STRUCTURE:
           localStorage.setItem(CONSENT_STORAGE_KEY, "true");
           setHasConsent(true);
           setShowConsentModal(false);
+          trackAIConsentGiven();
           if (pendingQuestion) {
             const nextQuestion = pendingQuestion;
             setPendingQuestion(null);
@@ -595,6 +617,7 @@ RESPONSE STRUCTURE:
         onDecline={() => {
           setPendingQuestion(null);
           setShowConsentModal(false);
+          trackAIConsentDeclined();
         }}
       />
 
@@ -616,7 +639,13 @@ RESPONSE STRUCTURE:
               <section className="wire-onboarding-slide">
                 <h1>Monadic DNA Explorer uses 1m+ scientifically vetted genetic traits to help you understand your health, diet and exercise.</h1>
                 <p>We do not store or look at your DNA or sell it to third parties.</p>
-                <button className="wire-onboarding-primary" onClick={() => setCurrentStep("path")}>
+                <button
+                  className="wire-onboarding-primary"
+                  onClick={() => {
+                    trackOnboardingAction("intro_continue");
+                    setCurrentStep("path");
+                  }}
+                >
                   Let&apos;s Go
                 </button>
               </section>
@@ -664,16 +693,34 @@ RESPONSE STRUCTURE:
               <section className="wire-onboarding-slide">
                 <h1>Click on your DNA testing provider for instructions on how to download a copy of your DNA data</h1>
                 <div className="wire-onboarding-actions">
-                  <button className="wire-onboarding-secondary" onClick={() => window.open(GUIDE_23ANDME_URL, "_blank", "noopener,noreferrer")}>
+                  <button
+                    className="wire-onboarding-secondary"
+                    onClick={() => {
+                      trackOnboardingAction("provider_instructions_clicked", { provider: "23andme" });
+                      window.open(GUIDE_23ANDME_URL, "_blank", "noopener,noreferrer");
+                    }}
+                  >
                     [23andMe]
                   </button>
-                  <button className="wire-onboarding-secondary" onClick={() => window.open(GUIDE_ANCESTRY_URL, "_blank", "noopener,noreferrer")}>
+                  <button
+                    className="wire-onboarding-secondary"
+                    onClick={() => {
+                      trackOnboardingAction("provider_instructions_clicked", { provider: "ancestry" });
+                      window.open(GUIDE_ANCESTRY_URL, "_blank", "noopener,noreferrer");
+                    }}
+                  >
                     [Ancestry DNA]
                   </button>
                 </div>
                 <p>While you&apos;re waiting for your data, let&apos;s give you a taste of what you will be able to do with your data.</p>
                 <div className="wire-onboarding-actions">
-                  <button className="wire-onboarding-primary" onClick={() => setCurrentStep("sample_data")}>
+                  <button
+                    className="wire-onboarding-primary"
+                    onClick={() => {
+                      trackOnboardingAction("sample_preview_selected", { from_step: "need_file" });
+                      setCurrentStep("sample_data");
+                    }}
+                  >
                     Show Me
                   </button>
                 </div>
@@ -685,13 +732,25 @@ RESPONSE STRUCTURE:
                 <h1>We are working on an app called Batcher for letting you privately and anonymously get your DNA sequenced.</h1>
                 <p>Use the link below to sign up and get notified as soon as the service is ready.</p>
                 <div className="wire-onboarding-actions">
-                  <button className="wire-onboarding-secondary" onClick={() => window.open(SEQUENCING_URL, "_blank", "noopener,noreferrer")}>
+                  <button
+                    className="wire-onboarding-secondary"
+                    onClick={() => {
+                      trackOnboardingAction("sequencing_signup_clicked");
+                      window.open(SEQUENCING_URL, "_blank", "noopener,noreferrer");
+                    }}
+                  >
                     Testing Sign Up Form
                   </button>
                 </div>
                 <p>While you&apos;re waiting to get sequenced, let&apos;s give you a taste of what you will be able to do with your data.</p>
                 <div className="wire-onboarding-actions">
-                  <button className="wire-onboarding-primary" onClick={() => setCurrentStep("sample_data")}>
+                  <button
+                    className="wire-onboarding-primary"
+                    onClick={() => {
+                      trackOnboardingAction("sample_preview_selected", { from_step: "need_sequencing" });
+                      setCurrentStep("sample_data");
+                    }}
+                  >
                     Show Me
                   </button>
                 </div>
@@ -779,9 +838,11 @@ RESPONSE STRUCTURE:
                     className="wire-onboarding-primary"
                     onClick={() => {
                       if (isUploaded && genotypeData && genotypeData.size > 0) {
+                        trackOnboardingAction("own_data_analysis_started");
                         setCurrentStep("run_all");
                         return;
                       }
+                      trackOnboardingAction("upload_picker_opened");
                       fileInputRef.current?.click();
                     }}
                     disabled={isLoading}
@@ -797,7 +858,10 @@ RESPONSE STRUCTURE:
                     onChange={async (event) => {
                       const file = event.target.files?.[0];
                       if (!file) return;
-                      await uploadGenotype(file);
+                      const uploaded = await uploadGenotype(file, "onboarding_upload");
+                      if (uploaded) {
+                        trackOnboardingAction("own_data_uploaded");
+                      }
                       event.target.value = "";
                     }}
                   />
@@ -860,7 +924,13 @@ RESPONSE STRUCTURE:
                 </div>
 
                 {runAllProgress.phase === "complete" && traitCandidates.length > 0 && (
-                  <button className="wire-onboarding-primary" onClick={() => setCurrentStep("traits")}>
+                  <button
+                    className="wire-onboarding-primary"
+                    onClick={() => {
+                      trackOnboardingAction("traits_preview_opened", { result_count: traitCandidates.length });
+                      setCurrentStep("traits");
+                    }}
+                  >
                     Show Me Some Traits &gt;&gt;
                   </button>
                 )}
@@ -961,7 +1031,14 @@ RESPONSE STRUCTURE:
                   <span className="wire-next-step-kicker">Next Step</span>
                   <strong>Now ask questions about your whole dataset with secure AI.</strong>
                   <p>Use premium-style LLM analysis to answer broader questions using the most relevant traits from your uploaded DNA data.</p>
-                  <button className="wire-onboarding-primary" onClick={goToResponses} disabled={!selectedTraitResults.length}>
+                  <button
+                    className="wire-onboarding-primary"
+                    onClick={() => {
+                      trackOnboardingAction("chat_preview_opened");
+                      goToResponses();
+                    }}
+                    disabled={!selectedTraitResults.length}
+                  >
                     Run Some LLM Analysis &gt;&gt;
                   </button>
                 </div>
@@ -990,6 +1067,7 @@ RESPONSE STRUCTURE:
                             }
 
                             setActiveQuestion(question);
+                            trackOnboardingAction("chat_preview_question_selected");
 
                             if (response) {
                               return;

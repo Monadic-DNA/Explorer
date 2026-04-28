@@ -21,6 +21,8 @@ import { isDevModeEnabled } from "@/lib/dev-mode";
 import { hasValidPromoAccess, clearPromoAccess } from "@/lib/promo-access";
 import {
   trackSearch,
+  trackRunAllCompleted,
+  trackRunAllFailed,
   trackRunAllStarted,
   trackQueryRun,
   trackExploreTabViewed,
@@ -589,6 +591,7 @@ function ExplorePage() {
 
   const handleRunAll = () => {
     if (!genotypeData || genotypeData.size === 0) {
+      trackRunAllFailed("explore", "no_genotype_data");
       alert("No SNPs found in your genetic data");
       return;
     }
@@ -675,11 +678,13 @@ function ExplorePage() {
       await addResultsBatch(results); // Embeddings will be fetched on-demand during LLM analysis
       const addTime = Date.now() - startAdd;
       console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+      trackRunAllCompleted(metadata?.totalStudies || 0, results.length, results.length, "explore");
 
       // Notify MenuBar that cache has been updated
       window.dispatchEvent(new CustomEvent('cacheUpdated'));
     } catch (error) {
       console.error('Run All failed:', error);
+      trackRunAllFailed("explore", error instanceof Error ? error.message : "run_all_failed");
       setRunAllStatus(prev => ({
         ...prev,
         phase: 'error',

@@ -16,7 +16,12 @@ import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 import NillionModal from "./NillionModal";
 import DisclaimerModal from "./DisclaimerModal";
 import RunAllModal from "./RunAllModal";
-import { trackRunAllStarted } from "@/lib/analytics";
+import {
+  trackGetStartedClicked,
+  trackRunAllCompleted,
+  trackRunAllFailed,
+  trackRunAllStarted,
+} from "@/lib/analytics";
 
 type RunAllStatus = {
   phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
@@ -174,6 +179,7 @@ export default function MenuBar() {
 
     if (!genotypeData || genotypeData.size === 0) {
       setShowMyDataDropdown(true);
+      trackRunAllFailed("menu", "no_genotype_data");
       alert("Upload your DNA file before running all traits.");
       return;
     }
@@ -252,10 +258,12 @@ export default function MenuBar() {
       await addResultsBatch(results);
       const addTime = Date.now() - startAdd;
       console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+      trackRunAllCompleted(metadata?.totalStudies || 0, results.length, results.length, "menu");
 
       window.dispatchEvent(new CustomEvent('cacheUpdated'));
     } catch (error) {
       console.error('Run All failed:', error);
+      trackRunAllFailed("menu", error instanceof Error ? error.message : "run_all_failed");
       setRunAllStatus(prev => ({
         ...prev,
         phase: 'error',
@@ -350,6 +358,7 @@ export default function MenuBar() {
         isOpen={showHelpDropdown}
         onClose={() => setShowHelpDropdown(false)}
         onRestartOnboarding={() => {
+          trackGetStartedClicked("restart_onboarding");
           if (pathname === "/") {
             window.dispatchEvent(new CustomEvent("openConversionOnboarding", { detail: { mode: "guided" } }));
             return;

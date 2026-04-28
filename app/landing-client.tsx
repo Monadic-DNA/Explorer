@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ConversionOnboarding from "./components/ConversionOnboarding";
 import { useGenotype } from "./components/UserDataUpload";
+import { trackGetStartedClicked } from "@/lib/analytics";
 
 type FlowMode = "guided" | "instant_preview";
 
@@ -105,7 +106,10 @@ export default function LandingClient() {
             <div className="landing-start-actions">
               <button
                 className="landing-secondary-button"
-                onClick={() => openOnboarding(isUploaded ? "instant_preview" : "guided")}
+                onClick={() => {
+                  trackGetStartedClicked("onboarding_tour");
+                  openOnboarding(isUploaded ? "instant_preview" : "guided");
+                }}
               >
                 Take an Onboarding Tour
               </button>
@@ -114,6 +118,7 @@ export default function LandingClient() {
                 href={INSTRUCTIONAL_VIDEO_URL}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() => trackGetStartedClicked("instructional_video")}
               >
                 Watch Instructional Video
               </a>
@@ -122,6 +127,7 @@ export default function LandingClient() {
                 href={SCHEDULE_CALL_URL}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() => trackGetStartedClicked("schedule_video_call")}
               >
                 Schedule Video Call
               </a>

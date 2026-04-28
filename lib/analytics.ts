@@ -120,6 +120,14 @@ async function trackXConversion(
 // CORE USER JOURNEY EVENTS (12 total)
 // ============================================================================
 
+type OnboardingPath = 'explore' | 'own_dna' | 'own_dna_no_test' | 'own_dna_needs_help' | 'own_dna_premium' | 'own_dna_free';
+type PaymentMethod = 'card' | 'stablecoin';
+
+function sanitizeErrorReason(reason?: string): string | undefined {
+  if (!reason) return undefined;
+  return reason.slice(0, 120);
+}
+
 /**
  * User accepted terms and moved past initial modal
  */
@@ -130,7 +138,7 @@ export function trackTermsAccepted() {
 /**
  * User completed onboarding flow
  */
-export function trackOnboardingCompleted(userPath: 'explore' | 'own_dna' | 'own_dna_no_test' | 'own_dna_needs_help' | 'own_dna_premium' | 'own_dna_free') {
+export function trackOnboardingCompleted(userPath: OnboardingPath) {
   trackEvent('onboarding_completed', {
     user_path: userPath,
   });
@@ -139,16 +147,25 @@ export function trackOnboardingCompleted(userPath: 'explore' | 'own_dna' | 'own_
 /**
  * User started onboarding flow
  */
-export function trackOnboardingStarted() {
-  trackEvent('onboarding_started');
+export function trackOnboardingStarted(mode?: string) {
+  trackEvent('onboarding_started', {
+    mode,
+  });
 }
 
 /**
  * User progressed to a specific onboarding step
  */
-export function trackOnboardingStepViewed(step: string) {
+export function trackOnboardingStepViewed(
+  step: string,
+  details?: { stepNumber?: number; totalSteps?: number; mode?: string; userPath?: string }
+) {
   trackEvent('onboarding_step_viewed', {
-    step: step,
+    step,
+    step_number: details?.stepNumber,
+    total_steps: details?.totalSteps,
+    mode: details?.mode,
+    user_path: details?.userPath,
   });
 }
 
@@ -167,6 +184,46 @@ export function trackOnboardingPathChosen(path: string) {
 export function trackOnboardingDismissed(step: string) {
   trackEvent('onboarding_dismissed', {
     step_at_dismissal: step,
+  });
+}
+
+/**
+ * User clicked one of the homepage Get Started actions
+ */
+export function trackGetStartedClicked(action: 'onboarding_tour' | 'instructional_video' | 'schedule_video_call' | 'restart_onboarding') {
+  trackEvent('get_started_clicked', {
+    action,
+  });
+}
+
+/**
+ * User took a meaningful action within onboarding
+ */
+export function trackOnboardingAction(action: string, metadata?: Record<string, string | number | boolean | undefined>) {
+  trackEvent('onboarding_action', {
+    action,
+    ...metadata,
+  });
+}
+
+export function trackSampleDataStarted(source: 'onboarding' | 'menu' = 'onboarding') {
+  trackEvent('sample_data_started', {
+    source,
+  });
+}
+
+export function trackSampleDataLoaded(source: 'onboarding' | 'menu', fileSize: number, variantCount?: number) {
+  trackEvent('sample_data_loaded', {
+    source,
+    file_size_kb: Math.round(fileSize / 1024),
+    variant_count: variantCount,
+  });
+}
+
+export function trackSampleDataFailed(source: 'onboarding' | 'menu', reason?: string) {
+  trackEvent('sample_data_failed', {
+    source,
+    reason: sanitizeErrorReason(reason),
   });
 }
 
@@ -264,10 +321,24 @@ export function trackAIAnalysisRun() {
 /**
  * User loaded a genotype file (DNA data)
  */
-export function trackGenotypeFileLoaded(fileSize: number, variantCount: number) {
+export function trackGenotypeFileUploadStarted(source: string = 'unknown') {
+  trackEvent('genotype_file_upload_started', {
+    source,
+  });
+}
+
+export function trackGenotypeFileUploadFailed(source: string = 'unknown', reason?: string) {
+  trackEvent('genotype_file_upload_failed', {
+    source,
+    reason: sanitizeErrorReason(reason),
+  });
+}
+
+export function trackGenotypeFileLoaded(fileSize: number, variantCount: number, source: string = 'unknown') {
   const metadata = {
     file_size_kb: Math.round(fileSize / 1024),
     variant_count: variantCount,
+    source,
   };
 
   trackEvent('genotype_file_loaded', metadata);
@@ -316,6 +387,16 @@ export function trackPremiumSectionViewed() {
 }
 
 /**
+ * User viewed a premium tab
+ */
+export function trackPremiumTabViewed(tab: string, hasPremiumAccess: boolean) {
+  trackEvent('premium_tab_viewed', {
+    tab,
+    has_premium_access: hasPremiumAccess,
+  });
+}
+
+/**
  * User logged in using Dynamic wallet authentication
  */
 export function trackUserLoggedIn() {
@@ -340,11 +421,34 @@ export function trackUserLoggedIn() {
 }
 
 /**
+ * User opened the sign-in modal
+ */
+export function trackSignInStarted() {
+  trackEvent('sign_in_started');
+}
+
+/**
  * User clicked "Run All" to analyze all studies
  */
 export function trackRunAllStarted(studyCount: number) {
   trackEvent('run_all_started', {
     study_count: studyCount,
+  });
+}
+
+export function trackRunAllCompleted(studyCount: number, resultCount: number, matchCount: number, source: 'menu' | 'explore' | 'onboarding') {
+  trackEvent('run_all_completed', {
+    study_count: studyCount,
+    result_count: resultCount,
+    match_count: matchCount,
+    source,
+  });
+}
+
+export function trackRunAllFailed(source: 'menu' | 'explore' | 'onboarding', reason?: string) {
+  trackEvent('run_all_failed', {
+    source,
+    reason: sanitizeErrorReason(reason),
   });
 }
 
@@ -361,6 +465,50 @@ export function trackLLMQuestionAsked() {
 export function trackOverviewReportGenerated(resultCount: number) {
   trackEvent('overview_report_generated', {
     result_count: resultCount,
+  });
+}
+
+export function trackSubscribePageViewed(state: 'signed_out' | 'signed_in' | 'subscribed') {
+  trackEvent('subscribe_page_viewed', {
+    state,
+  });
+}
+
+export function trackPaymentMethodSelected(method: PaymentMethod) {
+  trackEvent('payment_method_selected', {
+    method,
+  });
+}
+
+export function trackCheckoutStarted(method: PaymentMethod, metadata?: { hasPromoCode?: boolean; amount?: number; currency?: string }) {
+  trackEvent('checkout_started', {
+    method,
+    has_promo_code: metadata?.hasPromoCode,
+    amount: metadata?.amount,
+    currency: metadata?.currency,
+  });
+}
+
+export function trackCheckoutSubmitted(method: PaymentMethod) {
+  trackEvent('checkout_submitted', {
+    method,
+  });
+}
+
+export function trackCheckoutFailed(method: PaymentMethod, reason?: string) {
+  trackEvent('checkout_failed', {
+    method,
+    reason: sanitizeErrorReason(reason),
+  });
+}
+
+export function trackStripePromoCodeApplied() {
+  trackEvent('stripe_promo_code_applied');
+}
+
+export function trackSubscriptionConfirmationViewed(hasStripeSessionId: boolean) {
+  trackEvent('subscription_confirmation_viewed', {
+    has_stripe_session_id: hasStripeSessionId,
   });
 }
 
@@ -496,10 +644,16 @@ export function trackTermsAcceptance() {
   trackTermsAccepted();
 }
 
-// Stub out removed functions to prevent errors during migration
-export function trackFileUploadStart() {}
-export function trackFileUploadError() {}
-export function trackFileCleared() {}
+// Compatibility wrappers for older call sites
+export function trackFileUploadStart() {
+  trackGenotypeFileUploadStarted();
+}
+export function trackFileUploadError(reason?: string) {
+  trackGenotypeFileUploadFailed('unknown', reason);
+}
+export function trackFileCleared() {
+  trackEvent('genotype_file_cleared');
+}
 export function trackFilterChange() {}
 export function trackFilterReset() {}
 export function trackSort() {}
@@ -508,8 +662,12 @@ export function trackVariantClick() {}
 export function trackModalOpen() {}
 export function trackModalClose() {}
 export function trackDisclaimerView() {}
-export function trackAIConsentGiven() {}
-export function trackAIConsentDeclined() {}
+export function trackAIConsentGiven() {
+  trackEvent('ai_consent_given');
+}
+export function trackAIConsentDeclined() {
+  trackEvent('ai_consent_declined');
+}
 export function trackAIAnalysisSuccess() {}
 export function trackAIAnalysisError() {}
 export function trackAPITiming() {}

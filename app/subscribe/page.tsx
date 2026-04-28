@@ -1,15 +1,17 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
 import PaymentModal from "../components/PaymentModal";
 import { AuthButton, useAuth } from "../components/AuthProvider";
+import { trackSubscribePageViewed } from "@/lib/analytics";
 
 function SubscribeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pageViewTrackedRef = useRef(false);
   const {
     isAuthenticated,
     user,
@@ -36,6 +38,13 @@ function SubscribeContent() {
 
   const paymentCancelled = searchParams.get("payment") === "cancelled";
   const walletAddress = user?.verifiedCredentials?.[0]?.address;
+  const subscribeState = hasActiveSubscription ? "subscribed" : isAuthenticated ? "signed_in" : "signed_out";
+
+  useEffect(() => {
+    if (pageViewTrackedRef.current || checkingSubscription) return;
+    pageViewTrackedRef.current = true;
+    trackSubscribePageViewed(subscribeState);
+  }, [checkingSubscription, subscribeState]);
 
   return (
     <div className="app-container">

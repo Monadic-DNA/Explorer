@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AuthButton, useAuth } from "./AuthProvider";
 import { clearPromoAccess, hasValidPromoAccess } from "@/lib/promo-access";
+import { trackPremiumTabViewed } from "@/lib/analytics";
 
 type PremiumFeatureHeaderProps = {
   featureName: string;
@@ -27,6 +28,7 @@ export default function PremiumFeatureHeader({
   } = useAuth();
   const [showSubscriptionMenu, setShowSubscriptionMenu] = useState(false);
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
+  const tabViewTrackedRef = useRef(false);
 
   useEffect(() => {
     if (!isDynamicInitialized) {
@@ -45,6 +47,12 @@ export default function PremiumFeatureHeader({
   }, []);
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
+
+  useEffect(() => {
+    if (tabViewTrackedRef.current) return;
+    tabViewTrackedRef.current = true;
+    trackPremiumTabViewed(featureName.toLowerCase().replace(/\s+/g, "_"), hasPremiumAccess);
+  }, [featureName, hasPremiumAccess]);
 
   return (
     <section className="premium-compact-header">

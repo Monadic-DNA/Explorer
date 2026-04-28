@@ -5,7 +5,14 @@ import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
 import { mainnet, sepolia } from 'viem/chains';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
-import { trackSubscribedWithCreditCard, trackSubscribedWithStablecoin } from '@/lib/analytics';
+import {
+  trackCheckoutFailed,
+  trackCheckoutStarted,
+  trackCheckoutSubmitted,
+  trackPaymentMethodSelected,
+  trackSubscribedWithCreditCard,
+  trackSubscribedWithStablecoin,
+} from '@/lib/analytics';
 
 interface PaymentModalProps {
   isOpen?: boolean;
@@ -251,6 +258,7 @@ export default function PaymentModal({ isOpen = true, onClose, onSuccess, displa
       return;
     }
 
+    trackPaymentMethodSelected(nextStep === 'card-payment' ? 'card' : 'stablecoin');
     setStep(nextStep);
     setError('');
   };
@@ -269,6 +277,8 @@ export default function PaymentModal({ isOpen = true, onClose, onSuccess, displa
 
     setStep('processing');
     setError('');
+    trackCheckoutStarted('stablecoin', { amount: amountNum, currency });
+    trackCheckoutSubmitted('stablecoin');
 
     try {
       // Type assertion for getWalletClient which exists at runtime but not in types
@@ -363,6 +373,7 @@ export default function PaymentModal({ isOpen = true, onClose, onSuccess, displa
 
     } catch (err: any) {
       console.error('Payment failed:', err);
+      trackCheckoutFailed('stablecoin', err?.message || err?.shortMessage || 'stablecoin_payment_failed');
 
       // Check if it's a stablecoin balance issue (proactive check or transaction failure)
       if (

@@ -3,6 +3,12 @@
 import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
+import {
+  trackCheckoutFailed,
+  trackCheckoutStarted,
+  trackCheckoutSubmitted,
+  trackStripePromoCodeApplied,
+} from '@/lib/analytics';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -43,6 +49,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
 
     setIsProcessing(true);
     setErrorMessage(null);
+    trackCheckoutSubmitted('card');
 
     try {
       if (isSetupIntent) {
@@ -58,6 +65,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
 
         if (error) {
           setErrorMessage(error.message || 'Failed to save payment method');
+          trackCheckoutFailed('card', error.message || 'setup_failed');
           setIsProcessing(false);
         } else if (setupIntent) {
           console.log('[StripeForm] Payment method saved, status:', setupIntent.status);
@@ -82,15 +90,18 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
                 onSuccess();
               } else {
                 setErrorMessage(data.error || 'Failed to attach payment method to subscription');
+                trackCheckoutFailed('card', data.error || 'attach_payment_method_failed');
                 setIsProcessing(false);
               }
             } catch (err) {
               console.error('[StripeForm] Error attaching payment method:', err);
               setErrorMessage('Failed to complete subscription setup');
+              trackCheckoutFailed('card', err instanceof Error ? err.message : 'attach_payment_method_failed');
               setIsProcessing(false);
             }
           } else {
             setErrorMessage(`Setup status: ${setupIntent.status}`);
+            trackCheckoutFailed('card', `setup_${setupIntent.status}`);
             setIsProcessing(false);
           }
         } else {
@@ -109,6 +120,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
 
         if (error) {
           setErrorMessage(error.message || 'Payment failed');
+          trackCheckoutFailed('card', error.message || 'payment_failed');
           setIsProcessing(false);
         } else if (paymentIntent) {
           // Check payment status
@@ -127,6 +139,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
             }, 3000);
           } else {
             setErrorMessage(`Payment status: ${paymentIntent.status}`);
+            trackCheckoutFailed('card', `payment_${paymentIntent.status}`);
             setIsProcessing(false);
           }
         } else {
@@ -137,6 +150,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'An unexpected error occurred');
+      trackCheckoutFailed('card', err.message || 'unexpected_checkout_error');
       setIsProcessing(false);
     }
   };
@@ -588,6 +602,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   const [customerId, setCustomerId] = useState<string | null>(null);
 
   const [hasInitialized, setHasInitialized] = React.useState(false);
+  const checkoutStartedRef = React.useRef(false);
 
   const initializePayment = (promoCode: string) => {
     // Prevent double initialization
@@ -597,6 +612,10 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
 
     setIsInitializing(true);
     setError(null);
+    if (!checkoutStartedRef.current) {
+      checkoutStartedRef.current = true;
+      trackCheckoutStarted('card', { hasPromoCode: !!promoCode.trim(), amount: 4.99, currency: 'USD' });
+    }
 
     console.log('[StripeForm] Initializing subscription for wallet:', walletAddress, 'with promo:', promoCode || 'none');
 
@@ -631,15 +650,18 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
             console.log('[StripeForm] Client secret received, isSetupIntent:', data.isSetupIntent, 'subscriptionId:', data.subscriptionId);
           } else {
             setError('Failed to initialize payment');
+            trackCheckoutFailed('card', 'missing_client_secret');
             console.error('[StripeForm] No client secret received');
           }
         } else {
           setError(data.error || 'Failed to initialize payment');
+          trackCheckoutFailed('card', data.error || 'subscription_initialization_failed');
           console.error('[StripeForm] Failed to initialize:', data);
         }
       })
       .catch((err) => {
         setError('Network error. Please try again.');
+        trackCheckoutFailed('card', err instanceof Error ? err.message : 'network_error');
         console.error('[StripeForm] Network error:', err);
       })
       .finally(() => {
@@ -652,6 +674,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   }, []);
 
   const handleApplyPromo = (code: string) => {
+    trackStripePromoCodeApplied();
     setHasInitialized(false);
     initializePayment(code);
   };
