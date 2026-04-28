@@ -769,7 +769,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       return `
         <div style="margin: 1.5rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; page-break-inside: avoid;">
           <div style="font-weight: bold; margin-bottom: 0.75rem; color: ${m.role === 'user' ? '#3B82F6' : '#10B981'};">
-            ${m.role === 'user' ? 'You' : 'DNA Chat Assistant (gpt-oss-20b via Nillion nilAI)'}
+            ${m.role === 'user' ? 'You' : 'DNA Chat Assistant (gemma-4-26B-A4B-it via Nillion nilAI)'}
           </div>
           <div style="line-height: 1.6;">${content}</div>
           <div style="font-size: 0.8rem; color: #666; margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.5rem;">

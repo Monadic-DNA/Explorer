@@ -38,3 +38,4 @@ yarn-error.log*
 /venv/
 /embeddings_backup.npz
 /AGENTS.md
+/CLAUDE.md

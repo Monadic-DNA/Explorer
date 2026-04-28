@@ -9,7 +9,7 @@ import { NilaiOpenAIClient, AuthType } from '@nillion/nilai-ts';
 import { getLLMConfig, getModelIdentifier, getAPIEndpoint } from './llm-config';
 
 // Import the centralized nilAI endpoint
-const NILAI_API_ENDPOINT = getAPIEndpoint({ provider: 'nilai', model: 'gpt-oss-20b' });
+const NILAI_API_ENDPOINT = getAPIEndpoint({ provider: 'nilai', model: 'gemma-4-26B-A4B-it' });
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -58,7 +58,7 @@ export async function callLLM(
   //
   // IMPORTANT: If you see extremely high chars/token ratios (>20), the input is likely
   // being truncated due to context window limits. For Ollama, ensure num_ctx is set
-  // to the model's full context window (131072 for gpt-oss-20b).
+  // to the model's full context window (131072 for gemma-4-26B-A4B-it).
   const fullPrompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
   const promptChars = fullPrompt.length;
 

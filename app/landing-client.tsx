@@ -129,7 +129,7 @@ export default function LandingClient() {
                 rel="noreferrer"
                 onClick={() => trackGetStartedClicked("schedule_video_call")}
               >
-                Schedule Video Call
+                Book a Free Help Call
               </a>
             </div>
           </aside>

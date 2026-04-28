@@ -20,7 +20,7 @@ const STORAGE_KEY = 'monadic_dna_explorer_llm_config';
 
 const DEFAULT_CONFIG: LLMConfig = {
   provider: 'nilai',
-  model: 'gpt-oss-20b',
+  model: 'gemma-4-26B-A4B-it',
 };
 
 /**
@@ -88,13 +88,13 @@ export function getModelIdentifier(config: LLMConfig): string {
 
   switch (config.provider) {
     case 'nilai':
-      return config.model === 'gpt-oss-20b' ? 'openai/gpt-oss-20b' : config.model;
+      return config.model === 'gemma-4-26B-A4B-it' ? 'google/gemma-4-26B-A4B-it' : config.model;
     case 'ollama':
       return config.model;
     case 'huggingface':
       // For HuggingFace, append :together suffix if not already present
-      if (config.model === 'gpt-oss-20b') {
-        return 'openai/gpt-oss-20b:together';
+      if (config.model === 'gemma-4-26B-A4B-it') {
+        return 'google/gemma-4-26B-A4B-it:together';
       } else if (config.model === 'openai/gpt-oss-120b') {
         return 'openai/gpt-oss-120b:together';
       }
@@ -138,11 +138,11 @@ export function isClientSideOnly(provider: LLMProvider): boolean {
 export function getAvailableModels(provider: LLMProvider): string[] {
   switch (provider) {
     case 'nilai':
-      return ['gpt-oss-20b'];
+      return ['gemma-4-26B-A4B-it'];
     case 'ollama':
-      return ['gpt-oss-20b']; // Default, user can enter custom
+      return ['gemma-4-26B-A4B-it']; // Default, user can enter custom
     case 'huggingface':
-      return ['gpt-oss-20b'];
+      return ['gemma-4-26B-A4B-it'];
   }
 }
 
