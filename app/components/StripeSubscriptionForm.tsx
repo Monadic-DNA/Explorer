@@ -749,7 +749,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
     );
   }
 
-  if (!clientSecret && !isInitializing) {
+  if (!clientSecret) {
     return null;
   }
 

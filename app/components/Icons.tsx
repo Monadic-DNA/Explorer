@@ -714,6 +714,22 @@ export function UserIcon({ className = "", size = 20 }: IconProps) {
   );
 }
 
+export function TourIcon({ className = "", size = 20 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 3 L14.5 8.5 L20.5 9.3 L16.25 13.4 L17.3 19.4 L12 16.5 L6.7 19.4 L7.75 13.4 L3.5 9.3 L9.5 8.5 Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
+
 export function NillionIcon({ className = "", size = 20 }: IconProps) {
   return (
     <svg

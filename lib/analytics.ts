@@ -171,6 +171,46 @@ export function trackOnboardingDismissed(step: string) {
 }
 
 /**
+ * User opened a per-tab guided tour
+ */
+export function trackTourStarted(tourId: string) {
+  trackEvent('tour_started', {
+    tour_id: tourId,
+  });
+}
+
+/**
+ * User progressed to a specific step within a guided tour
+ */
+export function trackTourStepViewed(tourId: string, stepIndex: number, stepName: string) {
+  trackEvent('tour_step_viewed', {
+    tour_id: tourId,
+    step_index: stepIndex,
+    step_name: stepName,
+  });
+}
+
+/**
+ * User finished a guided tour
+ */
+export function trackTourCompleted(tourId: string) {
+  trackEvent('tour_completed', {
+    tour_id: tourId,
+  });
+}
+
+/**
+ * User dismissed a guided tour before completing it
+ */
+export function trackTourDismissed(tourId: string, stepIndex: number, dontShowAgain: boolean) {
+  trackEvent('tour_dismissed', {
+    tour_id: tourId,
+    step_index: stepIndex,
+    dont_show_again: dontShowAgain,
+  });
+}
+
+/**
  * User viewed the Explore tab
  */
 export function trackExploreTabViewed() {

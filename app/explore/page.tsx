@@ -13,6 +13,8 @@ import Footer from "../components/Footer";
 import DisclaimerModal from "../components/DisclaimerModal";
 import TermsAcceptanceModal from "../components/TermsAcceptanceModal";
 import RunAllModal from "../components/RunAllModal";
+import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
+import { exploreTour } from "../components/tours/tourContent";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -307,6 +309,13 @@ function ExplorePage() {
     }
   }, [mounted]);
 
+  // Auto-show guided tour on first visit
+  useEffect(() => {
+    if (mounted && !hasCompletedTour(exploreTour.id)) {
+      setTourOpen(true);
+    }
+  }, [mounted]);
+
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const scrollPositionRef = useRef<number>(0);
   const isLoadingMoreRef = useRef<boolean>(false);
@@ -326,6 +335,7 @@ function ExplorePage() {
   const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
   const [showRunAllModal, setShowRunAllModal] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [runAllStatus, setRunAllStatus] = useState<{
     phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
     fetchedBatches: number;
@@ -351,12 +361,21 @@ function ExplorePage() {
   });
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Terms modal opens after tour (or immediately if tour already completed)
+  const openTermsIfNeeded = useCallback(() => {
     const termsAccepted = localStorage.getItem('terms_accepted');
     if (!termsAccepted) {
       setShowTermsModal(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (hasCompletedTour(exploreTour.id)) {
+      openTermsIfNeeded();
+    }
+    // Otherwise, terms will open via the tour's onClose handler
+  }, [mounted, openTermsIfNeeded]);
 
   const updateFilter = useCallback(<Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
     setFilters((prev) => {
@@ -744,6 +763,11 @@ function ExplorePage() {
           </div>
           <div className="hero-controls">
             {!sectionCollapsed && (
+              <button className="tour-trigger-link" type="button" onClick={() => setTourOpen(true)}>
+                Take the tour
+              </button>
+            )}
+            {!sectionCollapsed && (
               <button className="reset-button" type="button" onClick={resetFilters}>
                 Reset filters
               </button>
@@ -965,7 +989,7 @@ function ExplorePage() {
               <th scope="col" title="Our assessment of study reliability based on sample size, statistical significance, and data quality. High confidence studies are most trustworthy.">
                 Quality <span className="info-icon">ⓘ</span>
               </th>
-              <th scope="col" title="Your personal genetic result for this study. Upload your 23andMe data to see your results.">
+              <th scope="col" title="Your personal genetic result for this study. Upload your 23andMe data to see your results." data-tour="your-result-header">
                 Your Result <span className="info-icon">ⓘ</span>
               </th>
             </tr>
@@ -1153,6 +1177,7 @@ function ExplorePage() {
         onClose={() => setShowRunAllModal(false)}
         status={runAllStatus}
       />
+      <GuidedTour tour={exploreTour} isOpen={tourOpen} onClose={() => { setTourOpen(false); openTermsIfNeeded(); }} />
     </div>
   );
 }

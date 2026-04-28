@@ -11,6 +11,8 @@ import { OverviewReportIcon } from "../components/Icons";
 import { useAuth } from "../components/AuthProvider";
 import { useResults } from "../components/ResultsContext";
 import { hasValidPromoAccess } from "@/lib/promo-access";
+import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
+import { overviewReportTour } from "../components/tours/tourContent";
 
 export default function OverviewReportPage() {
   const router = useRouter();
@@ -18,6 +20,7 @@ export default function OverviewReportPage() {
   const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => {
     const refreshPromoAccess = () => {
@@ -27,6 +30,12 @@ export default function OverviewReportPage() {
     refreshPromoAccess();
     window.addEventListener('premiumAccessUpdated', refreshPromoAccess);
     return () => window.removeEventListener('premiumAccessUpdated', refreshPromoAccess);
+  }, []);
+
+  useEffect(() => {
+    if (!hasCompletedTour(overviewReportTour.id)) {
+      setTourOpen(true);
+    }
   }, []);
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
@@ -58,6 +67,11 @@ export default function OverviewReportPage() {
           featureName="Overview Report"
           description="Generate a synthesized report across your saved genetic results."
         />
+        <div style={{ textAlign: "right", padding: "0 1rem" }}>
+          <button className="tour-trigger-link" onClick={() => setTourOpen(true)}>
+            Take the tour
+          </button>
+        </div>
         <PremiumPaywall>{null}</PremiumPaywall>
 
         <section className="premium-section premium-feature-section">
@@ -85,7 +99,7 @@ export default function OverviewReportPage() {
                 Run All from the Menu Bar or load a saved results file first.
               </p>
               <div className="overview-report-stats">
-                <span>{savedResults.length.toLocaleString()} saved results</span>
+                <span data-tour="saved-results-count">{savedResults.length.toLocaleString()} saved results</span>
                 <span>{hasPremiumAccess ? "Premium access active" : "Premium required"}</span>
               </div>
             </div>
@@ -94,6 +108,7 @@ export default function OverviewReportPage() {
                 className="primary-button"
                 onClick={handleGenerateReport}
                 disabled={!hasResults}
+                data-tour="generate-report-button"
               >
                 {!hasResults ? "Load Results First" : "Generate Overview Report"}
               </button>
@@ -106,6 +121,7 @@ export default function OverviewReportPage() {
         isOpen={showOverviewReportModal}
         onClose={() => setShowOverviewReportModal(false)}
       />
+      <GuidedTour tour={overviewReportTour} isOpen={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }

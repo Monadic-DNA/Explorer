@@ -10,6 +10,8 @@ import CustomizationModal from "./CustomizationModal";
 import LLMConfigModal from "./LLMConfigModal";
 import { MyDataDropdown, ResultsDropdown, CacheDropdown, HelpDropdown } from "./MenuDropdowns";
 import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircleIcon, SunIcon, MoonIcon, RunAllIcon } from "./Icons";
+import GuidedTour, { hasCompletedTour } from "./GuidedTour";
+import { menuBarTour } from "./tours/tourContent";
 import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 import NillionModal from "./NillionModal";
 import DisclaimerModal from "./DisclaimerModal";
@@ -69,6 +71,7 @@ export default function MenuBar() {
   });
   const [cacheInfo, setCacheInfo] = useState<{ studies: number; sizeMB: number } | null>(null);
   const [llmProvider, setLlmProvider] = useState<string>('');
+  const [menuTourOpen, setMenuTourOpen] = useState(false);
 
   // Extract loadCacheInfo for reusability
   const loadCacheInfo = async () => {
@@ -370,6 +373,7 @@ export default function MenuBar() {
         onClose={() => setShowRunAllModal(false)}
         status={runAllStatus}
       />
+      <GuidedTour tour={menuBarTour} isOpen={menuTourOpen} onClose={() => setMenuTourOpen(false)} />
       <div className="menu-bar">
       <div className="menu-left">
         <h1 className="app-title">
@@ -425,6 +429,7 @@ export default function MenuBar() {
             className="menu-icon-button"
             onClick={() => setShowMyDataDropdown(!showMyDataDropdown)}
             title="Upload and manage your genetic data"
+            data-tour="my-data-button"
           >
             <span className="icon">
               <DNAIcon size={32} />
@@ -439,6 +444,7 @@ export default function MenuBar() {
             className="menu-icon-button"
             onClick={() => setShowResultsDropdown(!showResultsDropdown)}
             title="Load, export, and manage results"
+            data-tour="results-button"
           >
             <span className="icon">
               <FolderIcon size={32} />
@@ -453,6 +459,7 @@ export default function MenuBar() {
             className={isRunningAll ? "menu-icon-button running" : "menu-icon-button"}
             onClick={handleRunAll}
             title="Analyze your DNA against all matching GWAS traits"
+            data-tour="run-all-button"
           >
             <span className="icon">
               <RunAllIcon size={32} />
@@ -467,6 +474,7 @@ export default function MenuBar() {
             className={`menu-icon-button ${customizationStatus}`}
             onClick={() => setShowCustomizationModal(true)}
             title={getCustomizationTooltip()}
+            data-tour="personalize-button"
           >
             <span className="icon">
               <MicroscopeIcon size={32} />
@@ -478,6 +486,7 @@ export default function MenuBar() {
             className="menu-icon-button"
             onClick={() => setShowLLMConfigModal(true)}
             title="Configure LLM provider and model"
+            data-tour="llm-config-button"
           >
             <span className="icon">
               <SparklesIcon size={32} />
@@ -490,6 +499,7 @@ export default function MenuBar() {
             className="menu-icon-button"
             onClick={() => setShowCacheDropdown(!showCacheDropdown)}
             title="View and manage cached GWAS data"
+            data-tour="cache-button"
           >
             <span className="icon">
               <CacheIcon size={32} />
@@ -504,6 +514,7 @@ export default function MenuBar() {
             className="menu-icon-button"
             onClick={() => setShowHelpDropdown(!showHelpDropdown)}
             title="Get help and reopen onboarding"
+            data-tour="help-button"
           >
             <span className="icon">
               <HelpCircleIcon size={32} />
@@ -517,6 +528,7 @@ export default function MenuBar() {
               onClick={toggleTheme}
               title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              data-tour="theme-button"
             >
               <span className="icon">
                 {theme === "dark" ? <SunIcon size={32} /> : <MoonIcon size={32} />}
@@ -524,6 +536,12 @@ export default function MenuBar() {
               <span className="label">Theme</span>
             </button>
           )}
+
+        </div>
+        <div className="menu-explain-row">
+          <button className="menu-explain-link" onClick={() => setMenuTourOpen(true)}>
+            Explain these buttons
+          </button>
         </div>
       </div>
       </div>

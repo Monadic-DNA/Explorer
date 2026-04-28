@@ -1192,6 +1192,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 className="chat-attachment-button"
                 onClick={handleAttachmentClick}
                 disabled={isLoading || attachedFiles.length >= MAX_ATTACHMENTS}
+                data-tour="attach-button"
                 title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, pdf, csv, tsv, max 1MB)'}
               >
                 Attach
