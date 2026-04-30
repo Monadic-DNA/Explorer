@@ -126,7 +126,9 @@ export default function StudyDetailPage() {
     );
   }
 
-  const trait = study.mapped_trait ?? study.disease_trait ?? "Unknown trait";
+  const reportedTrait = study.disease_trait?.trim() || null;
+  const mappedTrait = study.mapped_trait?.trim() || null;
+  const trait = mappedTrait ?? reportedTrait ?? "Unknown trait";
   const gwasLink = study.study_accession
     ? `https://www.ebi.ac.uk/gwas/studies/${study.study_accession}`
     : null;
@@ -182,7 +184,9 @@ export default function StudyDetailPage() {
             <h1 className="study-header-title">{study.study || "Untitled Study"}</h1>
 
             <div className="study-header-meta">
-              <span className="study-meta-item"><strong>Trait:</strong> {trait}</span>
+              {reportedTrait && <span className="study-meta-item"><strong>Reported trait:</strong> {reportedTrait}</span>}
+              {mappedTrait && mappedTrait !== reportedTrait && <span className="study-meta-item"><strong>Mapped trait:</strong> {mappedTrait}</span>}
+              {!reportedTrait && !mappedTrait && <span className="study-meta-item"><strong>Trait:</strong> Unknown trait</span>}
               {study.first_author && <span className="study-meta-item"><strong>Author:</strong> {study.first_author}</span>}
               {study.date && <span className="study-meta-item"><strong>Date:</strong> {new Date(study.date).toLocaleDateString()}</span>}
               {study.journal && <span className="study-meta-item"><strong>Journal:</strong> {study.journal}</span>}

@@ -12,8 +12,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Monadic DNA Explorer",
-  description: "Explore thousands of genetic traits from the GWAS Catalog and analyze your own DNA data with privacy-focused AI insights",
+  title: "Monadic DNA | Personal DNA insights with privacy, autonomy, and boundless curiosity",
+  description: "Private DNA insights from trusted genetic research. Learn from your DNA while your data remains private, protected, and entirely in your hands.",
   keywords: ["GWAS", "genetics", "DNA analysis", "genome explorer", "genetic traits", "GWAS Catalog", "personal genomics", "23andMe", "AncestryDNA"],
   authors: [{ name: "Recherché Inc" }],
   icons: {
@@ -25,22 +25,32 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    title: "Monadic DNA Explorer",
-    description: "Explore thousands of genetic traits from the GWAS Catalog and analyze your own DNA data",
+    title: "Monadic DNA | Personal DNA insights with privacy, autonomy, and boundless curiosity",
+    description: "Private DNA insights from trusted genetic research. Learn from your DNA while your data remains private, protected, and entirely in your hands.",
     siteName: "Monadic DNA Explorer",
-    url: "https://monadicdna.com",
+    url: "https://explorer.monadicdna.com",
+    locale: "en_US",
+    images: [
+      {
+        url: "https://monadicdna.com/og-image.png",
+        width: 1199,
+        height: 630,
+        alt: "Monadic DNA Explorer - Private DNA insights from trusted genetic research",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Monadic DNA Explorer",
-    description: "Explore thousands of genetic traits from the GWAS Catalog and analyze your own DNA data",
+    title: "Monadic DNA | Personal DNA insights with privacy, autonomy, and boundless curiosity",
+    description: "Private DNA insights from trusted genetic research. Learn from your DNA while your data remains private, protected, and entirely in your hands.",
     creator: "@MonadicDNA",
+    images: ["https://monadicdna.com/og-image.png"],
   },
   robots: {
     index: true,
     follow: true,
   },
-  metadataBase: new URL("https://monadicdna.com"),
+  metadataBase: new URL("https://explorer.monadicdna.com"),
 };
 
 export default function RootLayout({

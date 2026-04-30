@@ -79,7 +79,7 @@ export default function LandingClient() {
         mode={flowMode}
         onComplete={() => {
           setShowFlow(false);
-          router.push("/explore");
+          router.push("/");
         }}
         onDismiss={() => setShowFlow(false)}
       />
