@@ -4990,6 +4990,52 @@ details[open] .summary-arrow {
   border: 1px solid var(--border-color);
 }
 
+/* DNA Chat personalization banner */
+.ai-chat-inline .dna-chat-personalization-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(59, 130, 246, 0.06);
+  color: var(--text-secondary);
+}
+
+.ai-chat-inline .dna-chat-personalization-banner div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.ai-chat-inline .dna-chat-personalization-banner strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.ai-chat-inline .dna-chat-personalization-banner span {
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.ai-chat-inline .dna-chat-personalization-banner button {
+  flex-shrink: 0;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--primary-bg);
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-chat-inline .dna-chat-personalization-banner button:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
 /* Provider tip banner */
 .ai-chat-inline .provider-tip {
   display: flex;
@@ -5764,6 +5810,16 @@ details[open] .summary-arrow {
   .dna-chat-section .message-content,
   .dna-chat-section .chat-message.user .message-content {
     max-width: calc(100% - 38px);
+  }
+
+  .dna-chat-section .ai-chat-inline .dna-chat-personalization-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 0.8rem 1rem;
+  }
+
+  .dna-chat-section .ai-chat-inline .dna-chat-personalization-banner button {
+    align-self: flex-start;
   }
 
   .dna-chat-section .ai-chat-inline .chat-input-controls {

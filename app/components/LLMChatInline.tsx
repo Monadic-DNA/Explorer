@@ -904,38 +904,6 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
     printWindow.print();
   };
 
-  if (showPersonalizationPrompt) {
-    return (
-      <div className="ai-chat-inline-blocked">
-        <div className="blocked-message">
-          <h2>Personalization Recommended</h2>
-          <p>
-            For the best DNA Chat experience, we recommend {customizationStatus === 'not-set' ? 'setting up' : 'unlocking'} your personalization information.
-          </p>
-          <p>
-            Personalized chat provides more relevant insights based on your ancestry, medical history, and demographics.
-          </p>
-          {customizationStatus === 'locked' && (
-            <p>
-              <strong>How to unlock:</strong> Click the Personalize button in the menu bar and enter your password.
-            </p>
-          )}
-          {customizationStatus === 'not-set' && (
-            <p>
-              <strong>How to set up:</strong> Click the Personalize button in the menu bar to enter your information.
-            </p>
-          )}
-          <button
-            className="primary-button"
-            onClick={handlePersonalizationPromptContinue}
-          >
-            Continue Without Personalization
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       {showConsentModal && (
@@ -975,6 +943,26 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             </div>
           )}
         </div>
+
+        {showPersonalizationPrompt && (
+          <div className="dna-chat-personalization-banner">
+            <div>
+              <strong>Personalization improves answers.</strong>
+              <span>
+                {customizationStatus === 'locked'
+                  ? ' Unlock your saved profile from the Personalize menu when you are ready.'
+                  : ' Add ancestry, history, and demographics from the Personalize menu when you are ready.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handlePersonalizationPromptContinue}
+              aria-label="Dismiss personalization recommendation"
+            >
+              Not now
+            </button>
+          </div>
+        )}
 
         {/* Provider tip banner */}
         {showProviderTip && (() => {

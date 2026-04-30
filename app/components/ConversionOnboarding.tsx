@@ -405,7 +405,7 @@ RESPONSE STRUCTURE:
 
       const answer = response.content.trim();
       if (!answer) {
-        throw new Error("The premium chat preview returned an empty response.");
+        throw new Error("The DNA Chat preview returned an empty response.");
       }
 
       setPreviewResponses((prev) => {
@@ -419,7 +419,7 @@ RESPONSE STRUCTURE:
       setResponseError(
         generationError instanceof Error
           ? generationError.message
-          : "The premium chat preview could not be generated right now."
+          : "The DNA Chat preview could not be generated right now."
       );
     } finally {
       setResponsesLoading(false);
@@ -1069,8 +1069,8 @@ RESPONSE STRUCTURE:
 
             {currentStep === "responses" && (
               <section className="wire-onboarding-slide">
-                <h1>Here is an advance look at our premium DNA Chat feature.</h1>
-                <p>Tap one of these starter questions to see how premium chat answers with the most relevant traits from your full dataset.</p>
+                <h1>Here is an advance look at DNA Chat.</h1>
+                <p>Tap one of these starter questions to see how DNA Chat answers with the most relevant traits from your full dataset.</p>
 
                 <div className="wire-question-list">
                   {CHAT_PREVIEW_QUESTIONS.map((question) => {
@@ -1117,7 +1117,7 @@ RESPONSE STRUCTURE:
                             {isLoadingCurrent && (
                               <div className="wire-chat-preview-card loading">
                                 <div className="wire-chat-loading-header">
-                                  <strong>Running premium chat preview</strong>
+                                  <strong>Running DNA Chat preview</strong>
                                   <span>Searching your matched results for this question</span>
                                 </div>
                                 <div className="wire-chat-loading-lines" aria-hidden="true">
@@ -1154,7 +1154,7 @@ RESPONSE STRUCTURE:
 
                 {!responsesLoading && !responseError && previewResponses.length > 0 && (
                   <>
-                    <p>The DNA Chat feature is available for only $4.99 a month. Use promo code <strong>FREEWEEK</strong> for a free week.</p>
+                    <p>Use promo code <strong>FREEWEEK</strong> for a free week of premium features.</p>
                     <p>Personalize your answers by entering your demographics, history, reports documents in the app.</p>
                     <p>Nobody apart from you can ever look at your chat logs or personalization information.</p>
                     <p><strong>You&apos;re now ready to start using the app to unlock your diet, lifestyle and health insights!</strong></p>
