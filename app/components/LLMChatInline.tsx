@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
 import { getLLMConfig } from "@/lib/llm-config";
-import { RobotIcon } from "./Icons";
+import { SparklesIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 
@@ -60,7 +60,11 @@ const FOLLOWUP_SUGGESTIONS = [
   "How should I adjust my diet and lifestyle?"
 ];
 
-export default function AIChatInline() {
+type AIChatInlineProps = {
+  onOpenTour?: () => void;
+};
+
+export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
@@ -173,14 +177,14 @@ export default function AIChatInline() {
         message: config.provider === 'nilai'
           ? 'nilAI is active for privacy-preserving TEE processing.'
           : 'Ollama is active for local processing on your device.',
-        tip: 'Want more advanced models by going easier on privacy? Use the LLM button (top right) to switch to HuggingFace for more model choices. You will need to create your own HuggingFace account with a subscription.',
+        tip: 'Switch models from the LLM button in the menu bar.',
       };
     } else if (config.provider === 'huggingface') {
       return {
         icon: 'Fast',
         type: 'performance',
         message: 'HuggingFace is active for broader model access.',
-        tip: 'Want maximum privacy? Use the LLM button (top right) to switch to nilAI for privacy-preserving processing in a Trusted Execution Environment.',
+        tip: 'Switch back to nilAI from the LLM button for stronger privacy.',
       };
     }
 
@@ -917,13 +921,22 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="chat-header">
           <div className="dna-chat-header-main">
             <div className="dna-chat-title-mark">
-              <RobotIcon size={22} />
+              <SparklesIcon size={24} />
             </div>
             <div>
               <h2>DNA Chat</h2>
               <p className="powered-by">
                 {getLLMDescription()} - secure processing for your saved genetic results
               </p>
+              {onOpenTour && (
+                <button
+                  type="button"
+                  className="dna-chat-inline-tour-link"
+                  onClick={onOpenTour}
+                >
+                  Take the tour
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -997,14 +1010,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 <div className="chat-warning">
                   <p><strong>Limited results ({resultsContext.savedResults.length} studies)</strong></p>
                   <p>
-                    You currently have fewer than 1,000 analyzed results. For the best DNA Chat experience,
-                    you can either:
+                    For better answers, analyze more studies or load a prior results file.
                   </p>
-                  <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
-                    <li>Use Run All from the Menu Bar to analyze your DNA against all available studies, or</li>
-                    <li>Load results from a prior run if you have previously completed analysis</li>
-                  </ul>
-                  <p style={{ marginTop: '0.5rem' }}>This gives DNA Chat more comprehensive data for personalized insights.</p>
                 </div>
               )}
 
@@ -1220,7 +1227,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           <div className="chat-input-controls">
             {isFirstMessage ? (
               <div className="rag-info">
-                Searches relevant traits for context
+                Searches saved traits for context
               </div>
             ) : (
               <div className="rag-info-followup">

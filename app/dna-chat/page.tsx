@@ -26,15 +26,10 @@ export default function DNAChatPage() {
           featureName="DNA Chat"
           description="Ask private questions about your saved genetic results."
         />
-        <div style={{ textAlign: "right", padding: "0 1rem" }}>
-          <button className="tour-trigger-link" onClick={() => setTourOpen(true)}>
-            Take the tour
-          </button>
-        </div>
         <PremiumPaywall>{null}</PremiumPaywall>
 
         <section className="premium-section premium-feature-section dna-chat-section">
-          <LLMChatInline />
+          <LLMChatInline onOpenTour={() => setTourOpen(true)} />
         </section>
       </main>
       <Footer />

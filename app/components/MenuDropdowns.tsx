@@ -342,6 +342,16 @@ export function HelpDropdown({
             <MessageIcon size={14} /> Email Support
           </a>
           <a
+            href="https://calendar.app.google/eVDN4d44GreUjR8p8"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="control-button"
+            onClick={onClose}
+            title="Schedule a free help call"
+          >
+            <ClockIcon size={14} /> Free Help Call
+          </a>
+          <a
             href="https://recherche.discourse.group/c/public/monadic-dna/30"
             target="_blank"
             rel="noopener noreferrer"
