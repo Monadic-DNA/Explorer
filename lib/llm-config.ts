@@ -35,8 +35,11 @@ export function getLLMConfig(): LLMConfig {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as LLMConfig;
-      // Validate provider
       if (!['nilai', 'ollama', 'huggingface'].includes(parsed.provider)) {
+        return DEFAULT_CONFIG;
+      }
+      // For nilai, reject models that are no longer supported (stale localStorage)
+      if (parsed.provider === 'nilai' && parsed.model !== 'gemma-4-26B-A4B-it' && parsed.model !== 'custom') {
         return DEFAULT_CONFIG;
       }
       return parsed;
