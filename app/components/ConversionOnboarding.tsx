@@ -130,7 +130,7 @@ function buildTraitCandidates(results: SavedResult[]): SavedResult[] {
           }
         : null;
     })
-    .filter((result): result is SavedResult => !!result);
+    .filter((result) => result !== null) as SavedResult[];
 }
 
 function formatRiskScore(score: number, level: string, effectType?: string): string {
@@ -469,7 +469,7 @@ RESPONSE STRUCTURE:
           });
         }
 
-        blob = new Blob(chunks, { type: "text/plain" });
+        blob = new Blob(chunks as unknown as BlobPart[], { type: "text/plain" });
       } else {
         blob = await response.blob();
       }

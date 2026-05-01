@@ -172,7 +172,7 @@ export async function GET() {
         );
       }
 
-      outputBytes = extracted.data;
+      outputBytes = new Uint8Array(extracted.data) as unknown as Uint8Array<ArrayBuffer>;
       outputFileName = extracted.filename || outputFileName;
       contentType = 'text/plain; charset=utf-8';
     }

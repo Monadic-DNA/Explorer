@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import MenuBar from "./components/MenuBar";
 import Footer from "./components/Footer";
 import LandingClient from "./landing-client";
@@ -35,7 +36,9 @@ export default function HomePage() {
   return (
     <div className="app-container">
       <MenuBar />
-      <LandingClient />
+      <Suspense>
+        <LandingClient />
+      </Suspense>
       <Footer />
     </div>
   );
