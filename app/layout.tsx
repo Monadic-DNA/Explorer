@@ -5,6 +5,7 @@ import { AuthProvider } from "./components/AuthProvider";
 import { GenotypeProvider } from "./components/UserDataUpload";
 import { ResultsProvider } from "./components/ResultsContext";
 import { CustomizationProvider } from "./components/CustomizationContext";
+import MobileCompatibilityNotice from "./components/MobileCompatibilityNotice";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -115,6 +116,7 @@ export default function RootLayout({
           <GenotypeProvider>
             <ResultsProvider>
               <CustomizationProvider>
+                <MobileCompatibilityNotice />
                 {children}
               </CustomizationProvider>
             </ResultsProvider>
