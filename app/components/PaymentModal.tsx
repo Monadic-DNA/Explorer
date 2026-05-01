@@ -4,44 +4,37 @@ import { useState, useEffect } from 'react';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
 import { mainnet, sepolia } from 'viem/chains';
-import { verifyPromoCode } from '@/lib/prime-verification';
-import { setPromoAccess } from '@/lib/promo-access';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
-import { trackSubscribedWithPromoCode, trackSubscribedWithCreditCard, trackSubscribedWithStablecoin } from '@/lib/analytics';
+import {
+  trackCheckoutFailed,
+  trackCheckoutStarted,
+  trackCheckoutSubmitted,
+  trackPaymentMethodSelected,
+  trackSubscribedWithCreditCard,
+  trackSubscribedWithStablecoin,
+} from '@/lib/analytics';
 
 interface PaymentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
   onSuccess: () => void;
-  initialPromoCode?: string;
+  display?: 'modal' | 'page';
 }
 
 type Currency = 'USDC' | 'USDT' | 'DAI';
-type PaymentType = 'stablecoin' | 'card' | 'promo';
-type Step = 'choice' | 'promo' | 'amount' | 'currency' | 'confirm' | 'processing' | 'confirming' | 'card-payment' | 'card-success';
+type Step = 'choice' | 'amount' | 'currency' | 'confirm' | 'processing' | 'confirming' | 'card-payment' | 'card-success';
 
-export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoCode }: PaymentModalProps) {
+export default function PaymentModal({ isOpen = true, onClose, onSuccess, display = 'modal' }: PaymentModalProps) {
   const { primaryWallet } = useDynamicContext();
   const [step, setStep] = useState<Step>('choice');
-  const [paymentType, setPaymentType] = useState<PaymentType>('stablecoin');
   const [amount, setAmount] = useState('4.99');
   const [currency, setCurrency] = useState<Currency>('USDC');
   const [connectedChain, setConnectedChain] = useState<string>('');
   const [error, setError] = useState('');
-  const [promoCode, setPromoCode] = useState('');
-  const [promoMessage, setPromoMessage] = useState<{ type: 'success' | 'error' | ''; text: string }>({ type: '', text: '' });
   const [transactionHash, setTransactionHash] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
   const [successfulChecks, setSuccessfulChecks] = useState(0);
-
-  // If initialPromoCode is provided, auto-fill and navigate to promo step
-  useEffect(() => {
-    if (initialPromoCode && isOpen) {
-      setPromoCode(initialPromoCode);
-      setPaymentType('promo');
-      setStep('promo');
-    }
-  }, [initialPromoCode, isOpen]);
+  const isPage = display === 'page';
 
   const paymentWallet = process.env.NEXT_PUBLIC_EVM_PAYMENT_WALLET_ADDRESS || '';
   const testnetEnabled = process.env.NEXT_PUBLIC_ENABLE_TESTNET_CHAINS === 'true';
@@ -167,40 +160,17 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
       setAmount('4.99');
       setCurrency('USDC');
       setError('');
-      setPromoCode('');
-      setPromoMessage({ type: '', text: '' });
     }
   }, [isOpen]);
 
   // Detect wallet disconnect and close modal
   useEffect(() => {
-    if (isOpen && !primaryWallet && step !== 'choice' && step !== 'promo') {
+    if (isOpen && !primaryWallet && step !== 'choice') {
       // User disconnected wallet during payment flow
       setError('Wallet disconnected. Please reconnect to continue.');
       setStep('choice');
     }
   }, [primaryWallet, isOpen, step]);
-
-  const handlePromoSubmit = () => {
-    const result = verifyPromoCode(promoCode);
-
-    if (result.valid && result.discount === 0) {
-      // Free access granted!
-      setPromoAccess(promoCode);
-      setPromoMessage({ type: 'success', text: result.message });
-
-      // Track promo code subscription
-      trackSubscribedWithPromoCode(promoCode);
-
-      // Success - trigger callback and close modal
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1500);
-    } else {
-      setPromoMessage({ type: 'error', text: result.message });
-    }
-  };
 
   // Poll subscription status after blockchain payment
   const pollSubscriptionStatus = async (walletAddress: string, maxAttempts: number = 12) => {
@@ -232,7 +202,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
               // Success! Subscription is active
               setTimeout(() => {
                 onSuccess();
-                onClose();
+                onClose?.();
               }, 1000);
               return;
             } else {
@@ -275,9 +245,22 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
     onSuccess();
 
     // Close modal after 2 seconds
-    setTimeout(() => {
-      onClose();
-    }, 2000);
+    if (!isPage) {
+      setTimeout(() => {
+        onClose?.();
+      }, 2000);
+    }
+  };
+
+  const handleChoosePayment = (nextStep: Step) => {
+    if (!primaryWallet?.address) {
+      setError('Please sign in with your wallet to subscribe.');
+      return;
+    }
+
+    trackPaymentMethodSelected(nextStep === 'card-payment' ? 'card' : 'stablecoin');
+    setStep(nextStep);
+    setError('');
   };
 
   const handleSendPayment = async () => {
@@ -294,6 +277,8 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
 
     setStep('processing');
     setError('');
+    trackCheckoutStarted('stablecoin', { amount: amountNum, currency });
+    trackCheckoutSubmitted('stablecoin');
 
     try {
       // Type assertion for getWalletClient which exists at runtime but not in types
@@ -388,6 +373,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
 
     } catch (err: any) {
       console.error('Payment failed:', err);
+      trackCheckoutFailed('stablecoin', err?.message || err?.shortMessage || 'stablecoin_payment_failed');
 
       // Check if it's a stablecoin balance issue (proactive check or transaction failure)
       if (
@@ -413,22 +399,23 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
 
   const daysOfAccess = Math.round((parseFloat(amount || '0') / 4.99) * 30);
 
-  if (!isOpen) return null;
+  if (!isOpen && !isPage) return null;
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content payment-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>×</button>
+  const content = (
+    <div className={`modal-content payment-modal ${isPage ? 'payment-page-card' : ''}`} onClick={(e) => e.stopPropagation()}>
+        {!isPage && (
+          <button className="modal-close" onClick={onClose}>×</button>
+        )}
 
         <div className="modal-header">
-          <h2>💳 Subscribe to Premium</h2>
-          <p>Get LLM Chat, Run All Analysis, and more</p>
+          <h2>Subscribe to Premium</h2>
+          <p>Get DNA Chat and Overview Report</p>
         </div>
 
         {step === 'choice' && (
           <div className="payment-step">
             <h3>How would you like to subscribe?</h3>
-            <p className="step-description">Choose payment method or use a promo code</p>
+            <p className="step-description">Choose a payment method</p>
 
             {error && (
               <div className="error-message">
@@ -439,7 +426,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
             <div className="choice-options">
               <button
                 className="choice-option"
-                onClick={() => { setPaymentType('card'); setStep('card-payment'); }}
+                onClick={() => handleChoosePayment('card-payment')}
               >
                 <div className="choice-icon">💳</div>
                 <div className="choice-details">
@@ -450,7 +437,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
 
               <button
                 className="choice-option"
-                onClick={() => { setPaymentType('stablecoin'); setStep('amount'); }}
+                onClick={() => handleChoosePayment('amount')}
               >
                 <div className="choice-icon">💵</div>
                 <div className="choice-details">
@@ -458,57 +445,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
                   <div className="choice-description">Use USDC, USDT, or DAI to subscribe</div>
                 </div>
               </button>
-
-              <div className="choice-divider">
-                <span>OR</span>
-              </div>
-
-              <button
-                className="choice-option"
-                onClick={() => { setPaymentType('promo'); setStep('promo'); }}
-              >
-                <div className="choice-icon">🎟️</div>
-                <div className="choice-details">
-                  <div className="choice-title">Use Promo Code</div>
-                  <div className="choice-description">Have a promotional code? Enter it here</div>
-                </div>
-              </button>
             </div>
-          </div>
-        )}
-
-        {step === 'promo' && (
-          <div className="payment-step">
-            <button className="back-button" onClick={() => setStep('choice')}>← Back</button>
-
-            <h3>Enter Promo Code</h3>
-            <p className="step-description">Enter your promotional code to unlock premium access</p>
-
-            <div className="promo-input-group">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handlePromoSubmit()}
-                placeholder="Enter promo code"
-                className="promo-input"
-                autoFocus
-              />
-            </div>
-
-            {promoMessage.text && (
-              <div className={`message-box ${promoMessage.type}`}>
-                {promoMessage.text}
-              </div>
-            )}
-
-            <button
-              className="btn-primary"
-              onClick={handlePromoSubmit}
-              disabled={!promoCode.trim()}
-            >
-              Apply Promo Code
-            </button>
           </div>
         )}
 
@@ -709,9 +646,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
           <div className="payment-step">
             <button className="back-button" onClick={() => setStep('choice')}>← Back</button>
 
-            <h3>Subscribe with Card</h3>
-            <p className="step-description">$4.99/month • Recurring subscription via Stripe</p>
-
             <StripeSubscriptionForm
               walletAddress={primaryWallet.address}
               onSuccess={handleCardPaymentSuccess}
@@ -811,6 +745,14 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
           }
 
+          .payment-page-card {
+            max-width: 640px;
+            max-height: none;
+            overflow: visible;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+          }
+
           .modal-close {
             position: absolute;
             top: 1rem;
@@ -837,25 +779,25 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
           }
 
           .modal-header {
-            padding: 2rem 2rem 1rem;
+            padding: 1rem 1.5rem 0.75rem;
             border-bottom: 1px solid #e5e7eb;
             text-align: center;
           }
 
           .modal-header h2 {
-            margin: 0 0 0.5rem 0;
-            font-size: 1.75rem;
+            margin: 0 0 0.25rem 0;
+            font-size: 1.4rem;
             color: #111;
           }
 
           .modal-header p {
             margin: 0;
             color: #6b7280;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
           }
 
           .payment-step {
-            padding: 2rem;
+            padding: 1.25rem 1.5rem;
           }
 
           .step-indicator {
@@ -1260,54 +1202,6 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
             font-size: 0.875rem;
           }
 
-          .choice-divider {
-            text-align: center;
-            position: relative;
-            margin: 0.5rem 0;
-          }
-
-          .choice-divider span {
-            background: white;
-            padding: 0 1rem;
-            color: #9ca3af;
-            font-size: 0.875rem;
-            font-weight: 600;
-            position: relative;
-            z-index: 1;
-          }
-
-          .choice-divider::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 50%;
-            height: 1px;
-            background: #e5e7eb;
-            z-index: 0;
-          }
-
-          .promo-input-group {
-            margin-bottom: 1.5rem;
-          }
-
-          .promo-input {
-            width: 100%;
-            padding: 1rem;
-            font-size: 1rem;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            transition: all 0.2s;
-            text-align: center;
-            font-weight: 500;
-          }
-
-          .promo-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-          }
-
           .message-box {
             padding: 1rem;
             border-radius: 8px;
@@ -1328,6 +1222,15 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, initialPromoC
           }
         `}</style>
       </div>
+  );
+
+  if (isPage) {
+    return content;
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      {content}
     </div>
   );
 }

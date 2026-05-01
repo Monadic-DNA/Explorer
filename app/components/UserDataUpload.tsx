@@ -4,8 +4,11 @@ import { useState, useRef, createContext, useContext, useCallback, useEffect } f
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
 import {
-  trackFileUploadSuccess,
+  trackFileCleared,
+  trackFileUploadError,
   trackGenotypeFileLoaded,
+  trackGenotypeFileUploadFailed,
+  trackGenotypeFileUploadStarted,
 } from "@/lib/analytics";
 import {
   isDevModeEnabled,
@@ -14,7 +17,7 @@ import {
 
 type GenotypeContextType = {
   genotypeData: Map<string, string> | null;
-  uploadGenotype: (file: File) => Promise<void>;
+  uploadGenotype: (file: File, source?: string) => Promise<boolean>;
   clearGenotype: () => void;
   isUploaded: boolean;
   isLoading: boolean;
@@ -34,12 +37,13 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const [fileHash, setFileHash] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
-  const uploadGenotype = async (file: File) => {
+  const uploadGenotype = async (file: File, source: string = 'unknown') => {
     const startTime = performance.now();
     const fileExtension = file.name.split('.').pop() || '';
 
     setIsLoading(true);
     setError(null);
+    trackGenotypeFileUploadStarted(source);
 
     try {
       // Validate file size (50MB limit)
@@ -72,7 +76,7 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       const parseDuration = performance.now() - startTime;
 
       // Track successful genotype file load
-      trackGenotypeFileLoaded(file.size, genotypeMap.size);
+      trackGenotypeFileLoaded(file.size, genotypeMap.size, source);
 
       setGenotypeData(genotypeMap);
       setFileHash(hash);
@@ -82,9 +86,12 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       if (onDataLoadedRef.current) {
         onDataLoadedRef.current();
       }
+      return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
       setError(errorMessage);
+      trackGenotypeFileUploadFailed(source, errorMessage);
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -95,6 +102,7 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setFileHash(null);
     setOriginalFileName(null);
+    trackFileCleared();
   };
 
   const setOnDataLoadedCallback = useCallback((cb: (() => void) | null) => {
@@ -131,6 +139,22 @@ export default function UserDataUpload() {
   const { uploadGenotype, clearGenotype, isUploaded, isLoading, error } = useGenotype();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const openFilePicker = () => {
+      if (!isLoading) {
+        fileInputRef.current?.click();
+      }
+    };
+
+    window.addEventListener('openDNAUploadPicker', openFilePicker);
+    window.addEventListener('triggerDNAUpload', openFilePicker);
+
+    return () => {
+      window.removeEventListener('openDNAUploadPicker', openFilePicker);
+      window.removeEventListener('triggerDNAUpload', openFilePicker);
+    };
+  }, [isLoading]);
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -138,11 +162,13 @@ export default function UserDataUpload() {
     // Validate file type
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith('.txt') && !fileName.endsWith('.tsv') && !fileName.endsWith('.csv')) {
+      trackFileUploadError('unsupported_file_type');
       return;
     }
 
     // Validate file size (50MB limit)
     if (file.size > 50 * 1024 * 1024) {
+      trackFileUploadError('file_too_large');
       return;
     }
 
@@ -151,7 +177,7 @@ export default function UserDataUpload() {
       try {
         const devFile = await selectAndSaveGenotypeFile();
         if (devFile) {
-          await uploadGenotype(devFile);
+          await uploadGenotype(devFile, 'menu_upload');
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
@@ -163,7 +189,7 @@ export default function UserDataUpload() {
     }
 
     // Regular upload
-    await uploadGenotype(file);
+    await uploadGenotype(file, 'menu_upload');
 
     // Reset file input
     if (fileInputRef.current) {

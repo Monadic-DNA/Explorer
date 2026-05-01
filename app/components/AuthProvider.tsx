@@ -4,7 +4,7 @@ import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynam
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { ZeroDevSmartWalletConnectors } from '@dynamic-labs/ethereum-aa';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { trackUserLoggedIn } from '@/lib/analytics';
+import { trackSignInStarted, trackUserLoggedIn } from '@/lib/analytics';
 import { hasValidPromoAccess } from '@/lib/promo-access';
 
 interface SubscriptionData {
@@ -84,10 +84,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [checkingSubscription, setCheckingSubscription] = useState(false); // Changed default to false
   const [isDynamicInitialized, setIsDynamicInitialized] = useState(false);
   const [openAuthModalFn, setOpenAuthModalFn] = useState<(() => void) | null>(null);
+  const [pendingAuthModalOpen, setPendingAuthModalOpen] = useState(false);
 
   // If environment ID is not set, render without Dynamic (useful for CI/CD builds)
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
   const isDynamicEnabled = !!environmentId;
+
+  // Eagerly initialize Dynamic on mount so restored sessions are picked up
+  // before the user clicks any auth-gated button.
+  useEffect(() => {
+    if (isDynamicEnabled) {
+      setIsDynamicInitialized(true);
+    }
+  }, [isDynamicEnabled]);
 
   const checkSubscription = useCallback(async (walletAddress: string) => {
     try {
@@ -236,11 +245,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOpenAuthModalFn(() => openFn);
   }, []);
 
+  useEffect(() => {
+    if (!pendingAuthModalOpen || !isDynamicInitialized || !openAuthModalFn) {
+      return;
+    }
+
+    openAuthModalFn();
+    setPendingAuthModalOpen(false);
+  }, [isDynamicInitialized, openAuthModalFn, pendingAuthModalOpen]);
+
   const openAuthModal = useCallback(() => {
+    if (!isDynamicEnabled) {
+      return;
+    }
+
+    trackSignInStarted();
+
+    if (!isDynamicInitialized) {
+      setPendingAuthModalOpen(true);
+      initializeDynamic();
+      return;
+    }
+
     if (openAuthModalFn) {
       openAuthModalFn();
+      return;
     }
-  }, [openAuthModalFn]);
+
+    setPendingAuthModalOpen(true);
+  }, [initializeDynamic, isDynamicEnabled, isDynamicInitialized, openAuthModalFn]);
 
   // If Dynamic is not enabled (no environment ID), render children with default auth context
   if (!isDynamicEnabled) {

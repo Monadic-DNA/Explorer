@@ -9,11 +9,15 @@ import { NilaiOpenAIClient, AuthType } from '@nillion/nilai-ts';
 import { getLLMConfig, getModelIdentifier, getAPIEndpoint } from './llm-config';
 
 // Import the centralized nilAI endpoint
-const NILAI_API_ENDPOINT = getAPIEndpoint({ provider: 'nilai', model: 'gpt-oss-20b' });
+const NILAI_API_ENDPOINT = getAPIEndpoint({ provider: 'nilai', model: 'gemma-4-26B-A4B-it' });
+
+export type MessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | MessageContentPart[];
 }
 
 export interface LLMResponse {
@@ -58,7 +62,7 @@ export async function callLLM(
   //
   // IMPORTANT: If you see extremely high chars/token ratios (>20), the input is likely
   // being truncated due to context window limits. For Ollama, ensure num_ctx is set
-  // to the model's full context window (131072 for gpt-oss-20b).
+  // to the model's full context window (131072 for gemma-4-26B-A4B-it).
   const fullPrompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
   const promptChars = fullPrompt.length;
 
@@ -175,6 +179,7 @@ async function callNilAI(
   const client = new NilaiOpenAIClient({
     baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
+    maxRetries: 0,
   });
 
   // Get delegation token from server
@@ -198,7 +203,7 @@ async function callNilAI(
   const response = await client.chat.completions.create({
     model: modelId,
     messages: messages as any,
-    max_tokens: maxTokens || 131072, // Default to model max if not specified
+    max_tokens: maxTokens || 262144, // Default to model max if not specified
     temperature,
     reasoning_effort: reasoningEffort,
   });
@@ -229,8 +234,11 @@ async function callOllama(
   const baseURL = `http://${address || 'localhost'}:${port || 11434}`;
   const modelName = modelId || 'gpt-oss:latest';
 
-  // Extract prompt from messages
-  const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
+  // Extract prompt from messages (flatten array content to text for generate endpoint)
+  const prompt = messages.map(m => {
+    const text = Array.isArray(m.content) ? m.content.filter(p => p.type === 'text').map(p => (p as {type:'text';text:string}).text).join('\n') : m.content;
+    return `${m.role}: ${text}`;
+  }).join('\n\n');
 
   const response = await fetch(`${baseURL}/api/generate`, {
     method: 'POST',
@@ -240,8 +248,8 @@ async function callOllama(
       prompt,
       stream: false,
       options: {
-        num_ctx: 131072, // Context window size (CRITICAL: Ollama defaults to 2048, must set to model max)
-        num_predict: maxTokens || 131072, // Max output tokens (default to model max if not specified)
+        num_ctx: 262144, // Context window size (CRITICAL: Ollama defaults to 2048, must set to model max)
+        num_predict: maxTokens || 262144, // Max output tokens (default to model max if not specified)
         temperature,
         reasoning_effort: reasoningEffort,
       },
@@ -298,7 +306,7 @@ async function callHuggingFace(
     body: JSON.stringify({
       model: modelId,
       messages,
-      max_tokens: maxTokens || 131072, // Default to model max if not specified
+      max_tokens: maxTokens || 262144, // Default to model max if not specified
       temperature,
       reasoning_effort: reasoningEffort,
       stream: false,
@@ -384,6 +392,7 @@ async function* streamNilAI(
   const client = new NilaiOpenAIClient({
     baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
+    maxRetries: 0,
   });
 
   // Get delegation token
@@ -406,7 +415,7 @@ async function* streamNilAI(
   const stream = await client.chat.completions.create({
     model: modelId,
     messages: messages as any,
-    max_tokens: maxTokens || 131072,
+    max_tokens: maxTokens || 262144,
     temperature,
     reasoning_effort: reasoningEffort,
     stream: true,
@@ -441,11 +450,18 @@ async function* streamOllama(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: modelName,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      messages: messages.map(m => {
+        if (Array.isArray(m.content)) {
+          const text = m.content.filter(p => p.type === 'text').map(p => (p as {type:'text';text:string}).text).join('\n');
+          const images = m.content.filter(p => p.type === 'image_url').map(p => (p as {type:'image_url';image_url:{url:string}}).image_url.url.replace(/^data:[^;]+;base64,/, ''));
+          return images.length > 0 ? { role: m.role, content: text, images } : { role: m.role, content: text };
+        }
+        return { role: m.role, content: m.content };
+      }),
       stream: true,
       options: {
-        num_ctx: 131072,
-        num_predict: maxTokens || 131072,
+        num_ctx: 262144,
+        num_predict: maxTokens || 262144,
         temperature,
         reasoning_effort: reasoningEffort,
       },
@@ -507,7 +523,7 @@ async function* streamHuggingFace(
     body: JSON.stringify({
       model: modelId,
       messages,
-      max_tokens: maxTokens || 131072,
+      max_tokens: maxTokens || 262144,
       temperature,
       reasoning_effort: reasoningEffort,
       stream: true,

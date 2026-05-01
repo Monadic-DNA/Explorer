@@ -1,291 +1,325 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  trackTourCompleted,
+  trackTourDismissed,
+  trackTourStarted,
+  trackTourStepViewed,
+} from "@/lib/analytics";
+import type { TourContent, TourStep } from "./tours/tourContent";
 
-type TourStep = {
-  id: string;
-  title: string;
-  description: string;
-  target?: string; // CSS selector for element to highlight
-  position?: "top" | "bottom" | "left" | "right";
-  action?: string; // Optional action text
-};
-
-const tourSteps: TourStep[] = [
-  {
-    id: "welcome",
-    title: "Welcome to Monadic DNA Explorer!",
-    description: "Explore over 1 million genetic association studies from the GWAS Catalog. Whether you're a researcher or just curious about genetics, let's take a quick tour!",
-    position: "bottom"
-  },
-  {
-    id: "filters",
-    title: "Search & Filter Studies",
-    description: "Use powerful filters to explore genetic studies. Try semantic search to find studies by meaning, not just keywords! Filter by sample size, p-value, and more.",
-    target: ".panel",
-    position: "bottom"
-  },
-  {
-    id: "results-table",
-    title: "Browse Study Results",
-    description: "This table shows genetic studies matching your filters. Each row contains key information like statistical significance (Relevance), study size (Power), and effect size.",
-    target: ".summary",
-    position: "bottom"
-  },
-  {
-    id: "upload-data",
-    title: "Upload Your DNA Data (Optional)",
-    description: "Want personalized insights? Upload your 23andMe or AncestryDNA raw data file. Your data never leaves your browser - everything runs locally!",
-    target: ".menu-icon-button:first-child",
-    position: "bottom"
-  },
-  {
-    id: "your-result",
-    title: "See Your Genetic Results",
-    description: "After uploading DNA data, click 'Reveal' in any study row to see how each genetic variant applies to you personally.",
-    target: "thead tr th:last-child",
-    position: "top"
-  },
-  {
-    id: "llm-features",
-    title: "LLM-Powered Analysis",
-    description: "Use our LLM features to ask questions about your genetics, get personalized insights, and generate comprehensive reports. Configure your preferred LLM provider in the menu!",
-    target: ".menu-icons",
-    position: "bottom"
-  },
-  {
-    id: "premium-tab",
-    title: "Premium Features",
-    description: "Upgrade to Premium for powerful features: Run All Analysis (analyze all million+ traits at once), LLM Chat (ask an LLM about your genetics), and Overview Report (comprehensive LLM analysis).",
-    target: ".tab-button:last-child",
-    position: "bottom"
-  },
-  {
-    id: "menubar",
-    title: "Explore the Menu",
-    description: "Access your data, results export/import, personalization settings, LLM configuration, and cache management. You can also switch between light and dark themes!",
-    target: ".menu-bar",
-    position: "bottom"
-  },
-  {
-    id: "complete",
-    title: "You're All Set!",
-    description: "Start exploring genetic studies right away, or upload your DNA data for personalized insights. Click the Help icon (❓) in the menu anytime to restart this tour!",
-    position: "bottom"
-  }
-];
-
-interface GuidedTourProps {
+type GuidedTourProps = {
+  tour: TourContent;
   isOpen: boolean;
   onClose: () => void;
-  onNeverShowAgain: () => void;
+};
+
+type Rect = { top: number; left: number; width: number; height: number };
+
+const SPOTLIGHT_PADDING = 8;
+const POPOVER_GAP = 14;
+const POPOVER_WIDTH = 340;
+const POPOVER_MARGIN = 12;
+
+const storageKey = (tourId: string) => `tour_completed_${tourId}`;
+
+export function hasCompletedTour(tourId: string): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(storageKey(tourId)) === "true";
 }
 
-export default function GuidedTour({ isOpen, onClose, onNeverShowAgain }: GuidedTourProps) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+function getTargetRect(selector: string | undefined): Rect | null {
+  if (!selector || typeof window === "undefined") return null;
+  const el = document.querySelector(selector) as HTMLElement | null;
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return null;
+  return { top: r.top, left: r.left, width: r.width, height: r.height };
+}
 
-  const step = tourSteps[currentStep];
-  const isFirstStep = currentStep === 0;
-  const isLastStep = currentStep === tourSteps.length - 1;
+function scrollTargetIntoView(selector: string | undefined) {
+  if (!selector || typeof window === "undefined") return;
+  const el = document.querySelector(selector) as HTMLElement | null;
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+}
 
-  // Update target element position
+type PopoverPosition = {
+  top: number;
+  left: number;
+  placement: "top" | "bottom" | "left" | "right" | "center";
+};
+
+function computePopoverPosition(
+  target: Rect | null,
+  preferred: TourStep["placement"],
+  vw: number,
+  vh: number,
+  popoverHeight: number,
+): PopoverPosition {
+  if (!target) {
+    return {
+      top: Math.max(POPOVER_MARGIN, vh / 2 - popoverHeight / 2),
+      left: Math.max(POPOVER_MARGIN, vw / 2 - POPOVER_WIDTH / 2),
+      placement: "center",
+    };
+  }
+
+  const order: Array<NonNullable<TourStep["placement"]>> =
+    preferred === "top"
+      ? ["top", "bottom", "right", "left"]
+      : preferred === "left"
+        ? ["left", "right", "bottom", "top"]
+        : preferred === "right"
+          ? ["right", "left", "bottom", "top"]
+          : ["bottom", "top", "right", "left"];
+
+  for (const placement of order) {
+    if (placement === "bottom") {
+      const top = target.top + target.height + POPOVER_GAP;
+      if (top + popoverHeight + POPOVER_MARGIN <= vh) {
+        const left = clamp(target.left + target.width / 2 - POPOVER_WIDTH / 2, POPOVER_MARGIN, vw - POPOVER_WIDTH - POPOVER_MARGIN);
+        return { top, left, placement };
+      }
+    } else if (placement === "top") {
+      const top = target.top - POPOVER_GAP - popoverHeight;
+      if (top >= POPOVER_MARGIN) {
+        const left = clamp(target.left + target.width / 2 - POPOVER_WIDTH / 2, POPOVER_MARGIN, vw - POPOVER_WIDTH - POPOVER_MARGIN);
+        return { top, left, placement };
+      }
+    } else if (placement === "right") {
+      const left = target.left + target.width + POPOVER_GAP;
+      if (left + POPOVER_WIDTH + POPOVER_MARGIN <= vw) {
+        const top = clamp(target.top + target.height / 2 - popoverHeight / 2, POPOVER_MARGIN, vh - popoverHeight - POPOVER_MARGIN);
+        return { top, left, placement };
+      }
+    } else if (placement === "left") {
+      const left = target.left - POPOVER_GAP - POPOVER_WIDTH;
+      if (left >= POPOVER_MARGIN) {
+        const top = clamp(target.top + target.height / 2 - popoverHeight / 2, POPOVER_MARGIN, vh - popoverHeight - POPOVER_MARGIN);
+        return { top, left, placement };
+      }
+    }
+  }
+
+  return {
+    top: Math.max(POPOVER_MARGIN, vh / 2 - popoverHeight / 2),
+    left: Math.max(POPOVER_MARGIN, vw / 2 - POPOVER_WIDTH / 2),
+    placement: "center",
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export default function GuidedTour({ tour, isOpen, onClose }: GuidedTourProps) {
+  const [mounted, setMounted] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [targetRect, setTargetRect] = useState<Rect | null>(null);
+  const [viewport, setViewport] = useState({ vw: 0, vh: 0 });
+  const [popoverHeight, setPopoverHeight] = useState(220);
+
+  const step = tour.steps[stepIndex];
+
   useEffect(() => {
-    if (!isOpen || !step.target) {
+    setMounted(true);
+    setViewport({ vw: window.innerWidth, vh: window.innerHeight });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStepIndex(0);
+    setDontShowAgain(false);
+    trackTourStarted(tour.id);
+  }, [isOpen, tour.id]);
+
+  useEffect(() => {
+    if (!isOpen || !step) return;
+    trackTourStepViewed(tour.id, stepIndex, step.name);
+  }, [isOpen, stepIndex, step, tour.id]);
+
+  // Scroll target into view when step changes
+  useEffect(() => {
+    if (!isOpen || !step?.selector) return;
+    scrollTargetIntoView(step.selector);
+  }, [isOpen, step]);
+
+  // Track target rect with retries (target may not exist immediately after scroll)
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    if (!step?.selector) {
       setTargetRect(null);
       return;
     }
 
-    const updatePosition = () => {
-      const target = document.querySelector(step.target!) as HTMLElement;
-      if (target) {
-        const rect = target.getBoundingClientRect();
+    let raf = 0;
+    let attempts = 0;
+    const tick = () => {
+      const rect = getTargetRect(step.selector);
+      if (rect) {
+        setTargetRect(rect);
+      } else if (attempts < 30) {
+        attempts++;
+        raf = requestAnimationFrame(tick);
+      } else {
+        setTargetRect(null);
+      }
+    };
+    tick();
+
+    return () => cancelAnimationFrame(raf);
+  }, [isOpen, step]);
+
+  // Reposition on resize / scroll
+  useEffect(() => {
+    if (!isOpen) return;
+    const update = () => {
+      setViewport({ vw: window.innerWidth, vh: window.innerHeight });
+      if (step?.selector) {
+        const rect = getTargetRect(step.selector);
         setTargetRect(rect);
       }
     };
-
-    // Initial position
-    updatePosition();
-
-    // Update position on scroll and resize
-    window.addEventListener('scroll', updatePosition, true);
-    window.addEventListener('resize', updatePosition);
-
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
     return () => {
-      window.removeEventListener('scroll', updatePosition, true);
-      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
     };
-  }, [isOpen, step.target, currentStep]);
+  }, [isOpen, step]);
 
-  // Reset to first step and show tour with animation delay
-  useEffect(() => {
-    if (isOpen) {
-      setCurrentStep(0); // Always start from beginning
-      setTimeout(() => setIsVisible(true), 100);
-    } else {
-      setIsVisible(false);
+  const persistDontShowAgain = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(storageKey(tour.id), "true");
     }
-  }, [isOpen]);
+  }, [tour.id]);
 
-  // Scroll target element into view
+  const handleDismiss = useCallback(() => {
+    trackTourDismissed(tour.id, stepIndex, dontShowAgain);
+    if (dontShowAgain) {
+      persistDontShowAgain();
+    }
+    onClose();
+  }, [dontShowAgain, onClose, persistDontShowAgain, stepIndex, tour.id]);
+
+  const handleFinish = useCallback(() => {
+    persistDontShowAgain();
+    trackTourCompleted(tour.id);
+    onClose();
+  }, [onClose, persistDontShowAgain, tour.id]);
+
+  const handleNext = useCallback(() => {
+    if (stepIndex < tour.steps.length - 1) {
+      setStepIndex((i) => i + 1);
+    } else {
+      handleFinish();
+    }
+  }, [handleFinish, stepIndex, tour.steps.length]);
+
+  const handleBack = useCallback(() => {
+    setStepIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  // Escape key dismisses
   useEffect(() => {
-    if (isOpen && step.target) {
-      const target = document.querySelector(step.target) as HTMLElement;
-      if (target) {
-        // Use 'start' positioning to keep tooltip visible, with offset for menu bar
-        setTimeout(() => {
-          const yOffset = -100; // Offset to account for sticky menu bar
-          const y = target.getBoundingClientRect().top + window.pageYOffset + yOffset;
-          window.scrollTo({ top: y, behavior: 'smooth' });
-        }, 50);
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        handleDismiss();
       }
-    }
-  }, [isOpen, step.target, currentStep]);
-
-  if (!isOpen) return null;
-
-  const handleNext = () => {
-    if (isLastStep) {
-      onClose();
-    } else {
-      setCurrentStep(prev => prev + 1);
-    }
-  };
-
-  const handleBack = () => {
-    setCurrentStep(prev => Math.max(0, prev - 1));
-  };
-
-  const handleSkip = () => {
-    onClose();
-  };
-
-  const handleNeverShow = () => {
-    onNeverShowAgain();
-    onClose();
-  };
-
-  // Calculate tooltip position
-  const getTooltipStyle = (): React.CSSProperties => {
-    if (!targetRect) {
-      // Center on screen for steps without targets
-      return {
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        zIndex: 10002
-      };
-    }
-
-    const position = step.position || 'bottom';
-    const offset = 20; // Distance from target element
-    const style: React.CSSProperties = {
-      position: 'fixed',
-      zIndex: 10002
     };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, handleDismiss]);
 
-    switch (position) {
-      case 'top':
-        style.bottom = `${window.innerHeight - targetRect.top + offset}px`;
-        style.left = `${targetRect.left + targetRect.width / 2}px`;
-        style.transform = 'translateX(-50%)';
-        break;
-      case 'bottom':
-        style.top = `${targetRect.bottom + offset}px`;
-        style.left = `${targetRect.left + targetRect.width / 2}px`;
-        style.transform = 'translateX(-50%)';
-        break;
-      case 'left':
-        style.top = `${targetRect.top + targetRect.height / 2}px`;
-        style.right = `${window.innerWidth - targetRect.left + offset}px`;
-        style.transform = 'translateY(-50%)';
-        break;
-      case 'right':
-        style.top = `${targetRect.top + targetRect.height / 2}px`;
-        style.left = `${targetRect.right + offset}px`;
-        style.transform = 'translateY(-50%)';
-        break;
-    }
+  if (!mounted || !isOpen || !step) return null;
 
-    return style;
-  };
+  const popoverPos = computePopoverPosition(targetRect, step.placement, viewport.vw, viewport.vh, popoverHeight);
+  const isLastStep = stepIndex === tour.steps.length - 1;
+  const isFirstStep = stepIndex === 0;
+  const hasSpotlight = !!targetRect;
 
-  return (
+  const spotlightStyle = hasSpotlight
+    ? {
+        left: targetRect!.left - SPOTLIGHT_PADDING,
+        top: targetRect!.top - SPOTLIGHT_PADDING,
+        width: targetRect!.width + SPOTLIGHT_PADDING * 2,
+        height: targetRect!.height + SPOTLIGHT_PADDING * 2,
+      }
+    : null;
+
+  const content = (
     <>
-      {/* Overlay */}
-      <div
-        className={`tour-overlay ${isVisible ? 'visible' : ''}`}
-        onClick={handleSkip}
-      />
+      {/* Backdrop click-blocker */}
+      <div className="guided-tour-backdrop" onClick={handleDismiss} />
 
-      {/* Spotlight on target element */}
-      {targetRect && (
-        <div
-          className={`tour-spotlight ${isVisible ? 'visible' : ''}`}
-          style={{
-            position: 'fixed',
-            top: `${targetRect.top - 8}px`,
-            left: `${targetRect.left - 8}px`,
-            width: `${targetRect.width + 16}px`,
-            height: `${targetRect.height + 16}px`,
-            pointerEvents: 'none',
-            zIndex: 10001
-          }}
-        />
+      {/* Spotlight cutout via box-shadow trick */}
+      {hasSpotlight && spotlightStyle && (
+        <div className="guided-tour-spotlight" style={spotlightStyle} />
       )}
 
-      {/* Tooltip */}
+      {/* Popover */}
       <div
-        ref={tooltipRef}
-        className={`tour-tooltip ${isVisible ? 'visible' : ''}`}
-        style={getTooltipStyle()}
+        className={`guided-tour-popover guided-tour-popover-${popoverPos.placement}`}
+        style={{ top: popoverPos.top, left: popoverPos.left, width: POPOVER_WIDTH }}
+        ref={(el) => {
+          if (el && el.offsetHeight !== popoverHeight) {
+            setPopoverHeight(el.offsetHeight);
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="tour-tooltip-header">
-          <h3>{step.title}</h3>
-          <button
-            onClick={handleSkip}
-            className="tour-close-button"
-            aria-label="Close tour"
-          >
-            ×
-          </button>
+        <button
+          className="guided-tour-close"
+          onClick={handleDismiss}
+          aria-label="Close tour"
+        >
+          ✕
+        </button>
+
+        <div className="guided-tour-eyebrow">
+          {tour.title} · Step {stepIndex + 1} of {tour.steps.length}
+        </div>
+        <h2 className="guided-tour-step-title">{step.title}</h2>
+        <p className="guided-tour-step-body">{step.body}</p>
+
+        <div className="guided-tour-progress" aria-hidden="true">
+          {tour.steps.map((_, i) => (
+            <span
+              key={i}
+              className={`guided-tour-dot ${i === stepIndex ? "active" : ""} ${i < stepIndex ? "done" : ""}`}
+            />
+          ))}
         </div>
 
-        <p className="tour-tooltip-description">{step.description}</p>
+        <div className="guided-tour-footer">
+          <label className="guided-tour-checkbox">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+            />
+            <span>Don&apos;t show again</span>
+          </label>
 
-        <div className="tour-tooltip-footer">
-          <div className="tour-progress">
-            {tourSteps.map((_, index) => (
-              <div
-                key={index}
-                className={`tour-progress-dot ${index === currentStep ? 'active' : ''} ${index < currentStep ? 'completed' : ''}`}
-              />
-            ))}
-          </div>
-
-          <div className="tour-tooltip-actions">
-            {isFirstStep && (
-              <button onClick={handleNeverShow} className="tour-button secondary">
-                Never show again
-              </button>
-            )}
+          <div className="guided-tour-actions">
             {!isFirstStep && (
-              <button onClick={handleBack} className="tour-button secondary">
+              <button className="guided-tour-secondary" onClick={handleBack}>
                 Back
               </button>
             )}
-            <button onClick={handleSkip} className="tour-button secondary">
-              Skip tour
-            </button>
-            <button onClick={handleNext} className="tour-button primary">
-              {isLastStep ? "Finish" : "Next"}
+            <button className="guided-tour-primary" onClick={handleNext}>
+              {isLastStep ? "Done" : "Next"}
             </button>
           </div>
         </div>
       </div>
     </>
   );
+
+  return createPortal(content, document.body);
 }

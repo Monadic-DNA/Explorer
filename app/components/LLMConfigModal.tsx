@@ -106,19 +106,18 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
             >
               {config.provider === 'ollama' ? (
                 <>
-                  <option value="gpt-oss:latest">gpt-oss:latest (Ollama format)</option>
-                  <option value="gpt-oss-20b">gpt-oss-20b</option>
+                  <option value="gemma-4-26B-A4B-it">gemma-4-26B-A4B-it</option>
                   <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
                   <option value="custom">Custom...</option>
                 </>
               ) : config.provider === 'nilai' ? (
                 <>
-                  <option value="gpt-oss-20b">gpt-oss-20b</option>
+                  <option value="gemma-4-26B-A4B-it">gemma-4-26B-A4B-it</option>
                   <option value="custom">Custom...</option>
                 </>
               ) : (
                 <>
-                  <option value="gpt-oss-20b">gpt-oss-20b</option>
+                  <option value="gemma-4-26B-A4B-it">gemma-4-26B-A4B-it</option>
                   <option value="openai/gpt-oss-120b">openai/gpt-oss-120b</option>
                   <option value="deepseek-ai/DeepSeek-V3.2">deepseek-ai/DeepSeek-V3.2</option>
                   <option value="moonshotai/Kimi-K2-Thinking">moonshotai/Kimi-K2-Thinking</option>
@@ -146,7 +145,7 @@ export default function LLMConfigModal({ isOpen, onClose, onSave }: LLMConfigMod
                 onChange={(e) =>
                   setConfig({ ...config, customModel: e.target.value })
                 }
-                placeholder="Enter model name (e.g., gpt-oss-20b, openai/gpt-oss-120b)"
+                placeholder="Enter model name (e.g., google/gemma-4-26B-A4B-it, openai/gpt-oss-120b)"
               />
               <p className="config-help">
                 Enter the exact model identifier for your provider.

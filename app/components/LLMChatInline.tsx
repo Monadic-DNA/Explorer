@@ -8,19 +8,22 @@ import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { callLLM, callLLMStream, getLLMDescription } from "@/lib/llm-client";
+import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
 import { getLLMConfig } from "@/lib/llm-config";
-import { RobotIcon } from "./Icons";
+import { SparklesIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 
-type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv';
+type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
+
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
 type Attachment = {
   name: string;
-  content: string;
+  content: string; // text content for documents; data URL for images
   type: AttachmentType;
   size: number; // in bytes
+  mimeType?: string; // set for images
 };
 
 type Message = {
@@ -33,18 +36,20 @@ type Message = {
 
 const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const MAX_CONTEXT_RESULTS = 500;
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB in bytes
-const ALLOWED_FILE_TYPES = ['.txt', '.pdf', '.csv', '.tsv'];
+const MAX_TEXT_FILE_SIZE = 2 * 1024 * 1024; // 2MB for text/csv/tsv
+const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;  // 5MB for PDF
+const MAX_IMAGE_FILE_SIZE = 5 * 1024 * 1024; // 5MB for images
+const ALLOWED_FILE_TYPES = ['.txt', '.pdf', '.csv', '.tsv', '.jpg', '.jpeg', '.png', '.gif', '.webp'];
 const MAX_ATTACHMENTS = 5;
 
 const EXAMPLE_QUESTIONS = [
   "Which traits should I pay attention to?",
-    "How's my sleep profile?",
+  "How is my sleep profile?",
   "Which sports are ideal for me?",
   "What kinds of foods do you think I will like best?",
-  "On a scale of 1 - 10, how risk seeking am I?",
-  "Can you tell me which learning styles work best for me?",
-    "What can you guess about my appearance?"
+  "On a scale of 1 to 10, how risk seeking am I?",
+  "Which learning styles work best for me?",
+  "What can you guess about my appearance?"
 ];
 
 const FOLLOWUP_SUGGESTIONS = [
@@ -55,7 +60,11 @@ const FOLLOWUP_SUGGESTIONS = [
   "How should I adjust my diet and lifestyle?"
 ];
 
-export default function AIChatInline() {
+type AIChatInlineProps = {
+  onOpenTour?: () => void;
+};
+
+export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
@@ -163,19 +172,19 @@ export default function AIChatInline() {
 
     if (config.provider === 'nilai' || config.provider === 'ollama') {
       return {
-        icon: '🔒',
+        icon: 'Private',
         type: 'privacy',
         message: config.provider === 'nilai'
-          ? 'You\'re using nilAI (privacy-preserving TEE) - your data is maximally protected!'
-          : 'You\'re using Ollama (local processing) - your data never leaves your device!',
-        tip: 'Want more advanced models by going easier on privacy? Use the LLM button (top right) to switch to HuggingFace for more model choices. You will need to create your own HuggingFace account with a subscription.',
+          ? 'nilAI is active for privacy-preserving TEE processing.'
+          : 'Ollama is active for local processing on your device.',
+        tip: 'Switch models from the LLM button in the menu bar.',
       };
     } else if (config.provider === 'huggingface') {
       return {
-        icon: '⚡',
+        icon: 'Fast',
         type: 'performance',
-        message: 'You\'re using HuggingFace - maximizing model performance!',
-        tip: 'Want maximum privacy? Use the ⚙️ LLM button (top right) to switch to nilAI for privacy-preserving processing in a Trusted Execution Environment.',
+        message: 'HuggingFace is active for broader model access.',
+        tip: 'Switch back to nilAI from the LLM button for stronger privacy.',
       };
     }
 
@@ -188,15 +197,19 @@ export default function AIChatInline() {
   };
 
   const validateFile = (file: File): string | null => {
-    // Check file size
-    if (file.size > MAX_FILE_SIZE) {
-      return `File "${file.name}" is too large. Maximum size is 1MB.`;
-    }
-
-    // Check file type
     const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+
     if (!ALLOWED_FILE_TYPES.includes(extension)) {
       return `File "${file.name}" has an unsupported format. Allowed: ${ALLOWED_FILE_TYPES.join(', ')}`;
+    }
+
+    const isImage = IMAGE_EXTENSIONS.includes(extension);
+    const isPDF = extension === '.pdf';
+    const maxSize = isImage ? MAX_IMAGE_FILE_SIZE : isPDF ? MAX_PDF_FILE_SIZE : MAX_TEXT_FILE_SIZE;
+    const maxLabel = isImage || isPDF ? '5MB' : '2MB';
+
+    if (file.size > maxSize) {
+      return `File "${file.name}" is too large. Maximum size is ${maxLabel}.`;
     }
 
     return null;
@@ -243,23 +256,19 @@ export default function AIChatInline() {
 
       try {
         if (extension === 'pdf') {
-          // For PDF, we'll need to use pdfjs-dist
           const content = await extractTextFromPDF(file);
-          attachments.push({
-            name: file.name,
-            content,
-            type: 'pdf',
-            size: file.size
+          attachments.push({ name: file.name, content, type: 'pdf', size: file.size });
+        } else if (extension && IMAGE_EXTENSIONS.includes('.' + extension)) {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
           });
+          attachments.push({ name: file.name, content: dataUrl, type: 'image', size: file.size, mimeType: file.type });
         } else {
-          // For text, csv, tsv - read as text
           const content = await file.text();
-          attachments.push({
-            name: file.name,
-            content,
-            type: extension as AttachmentType,
-            size: file.size
-          });
+          attachments.push({ name: file.name, content, type: extension as AttachmentType, size: file.size });
         }
       } catch (err) {
         console.error(`Failed to process file ${file.name}:`, err);
@@ -317,19 +326,29 @@ export default function AIChatInline() {
     }
   };
 
-  const formatAttachmentsForMessage = (attachments: Attachment[], query: string): string => {
-    let message = `User question:\n${query}`;
+  const buildUserMessageContent = (attachments: Attachment[], query: string): string | MessageContentPart[] => {
+    const docAttachments = attachments.filter(a => a.type !== 'image');
+    const imageAttachments = attachments.filter(a => a.type === 'image');
 
-    if (attachments.length > 0) {
-      message += '\n\n---\n';
-      for (const attachment of attachments) {
+    let textPart = `User question:\n${query}`;
+    if (docAttachments.length > 0) {
+      textPart += '\n\n---\n';
+      for (const attachment of docAttachments) {
         const sizeKB = (attachment.size / 1024).toFixed(1);
-        message += `\nAttached file: ${attachment.name} (${attachment.type.toUpperCase()}, ${sizeKB}KB):\n${attachment.content}\n`;
+        textPart += `\nAttached file: ${attachment.name} (${attachment.type.toUpperCase()}, ${sizeKB}KB):\n${attachment.content}\n`;
       }
-      message += '---';
+      textPart += '---';
     }
 
-    return message;
+    if (imageAttachments.length === 0) {
+      return textPart;
+    }
+
+    const parts: MessageContentPart[] = [{ type: 'text', text: textPart }];
+    for (const img of imageAttachments) {
+      parts.push({ type: 'image_url', image_url: { url: img.content } });
+    }
+    return parts;
   };
 
   const handleSendMessage = async () => {
@@ -373,7 +392,7 @@ export default function AIChatInline() {
     let processedAttachments: Attachment[] = [];
     if (attachedFiles.length > 0) {
       try {
-        setLoadingStatus("📎 Processing attachments...");
+        setLoadingStatus("Processing attachments...");
         processedAttachments = await processAttachments(attachedFiles);
         console.log(`[LLM Chat] Processed ${processedAttachments.length} attachments`);
       } catch (err) {
@@ -391,7 +410,7 @@ export default function AIChatInline() {
       const shouldIncludeContext = messages.length === 0;
 
       if (shouldIncludeContext) {
-        setLoadingStatus("🔍 Searching your results for relevant traits...");
+        setLoadingStatus("Searching your results for relevant traits...");
         console.log(`[LLM Chat] Finding relevant results for query: "${query}"`);
         relevantResults = await getTopResultsByRelevance(query, MAX_CONTEXT_RESULTS);
         console.log(`[LLM Chat] Found ${relevantResults.length} relevant results`);
@@ -400,7 +419,7 @@ export default function AIChatInline() {
       }
 
       // Prepare to call LLM
-      setLoadingStatus(`🤖 Analyzing ${relevantResults.length} traits with LLM...`);
+      setLoadingStatus(`Analyzing ${relevantResults.length} traits with AI...`);
 
       const contextResults = relevantResults
         .map((r: SavedResult, idx: number) =>
@@ -590,9 +609,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       console.log('Attachments Count:', processedAttachments.length);
       console.log('======================');
 
-      // Format the user query with attachments for LLM
+      // Format the user query with attachments for LLM (multimodal when images present)
       const userQueryWithAttachments = processedAttachments.length > 0
-        ? formatAttachmentsForMessage(processedAttachments, query)
+        ? buildUserMessageContent(processedAttachments, query)
         : query;
 
       // Build the message history to send to LLM FIRST (before updating state)
@@ -721,6 +740,34 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter(item => item.type.startsWith('image/'));
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+    setAttachmentError(null);
+
+    if (attachedFiles.length + imageItems.length > MAX_ATTACHMENTS) {
+      setAttachmentError(`Maximum ${MAX_ATTACHMENTS} files can be attached at once.`);
+      return;
+    }
+
+    const newFiles: File[] = [];
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (!file) continue;
+      // Clipboard images have no extension; name them with a timestamp
+      const ext = item.type.split('/')[1] || 'png';
+      const named = new File([file], `pasted-image-${Date.now()}.${ext}`, { type: item.type });
+      const error = validateFile(named);
+      if (error) { setAttachmentError(error); return; }
+      newFiles.push(named);
+    }
+
+    setAttachedFiles(prev => [...prev, ...newFiles]);
+  };
+
   const handleClearChat = () => {
     setMessages([]);
     setError(null);
@@ -769,7 +816,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       return `
         <div style="margin: 1.5rem 0; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; page-break-inside: avoid;">
           <div style="font-weight: bold; margin-bottom: 0.75rem; color: ${m.role === 'user' ? '#3B82F6' : '#10B981'};">
-            ${m.role === 'user' ? '👤 You' : '🤖 LLM Assistant (gpt-oss-20b via Nillion nilAI)'}
+            ${m.role === 'user' ? 'You' : 'DNA Chat Assistant (gemma-4-26B-A4B-it via Nillion nilAI)'}
           </div>
           <div style="line-height: 1.6;">${content}</div>
           <div style="font-size: 0.8rem; color: #666; margin-top: 0.75rem; border-top: 1px solid #eee; padding-top: 0.5rem;">
@@ -783,7 +830,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       <!DOCTYPE html>
       <html>
         <head>
-          <title>LLM Chat - Genetic Results</title>
+          <title>DNA Chat - Genetic Results</title>
           <style>
             body {
               font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -840,13 +887,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           </style>
         </head>
         <body>
-          <h1>🤖 LLM Chat: Your Genetic Results</h1>
+          <h1>DNA Chat: Your Genetic Results</h1>
           <p style="color: #666; margin-bottom: 1rem;">
             Chat session from ${new Date().toLocaleString()}<br>
             ${getLLMDescription()}
           </p>
           <div class="disclaimer">
-            <strong>⚠️ Important Disclaimer:</strong> This chat is for educational purposes only.
+            <strong>Important Disclaimer:</strong> This chat is for educational purposes only.
             GWAS results show statistical associations, not deterministic outcomes.
             Always consult healthcare professionals for medical decisions.
           </div>
@@ -861,38 +908,6 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
     printWindow.print();
   };
 
-  if (showPersonalizationPrompt) {
-    return (
-      <div className="ai-chat-inline-blocked">
-        <div className="blocked-message">
-          <h2>📋 Personalization Recommended</h2>
-          <p>
-            For the best LLM chat experience, we recommend {customizationStatus === 'not-set' ? 'setting up' : 'unlocking'} your personalization information.
-          </p>
-          <p>
-            Personalized chat provides more relevant insights based on your ancestry, medical history, and demographics.
-          </p>
-          {customizationStatus === 'locked' && (
-            <p>
-              <strong>How to unlock:</strong> Click the "🔒 Personalize" button in the menu bar and enter your password.
-            </p>
-          )}
-          {customizationStatus === 'not-set' && (
-            <p>
-              <strong>How to set up:</strong> Click the "⚙️ Personalize" button in the menu bar to enter your information.
-            </p>
-          )}
-          <button
-            className="primary-button"
-            onClick={handlePersonalizationPromptContinue}
-          >
-            Continue Without Personalization
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       {showConsentModal && (
@@ -904,29 +919,63 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       )}
       <div className="ai-chat-inline" style={{ position: 'relative' }}>
         <div className="chat-header">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <RobotIcon size={28} /> LLM Chat: Your Genetic Results
-          </h2>
-          <p className="powered-by">
-            {getLLMDescription()} - Your data is processed securely
-          </p>
+          <div className="dna-chat-header-main">
+            <div className="dna-chat-title-mark">
+              <SparklesIcon size={24} />
+            </div>
+            <div>
+              <h2>DNA Chat</h2>
+              <p className="powered-by">
+                {getLLMDescription()} - secure processing for your saved genetic results
+              </p>
+              {onOpenTour && (
+                <button
+                  type="button"
+                  className="dna-chat-inline-tour-link"
+                  onClick={onOpenTour}
+                >
+                  Take the tour
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="chat-info">
           <div className="chat-info-left">
-            <span>💬 Ask questions about your {mounted ? resultsContext.savedResults.length.toLocaleString() : '...'} genetic results</span>
+            <span>{mounted ? resultsContext.savedResults.length.toLocaleString() : '...'} saved genetic results available</span>
           </div>
           {messages.length > 0 && (
             <div className="chat-actions">
               <button className="chat-action-button" onClick={handlePrintChat}>
-                🖨️ Print
+                Print
               </button>
               <button className="chat-action-button" onClick={handleClearChat}>
-                🗑️ Clear
+                Clear
               </button>
             </div>
           )}
         </div>
+
+        {showPersonalizationPrompt && (
+          <div className="dna-chat-personalization-banner">
+            <div>
+              <strong>Personalization improves answers.</strong>
+              <span>
+                {customizationStatus === 'locked'
+                  ? ' Unlock your saved profile from the Personalize menu when you are ready.'
+                  : ' Add ancestry, history, and demographics from the Personalize menu when you are ready.'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handlePersonalizationPromptContinue}
+              aria-label="Dismiss personalization recommendation"
+            >
+              Not now
+            </button>
+          </div>
+        )}
 
         {/* Provider tip banner */}
         {showProviderTip && (() => {
@@ -952,39 +1001,29 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
-              <h3>Welcome to LLM Chat!</h3>
+              <div className="chat-welcome-heading">
+                <h3>Ask about your DNA results</h3>
+                <span>Suggested prompts</span>
+              </div>
 
               {mounted && resultsContext.savedResults.length < 1000 && (
                 <div className="chat-warning">
-                  <p><strong>⚠️ Limited Results ({resultsContext.savedResults.length} studies)</strong></p>
+                  <p><strong>Limited results ({resultsContext.savedResults.length} studies)</strong></p>
                   <p>
-                    You currently have fewer than 1,000 analyzed results. For the best LLM chat experience,
-                    you can either:
+                    For better answers, analyze more studies or load a prior results file.
                   </p>
-                  <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem' }}>
-                    <li>Run "Run All" to analyze your DNA against all available studies, or</li>
-                    <li>Load results from a prior run if you've previously completed analysis</li>
-                  </ul>
-                  <p style={{ marginTop: '0.5rem' }}>This will give the LLM more comprehensive data to provide personalized insights.</p>
                 </div>
               )}
 
-              <p>Ask me anything about your genetic results. For example:</p>
               <ul className="example-questions">
-                {EXAMPLE_QUESTIONS.map((question, idx) => (
-                  <li key={idx} onClick={() => handleExampleClick(question)}>
+                {EXAMPLE_QUESTIONS.map((question) => (
+                  <li key={question} onClick={() => handleExampleClick(question)}>
                     {question}
                   </li>
                 ))}
               </ul>
-              <div className="chat-disclaimer">
-                <p><strong>⚠️ Important Disclaimer:</strong></p>
-                <ul style={{ marginLeft: '1.5rem', marginTop: '0.5rem', fontSize: '0.9em', lineHeight: '1.6' }}>
-                  <li><strong>LLMs can report incorrect information</strong> based on their training data</li>
-                  <li><strong>LLMs can hallucinate and make up information</strong> that sounds plausible but is false</li>
-                  <li><strong>LLMs can sound authoritative and confident</strong> even though they are not medical experts</li>
-                  <li><strong>This is for educational purposes only.</strong> Always consult healthcare professionals for medical advice.</li>
-                </ul>
+              <div className="chat-disclaimer chat-disclaimer-inline">
+                <strong>Disclaimer:</strong> LLMs can report incorrect or fabricated information and are not medical experts. <strong>For educational purposes only.</strong> Consult a healthcare professional for medical advice.
               </div>
             </div>
           )}
@@ -999,7 +1038,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               return (
             <div key={idx} className={`chat-message ${message.role}`}>
               <div className="message-icon">
-                {message.role === 'user' ? '👤' : '🤖'}
+                {message.role === 'user' ? 'You' : 'AI'}
               </div>
               <div className="message-content">
                 <div className="message-text">
@@ -1018,11 +1057,11 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                       onClick={() => handleCopyMessage(message.content)}
                       title="Copy to clipboard"
                     >
-                      📋 Copy
+                      Copy
                     </button>
                     {isLastAssistantMessage && !isLoading && (
                       <div className="followup-suggestions">
-                        <div className="followup-header">💡 Try asking:</div>
+                        <div className="followup-header">Try asking:</div>
                         <div className="followup-buttons">
                           {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
                             <button
@@ -1078,20 +1117,24 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                       className="attachments-toggle"
                       onClick={() => setExpandedAttachmentIndex(expandedAttachmentIndex === idx ? null : idx)}
                     >
-                      {expandedAttachmentIndex === idx ? '▼' : '▶'} 📎 {message.attachments.length} file{message.attachments.length > 1 ? 's' : ''} attached
+                      {expandedAttachmentIndex === idx ? '▼' : '▶'} {message.attachments.length} file{message.attachments.length > 1 ? 's' : ''} attached
                     </button>
                     {expandedAttachmentIndex === idx && (
                       <div className="attachments-list">
                         {message.attachments.map((attachment, attIdx) => (
                           <div key={attIdx} className="attachment-item">
                             <div className="attachment-header">
-                              <span className="attachment-file-name">📄 {attachment.name}</span>
+                              <span className="attachment-file-name">{attachment.name}</span>
                               <span className="attachment-meta">
                                 {attachment.type.toUpperCase()} • {(attachment.size / 1024).toFixed(1)}KB
                               </span>
                             </div>
                             <div className="attachment-content-preview">
-                              <pre>{attachment.content.substring(0, 500)}{attachment.content.length > 500 ? '...' : ''}</pre>
+                              {attachment.type === 'image' ? (
+                                <img src={attachment.content} alt={attachment.name} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '4px' }} />
+                              ) : (
+                                <pre>{attachment.content.substring(0, 500)}{attachment.content.length > 500 ? '...' : ''}</pre>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1109,7 +1152,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
 
           {isLoading && (
             <div className="chat-message assistant">
-              <div className="message-icon">🤖</div>
+              <div className="message-icon">AI</div>
               <div className="message-content">
                 <div className="message-text">
                   <div className="loading-status">{loadingStatus}</div>
@@ -1123,7 +1166,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
 
           {error && (
             <div className="chat-error">
-              <p>❌ {error}</p>
+              <p>{error}</p>
             </div>
           )}
         </div>
@@ -1133,7 +1176,7 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.pdf,.csv,.tsv"
+            accept=".txt,.pdf,.csv,.tsv,.jpg,.jpeg,.png,.gif,.webp"
             multiple
             style={{ display: 'none' }}
             onChange={handleFileSelect}
@@ -1142,9 +1185,12 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           {/* Attachment preview chips */}
           {attachedFiles.length > 0 && (
             <div className="attachment-preview-area">
-              {attachedFiles.map((file, idx) => (
+              {attachedFiles.map((file, idx) => {
+                const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+                const isImg = IMAGE_EXTENSIONS.includes(ext);
+                return (
                 <div key={idx} className="attachment-chip">
-                  <span className="attachment-icon">📎</span>
+                  <span className="attachment-icon">{isImg ? 'Image' : 'File'}</span>
                   <span className="attachment-name">{file.name}</span>
                   <span className="attachment-size">({(file.size / 1024).toFixed(1)}KB)</span>
                   <button
@@ -1155,14 +1201,15 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     ×
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
           {/* Attachment error display */}
           {attachmentError && (
             <div className="attachment-error">
-              ⚠️ {attachmentError}
+              {attachmentError}
             </div>
           )}
 
@@ -1173,17 +1220,18 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             rows={2}
             disabled={isLoading}
           />
           <div className="chat-input-controls">
             {isFirstMessage ? (
               <div className="rag-info">
-                ✓ Will search relevant traits for context
+                Searches saved traits for context
               </div>
             ) : (
               <div className="rag-info-followup">
-                💬 Follow-up question (no RAG)
+                Follow-up question
               </div>
             )}
             <div className="chat-buttons">
@@ -1191,24 +1239,25 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 className="chat-attachment-button"
                 onClick={handleAttachmentClick}
                 disabled={isLoading || attachedFiles.length >= MAX_ATTACHMENTS}
-                title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, pdf, csv, tsv, max 1MB)'}
+                data-tour="attach-button"
+                title={attachedFiles.length >= MAX_ATTACHMENTS ? `Maximum ${MAX_ATTACHMENTS} files` : 'Attach file (txt, csv, tsv up to 2MB; pdf, images up to 5MB)'}
               >
-                📎
+                Attach
               </button>
               <button
                 className="chat-send-button"
                 onClick={handleSendMessage}
-                disabled={isLoading || !inputValue.trim() || (!hasActiveSubscription && !hasPromoAccess)}
+                disabled={isLoading || !inputValue.trim()}
                 title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
               >
-                {isLoading ? '⏳' : (!hasActiveSubscription && !hasPromoAccess) ? '🔒 Login/Subscribe' : '➤ Send'}
+                {isLoading ? 'Sending...' : (!hasActiveSubscription && !hasPromoAccess) ? 'Login/Subscribe' : 'Send'}
               </button>
             </div>
           </div>
         </div>
 
         <div className="chat-footer-disclaimer">
-          ⚠️ LLM-generated content may contain errors. This is not medical advice.
+          AI-generated content may contain errors. This is not medical advice.
         </div>
       </div>
     </>
