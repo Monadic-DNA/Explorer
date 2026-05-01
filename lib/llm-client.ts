@@ -179,6 +179,7 @@ async function callNilAI(
   const client = new NilaiOpenAIClient({
     baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
+    maxRetries: 0,
   });
 
   // Get delegation token from server
@@ -391,6 +392,7 @@ async function* streamNilAI(
   const client = new NilaiOpenAIClient({
     baseURL: NILAI_API_ENDPOINT,
     authType: AuthType.DELEGATION_TOKEN,
+    maxRetries: 0,
   });
 
   // Get delegation token

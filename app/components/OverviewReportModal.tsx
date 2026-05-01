@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
@@ -35,6 +35,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   const { hasActiveSubscription } = useAuth();
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const generationInFlightRef = useRef(false);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [selectedBatchIndex, setSelectedBatchIndex] = useState<number | null>(null);
@@ -48,6 +49,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   });
 
   const handleGenerate = async () => {
+    if (generationInFlightRef.current) {
+      return;
+    }
+    generationInFlightRef.current = true;
     setIsGenerating(true);
     const start = Date.now();
     setStartTime(start);
@@ -91,11 +96,13 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
           if (update.phase === 'complete') {
             clearInterval(timerInterval);
+            generationInFlightRef.current = false;
             setIsGenerating(false);
             // Track overview report generation
             trackOverviewReportGenerated(savedResults.length);
           } else if (update.phase === 'error') {
             clearInterval(timerInterval);
+            generationInFlightRef.current = false;
             setIsGenerating(false);
           }
         }
@@ -110,6 +117,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
         phase: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
       }));
+      generationInFlightRef.current = false;
       setIsGenerating(false);
     }
   };
@@ -626,10 +634,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                 <button
                   className="primary-button"
                   onClick={handleGenerate}
-                  disabled={savedResults.length === 0}
+                  disabled={savedResults.length === 0 || isGenerating}
                   style={{ width: '100%', padding: '1rem', fontSize: '1rem', marginTop: '1.5rem' }}
                 >
-                  Generate Overview Report
+                  {isGenerating ? 'Generating Overview Report...' : 'Generate Overview Report'}
                 </button>
 
                 {savedResults.length < 10000 && (

@@ -22,6 +22,7 @@ import {
   type OverviewStatistics,
 } from './overview-report-analyzer';
 import { callLLM } from './llm-client';
+import { getLLMConfig } from './llm-config';
 
 /**
  * Ultra-compact format to fit within context window
@@ -70,8 +71,8 @@ export interface ProgressUpdate {
 
 export type ProgressCallback = (update: ProgressUpdate) => void;
 
-// Rate limiting: 10 calls per minute
-const DELAY_BETWEEN_CALLS_MS = 6000; // 6 seconds
+// Rate limiting for hosted providers. Ollama is local and does not need pacing.
+const DELAY_BETWEEN_CALLS_MS = 20000; // 20 seconds
 
 /**
  * Sleep utility for rate limiting
@@ -189,6 +190,7 @@ export async function generateOverviewReport(
 
     // Build user context
     const userContext = buildUserContextString(customization);
+    const shouldDelayBetweenLLMCalls = getLLMConfig().provider !== 'ollama';
 
     // MAP PHASE: Analyze each group
     const groupSummaries: string[] = [];
@@ -285,7 +287,19 @@ export async function generateOverviewReport(
         averageTimePerGroup: avgTime,
       });
 
-      // No rate limiting needed for local Ollama - process next batch immediately
+      if (shouldDelayBetweenLLMCalls) {
+        onProgress({
+          phase: 'map',
+          message: `Waiting ${DELAY_BETWEEN_CALLS_MS / 1000}s before the next LLM call to avoid rate limits...`,
+          progress: progressPercent + Math.floor(75 / NUM_GROUPS),
+          currentGroup: groupNumber,
+          totalGroups: NUM_GROUPS,
+          groupSummaries: [...completedSummaries],
+          estimatedTimeRemaining: eta + DELAY_BETWEEN_CALLS_MS / 1000,
+          averageTimePerGroup: avgTime,
+        });
+        await sleep(DELAY_BETWEEN_CALLS_MS);
+      }
     }
 
     // REDUCE PHASE: Synthesize all summaries
