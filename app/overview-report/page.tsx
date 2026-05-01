@@ -80,10 +80,14 @@ export default function OverviewReportPage() {
               <div className="premium-feature-title-row">
                 <h2>Overview Report</h2>
                 <span className="premium-tab-badge">Premium</span>
+                <span className="experimental-badge">Experimental</span>
               </div>
               <p>
                 Turn your saved analysis results into a concise AI-generated
                 report covering patterns, themes, and suggested next steps.
+              </p>
+              <p className="experimental-notice">
+                This feature is experimental and is currently under development.
               </p>
             </div>
           </div>

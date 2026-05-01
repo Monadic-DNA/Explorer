@@ -90,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const environmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID;
   const isDynamicEnabled = !!environmentId;
 
+  // Eagerly initialize Dynamic on mount so restored sessions are picked up
+  // before the user clicks any auth-gated button.
+  useEffect(() => {
+    if (isDynamicEnabled) {
+      setIsDynamicInitialized(true);
+    }
+  }, [isDynamicEnabled]);
+
   const checkSubscription = useCallback(async (walletAddress: string) => {
     try {
       console.log('[AuthProvider] Checking subscription for:', walletAddress);
