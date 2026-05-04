@@ -87,6 +87,7 @@ export default function RootLayout({
             gtag('config', 'G-HP3FB0GX80', {
               anonymize_ip: true,
             });
+            gtag('config', 'AW-777857829');
           `}
         </Script>
         {/* Reddit Pixel */}
