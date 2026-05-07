@@ -1,62 +1,55 @@
 import { MetadataRoute } from 'next';
+import { executeQuerySingle, executeQuery } from '@/lib/db';
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://monadicdna.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://explorer.monadicdna.com';
+const BATCH_SIZE = 10_000;
 
-  // Static pages
-  const staticPages: MetadataRoute.Sitemap = [
-    {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 1.0,
-    },
-    {
-      url: `${baseUrl}/explore`,
-      lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/dna-chat`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/overview-report`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/subscribe`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-  ];
+// generateSitemaps splits the study pages across multiple sitemap files,
+// each with up to BATCH_SIZE URLs, staying within the 50K-per-file limit.
+export async function generateSitemaps() {
+  try {
+    const row = await executeQuerySingle<{ max_id: number }>(
+      'SELECT MAX(id) AS max_id FROM gwas_catalog',
+      []
+    );
+    const maxId = row?.max_id ?? 1000;
+    const count = Math.ceil(maxId / BATCH_SIZE);
+    // id 0 is reserved for static pages; ids 1..n are study batches
+    return Array.from({ length: count + 1 }, (_, i) => ({ id: i }));
+  } catch {
+    return [{ id: 0 }];
+  }
+}
 
-  // Dynamic study pages - we'll include a sample of studies
-  // In production, you might want to:
-  // 1. Query your database for all study IDs
-  // 2. Generate sitemap index files for large datasets (50K+ URLs)
-  // 3. Use dynamic sitemap generation or sitemap index
+export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
+  // id === 0: static pages only
+  if (id === 0) {
+    return [
+      { url: SITE_URL,                         lastModified: new Date(), changeFrequency: 'weekly',  priority: 1.0 },
+      { url: `${SITE_URL}/explore`,            lastModified: new Date(), changeFrequency: 'daily',   priority: 0.9 },
+      { url: `${SITE_URL}/dna-chat`,           lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.8 },
+      { url: `${SITE_URL}/overview-report`,    lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.8 },
+      { url: `${SITE_URL}/subscribe`,          lastModified: new Date(), changeFrequency: 'weekly',  priority: 0.7 },
+    ];
+  }
 
-  // For now, we'll include the first 1000 studies as an example
-  // This keeps the sitemap under 50K URLs limit
-  const studyPages: MetadataRoute.Sitemap = [];
+  // ids 1..n: study pages in BATCH_SIZE chunks
+  const batchIndex = id - 1;
+  const minId = batchIndex * BATCH_SIZE + 1;
+  const maxId = (batchIndex + 1) * BATCH_SIZE;
 
-  // Generate URLs for first 1000 studies (you can adjust this)
-  for (let i = 1; i <= 1000; i++) {
-    studyPages.push({
-      url: `${baseUrl}/study/${i}`,
+  try {
+    const rows = await executeQuery<{ id: number }>(
+      'SELECT id FROM gwas_catalog WHERE id BETWEEN $1 AND $2 ORDER BY id',
+      [minId, maxId]
+    );
+    return rows.map(row => ({
+      url: `${SITE_URL}/study/${row.id}`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.6,
-    });
+    }));
+  } catch {
+    return [];
   }
-
-  // Combine all pages
-  return [...staticPages, ...studyPages];
 }

@@ -452,11 +452,18 @@ export function trackRunAllFailed(source: 'menu' | 'explore' | 'onboarding', rea
   });
 }
 
-/**
- * User asked the LLM a question in chat
- */
-export function trackLLMQuestionAsked() {
-  trackEvent('llm_question_asked');
+export function trackLLMQuestionAsked(params?: { isFollowUp?: boolean }) {
+  trackEvent('llm_question_asked', {
+    is_follow_up: params?.isFollowUp ?? false,
+  });
+}
+
+export function trackDNAChatViewed() {
+  trackEvent('dna_chat_viewed');
+}
+
+export function trackOverviewReportViewed() {
+  trackEvent('overview_report_viewed');
 }
 
 /**
@@ -595,6 +602,18 @@ export function trackSubscribedWithStablecoin(durationDays: number) {
     value: value,
     currency: 'USD',
   });
+}
+
+export function trackUserLoggedOut() {
+  trackEvent('user_logged_out');
+}
+
+export function trackSearchModeChanged(mode: 'similarity' | 'exact') {
+  trackEvent('search_mode_changed', { mode });
+}
+
+export function trackStudyAnalysisStarted() {
+  trackEvent('study_analysis_started');
 }
 
 /**

@@ -8,6 +8,7 @@ import StudyQualityIndicators from "./StudyQualityIndicators";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
+import { trackAIAnalysisRun } from "@/lib/analytics";
 
 type LLMCommentaryModalProps = {
   isOpen: boolean;
@@ -89,6 +90,7 @@ export default function LLMCommentaryModal({
       localStorage.setItem(CONSENT_STORAGE_KEY, "true");
       setHasConsent(true);
       setShowConsentModal(false);
+      trackAIAnalysisRun();
       fetchCommentary();
     }
   };
