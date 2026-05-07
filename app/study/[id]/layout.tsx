@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { executeQuerySingle } from "@/lib/db";
 
 type StudyMetadataRow = {
@@ -33,7 +34,7 @@ function getYear(value: string | null): string | null {
   return match?.[0] ?? null;
 }
 
-async function getStudyMetadata(studyId: string): Promise<StudyMetadataRow | null> {
+const getStudyMetadata = cache(async function getStudyMetadata(studyId: string): Promise<StudyMetadataRow | null> {
   if (!/^\d+$/.test(studyId)) return null;
 
   try {
@@ -60,7 +61,7 @@ async function getStudyMetadata(studyId: string): Promise<StudyMetadataRow | nul
     console.error("[Study Metadata] Failed to generate study Open Graph metadata:", error);
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id: studyId } = await params;
@@ -160,10 +161,47 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
-export default function StudyLayout({
+export default async function StudyLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: Promise<{ id: string }>;
 }) {
-  return <>{children}</>;
+  const { id: studyId } = await params;
+  const study = await getStudyMetadata(studyId);
+  const studyUrl = `${SITE_URL}/study/${studyId}`;
+
+  const jsonLd = study
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ScholarlyArticle",
+        "headline": study.study || `GWAS Study ${studyId}`,
+        "about": study.mapped_trait || study.disease_trait || undefined,
+        "author": study.first_author ? { "@type": "Person", "name": study.first_author } : undefined,
+        "datePublished": study.date || undefined,
+        "isPartOf": study.journal ? { "@type": "Periodical", "name": study.journal } : undefined,
+        "identifier": [
+          study.study_accession ? { "@type": "PropertyValue", "propertyID": "GWAS Accession", "value": study.study_accession } : null,
+          study.pubmedid ? { "@type": "PropertyValue", "propertyID": "PubMed", "value": study.pubmedid } : null,
+        ].filter(Boolean),
+        "url": studyUrl,
+        "sameAs": [
+          study.study_accession ? `https://www.ebi.ac.uk/gwas/studies/${study.study_accession}` : null,
+          study.pubmedid ? `https://pubmed.ncbi.nlm.nih.gov/${study.pubmedid}` : null,
+        ].filter(Boolean),
+      }
+    : null;
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      {children}
+    </>
+  );
 }
