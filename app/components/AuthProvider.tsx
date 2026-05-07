@@ -4,7 +4,7 @@ import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynam
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { ZeroDevSmartWalletConnectors } from '@dynamic-labs/ethereum-aa';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { trackSignInStarted, trackUserLoggedIn } from '@/lib/analytics';
+import { trackSignInStarted, trackUserLoggedIn, trackUserLoggedOut } from '@/lib/analytics';
 import { hasValidPromoAccess } from '@/lib/promo-access';
 
 interface SubscriptionData {
@@ -305,6 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         walletConnectors: [EthereumWalletConnectors, ZeroDevSmartWalletConnectors],
         events: {
           onLogout: () => {
+            trackUserLoggedOut();
             setIsAuthenticated(false);
             setUser(null);
             setHasActiveSubscription(false);

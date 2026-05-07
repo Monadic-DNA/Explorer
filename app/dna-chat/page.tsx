@@ -8,9 +8,14 @@ import { PremiumPaywall } from "../components/PremiumPaywall";
 import LLMChatInline from "../components/LLMChatInline";
 import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
 import { dnaChatTour } from "../components/tours/tourContent";
+import { trackDNAChatViewed } from "@/lib/analytics";
 
 export default function DNAChatPage() {
   const [tourOpen, setTourOpen] = useState(false);
+
+  useEffect(() => {
+    trackDNAChatViewed();
+  }, []);
 
   useEffect(() => {
     if (!hasCompletedTour(dnaChatTour.id)) {

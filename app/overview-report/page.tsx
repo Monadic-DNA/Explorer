@@ -13,6 +13,7 @@ import { useResults } from "../components/ResultsContext";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
 import { overviewReportTour } from "../components/tours/tourContent";
+import { trackOverviewReportViewed } from "@/lib/analytics";
 
 export default function OverviewReportPage() {
   const router = useRouter();
@@ -30,6 +31,10 @@ export default function OverviewReportPage() {
     refreshPromoAccess();
     window.addEventListener('premiumAccessUpdated', refreshPromoAccess);
     return () => window.removeEventListener('premiumAccessUpdated', refreshPromoAccess);
+  }, []);
+
+  useEffect(() => {
+    trackOverviewReportViewed();
   }, []);
 
   useEffect(() => {

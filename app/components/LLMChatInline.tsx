@@ -386,7 +386,7 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
     setAttachmentError(null);
 
     // Track LLM question
-    trackLLMQuestionAsked();
+    trackLLMQuestionAsked({ isFollowUp: messages.length > 0 });
 
     // Process attachments if any
     let processedAttachments: Attachment[] = [];

@@ -8,7 +8,7 @@ import { analyzeStudyClientSide, UserStudyResult, determineEffectTypeAndSize } f
 import DisclaimerModal from "./DisclaimerModal";
 import LLMCommentaryModal from "./LLMCommentaryModal";
 import { SavedResult } from "@/lib/results-manager";
-import { trackStudyResultReveal } from "@/lib/analytics";
+import { trackStudyResultReveal, trackStudyAnalysisStarted } from "@/lib/analytics";
 
 type StudyResultRevealProps = {
   studyId: number;
@@ -80,6 +80,7 @@ export default function StudyResultReveal({ studyId, studyAccession, snps, trait
   }, [savedResult]);
 
   const handleRevealClick = () => {
+    trackStudyAnalysisStarted();
     setShowDisclaimer(true);
   };
 

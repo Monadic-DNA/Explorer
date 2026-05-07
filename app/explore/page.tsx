@@ -26,6 +26,7 @@ import {
   trackRunAllStarted,
   trackQueryRun,
   trackExploreTabViewed,
+  trackSearchModeChanged,
 } from "@/lib/analytics";
 
 // Note: Metadata must be exported from layout.tsx or a server component
@@ -808,7 +809,7 @@ function ExplorePage() {
                       name="searchMode"
                       value="similarity"
                       checked={filters.searchMode === "similarity"}
-                      onChange={(event) => updateFilter("searchMode", event.target.value as "similarity" | "exact")}
+                      onChange={(event) => { const m = event.target.value as "similarity" | "exact"; updateFilter("searchMode", m); trackSearchModeChanged(m); }}
                     />
                     Similarity
                   </label>
@@ -818,7 +819,7 @@ function ExplorePage() {
                       name="searchMode"
                       value="exact"
                       checked={filters.searchMode === "exact"}
-                      onChange={(event) => updateFilter("searchMode", event.target.value as "similarity" | "exact")}
+                      onChange={(event) => { const m = event.target.value as "similarity" | "exact"; updateFilter("searchMode", m); trackSearchModeChanged(m); }}
                     />
                     Exact match
                   </label>
