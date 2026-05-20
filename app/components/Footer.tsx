@@ -69,6 +69,25 @@ export default function Footer() {
             </a>
             . All rights reserved.
           </p>
+          <p className="footer-legal-links">
+            <a
+              href="https://github.com/Monadic-DNA/Explorer/blob/main/terms_and_conditions.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-link"
+            >
+              Terms and Conditions
+            </a>
+            {" · "}
+            <a
+              href="https://github.com/Monadic-DNA/Explorer/blob/main/privacy_policy.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-link"
+            >
+              Privacy Policy
+            </a>
+          </p>
         </div>
 
         <div className="footer-section">

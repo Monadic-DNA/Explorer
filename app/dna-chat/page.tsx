@@ -159,15 +159,6 @@ export default function DNAChatPage() {
     <div className="app-container">
       <MenuBar />
       <main className="page premium-feature-page dna-chat-page">
-        <section className="premium-compact-header dna-chat-open-header">
-          <div className="premium-header-content">
-            <div className="subscription-message">
-              <strong>DNA Chat is open to try</strong>
-              <span>Ask private questions about saved genetic results.</span>
-            </div>
-          </div>
-        </section>
-
         <section className="premium-section premium-feature-section dna-chat-section">
           {(sampleLoad.status === "downloading" || sampleLoad.status === "loading") && (
             <div className="dna-chat-sample-notice loading">
@@ -190,25 +181,17 @@ export default function DNAChatPage() {
           {sampleLoad.status === "loaded" && (
             <div className="dna-chat-sample-notice ready">
               <div>
-                <strong>Sample results are loaded.</strong>
-                <span>
-                  DNA Chat is using {sampleLoad.resultCount.toLocaleString()} sample results. You can upload your own DNA from My Data, then analyze it in Explore.
-                </span>
+                <strong>Sample data loaded.</strong>
+                <span>Using {sampleLoad.resultCount.toLocaleString()} sample results. To use your own DNA, click My Data, upload your file, then click Run All.</span>
               </div>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent("triggerDNAUpload"))}
-              >
-                Upload my data
-              </button>
             </div>
           )}
 
           {sampleLoad.status === "skipped" && (
             <div className="dna-chat-sample-notice ready">
               <div>
-                <strong>Your existing results are loaded.</strong>
-                <span>DNA Chat will use the results already in this browser session.</span>
+                <strong>Your results are loaded.</strong>
+                <span>DNA Chat will use the results in this browser session.</span>
               </div>
             </div>
           )}
@@ -222,7 +205,7 @@ export default function DNAChatPage() {
             </div>
           )}
 
-          <LLMChatInline onOpenTour={() => setTourOpen(true)} />
+          <LLMChatInline />
         </section>
       </main>
       <Footer />

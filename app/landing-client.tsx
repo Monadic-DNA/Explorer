@@ -61,7 +61,7 @@ function NewUserChoiceModal({
             </p>
             <div className="wire-onboarding-choice-list new-user-choice-list">
               <button
-                className="wire-onboarding-choice primary"
+                className="wire-onboarding-choice"
                 onClick={onClose}
                 type="button"
               >
