@@ -328,9 +328,9 @@ export function HelpDropdown({
                 onRestartOnboarding();
                 onClose();
               }}
-              title="Open the new onboarding flow again"
+              title="Open start options"
             >
-              ↺ Restart Onboarding
+              Start Options
             </button>
           )}
           <a

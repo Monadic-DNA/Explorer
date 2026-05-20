@@ -11024,3 +11024,87 @@ details[open] .summary-arrow {
     max-width: calc(100vw - 24px);
   }
 }
+
+
+.new-user-choice-slide {
+  padding: 1rem 0 0.5rem;
+}
+
+.new-user-choice-list {
+  width: min(560px, 100%);
+  margin-top: 0.65rem;
+}
+
+.dna-chat-open-header .premium-header-content {
+  justify-content: space-between;
+}
+
+.dna-chat-sample-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-left: 4px solid #0f766e;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-secondary);
+}
+
+.dna-chat-sample-notice > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dna-chat-sample-notice strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.dna-chat-sample-notice span {
+  line-height: 1.45;
+}
+
+.dna-chat-sample-notice .wire-progress-bar {
+  width: min(220px, 32vw);
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.dna-chat-sample-notice button {
+  flex: 0 0 auto;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: #111111;
+  color: #ffffff;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.dna-chat-sample-notice button:hover {
+  background: #2f2f2f;
+}
+
+.dna-chat-sample-notice.error {
+  border-left-color: #dc2626;
+  background: rgba(239, 68, 68, 0.06);
+}
+
+@media (max-width: 720px) {
+  .dna-chat-sample-notice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dna-chat-sample-notice .wire-progress-bar {
+    width: 100%;
+  }
+
+  .dna-chat-sample-notice button {
+    width: 100%;
+  }
+}

@@ -5,14 +5,12 @@ import { SavedResult } from "@/lib/results-manager";
 import NilAIConsentModal from "./NilAIConsentModal";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
-import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
 import { getLLMConfig } from "@/lib/llm-config";
 import { SparklesIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
-import { hasValidPromoAccess } from "@/lib/promo-access";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -68,8 +66,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
-  const { hasActiveSubscription } = useAuth();
-
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -78,7 +74,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
-  const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -91,11 +86,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
 
   useEffect(() => {
     setMounted(true);
-
-    // Check for promo code access
-    if (hasValidPromoAccess()) {
-      setHasPromoAccess(true);
-    }
 
     // Check consent
     const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
@@ -354,25 +344,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
   const handleSendMessage = async () => {
     const query = inputValue.trim();
     if (!query) return;
-
-    // Check authentication first
-    if (!hasActiveSubscription && !hasPromoAccess) {
-      // Check if user is authenticated
-      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
-      if (dynamicButton) {
-        // Try to determine if user is logged in by checking for Dynamic's user indicator
-        const isLoggedIn = document.querySelector('[data-dynamic-user-profile]');
-        if (!isLoggedIn) {
-          // Not logged in, trigger login
-          dynamicButton.click();
-          return;
-        }
-      }
-      // User is logged in but not subscribed, show payment modal
-      const event = new CustomEvent('openPaymentModal');
-      window.dispatchEvent(event);
-      return;
-    }
 
     // Check consent before sending first message
     if (!hasConsent) {
@@ -1248,9 +1219,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 className="chat-send-button"
                 onClick={handleSendMessage}
                 disabled={isLoading || !inputValue.trim()}
-                title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
               >
-                {isLoading ? 'Sending...' : (!hasActiveSubscription && !hasPromoAccess) ? 'Login/Subscribe' : 'Send'}
+                {isLoading ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>

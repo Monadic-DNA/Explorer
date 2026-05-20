@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import ConversionOnboarding from "./components/ConversionOnboarding";
 import { useGenotype } from "./components/UserDataUpload";
 import { trackGetStartedClicked } from "@/lib/analytics";
 
-type FlowMode = "guided" | "instant_preview";
 
 const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
+const NEW_USER_CHOICE_STORAGE_KEY = "new_user_choice_completed";
+const MOTHBALLED_ONBOARDING_STORAGE_KEY = "conversion_onboarding_completed";
 
 const introCopy = [
   {
@@ -30,27 +30,78 @@ const introCopy = [
   },
 ];
 
+function NewUserChoiceModal({
+  isOpen,
+  onClose,
+  onTryChat,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onTryChat: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="wire-onboarding-overlay">
+      <div className="wire-onboarding-shell">
+        <div className="wire-onboarding-frame">
+          <button
+            className="wire-onboarding-close"
+            onClick={onClose}
+            aria-label="Close welcome options"
+          >
+            ✕
+          </button>
+          <div className="wire-onboarding-step">Welcome</div>
+          <section className="wire-onboarding-slide new-user-choice-slide">
+            <h1>Start with the full app overview or try DNA Chat with sample results.</h1>
+            <p>
+              You can learn how Monadic DNA Explorer works first, or jump straight into
+              DNA Chat with a prepared result set.
+            </p>
+            <div className="wire-onboarding-choice-list new-user-choice-list">
+              <button
+                className="wire-onboarding-choice primary"
+                onClick={onClose}
+                type="button"
+              >
+                Go to the home page
+              </button>
+              <button
+                className="wire-onboarding-choice"
+                onClick={onTryChat}
+                type="button"
+              >
+                Try DNA Chat directly
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isUploaded, error } = useGenotype();
-  const [showFlow, setShowFlow] = useState(false);
-  const [flowMode, setFlowMode] = useState<FlowMode>("guided");
+  const { error } = useGenotype();
+  const [showWelcomeChoice, setShowWelcomeChoice] = useState(false);
 
-  const openOnboarding = useCallback((mode: FlowMode = "guided") => {
-    setFlowMode(mode);
-    setShowFlow(true);
+  const completeWelcomeChoice = useCallback(() => {
+    localStorage.setItem(NEW_USER_CHOICE_STORAGE_KEY, "true");
+    localStorage.setItem(MOTHBALLED_ONBOARDING_STORAGE_KEY, "true");
+    setShowWelcomeChoice(false);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const completed = localStorage.getItem("conversion_onboarding_completed") === "true";
+    const completed = localStorage.getItem(NEW_USER_CHOICE_STORAGE_KEY) === "true";
     const forceOpen = searchParams.get("onboarding") === "1";
 
     if (forceOpen || !completed) {
-      setFlowMode(forceOpen ? "guided" : isUploaded ? "instant_preview" : "guided");
-      setShowFlow(true);
+      setShowWelcomeChoice(true);
     }
 
     if (forceOpen) {
@@ -58,30 +109,31 @@ export default function LandingClient() {
       url.searchParams.delete("onboarding");
       window.history.replaceState({}, "", url.toString());
     }
-  }, [isUploaded, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
-    const handleOpen = (event: Event) => {
-      const customEvent = event as CustomEvent<{ mode?: FlowMode }>;
-      openOnboarding(customEvent.detail?.mode || "guided");
+    const handleOpen = () => {
+      setShowWelcomeChoice(true);
     };
 
     window.addEventListener("openConversionOnboarding", handleOpen as EventListener);
+    window.addEventListener("openNewUserChoiceModal", handleOpen as EventListener);
     return () => {
       window.removeEventListener("openConversionOnboarding", handleOpen as EventListener);
+      window.removeEventListener("openNewUserChoiceModal", handleOpen as EventListener);
     };
-  }, [openOnboarding]);
+  }, []);
 
   return (
     <>
-      <ConversionOnboarding
-        isOpen={showFlow}
-        mode={flowMode}
-        onComplete={() => {
-          setShowFlow(false);
-          router.push("/");
+      <NewUserChoiceModal
+        isOpen={showWelcomeChoice}
+        onClose={completeWelcomeChoice}
+        onTryChat={() => {
+          completeWelcomeChoice();
+          trackGetStartedClicked("try_dna_chat_directly");
+          router.push("/dna-chat?sample=1");
         }}
-        onDismiss={() => setShowFlow(false)}
       />
 
       <main className="page landing-page landing-home-page">
@@ -107,11 +159,11 @@ export default function LandingClient() {
               <button
                 className="landing-secondary-button"
                 onClick={() => {
-                  trackGetStartedClicked("onboarding_tour");
-                  openOnboarding(isUploaded ? "instant_preview" : "guided");
+                  trackGetStartedClicked("welcome_options");
+                  setShowWelcomeChoice(true);
                 }}
               >
-                Take an Onboarding Tour
+                Choose How to Start
               </button>
               <a
                 className="landing-secondary-button"

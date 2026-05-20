@@ -358,9 +358,9 @@ export default function MenuBar() {
         isOpen={showHelpDropdown}
         onClose={() => setShowHelpDropdown(false)}
         onRestartOnboarding={() => {
-          trackGetStartedClicked("restart_onboarding");
+          trackGetStartedClicked("welcome_options");
           if (pathname === "/") {
-            window.dispatchEvent(new CustomEvent("openConversionOnboarding", { detail: { mode: "guided" } }));
+            window.dispatchEvent(new CustomEvent("openNewUserChoiceModal"));
             return;
           }
 
@@ -410,13 +410,10 @@ export default function MenuBar() {
           </Link>
           <Link
             href="/dna-chat"
-            className={isDNAChatActive ? "nav-link active nav-premium-link" : "nav-link nav-premium-link"}
+            className={isDNAChatActive ? "nav-link active" : "nav-link"}
             style={getNavLinkStyle(isDNAChatActive)}
           >
-            <span className="nav-link-content">
-              DNA Chat
-              <span className="nav-premium-badge">Premium</span>
-            </span>
+            DNA Chat
           </Link>
           <Link
             href="/overview-report"
@@ -522,7 +519,7 @@ export default function MenuBar() {
           <button
             className="menu-icon-button"
             onClick={() => setShowHelpDropdown(!showHelpDropdown)}
-            title="Get help and reopen onboarding"
+            title="Get help and start options"
             data-tour="help-button"
           >
             <span className="icon">
