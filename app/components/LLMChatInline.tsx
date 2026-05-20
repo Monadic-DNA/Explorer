@@ -501,6 +501,7 @@ RESPONSE STRUCTURE (Complete Each Section Fully):
 - Group findings into 2-4 major themes (e.g., cardiovascular, metabolic, inflammatory)
 - For each theme, explain the overall trend and what it means for them specifically
 - Connect how different themes relate to each other
+- Mention the most relevant gene/SNP/allele combinations, along with the associated OR or beta.
 
 **Section 3: What This Means for You Specifically** (2-3 paragraphs)
 - Synthesize how these findings interact with their ethnicity, age, and medical history
@@ -874,7 +875,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           )}
 
           {messages
-            .filter(message => message.role !== 'system') // Hide system messages from UI
+            .filter(message => message.role !== 'system')
+            .filter(message => !(message.role === 'assistant' && !message.content && isLoading))
             .map((message, idx, filteredMessages) => {
               // Check if this is the last assistant message in the filtered array
               const isLastAssistantMessage = message.role === 'assistant' &&
@@ -896,31 +898,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   )}
                 </div>
                 {message.role === 'assistant' && (
-                  <>
-                    <button
-                      className="copy-button"
-                      onClick={() => handleCopyMessage(message.content)}
-                      title="Copy to clipboard"
-                    >
-                      Copy
-                    </button>
-                    {isLastAssistantMessage && !isLoading && (
-                      <div className="followup-suggestions">
-                        <div className="followup-header">Try asking:</div>
-                        <div className="followup-buttons">
-                          {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
-                            <button
-                              key={sidx}
-                              className="followup-button"
-                              onClick={() => handleExampleClick(suggestion)}
-                            >
-                              {suggestion}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <button
+                    className="copy-button"
+                    onClick={() => handleCopyMessage(message.content)}
+                    title="Copy to clipboard"
+                  >
+                    Copy
+                  </button>
                 )}
                 {message.role === 'assistant' && message.studiesUsed && message.studiesUsed.length > 0 && (
                   <div className="studies-used">
@@ -954,6 +938,22 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+                {message.role === 'assistant' && isLastAssistantMessage && !isLoading && (
+                  <div className="followup-suggestions">
+                    <div className="followup-header">Try asking:</div>
+                    <div className="followup-buttons">
+                      {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
+                        <button
+                          key={sidx}
+                          className="followup-button"
+                          onClick={() => handleExampleClick(suggestion)}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {message.role === 'user' && message.attachments && message.attachments.length > 0 && (
@@ -1090,8 +1090,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 )}
               </div>
             ) : (
-              <div className="rag-info-followup">
-                Follow-up question
+              <div className="chat-actions">
+                <button className="chat-action-button" onClick={handlePrintChat}>
+                  Print
+                </button>
+                <button className="chat-action-button" onClick={handleClearChat}>
+                  Clear
+                </button>
               </div>
             )}
             <div className="chat-buttons">
