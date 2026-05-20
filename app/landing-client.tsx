@@ -47,17 +47,16 @@ function NewUserChoiceModal({
     if (!isOpen) return;
     setCountdown(5);
     const interval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          onTryChatRef.current();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown(prev => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(interval);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (countdown === 0 && isOpen) {
+      onTryChatRef.current();
+    }
+  }, [countdown, isOpen]);
 
   if (!isOpen) return null;
 
