@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGenotype } from "./components/UserDataUpload";
 import { trackGetStartedClicked } from "@/lib/analytics";
@@ -39,42 +39,51 @@ function NewUserChoiceModal({
   onClose: () => void;
   onTryChat: () => void;
 }) {
+  const [countdown, setCountdown] = useState(5);
+  const onTryChatRef = useRef(onTryChat);
+  onTryChatRef.current = onTryChat;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCountdown(5);
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          onTryChatRef.current();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <div className="wire-onboarding-overlay">
       <div className="wire-onboarding-shell">
         <div className="wire-onboarding-frame">
-          <button
-            className="wire-onboarding-close"
-            onClick={onClose}
-            aria-label="Close welcome options"
-          >
-            ✕
-          </button>
-          <div className="wire-onboarding-step">Welcome</div>
           <section className="wire-onboarding-slide new-user-choice-slide">
-            <h1>Start with the full app overview or try DNA Chat with sample results.</h1>
-            <p>
-              You can learn how Monadic DNA Explorer works first, or jump straight into
-              DNA Chat with a prepared result set.
+            <p className="new-user-redirect-text">
+              We are automatically redirecting you to our DNA Chat page so you can see our app in action.
             </p>
-            <div className="wire-onboarding-choice-list new-user-choice-list">
-              <button
-                className="wire-onboarding-choice"
-                onClick={onClose}
-                type="button"
-              >
-                Go to the home page
-              </button>
-              <button
-                className="wire-onboarding-choice"
-                onClick={onTryChat}
-                type="button"
-              >
-                Try DNA Chat directly
-              </button>
-            </div>
+            <div className="new-user-countdown">{countdown}</div>
+            <button
+              className="wire-onboarding-choice"
+              onClick={onClose}
+              type="button"
+            >
+              Click here to just go to the home page to learn about the app
+            </button>
+            <button
+              className="wire-onboarding-text-link"
+              onClick={onClose}
+              type="button"
+            >
+              Never show this again
+            </button>
           </section>
         </div>
       </div>

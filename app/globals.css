@@ -9561,6 +9561,32 @@ details[open] .summary-arrow {
   margin-top: 0.35rem;
 }
 
+.new-user-redirect-text {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #111111;
+  text-align: center;
+  max-width: 360px;
+  line-height: 1.5;
+  margin: 0 auto 1rem;
+}
+
+.new-user-countdown {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #111111;
+  text-align: center;
+  line-height: 1;
+  margin: 0.5rem auto 1.25rem;
+  width: 4rem;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #111111;
+  border-radius: 50%;
+}
+
 .wire-onboarding-choice-list,
 .wire-onboarding-actions,
 .wire-response-list {
