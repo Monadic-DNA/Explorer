@@ -1083,9 +1083,9 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     )}
                     {customizationStatus === 'unlocked' ? (
                       <span className="rag-hint rag-hint-ok">Personalization on for more relevant results.</span>
-                    ) : customizationStatus !== 'loading' ? (
+                    ) : (
                       <span className="rag-hint">Personalization not set. Your demographic, family, and medical history will not be used for interpreting your results. Use Personalize up top for better answers.</span>
-                    ) : null}
+                    )}
                   </>
                 )}
               </div>
