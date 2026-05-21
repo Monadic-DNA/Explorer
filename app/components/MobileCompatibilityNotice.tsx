@@ -10,22 +10,16 @@ export default function MobileCompatibilityNotice() {
   const noticeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const dismissed = localStorage.getItem(STORAGE_KEY) === "true";
-    const mediaQuery = window.matchMedia(MOBILE_QUERY);
-
-    const updateVisibility = () => {
-      setShouldShow(mediaQuery.matches && !dismissed);
+    const handleTrigger = () => {
+      const dismissed = localStorage.getItem(STORAGE_KEY) === "true";
+      const isMobile = window.matchMedia(MOBILE_QUERY).matches;
+      if (isMobile && !dismissed) {
+        setShouldShow(true);
+      }
     };
 
-    updateVisibility();
-
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener("change", updateVisibility);
-      return () => mediaQuery.removeEventListener("change", updateVisibility);
-    }
-
-    mediaQuery.addListener(updateVisibility);
-    return () => mediaQuery.removeListener(updateVisibility);
+    window.addEventListener("showMobileCompatibilityNotice", handleTrigger);
+    return () => window.removeEventListener("showMobileCompatibilityNotice", handleTrigger);
   }, []);
 
   useEffect(() => {

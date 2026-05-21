@@ -183,6 +183,9 @@ export default function DNAChatPage() {
               <div>
                 <strong>Sample data loaded.</strong>
                 <span>Using {sampleLoad.resultCount.toLocaleString()} sample results. To use your own DNA, click My Data, upload your file, then click Run All.</span>
+                <br/>
+                <span>No DNA test yet? <a href="https://docs.google.com/forms/d/e/1FAIpQLSdHFDpsyU0t6PlaXEkbHX-pwF_y7icuPJeOHyGHMDpe11XigQ/viewform?usp=sharing&ouid=117844628488835974298" target="_blank" rel="noopener noreferrer" className="dna-chat-sample-notice-link">Sign up</a>  for a private, anonymous DNA test with us. We do not store or resell your data.</span>
+                <br/>
               </div>
             </div>
           )}

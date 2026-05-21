@@ -11129,6 +11129,16 @@ details[open] .summary-arrow {
   margin: 0;
 }
 
+.dna-chat-sample-notice-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dna-chat-sample-notice-link:hover {
+  opacity: 0.75;
+}
+
 .dna-chat-sample-notice.error {
   border-left-color: #dc2626;
   background: rgba(239, 68, 68, 0.06);

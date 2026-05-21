@@ -172,6 +172,8 @@ export default function MenuBar() {
   };
 
   const handleRunAll = () => {
+    window.dispatchEvent(new Event("showMobileCompatibilityNotice"));
+
     if (isRunningAll) {
       setShowRunAllModal(true);
       return;
