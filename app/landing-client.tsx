@@ -164,15 +164,6 @@ export default function LandingClient() {
           <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
             <h2 id="landing-start-heading">Get Started</h2>
             <div className="landing-start-actions">
-              <button
-                className="landing-secondary-button"
-                onClick={() => {
-                  trackGetStartedClicked("welcome_options");
-                  setShowWelcomeChoice(true);
-                }}
-              >
-                Choose How to Start
-              </button>
               <a
                 className="landing-secondary-button"
                 href={INSTRUCTIONAL_VIDEO_URL}

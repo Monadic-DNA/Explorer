@@ -11204,7 +11204,33 @@ details[open] .summary-arrow {
 
 @media (max-width: 900px) {
   .dna-chat-section .ai-chat-inline {
-    height: clamp(420px, calc(100vh - 215px), 980px);
+    height: clamp(360px, calc(100vh - 290px), 980px);
+    height: clamp(360px, calc(100svh - 230px), 980px);
   }
+}
+
+.dna-chat-inline-wrapper {
+  position: relative;
+}
+
+.dna-chat-tour-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  z-index: 10;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(15, 23, 42, 0.55);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dna-chat-tour-button:hover {
+  background: #ffffff;
+  color: rgba(15, 23, 42, 0.85);
+  border-color: rgba(15, 23, 42, 0.35);
 }
 

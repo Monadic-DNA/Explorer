@@ -321,18 +321,6 @@ export function HelpDropdown({
       <div className="dropdown-content">
         <h3>Help & Feedback</h3>
         <div className="dropdown-actions">
-          {onRestartOnboarding && (
-            <button
-              className="control-button"
-              onClick={() => {
-                onRestartOnboarding();
-                onClose();
-              }}
-              title="Open start options"
-            >
-              Start Options
-            </button>
-          )}
           <a
             href="mailto:support@monadicdna.com"
             className="control-button"

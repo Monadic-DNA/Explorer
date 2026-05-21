@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
 import LLMChatInline from "../components/LLMChatInline";
-import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
+import GuidedTour from "../components/GuidedTour";
 import { dnaChatTour } from "../components/tours/tourContent";
 import { useResults } from "../components/ResultsContext";
 import { ResultsManager } from "@/lib/results-manager";
@@ -44,11 +44,6 @@ export default function DNAChatPage() {
     trackDNAChatViewed();
   }, []);
 
-  useEffect(() => {
-    if (!hasCompletedTour(dnaChatTour.id)) {
-      setTourOpen(true);
-    }
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || sampleLoadStartedRef.current) return;
@@ -182,10 +177,8 @@ export default function DNAChatPage() {
             <div className="dna-chat-sample-notice ready">
               <div>
                 <strong>Sample data loaded.</strong>
-                <span>Using {sampleLoad.resultCount.toLocaleString()} sample results. To use your own DNA, click My Data, upload your file, then click Run All.</span>
-                <br/>
-                <span>No DNA test yet? <a href="https://docs.google.com/forms/d/e/1FAIpQLSdHFDpsyU0t6PlaXEkbHX-pwF_y7icuPJeOHyGHMDpe11XigQ/viewform?usp=sharing&ouid=117844628488835974298" target="_blank" rel="noopener noreferrer" className="dna-chat-sample-notice-link">Sign up</a>  for a private, anonymous DNA test with us. We do not store or resell your data.</span>
-                <br/>
+                <span>To use your own DNA, click My Data, upload your file, then click Run All.</span>
+                <span>Or <a href="https://docs.google.com/forms/d/e/1FAIpQLSdHFDpsyU0t6PlaXEkbHX-pwF_y7icuPJeOHyGHMDpe11XigQ/viewform?usp=sharing&ouid=117844628488835974298" target="_blank" rel="noopener noreferrer" className="dna-chat-sample-notice-link">sign up</a> for a private, anonymous sequencing.</span>
               </div>
             </div>
           )}
@@ -208,7 +201,16 @@ export default function DNAChatPage() {
             </div>
           )}
 
-          <LLMChatInline />
+          <div className="dna-chat-inline-wrapper">
+            <button
+              className="dna-chat-tour-button"
+              type="button"
+              onClick={() => setTourOpen(true)}
+            >
+              Show me how to use this
+            </button>
+            <LLMChatInline />
+          </div>
         </section>
       </main>
       <Footer />
