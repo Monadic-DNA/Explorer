@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useGenotype } from "./components/UserDataUpload";
-import { trackGetStartedClicked } from "@/lib/analytics";
+import { trackGetStartedClicked, trackIntroModalShown } from "@/lib/analytics";
 
 
 const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
@@ -110,6 +110,7 @@ export default function LandingClient() {
 
     if (forceOpen || !completed) {
       setShowWelcomeChoice(true);
+      trackIntroModalShown();
     }
 
     if (forceOpen) {

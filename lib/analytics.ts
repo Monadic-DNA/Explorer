@@ -458,6 +458,10 @@ export function trackLLMQuestionAsked(params?: { isFollowUp?: boolean }) {
   });
 }
 
+export function trackIntroModalShown() {
+  trackEvent('intro_modal_shown');
+}
+
 export function trackDNAChatViewed() {
   trackEvent('dna_chat_viewed');
 }
