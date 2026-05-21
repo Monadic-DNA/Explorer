@@ -8,7 +8,7 @@ import { useCustomization } from "./CustomizationContext";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
-import { trackLLMQuestionAsked } from "@/lib/analytics";
+import { trackLLMQuestionAsked, trackAIConsentGiven, trackAIConsentDeclined, trackAIConsentModalShown, trackExampleQuestionClicked } from "@/lib/analytics";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -105,18 +105,21 @@ export default function AIChatInline() {
       localStorage.setItem(CONSENT_STORAGE_KEY, "true");
       setHasConsent(true);
       setShowConsentModal(false);
+      trackAIConsentGiven();
       void handleSendMessage(true);
     }
   };
 
   const handleConsentDecline = () => {
     setShowConsentModal(false);
+    trackAIConsentDeclined();
   };
 
 
   const handleExampleClick = (question: string) => {
     setInputValue(question);
     inputRef.current?.focus();
+    trackExampleQuestionClicked();
   };
 
   const handleCopyMessage = async (content: string) => {
@@ -304,6 +307,7 @@ export default function AIChatInline() {
     // Check consent before sending first message
     if (!skipConsentCheck && !hasConsent) {
       setShowConsentModal(true);
+      trackAIConsentModalShown();
       return;
     }
 

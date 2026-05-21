@@ -8,7 +8,7 @@ import GuidedTour from "../components/GuidedTour";
 import { dnaChatTour } from "../components/tours/tourContent";
 import { useResults } from "../components/ResultsContext";
 import { ResultsManager } from "@/lib/results-manager";
-import { trackDNAChatViewed } from "@/lib/analytics";
+import { trackDNAChatViewed, trackDNAChatSampleDataLoaded, trackDNAChatSampleDataFailed } from "@/lib/analytics";
 
 const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
 
@@ -123,6 +123,7 @@ export default function DNAChatPage() {
         await clearResults();
         await addResultsBatch(session.results);
         localStorage.setItem("dna_chat_sample_results_loaded", "true");
+        trackDNAChatSampleDataLoaded(session.results.length);
 
         setSampleLoad({
           status: "loaded",
@@ -133,6 +134,7 @@ export default function DNAChatPage() {
         });
       } catch (error) {
         console.error("[DNA Chat] Sample results load failed:", error);
+        trackDNAChatSampleDataFailed(error instanceof Error ? error.message : undefined);
         setSampleLoad({
           status: "error",
           downloadedBytes: 0,
