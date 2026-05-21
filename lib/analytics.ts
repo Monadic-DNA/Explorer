@@ -389,11 +389,15 @@ export function trackPremiumSectionViewed() {
 /**
  * User viewed a premium tab
  */
-export function trackPremiumTabViewed(tab: string, hasPremiumAccess: boolean) {
-  trackEvent('premium_tab_viewed', {
-    tab,
+export function trackOverviewReportTabViewed(hasPremiumAccess: boolean) {
+  trackEvent('overview_report_tab_viewed', {
     has_premium_access: hasPremiumAccess,
   });
+}
+
+/** @deprecated Use trackOverviewReportTabViewed instead */
+export function trackPremiumTabViewed(tab: string, hasPremiumAccess: boolean) {
+  trackOverviewReportTabViewed(hasPremiumAccess);
 }
 
 /**

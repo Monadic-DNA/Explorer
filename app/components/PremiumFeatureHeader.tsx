@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AuthButton, useAuth } from "./AuthProvider";
 import { clearPromoAccess, hasValidPromoAccess } from "@/lib/promo-access";
-import { trackPremiumTabViewed } from "@/lib/analytics";
+import { trackOverviewReportTabViewed } from "@/lib/analytics";
 
 type PremiumFeatureHeaderProps = {
   featureName: string;
@@ -51,7 +51,7 @@ export default function PremiumFeatureHeader({
   useEffect(() => {
     if (tabViewTrackedRef.current) return;
     tabViewTrackedRef.current = true;
-    trackPremiumTabViewed(featureName.toLowerCase().replace(/\s+/g, "_"), hasPremiumAccess);
+    trackOverviewReportTabViewed(hasPremiumAccess);
   }, [featureName, hasPremiumAccess]);
 
   return (
