@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import ConversionOnboarding from "./components/ConversionOnboarding";
 import { useGenotype } from "./components/UserDataUpload";
-import { trackGetStartedClicked } from "@/lib/analytics";
+import { trackGetStartedClicked, trackIntroModalShown } from "@/lib/analytics";
 
-type FlowMode = "guided" | "instant_preview";
 
 const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
+const NEW_USER_CHOICE_STORAGE_KEY = "new_user_choice_completed";
+const MOTHBALLED_ONBOARDING_STORAGE_KEY = "conversion_onboarding_completed";
 
 const introCopy = [
   {
@@ -30,27 +30,87 @@ const introCopy = [
   },
 ];
 
+function NewUserChoiceModal({
+  isOpen,
+  onClose,
+  onTryChat,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onTryChat: () => void;
+}) {
+  const [countdown, setCountdown] = useState(5);
+  const onTryChatRef = useRef(onTryChat);
+  onTryChatRef.current = onTryChat;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setCountdown(5);
+    const interval = setInterval(() => {
+      setCountdown(prev => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (countdown === 0 && isOpen) {
+      onTryChatRef.current();
+    }
+  }, [countdown, isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="wire-onboarding-overlay">
+      <div className="wire-onboarding-shell">
+        <div className="wire-onboarding-frame">
+          <section className="wire-onboarding-slide new-user-choice-slide">
+            <p className="new-user-redirect-text">
+              We are automatically redirecting you to our DNA Chat page so you can see our app in action.
+            </p>
+            <div className="new-user-countdown">{countdown}</div>
+            <button
+              className="wire-onboarding-choice"
+              onClick={onClose}
+              type="button"
+            >
+              Click here to just go to the home page to learn about the app
+            </button>
+            <button
+              className="wire-onboarding-text-link"
+              onClick={onClose}
+              type="button"
+            >
+              Never show this again
+            </button>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isUploaded, error } = useGenotype();
-  const [showFlow, setShowFlow] = useState(false);
-  const [flowMode, setFlowMode] = useState<FlowMode>("guided");
+  const { error } = useGenotype();
+  const [showWelcomeChoice, setShowWelcomeChoice] = useState(false);
 
-  const openOnboarding = useCallback((mode: FlowMode = "guided") => {
-    setFlowMode(mode);
-    setShowFlow(true);
+  const completeWelcomeChoice = useCallback(() => {
+    localStorage.setItem(NEW_USER_CHOICE_STORAGE_KEY, "true");
+    localStorage.setItem(MOTHBALLED_ONBOARDING_STORAGE_KEY, "true");
+    setShowWelcomeChoice(false);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const completed = localStorage.getItem("conversion_onboarding_completed") === "true";
+    const completed = localStorage.getItem(NEW_USER_CHOICE_STORAGE_KEY) === "true";
     const forceOpen = searchParams.get("onboarding") === "1";
 
     if (forceOpen || !completed) {
-      setFlowMode(forceOpen ? "guided" : isUploaded ? "instant_preview" : "guided");
-      setShowFlow(true);
+      setShowWelcomeChoice(true);
+      trackIntroModalShown();
     }
 
     if (forceOpen) {
@@ -58,30 +118,31 @@ export default function LandingClient() {
       url.searchParams.delete("onboarding");
       window.history.replaceState({}, "", url.toString());
     }
-  }, [isUploaded, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
-    const handleOpen = (event: Event) => {
-      const customEvent = event as CustomEvent<{ mode?: FlowMode }>;
-      openOnboarding(customEvent.detail?.mode || "guided");
+    const handleOpen = () => {
+      setShowWelcomeChoice(true);
     };
 
     window.addEventListener("openConversionOnboarding", handleOpen as EventListener);
+    window.addEventListener("openNewUserChoiceModal", handleOpen as EventListener);
     return () => {
       window.removeEventListener("openConversionOnboarding", handleOpen as EventListener);
+      window.removeEventListener("openNewUserChoiceModal", handleOpen as EventListener);
     };
-  }, [openOnboarding]);
+  }, []);
 
   return (
     <>
-      <ConversionOnboarding
-        isOpen={showFlow}
-        mode={flowMode}
-        onComplete={() => {
-          setShowFlow(false);
-          router.push("/");
+      <NewUserChoiceModal
+        isOpen={showWelcomeChoice}
+        onClose={completeWelcomeChoice}
+        onTryChat={() => {
+          completeWelcomeChoice();
+          trackGetStartedClicked("try_dna_chat_directly");
+          router.push("/dna-chat?sample=1");
         }}
-        onDismiss={() => setShowFlow(false)}
       />
 
       <main className="page landing-page landing-home-page">
@@ -104,15 +165,6 @@ export default function LandingClient() {
           <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
             <h2 id="landing-start-heading">Get Started</h2>
             <div className="landing-start-actions">
-              <button
-                className="landing-secondary-button"
-                onClick={() => {
-                  trackGetStartedClicked("onboarding_tour");
-                  openOnboarding(isUploaded ? "instant_preview" : "guided");
-                }}
-              >
-                Take an Onboarding Tour
-              </button>
               <a
                 className="landing-secondary-button"
                 href={INSTRUCTIONAL_VIDEO_URL}

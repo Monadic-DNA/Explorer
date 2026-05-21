@@ -5,14 +5,10 @@ import { SavedResult } from "@/lib/results-manager";
 import NilAIConsentModal from "./NilAIConsentModal";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
-import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
-import { getLLMConfig } from "@/lib/llm-config";
-import { SparklesIcon } from "./Icons";
 import { trackLLMQuestionAsked } from "@/lib/analytics";
-import { hasValidPromoAccess } from "@/lib/promo-access";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -60,16 +56,10 @@ const FOLLOWUP_SUGGESTIONS = [
   "How should I adjust my diet and lifestyle?"
 ];
 
-type AIChatInlineProps = {
-  onOpenTour?: () => void;
-};
-
-export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
+export default function AIChatInline() {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
-  const { hasActiveSubscription } = useAuth();
-
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -78,24 +68,16 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
-  const [hasPromoAccess, setHasPromoAccess] = useState(false);
-  const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [expandedAttachmentIndex, setExpandedAttachmentIndex] = useState<number | null>(null);
-  const [showProviderTip, setShowProviderTip] = useState(true);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
-
-    // Check for promo code access
-    if (hasValidPromoAccess()) {
-      setHasPromoAccess(true);
-    }
 
     // Check consent
     const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
@@ -114,14 +96,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
     }
   }, []);
 
-  useEffect(() => {
-    // Check if personalization is not set or locked on mount only
-    if (customizationStatus === 'not-set' || customizationStatus === 'locked') {
-      setShowPersonalizationPrompt(true);
-    } else if (customizationStatus === 'unlocked') {
-      setShowPersonalizationPrompt(false);
-    }
-  }, [customizationStatus]);
 
   // Removed auto-scroll so user doesn't have to scroll up to read responses
   // Also removed auto-focus to prevent scrolling to bottom on tab load
@@ -131,6 +105,7 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
       localStorage.setItem(CONSENT_STORAGE_KEY, "true");
       setHasConsent(true);
       setShowConsentModal(false);
+      void handleSendMessage(true);
     }
   };
 
@@ -138,9 +113,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
     setShowConsentModal(false);
   };
 
-  const handlePersonalizationPromptContinue = () => {
-    setShowPersonalizationPrompt(false);
-  };
 
   const handleExampleClick = (question: string) => {
     setInputValue(question);
@@ -163,32 +135,6 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
       return `β=${score >= 0 ? '+' : ''}${score.toFixed(3)} units`;
     }
     return `${score.toFixed(2)}x`;
-  };
-
-  const getProviderTip = () => {
-    if (!mounted) return null;
-
-    const config = getLLMConfig();
-
-    if (config.provider === 'nilai' || config.provider === 'ollama') {
-      return {
-        icon: 'Private',
-        type: 'privacy',
-        message: config.provider === 'nilai'
-          ? 'nilAI is active for privacy-preserving TEE processing.'
-          : 'Ollama is active for local processing on your device.',
-        tip: 'Switch models from the LLM button in the menu bar.',
-      };
-    } else if (config.provider === 'huggingface') {
-      return {
-        icon: 'Fast',
-        type: 'performance',
-        message: 'HuggingFace is active for broader model access.',
-        tip: 'Switch back to nilAI from the LLM button for stronger privacy.',
-      };
-    }
-
-    return null;
   };
 
   const handleAttachmentClick = () => {
@@ -351,31 +297,12 @@ export default function AIChatInline({ onOpenTour }: AIChatInlineProps = {}) {
     return parts;
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (skipConsentCheck = false) => {
     const query = inputValue.trim();
     if (!query) return;
 
-    // Check authentication first
-    if (!hasActiveSubscription && !hasPromoAccess) {
-      // Check if user is authenticated
-      const dynamicButton = document.querySelector('[data-dynamic-widget-button]') as HTMLElement;
-      if (dynamicButton) {
-        // Try to determine if user is logged in by checking for Dynamic's user indicator
-        const isLoggedIn = document.querySelector('[data-dynamic-user-profile]');
-        if (!isLoggedIn) {
-          // Not logged in, trigger login
-          dynamicButton.click();
-          return;
-        }
-      }
-      // User is logged in but not subscribed, show payment modal
-      const event = new CustomEvent('openPaymentModal');
-      window.dispatchEvent(event);
-      return;
-    }
-
     // Check consent before sending first message
-    if (!hasConsent) {
+    if (!skipConsentCheck && !hasConsent) {
       setShowConsentModal(true);
       return;
     }
@@ -574,6 +501,7 @@ RESPONSE STRUCTURE (Complete Each Section Fully):
 - Group findings into 2-4 major themes (e.g., cardiovascular, metabolic, inflammatory)
 - For each theme, explain the overall trend and what it means for them specifically
 - Connect how different themes relate to each other
+- Mention the most relevant gene/SNP/allele combinations, along with the associated OR or beta.
 
 **Section 3: What This Means for You Specifically** (2-3 paragraphs)
 - Synthesize how these findings interact with their ethnicity, age, and medical history
@@ -918,34 +846,8 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
         />
       )}
       <div className="ai-chat-inline" style={{ position: 'relative' }}>
-        <div className="chat-header">
-          <div className="dna-chat-header-main">
-            <div className="dna-chat-title-mark">
-              <SparklesIcon size={24} />
-            </div>
-            <div>
-              <h2>DNA Chat</h2>
-              <p className="powered-by">
-                {getLLMDescription()} - secure processing for your saved genetic results
-              </p>
-              {onOpenTour && (
-                <button
-                  type="button"
-                  className="dna-chat-inline-tour-link"
-                  onClick={onOpenTour}
-                >
-                  Take the tour
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="chat-info">
-          <div className="chat-info-left">
-            <span>{mounted ? resultsContext.savedResults.length.toLocaleString() : '...'} saved genetic results available</span>
-          </div>
-          {messages.length > 0 && (
+        {messages.length > 0 && (
+          <div className="chat-info">
             <div className="chat-actions">
               <button className="chat-action-button" onClick={handlePrintChat}>
                 Print
@@ -954,66 +856,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                 Clear
               </button>
             </div>
-          )}
-        </div>
-
-        {showPersonalizationPrompt && (
-          <div className="dna-chat-personalization-banner">
-            <div>
-              <strong>Personalization improves answers.</strong>
-              <span>
-                {customizationStatus === 'locked'
-                  ? ' Unlock your saved profile from the Personalize menu when you are ready.'
-                  : ' Add ancestry, history, and demographics from the Personalize menu when you are ready.'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handlePersonalizationPromptContinue}
-              aria-label="Dismiss personalization recommendation"
-            >
-              Not now
-            </button>
           </div>
         )}
-
-        {/* Provider tip banner */}
-        {showProviderTip && (() => {
-          const tip = getProviderTip();
-          if (!tip) return null;
-
-          return (
-            <div className={`provider-tip ${tip.type}`}>
-              <div className="provider-tip-content">
-                <span className="provider-tip-icon">{tip.icon}</span>
-                <div className="provider-tip-text">
-                  <div className="provider-tip-message">{tip.message}</div>
-                  <div className="provider-tip-suggestion">{tip.tip}</div>
-                </div>
-              </div>
-              <button className="provider-tip-dismiss" onClick={() => setShowProviderTip(false)} title="Dismiss">
-                ×
-              </button>
-            </div>
-          );
-        })()}
 
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
-              <div className="chat-welcome-heading">
-                <h3>Ask about your DNA results</h3>
-                <span>Suggested prompts</span>
-              </div>
-
-              {mounted && resultsContext.savedResults.length < 1000 && (
-                <div className="chat-warning">
-                  <p><strong>Limited results ({resultsContext.savedResults.length} studies)</strong></p>
-                  <p>
-                    For better answers, analyze more studies or load a prior results file.
-                  </p>
-                </div>
-              )}
+              {}
 
               <ul className="example-questions">
                 {EXAMPLE_QUESTIONS.map((question) => (
@@ -1022,14 +871,12 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   </li>
                 ))}
               </ul>
-              <div className="chat-disclaimer chat-disclaimer-inline">
-                <strong>Disclaimer:</strong> LLMs can report incorrect or fabricated information and are not medical experts. <strong>For educational purposes only.</strong> Consult a healthcare professional for medical advice.
-              </div>
             </div>
           )}
 
           {messages
-            .filter(message => message.role !== 'system') // Hide system messages from UI
+            .filter(message => message.role !== 'system')
+            .filter(message => !(message.role === 'assistant' && !message.content && isLoading))
             .map((message, idx, filteredMessages) => {
               // Check if this is the last assistant message in the filtered array
               const isLastAssistantMessage = message.role === 'assistant' &&
@@ -1051,31 +898,13 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                   )}
                 </div>
                 {message.role === 'assistant' && (
-                  <>
-                    <button
-                      className="copy-button"
-                      onClick={() => handleCopyMessage(message.content)}
-                      title="Copy to clipboard"
-                    >
-                      Copy
-                    </button>
-                    {isLastAssistantMessage && !isLoading && (
-                      <div className="followup-suggestions">
-                        <div className="followup-header">Try asking:</div>
-                        <div className="followup-buttons">
-                          {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
-                            <button
-                              key={sidx}
-                              className="followup-button"
-                              onClick={() => handleExampleClick(suggestion)}
-                            >
-                              {suggestion}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <button
+                    className="copy-button"
+                    onClick={() => handleCopyMessage(message.content)}
+                    title="Copy to clipboard"
+                  >
+                    Copy
+                  </button>
                 )}
                 {message.role === 'assistant' && message.studiesUsed && message.studiesUsed.length > 0 && (
                   <div className="studies-used">
@@ -1109,6 +938,22 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+                {message.role === 'assistant' && isLastAssistantMessage && !isLoading && (
+                  <div className="followup-suggestions">
+                    <div className="followup-header">Try asking:</div>
+                    <div className="followup-buttons">
+                      {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
+                        <button
+                          key={sidx}
+                          className="followup-button"
+                          onClick={() => handleExampleClick(suggestion)}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {message.role === 'user' && message.attachments && message.attachments.length > 0 && (
@@ -1227,11 +1072,31 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
           <div className="chat-input-controls">
             {isFirstMessage ? (
               <div className="rag-info">
-                Searches saved traits for context
+                {mounted && (
+                  <>
+                    {resultsContext.savedResults.length === 0 ? (
+                      <span className="rag-hint rag-hint-warn">No results loaded. Use My Data up top to load your data, then Run All to get your results.</span>
+                    ) : resultsContext.savedResults.length < 1000 ? (
+                      <span className="rag-hint rag-hint-warn">{resultsContext.savedResults.length.toLocaleString()} results loaded. For better answers, run more studies.</span>
+                    ) : (
+                      <span className="rag-hint">{resultsContext.savedResults.length.toLocaleString()} results available for analysis.</span>
+                    )}
+                    {customizationStatus === 'unlocked' ? (
+                      <span className="rag-hint rag-hint-ok">Personalization on for more relevant results.</span>
+                    ) : (
+                      <span className="rag-hint">Personalization not set. Your demographic, family, and medical history will not be used for interpreting your results. Use Personalize up top for better answers.</span>
+                    )}
+                  </>
+                )}
               </div>
             ) : (
-              <div className="rag-info-followup">
-                Follow-up question
+              <div className="chat-actions">
+                <button className="chat-action-button" onClick={handlePrintChat}>
+                  Print
+                </button>
+                <button className="chat-action-button" onClick={handleClearChat}>
+                  Clear
+                </button>
               </div>
             )}
             <div className="chat-buttons">
@@ -1246,18 +1111,17 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
               </button>
               <button
                 className="chat-send-button"
-                onClick={handleSendMessage}
+                onClick={() => handleSendMessage()}
                 disabled={isLoading || !inputValue.trim()}
-                title={(!hasActiveSubscription && !hasPromoAccess) ? 'Login and subscribe to send messages' : undefined}
               >
-                {isLoading ? 'Sending...' : (!hasActiveSubscription && !hasPromoAccess) ? 'Login/Subscribe' : 'Send'}
+                {isLoading ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>
         </div>
 
         <div className="chat-footer-disclaimer">
-          AI-generated content may contain errors. This is not medical advice.
+          LLMs can report incorrect or fabricated information and are not medical experts. For educational purposes only. Consult a healthcare professional for medical advice.
         </div>
       </div>
     </>

@@ -1,3 +1,4 @@
+// MOTHBALLED 2026-05-19: The conversion onboarding flow is preserved for reference, but active entry points now use the lightweight new-user choice modal.
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

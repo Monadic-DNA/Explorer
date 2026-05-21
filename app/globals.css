@@ -5887,7 +5887,7 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-page .premium-compact-header {
-  max-width: 1180px;
+  max-width: 1560px;
   padding: 1rem 1.5rem 0.55rem;
 }
 
@@ -5899,7 +5899,7 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section {
-  width: min(1180px, calc(100% - 3rem));
+  width: min(1560px, calc(100% - 3rem));
   padding: 0 0 1.5rem;
 }
 
@@ -5969,6 +5969,26 @@ details[open] .summary-arrow {
 .dna-chat-section .rag-info-followup {
   color: rgba(26, 26, 26, 0.58);
   font-weight: 750;
+}
+
+.dna-chat-section .rag-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.dna-chat-section .rag-hint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(26, 26, 26, 0.44);
+}
+
+.dna-chat-section .rag-hint.rag-hint-warn {
+  color: rgba(161, 90, 0, 0.75);
+}
+
+.dna-chat-section .rag-hint.rag-hint-ok {
+  color: rgba(15, 118, 110, 0.8);
 }
 
 .dna-chat-section .chat-action-button {
@@ -6217,6 +6237,18 @@ details[open] .summary-arrow {
 :root[data-theme="dark"] .dna-chat-section .ai-chat-inline .chat-messages,
 :root[data-theme="dark"] .dna-chat-section .chat-footer-disclaimer {
   background: rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] .dna-chat-section .rag-hint {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+:root[data-theme="dark"] .dna-chat-section .rag-hint.rag-hint-warn {
+  color: rgba(251, 191, 36, 0.6);
+}
+
+:root[data-theme="dark"] .dna-chat-section .rag-hint.rag-hint-ok {
+  color: rgba(52, 211, 153, 0.7);
 }
 
 :root[data-theme="dark"] .dna-chat-title-mark,
@@ -9529,6 +9561,32 @@ details[open] .summary-arrow {
   margin-top: 0.35rem;
 }
 
+.new-user-redirect-text {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #111111;
+  text-align: center;
+  max-width: 360px;
+  line-height: 1.5;
+  margin: 0 auto 1rem;
+}
+
+.new-user-countdown {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #111111;
+  text-align: center;
+  line-height: 1;
+  margin: 0.5rem auto 1.25rem;
+  width: 4rem;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #111111;
+  border-radius: 50%;
+}
+
 .wire-onboarding-choice-list,
 .wire-onboarding-actions,
 .wire-response-list {
@@ -11024,3 +11082,155 @@ details[open] .summary-arrow {
     max-width: calc(100vw - 24px);
   }
 }
+
+
+.new-user-choice-slide {
+  padding: 1rem 0 0.5rem;
+}
+
+.new-user-choice-list {
+  width: min(560px, 100%);
+  margin-top: 0.65rem;
+}
+
+.dna-chat-sample-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-left: 4px solid #0f766e;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-secondary);
+}
+
+.dna-chat-sample-notice > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.dna-chat-sample-notice strong {
+  color: var(--text-primary);
+  font-size: 0.88rem;
+}
+
+.dna-chat-sample-notice span {
+  line-height: 1.25;
+  font-size: 0.86rem;
+}
+
+.dna-chat-sample-notice .wire-progress-bar {
+  width: min(220px, 32vw);
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.dna-chat-sample-notice-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dna-chat-sample-notice-link:hover {
+  opacity: 0.75;
+}
+
+.dna-chat-sample-notice.error {
+  border-left-color: #dc2626;
+  background: rgba(239, 68, 68, 0.06);
+}
+
+@media (max-width: 720px) {
+  .dna-chat-sample-notice {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dna-chat-sample-notice .wire-progress-bar {
+    width: 100%;
+  }
+}
+
+.dna-chat-section .example-questions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 0.4rem auto 0;
+  max-width: 980px;
+}
+
+.dna-chat-section .example-questions li {
+  min-height: 32px;
+  padding: 0.38rem 0.55rem;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  line-height: 1;
+}
+
+.dna-chat-section .chat-footer-disclaimer {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .dna-chat-section .example-questions {
+    justify-content: flex-start;
+  }
+
+  .dna-chat-section .example-questions li {
+    white-space: normal;
+    line-height: 1.15;
+  }
+}
+
+.dna-chat-page {
+  min-height: calc(100vh - 88px);
+}
+
+.dna-chat-section {
+  padding-bottom: 1rem;
+}
+
+.dna-chat-section .ai-chat-inline {
+  height: clamp(480px, calc(100vh - 250px), 1040px);
+}
+
+@media (max-width: 900px) {
+  .dna-chat-section .ai-chat-inline {
+    height: clamp(360px, calc(100vh - 290px), 980px);
+    height: clamp(360px, calc(100svh - 230px), 980px);
+  }
+}
+
+.dna-chat-inline-wrapper {
+  position: relative;
+}
+
+.dna-chat-tour-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  z-index: 10;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(15, 23, 42, 0.55);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dna-chat-tour-button:hover {
+  background: #ffffff;
+  color: rgba(15, 23, 42, 0.85);
+  border-color: rgba(15, 23, 42, 0.35);
+}
+

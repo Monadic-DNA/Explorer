@@ -17,7 +17,7 @@ export type TourContent = {
 const myDataStep: TourStep = {
   name: "my_data",
   title: "Upload your DNA first",
-  body: "If you haven't already, click 'My Data' in the top bar to upload your raw genetic data file from 23andMe, AncestryDNA, or similar. Your data is processed entirely in your browser and never sent to any server.",
+  body: "Click on 'My Data' in the top bar to upload your raw genetic data file from 23andMe, AncestryDNA, or similar. Your data is processed entirely in your browser and never sent to any server.",
   selector: '[data-tour="my-data-button"]',
   placement: "bottom",
 };
@@ -70,7 +70,7 @@ export const dnaChatTour: TourContent = {
     {
       name: "intro",
       title: "Chat with your DNA",
-      body: "DNA Chat is a private LLM that uses your saved genetic results as context. Ask anything about your traits, sleep, diet, or risks.",
+      body: "DNA Chat is an anonymous and confidential LLM chat that uses your genetic results as context. Ask anything about your traits, sleep, diet, or risks.",
     },
     myDataStep,
     {
@@ -90,14 +90,14 @@ export const dnaChatTour: TourContent = {
     {
       name: "send",
       title: "Send your question",
-      body: "Click here to send. The first answer pulls in your most relevant studies as context — follow-ups continue the conversation.",
+      body: "Click here to send. The first answer pulls in your most relevant results as context and follow-ups continue the conversation.",
       selector: ".chat-send-button",
       placement: "top",
     },
     {
       name: "attach",
       title: "Upload lab reports and documents",
-      body: "You can attach PDFs, CSVs, or text files — like genetic lab reports or bloodwork — and ask questions about them directly. Come back every time you have a new document to analyse.",
+      body: "You can attach PDFs, CSVs, or text files, like lab reports or medical notes, and ask questions about them directly. Come back every time you have a new document to analyse.",
       selector: '[data-tour="attach-button"]',
       placement: "top",
     },

@@ -190,7 +190,7 @@ export function trackOnboardingDismissed(step: string) {
 /**
  * User clicked one of the homepage Get Started actions
  */
-export function trackGetStartedClicked(action: 'onboarding_tour' | 'instructional_video' | 'schedule_video_call' | 'restart_onboarding') {
+export function trackGetStartedClicked(action: 'onboarding_tour' | 'welcome_options' | 'try_dna_chat_directly' | 'instructional_video' | 'schedule_video_call' | 'restart_onboarding') {
   trackEvent('get_started_clicked', {
     action,
   });
@@ -389,11 +389,15 @@ export function trackPremiumSectionViewed() {
 /**
  * User viewed a premium tab
  */
-export function trackPremiumTabViewed(tab: string, hasPremiumAccess: boolean) {
-  trackEvent('premium_tab_viewed', {
-    tab,
+export function trackOverviewReportTabViewed(hasPremiumAccess: boolean) {
+  trackEvent('overview_report_tab_viewed', {
     has_premium_access: hasPremiumAccess,
   });
+}
+
+/** @deprecated Use trackOverviewReportTabViewed instead */
+export function trackPremiumTabViewed(tab: string, hasPremiumAccess: boolean) {
+  trackOverviewReportTabViewed(hasPremiumAccess);
 }
 
 /**
@@ -456,6 +460,10 @@ export function trackLLMQuestionAsked(params?: { isFollowUp?: boolean }) {
   trackEvent('llm_question_asked', {
     is_follow_up: params?.isFollowUp ?? false,
   });
+}
+
+export function trackIntroModalShown() {
+  trackEvent('intro_modal_shown');
 }
 
 export function trackDNAChatViewed() {
