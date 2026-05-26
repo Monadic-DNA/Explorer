@@ -470,6 +470,22 @@ export function trackDNAChatViewed() {
   trackEvent('dna_chat_viewed');
 }
 
+export function trackDNAChatSampleDataLoaded(resultCount: number) {
+  trackEvent('dna_chat_sample_data_loaded', { result_count: resultCount });
+}
+
+export function trackDNAChatSampleDataFailed(reason?: string) {
+  trackEvent('dna_chat_sample_data_failed', { reason: sanitizeErrorReason(reason) });
+}
+
+export function trackExampleQuestionClicked() {
+  trackEvent('example_question_clicked');
+}
+
+export function trackAIConsentModalShown() {
+  trackEvent('ai_consent_modal_shown');
+}
+
 export function trackOverviewReportViewed() {
   trackEvent('overview_report_viewed');
 }
