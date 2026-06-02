@@ -2162,6 +2162,22 @@ tbody tr:hover {
   height: 88vh;
 }
 
+.commentary-modal--inline {
+  max-width: 100%;
+  max-height: none;
+  height: auto;
+  margin: 0 0 2rem 0;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  overflow: visible;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+}
+
+.commentary-modal--inline .modal-content {
+  height: auto;
+  overflow: visible;
+}
+
 .commentary-powered-by-header {
   padding: 0 1.5rem;
   margin-bottom: 1rem;

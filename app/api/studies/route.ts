@@ -330,6 +330,49 @@ export async function GET(request: NextRequest) {
   if (originError) return originError;
 
   const searchParams = request.nextUrl.searchParams;
+
+  // Fast single-study lookup by primary key — used by the study detail page
+  const idParam = searchParams.get("id");
+  if (idParam !== null) {
+    const studyPk = parseInt(idParam);
+    if (isNaN(studyPk) || studyPk <= 0) {
+      return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+    }
+    try {
+      const rows = await executeQuery<RawStudy>(
+        `SELECT id, study_accession, study, disease_trait, mapped_trait,
+                mapped_trait_uri, mapped_gene, first_author, date, journal,
+                pubmedid, link, initial_sample_size, replication_sample_size,
+                p_value, pvalue_mlog, or_or_beta, ci_text, risk_allele_frequency,
+                strongest_snp_risk_allele, snps
+         FROM gwas_catalog WHERE id = $1 LIMIT 1`,
+        [studyPk]
+      );
+      if (rows.length === 0) {
+        return NextResponse.json({ data: [], total: 0, limit: 1 });
+      }
+      const row = rows[0];
+      const sampleSize = parseSampleSize(row.initial_sample_size) ?? parseSampleSize(row.replication_sample_size);
+      const pValueNumeric = parsePValue(row.p_value);
+      const logPValue = parseLogPValue(row.pvalue_mlog) ?? (pValueNumeric ? -Math.log10(pValueNumeric) : null);
+      const qualityFlags = computeQualityFlags(sampleSize, pValueNumeric, logPValue);
+      const isLowQuality = qualityFlags.some(f => f.severity === 'major');
+      const confidenceBand = determineConfidenceBand(sampleSize, pValueNumeric, logPValue, qualityFlags);
+      const publicationDate = parseStudyDate(row.date);
+      const isAnalyzable = !!(row.snps && row.or_or_beta && row.strongest_snp_risk_allele);
+      const nonAnalyzableReason = !isAnalyzable
+        ? (!row.snps ? 'Missing SNP data' : !row.or_or_beta ? 'Missing effect size (OR/beta)' : 'Missing risk allele')
+        : undefined;
+      const study = { ...row, sampleSize, sampleSizeLabel: formatNumber(sampleSize), pValueNumeric,
+        pValueLabel: formatPValue(pValueNumeric), logPValue, qualityFlags, isLowQuality, confidenceBand,
+        publicationDate, isAnalyzable, nonAnalyzableReason };
+      return NextResponse.json({ data: [study], total: 1, limit: 1 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch study";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
   const search = searchParams.get("search")?.trim();
   const searchTerms = search ? getSearchTerms(search) : [];
   const trait = searchParams.get("trait")?.trim();

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import MenuBar from "../../components/MenuBar";
 import Footer from "../../components/Footer";
 import VariantChips from "../../components/VariantChips";
 import StudyPersonalResultBanner from "../../components/StudyPersonalResultBanner";
+import { useResults } from "../../components/ResultsContext";
+import LLMCommentaryModal from "../../components/LLMCommentaryModal";
 
 type Study = {
   id: number;
@@ -45,10 +47,32 @@ type Study = {
 
 export default function StudyDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const studyId = params.id as string;
   const [study, setStudy] = useState<Study | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { savedResults, hasResult, getResult } = useResults();
+  const [totalStudies, setTotalStudies] = useState<number | null>(null);
+  const [navigating, setNavigating] = useState(false);
+
+  useEffect(() => {
+    if (savedResults.length > 0) return;
+    fetch("/api/studies?limit=1")
+      .then(r => r.json())
+      .then(data => { if (data.total) setTotalStudies(data.total); })
+      .catch(() => {});
+  }, [savedResults.length]);
+
+  const handleNextRandom = () => {
+    setNavigating(true);
+    if (savedResults.length > 0) {
+      const result = savedResults[Math.floor(Math.random() * savedResults.length)];
+      router.push(`/study/${result.studyId}`);
+    } else if (totalStudies !== null) {
+      router.push(`/study/${Math.floor(Math.random() * totalStudies) + 1}`);
+    }
+  };
 
   useEffect(() => {
     const fetchStudy = async () => {
@@ -57,7 +81,7 @@ export default function StudyDetailPage() {
         setError(null);
 
         // Fetch study by ID from the API
-        const response = await fetch(`/api/studies?limit=1&offset=${parseInt(studyId) - 1}`);
+        const response = await fetch(`/api/studies?id=${parseInt(studyId)}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch study details');
@@ -224,6 +248,19 @@ export default function StudyDetailPage() {
             nonAnalyzableReason={study.nonAnalyzableReason}
           />
 
+          {/* Inline LLM analysis when a saved result exists for this study */}
+          {hasResult(study.id) && getResult(study.id) && (
+            <LLMCommentaryModal
+              isOpen
+              inline
+              onClose={() => {}}
+              currentResult={getResult(study.id)!}
+              allResults={[]}
+              skipConsent
+              skipPersonalizationPrompt
+            />
+          )}
+
           {/* Study Details */}
           <section className="study-details-card">
             {/* Stat grid */}
@@ -318,7 +355,7 @@ export default function StudyDetailPage() {
           </section>
 
           {/* Back Button */}
-          <div style={{ marginBottom: "2rem" }}>
+          <div style={{ marginBottom: "2rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
             <Link href="/browse" style={{
               display: "inline-block",
               padding: "0.75rem 1.5rem",
@@ -329,6 +366,13 @@ export default function StudyDetailPage() {
             }}>
               ← Back to Browse
             </Link>
+            <button
+              className="primary-button"
+              onClick={handleNextRandom}
+              disabled={navigating || (savedResults.length === 0 && totalStudies === null)}
+            >
+              {navigating ? "Loading..." : "Next random study →"}
+            </button>
           </div>
         </main>
         <Footer />
