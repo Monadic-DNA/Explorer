@@ -1,15 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useGenotype } from "./components/UserDataUpload";
-import { trackGetStartedClicked, trackIntroModalShown } from "@/lib/analytics";
+import { trackGetStartedClicked } from "@/lib/analytics";
 
 
 const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
-const NEW_USER_CHOICE_STORAGE_KEY = "new_user_choice_completed";
-const MOTHBALLED_ONBOARDING_STORAGE_KEY = "conversion_onboarding_completed";
 
 const introCopy = [
   {
@@ -30,163 +26,51 @@ const introCopy = [
   },
 ];
 
-function NewUserChoiceModal({
-  isOpen,
-  onClose,
-  onTryChat,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onTryChat: () => void;
-}) {
-  const [countdown, setCountdown] = useState(5);
-  const onTryChatRef = useRef(onTryChat);
-  onTryChatRef.current = onTryChat;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setCountdown(5);
-    const interval = setInterval(() => {
-      setCountdown(prev => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (countdown === 0 && isOpen) {
-      onTryChatRef.current();
-    }
-  }, [countdown, isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="wire-onboarding-overlay">
-      <div className="wire-onboarding-shell">
-        <div className="wire-onboarding-frame">
-          <section className="wire-onboarding-slide new-user-choice-slide">
-            <p className="new-user-redirect-text">
-              We are automatically redirecting you to our DNA Chat page so you can see our app in action.
-            </p>
-            <div className="new-user-countdown">{countdown}</div>
-            <button
-              className="wire-onboarding-choice"
-              onClick={onClose}
-              type="button"
-            >
-              Click here to just go to the home page to learn about the app
-            </button>
-            <button
-              className="wire-onboarding-text-link"
-              onClick={onClose}
-              type="button"
-            >
-              Never show this again
-            </button>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function LandingClient() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { error } = useGenotype();
-  const [showWelcomeChoice, setShowWelcomeChoice] = useState(false);
-
-  const completeWelcomeChoice = useCallback(() => {
-    localStorage.setItem(NEW_USER_CHOICE_STORAGE_KEY, "true");
-    localStorage.setItem(MOTHBALLED_ONBOARDING_STORAGE_KEY, "true");
-    setShowWelcomeChoice(false);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const completed = localStorage.getItem(NEW_USER_CHOICE_STORAGE_KEY) === "true";
-    const forceOpen = searchParams.get("onboarding") === "1";
-
-    if (forceOpen || !completed) {
-      setShowWelcomeChoice(true);
-      trackIntroModalShown();
-    }
-
-    if (forceOpen) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("onboarding");
-      window.history.replaceState({}, "", url.toString());
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const handleOpen = () => {
-      setShowWelcomeChoice(true);
-    };
-
-    window.addEventListener("openConversionOnboarding", handleOpen as EventListener);
-    window.addEventListener("openNewUserChoiceModal", handleOpen as EventListener);
-    return () => {
-      window.removeEventListener("openConversionOnboarding", handleOpen as EventListener);
-      window.removeEventListener("openNewUserChoiceModal", handleOpen as EventListener);
-    };
-  }, []);
 
   return (
-    <>
-      <NewUserChoiceModal
-        isOpen={showWelcomeChoice}
-        onClose={completeWelcomeChoice}
-        onTryChat={() => {
-          completeWelcomeChoice();
-          trackGetStartedClicked("try_dna_chat_directly");
-          router.push("/dna-chat?sample=1");
-        }}
-      />
+    <main className="page landing-page landing-home-page">
+      <section className="landing-home-intro">
+        <div className="landing-home-copy">
+          <h1>Understand your DNA without giving it away.</h1>
 
-      <main className="page landing-page landing-home-page">
-        <section className="landing-home-intro">
-          <div className="landing-home-copy">
-            <h1>Understand your DNA without giving it away.</h1>
-
-            <div className="landing-home-explainer" aria-label="Monadic DNA Explorer overview">
-              {introCopy.map((item) => (
-                <p key={item.label}>
-                  <span>{item.label}</span>
-                  {item.text}
-                </p>
-              ))}
-            </div>
-
-            {error && <p className="landing-upload-error">{error}</p>}
+          <div className="landing-home-explainer" aria-label="Monadic DNA Explorer overview">
+            {introCopy.map((item) => (
+              <p key={item.label}>
+                <span>{item.label}</span>
+                {item.text}
+              </p>
+            ))}
           </div>
 
-          <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
-            <h2 id="landing-start-heading">Get Started</h2>
-            <div className="landing-start-actions">
-              <a
-                className="landing-secondary-button"
-                href={INSTRUCTIONAL_VIDEO_URL}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => trackGetStartedClicked("instructional_video")}
-              >
-                Watch Instructional Video
-              </a>
-              <a
-                className="landing-secondary-button"
-                href={SCHEDULE_CALL_URL}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => trackGetStartedClicked("schedule_video_call")}
-              >
-                Book a Free Help Call
-              </a>
-            </div>
-          </aside>
-        </section>
-      </main>
-    </>
+          {error && <p className="landing-upload-error">{error}</p>}
+        </div>
+
+        <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
+          <h2 id="landing-start-heading">Get Started</h2>
+          <div className="landing-start-actions">
+            <a
+              className="landing-secondary-button"
+              href={INSTRUCTIONAL_VIDEO_URL}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => trackGetStartedClicked("instructional_video")}
+            >
+              Watch Instructional Video
+            </a>
+            <a
+              className="landing-secondary-button"
+              href={SCHEDULE_CALL_URL}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => trackGetStartedClicked("schedule_video_call")}
+            >
+              Book a Free Help Call
+            </a>
+          </div>
+        </aside>
+      </section>
+    </main>
   );
 }
