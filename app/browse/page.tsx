@@ -1,0 +1,1193 @@
+"use client";
+
+import { useEffect, useMemo, useState, useCallback, useRef, startTransition, memo } from "react";
+import Link from "next/link";
+import { useGenotype } from "../components/UserDataUpload";
+import { useResults } from "../components/ResultsContext";
+import { useAuth } from "../components/AuthProvider";
+import { RunAllIcon } from "../components/Icons";
+import StudyResultReveal from "../components/StudyResultReveal";
+import MenuBar from "../components/MenuBar";
+import VariantChips from "../components/VariantChips";
+import Footer from "../components/Footer";
+import DisclaimerModal from "../components/DisclaimerModal";
+import TermsAcceptanceModal from "../components/TermsAcceptanceModal";
+import RunAllModal from "../components/RunAllModal";
+import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
+import { exploreTour } from "../components/tours/tourContent";
+import { hasMatchingSNPs } from "@/lib/snp-utils";
+import { analyzeStudyClientSide } from "@/lib/risk-calculator";
+import { isDevModeEnabled } from "@/lib/dev-mode";
+import { hasValidPromoAccess, clearPromoAccess } from "@/lib/promo-access";
+import {
+  trackSearch,
+  trackRunAllCompleted,
+  trackRunAllFailed,
+  trackRunAllStarted,
+  trackQueryRun,
+  trackExploreTabViewed,
+  trackSearchModeChanged,
+} from "@/lib/analytics";
+
+// Note: Metadata must be exported from layout.tsx or a server component
+// This page is a client component and cannot export metadata
+
+type SortOption = "relevance" | "power" | "recent" | "alphabetical";
+type SortDirection = "asc" | "desc";
+type ConfidenceBand = "high" | "medium" | "low";
+
+type Filters = {
+  search: string;
+  searchMode: "similarity" | "exact";
+  trait: string;
+  minSampleSize: string;
+  maxPValue: string;
+  excludeLowQuality: boolean;
+  excludeMissingGenotype: boolean;
+  requireUserSNPs: boolean;
+  sort: SortOption;
+  sortDirection: SortDirection;
+  limit: number;
+  confidenceBand: ConfidenceBand | null;
+  offset: number;
+};
+
+type Study = {
+  id: number;
+  study_accession: string | null;
+  study: string | null;
+  disease_trait: string | null;
+  mapped_trait: string | null;
+  mapped_trait_uri: string | null;
+  mapped_gene: string | null;
+  first_author: string | null;
+  date: string | null;
+  journal: string | null;
+  pubmedid: string | null;
+  link: string | null;
+  initial_sample_size: string | null;
+  replication_sample_size: string | null;
+  p_value: string | null;
+  pvalue_mlog: string | null;
+  or_or_beta: string | null;
+  ci_text: string | null;
+  risk_allele_frequency: string | null;
+  strongest_snp_risk_allele: string | null;
+  snps: string | null;
+  sampleSize: number | null;
+  sampleSizeLabel: string;
+  pValueNumeric: number | null;
+  pValueLabel: string;
+  logPValue: number | null;
+  qualityFlags: Array<{ message: string; severity: string }>;
+  isLowQuality: boolean;
+  confidenceBand: ConfidenceBand;
+  publicationDate: number | null;
+  similarity?: number; // Semantic search similarity score (0-1, higher is more similar)
+  isAnalyzable: boolean;
+  nonAnalyzableReason?: string;
+};
+
+type StudiesResponse = {
+  data: Study[];
+  total: number;
+  limit: number;
+  truncated: boolean;
+  sourceCount: number;
+  error?: string;
+};
+
+type QualitySummary = {
+  high: number;
+  medium: number;
+  low: number;
+  flagged: number;
+};
+
+const defaultFilters: Filters = {
+  search: "sleep",
+  searchMode: "similarity",
+  trait: "",
+  minSampleSize: "500",
+  maxPValue: "5e-8",
+  excludeLowQuality: true,
+  excludeMissingGenotype: true,
+  requireUserSNPs: false,
+  sort: "relevance",
+  sortDirection: "desc",
+  limit: 1000,
+  confidenceBand: null,
+  offset: 0,
+};
+
+
+function InfoIcon({ text }: { text: string }) {
+  return (
+    <span className="info-icon" role="img" aria-label="Help" title={text}>
+      ⓘ
+    </span>
+  );
+}
+
+function parseVariantIds(snps: string | null): string[] {
+  if (!snps) {
+    return [];
+  }
+  return snps
+    .split(/[;,\s]+/)
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function getRelevanceCategory(logPValue: number | null): { label: string; className: string } {
+  if (logPValue === null) return { label: "", className: "" };
+  if (logPValue >= 9) return { label: "strong", className: "relevance-strong" };
+  if (logPValue >= 7) return { label: "moderate", className: "relevance-moderate" };
+  return { label: "weak", className: "relevance-weak" };
+}
+
+function getPowerCategory(sampleSize: number | null): { label: string; className: string } {
+  if (sampleSize === null) return { label: "", className: "" };
+  if (sampleSize >= 50000) return { label: "large study", className: "power-large" };
+  if (sampleSize >= 5000) return { label: "medium study", className: "power-medium" };
+  if (sampleSize >= 1000) return { label: "small study", className: "power-small" };
+  return { label: "very small", className: "power-very-small" };
+}
+
+function getEffectCategory(effectStr: string | null): { label: string; className: string } {
+  if (!effectStr) return { label: "", className: "" };
+  const effect = parseFloat(effectStr);
+  if (isNaN(effect)) return { label: "", className: "" };
+
+  // Check if this looks like an odds ratio (typically > 0.5 and < 10)
+  // vs a beta coefficient (can be any value, often small)
+  const likelyOR = effect > 0.5 && effect < 10;
+
+  if (likelyOR) {
+    if (Math.abs(effect - 1.0) < 0.05) return { label: "no effect", className: "effect-none" };
+    if (effect < 1.0) {
+      if (effect <= 0.67) return { label: "protective", className: "effect-protective" };
+      return { label: "slightly protective", className: "effect-slight-protective" };
+    }
+    if (effect >= 2.0) return { label: "large effect", className: "effect-large" };
+    if (effect >= 1.5) return { label: "moderate effect", className: "effect-moderate" };
+    return { label: "small effect", className: "effect-small" };
+  }
+
+  // For beta coefficients, we can't easily categorize without trait context
+  return { label: "", className: "" };
+}
+
+function buildQuery(filters: Filters): string {
+  const params = new URLSearchParams();
+  params.set("limit", String(filters.limit));
+  params.set("offset", String(filters.offset));
+  params.set("sort", filters.sort);
+  params.set("direction", filters.sortDirection);
+  params.set("excludeLowQuality", String(filters.excludeLowQuality));
+  params.set("excludeMissingGenotype", String(filters.excludeMissingGenotype));
+  if (filters.search.trim()) {
+    params.set("search", filters.search.trim());
+    params.set("searchMode", filters.searchMode);
+  }
+  if (filters.trait) {
+    params.set("trait", filters.trait);
+  }
+  if (filters.minSampleSize.trim()) {
+    params.set("minSampleSize", filters.minSampleSize.trim());
+  }
+  if (filters.maxPValue.trim()) {
+    params.set("maxPValue", filters.maxPValue.trim());
+  }
+  if (filters.confidenceBand) {
+    params.set("confidenceBand", filters.confidenceBand);
+  }
+  return params.toString();
+}
+
+type DebouncedTextInputProps = {
+  id: string;
+  type?: "text" | "search";
+  placeholder?: string;
+  list?: string;
+  value: string;
+  delay?: number;
+  onDebouncedChange: (value: string) => void;
+};
+
+const DebouncedTextInput = memo(function DebouncedTextInput({
+  id,
+  type = "text",
+  placeholder,
+  list,
+  value,
+  delay = 500,
+  onDebouncedChange,
+}: DebouncedTextInputProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const committedValueRef = useRef(value);
+
+  useEffect(() => {
+    committedValueRef.current = value;
+
+    if (inputRef.current && inputRef.current.value !== value) {
+      inputRef.current.value = value;
+    }
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleCommit = useCallback((nextValue: string) => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      if (nextValue !== committedValueRef.current) {
+        onDebouncedChange(nextValue);
+      }
+    }, delay);
+  }, [delay, onDebouncedChange]);
+
+  const commitImmediately = useCallback(() => {
+    const nextValue = inputRef.current?.value ?? "";
+
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    if (nextValue !== committedValueRef.current) {
+      onDebouncedChange(nextValue);
+    }
+  }, [onDebouncedChange]);
+
+  return (
+    <input
+      ref={inputRef}
+      id={id}
+      type={type}
+      placeholder={placeholder}
+      list={list}
+      defaultValue={value}
+      onChange={(event) => scheduleCommit(event.target.value)}
+      onBlur={commitImmediately}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          commitImmediately();
+        }
+      }}
+    />
+  );
+});
+
+function ExplorePage() {
+  const { genotypeData, isUploaded, setOnDataLoadedCallback } = useGenotype();
+  const { setOnResultsLoadedCallback, addResult, addResultsBatch, hasResult } = useResults();
+  const resultsContext = useResults();
+  const { isAuthenticated, hasActiveSubscription } = useAuth();
+
+  // Track client-side mounting to prevent hydration errors
+  const [mounted, setMounted] = useState(false);
+
+  // Track if search change is user-initiated (for Reddit analytics)
+  const userInitiatedSearchRef = useRef(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Track Explore page view
+  useEffect(() => {
+    if (mounted) {
+      trackExploreTabViewed();
+    }
+  }, [mounted]);
+
+  // Auto-show guided tour on first visit
+  useEffect(() => {
+    if (mounted && !hasCompletedTour(exploreTour.id)) {
+      setTourOpen(true);
+    }
+  }, [mounted]);
+
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const scrollPositionRef = useRef<number>(0);
+  const isLoadingMoreRef = useRef<boolean>(false);
+  const [traits, setTraits] = useState<string[]>([]);
+  const [studies, setStudies] = useState<Study[]>([]);
+  const [meta, setMeta] = useState<Omit<StudiesResponse, "data" | "error">>({
+    total: 0,
+    limit: defaultFilters.limit,
+    truncated: false,
+    sourceCount: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sectionCollapsed, setSectionCollapsed] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isRunningAll, setIsRunningAll] = useState(false);
+  const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
+  const [showRunAllModal, setShowRunAllModal] = useState(false);
+  const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [runAllStatus, setRunAllStatus] = useState<{
+    phase: 'fetching' | 'downloading' | 'decompressing' | 'parsing' | 'storing' | 'analyzing' | 'embeddings' | 'complete' | 'error';
+    fetchedBatches: number;
+    totalStudiesFetched: number;
+    totalInDatabase: number;
+    matchingStudies: number;
+    processedCount: number;
+    totalToProcess: number;
+    matchCount: number;
+    startTime?: number;
+    elapsedSeconds?: number;
+    etaSeconds?: number;
+    errorMessage?: string;
+  }>({
+    phase: 'fetching',
+    fetchedBatches: 0,
+    totalStudiesFetched: 0,
+    totalInDatabase: 0,
+    matchingStudies: 0,
+    processedCount: 0,
+    totalToProcess: 0,
+    matchCount: 0,
+  });
+  const [loadTime, setLoadTime] = useState<number | null>(null);
+
+  // Terms modal opens after tour (or immediately if tour already completed)
+  const openTermsIfNeeded = useCallback(() => {
+    const termsAccepted = localStorage.getItem('terms_accepted');
+    if (!termsAccepted) {
+      setShowTermsModal(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (hasCompletedTour(exploreTour.id)) {
+      openTermsIfNeeded();
+    }
+    // Otherwise, terms will open via the tour's onClose handler
+  }, [mounted, openTermsIfNeeded]);
+
+  const updateFilter = useCallback(<Key extends keyof Filters>(key: Key, value: Filters[Key]) => {
+    setFilters((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key !== "confidenceBand") {
+        next.confidenceBand = null;
+      }
+
+      // Reset offset to 0 when any filter changes (except offset, sort, sortDirection, limit)
+      // This ensures "Load More" starts fresh when user changes search/filters
+      const shouldResetOffset = key !== 'offset' && key !== 'sort' && key !== 'sortDirection' && key !== 'limit';
+      if (shouldResetOffset) {
+        next.offset = 0;
+      }
+
+      // Filter tracking removed for simplified analytics
+
+      return next;
+    });
+  }, []);
+
+  const handleDebouncedSearchChange = useCallback((value: string) => {
+    if (value !== filters.search) {
+      userInitiatedSearchRef.current = true;
+      startTransition(() => {
+        updateFilter("search", value);
+      });
+    }
+  }, [filters.search, updateFilter]);
+
+  const handleDebouncedTraitChange = useCallback((value: string) => {
+    if (value !== filters.trait) {
+      startTransition(() => {
+        updateFilter("trait", value);
+      });
+    }
+  }, [filters.trait, updateFilter]);
+
+  // Set up callback to auto-check "Only my variants" when genotype data is loaded
+  useEffect(() => {
+    setOnDataLoadedCallback(() => {
+      updateFilter("requireUserSNPs", true);
+    });
+  }, [setOnDataLoadedCallback, updateFilter]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/traits")
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Unable to load traits");
+        }
+        const payload = (await response.json()) as { traits: string[]; error?: string };
+        if (!active) return;
+        if (payload.error) {
+          throw new Error(payload.error);
+        }
+        setTraits(payload.traits ?? []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTraits([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const query = buildQuery(filters);
+    const startTime = performance.now();
+    setLoading(true);
+    setError(null);
+
+    fetch(`/api/studies?${query}`, { signal: controller.signal })
+      .then(async (response) => {
+        const apiDuration = performance.now() - startTime;
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error ?? "Failed to load studies");
+        }
+        const payload = (await response.json()) as StudiesResponse;
+        if (payload.error) {
+          throw new Error(payload.error);
+        }
+
+        let filteredData = payload.data ?? [];
+
+        // Client-side filtering for user SNPs
+        if (filters.requireUserSNPs && genotypeData) {
+          filteredData = filteredData.filter(study => {
+            // STRICT MODE: Only show studies where user has the specific SNP with the specific allele
+            const hasUserSNPs = hasMatchingSNPs(genotypeData, study.snps, study.strongest_snp_risk_allele, true);
+            if (!hasUserSNPs) return false;
+
+            // If "Require genotype" is also enabled, ensure the study has genotype data
+            if (filters.excludeMissingGenotype) {
+              const hasGenotype = study.strongest_snp_risk_allele &&
+                study.strongest_snp_risk_allele.trim().length > 0 &&
+                study.strongest_snp_risk_allele.trim() !== '?' &&
+                study.strongest_snp_risk_allele.trim() !== 'NR' &&
+                !study.strongest_snp_risk_allele.includes('?');
+              return hasGenotype;
+            }
+
+            return true;
+          });
+        }
+
+        const endTime = performance.now();
+        const totalLoadTime = endTime - startTime;
+        setLoadTime(totalLoadTime);
+
+        // Track search if there's a search query and it was user-initiated
+        if (filters.search.trim() && userInitiatedSearchRef.current) {
+          trackSearch(filters.search, filteredData.length, totalLoadTime);
+          userInitiatedSearchRef.current = false; // Reset flag after tracking
+        }
+
+        // Append results if offset > 0 (Load More), otherwise replace
+        if (filters.offset > 0) {
+          setStudies(prev => [...prev, ...filteredData]);
+          setMeta(prev => ({
+            total: prev.total + filteredData.length,
+            limit: payload.limit ?? filters.limit,
+            truncated: payload.truncated ?? false,
+            sourceCount: payload.sourceCount ?? 0,
+          }));
+        } else {
+          setStudies(filteredData);
+          setMeta({
+            total: filteredData.length,
+            limit: payload.limit ?? filters.limit,
+            truncated: payload.truncated ?? false,
+            sourceCount: payload.sourceCount ?? 0,
+          });
+        }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : "Failed to load studies");
+        setStudies([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          // Restore scroll position after loading more results
+          if (isLoadingMoreRef.current) {
+            requestAnimationFrame(() => {
+              window.scrollTo(0, scrollPositionRef.current);
+              isLoadingMoreRef.current = false;
+            });
+          }
+        }
+      });
+
+    return () => controller.abort();
+  }, [filters, genotypeData]);
+
+  const qualitySummary = useMemo<QualitySummary>(() => {
+    return studies.reduce<QualitySummary>(
+      (acc, study) => {
+        acc[study.confidenceBand] += 1;
+        if (study.isLowQuality) {
+          acc.flagged += 1;
+        }
+        return acc;
+      },
+      { high: 0, medium: 0, low: 0, flagged: 0 },
+    );
+  }, [studies]);
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    userInitiatedSearchRef.current = false;
+  };
+
+
+  const handleColumnSort = (sortKey: SortOption) => {
+    const newDirection = filters.sort === sortKey
+      ? (filters.sortDirection === "asc" ? "desc" : "asc")
+      : "desc";
+
+    if (filters.sort === sortKey) {
+      // Same column clicked, toggle direction
+      updateFilter("sortDirection", newDirection);
+    } else {
+      // New column clicked, set to desc (most common use case)
+      updateFilter("sort", sortKey);
+      updateFilter("sortDirection", newDirection);
+    }
+  };
+
+  const handleStudyColumnSort = () => {
+    // Study column cycles between alphabetical and recent
+    if (filters.sort === "alphabetical") {
+      handleColumnSort("recent");
+    } else if (filters.sort === "recent") {
+      // Toggle direction for recent
+      const newDirection = filters.sortDirection === "asc" ? "desc" : "asc";
+      updateFilter("sortDirection", newDirection);
+    } else {
+      // Start with alphabetical
+      handleColumnSort("alphabetical");
+    }
+  };
+
+  const handleRunAll = () => {
+    if (!genotypeData || genotypeData.size === 0) {
+      trackRunAllFailed("explore", "no_genotype_data");
+      alert("No SNPs found in your genetic data");
+      return;
+    }
+
+    // Show disclaimer first
+    setShowRunAllDisclaimer(true);
+  };
+
+  const handleRunAllDisclaimerAccept = async () => {
+    setShowRunAllDisclaimer(false);
+
+    // Check if we need to download the catalog first
+    const { gwasDB } = await import('@/lib/gwas-db');
+    const metadata = await gwasDB.getMetadata();
+
+    if (!metadata) {
+      const confirmDownload = window.confirm(
+        `First-time setup: Download ~54MB GWAS Catalog data?\n\n` +
+        `This will be cached locally for instant future analysis.\n` +
+        `Estimated storage: ~500MB after decompression.\n\n` +
+        `Continue?`
+      );
+      if (!confirmDownload) return;
+    } else {
+      const confirmRun = window.confirm(
+        `Analyze all ${metadata.totalStudies.toLocaleString()} studies where you have matching SNPs?\n\n` +
+        `Using cached data from ${new Date(metadata.downloadDate).toLocaleDateString()}\n\n` +
+        `Continue?`
+      );
+      if (!confirmRun) return;
+    }
+
+    // Initialize and show modal
+    setIsRunningAll(true);
+    setShowRunAllModal(true);
+    const startTime = Date.now();
+    setRunAllStatus({
+      phase: 'fetching',
+      fetchedBatches: 0,
+      totalStudiesFetched: 0,
+      totalInDatabase: 0,
+      matchingStudies: 0,
+      processedCount: 0,
+      totalToProcess: 0,
+      matchCount: 0,
+      startTime,
+    });
+    setRunAllProgress({ current: 0, total: 0 });
+
+    // Track Run All started (with estimated study count)
+    trackRunAllStarted(metadata?.totalStudies || 0);
+
+    try {
+      // Check if genotype data is loaded
+      if (!genotypeData) {
+        throw new Error('No genotype data loaded. Please upload your genetic data first.');
+      }
+
+      // Use IndexedDB-based implementation
+      const { runAllAnalysisIndexed } = await import('@/lib/run-all-indexed');
+
+      const results = await runAllAnalysisIndexed(
+        genotypeData,
+        (progress) => {
+          setRunAllStatus(prev => ({
+            ...prev,
+            phase: progress.phase,
+            totalStudiesFetched: progress.loaded,
+            totalInDatabase: progress.total,
+            matchingStudies: progress.matchingStudies,
+            matchCount: progress.matchCount,
+            elapsedSeconds: progress.elapsedSeconds,
+            fetchedBatches: 0,
+            processedCount: progress.matchingStudies,
+            totalToProcess: progress.matchingStudies,
+          }));
+        },
+        hasResult
+      );
+
+      // Add all results in one efficient batch operation
+      console.log(`Adding ${results.length} results to the results manager...`);
+      const startAdd = Date.now();
+      await addResultsBatch(results); // Embeddings will be fetched on-demand during LLM analysis
+      const addTime = Date.now() - startAdd;
+      console.log(`Finished adding ${results.length} results in ${addTime}ms`);
+      trackRunAllCompleted(metadata?.totalStudies || 0, results.length, results.length, "explore");
+
+      // Notify MenuBar that cache has been updated
+      window.dispatchEvent(new CustomEvent('cacheUpdated'));
+    } catch (error) {
+      console.error('Run All failed:', error);
+      trackRunAllFailed("explore", error instanceof Error ? error.message : "run_all_failed");
+      setRunAllStatus(prev => ({
+        ...prev,
+        phase: 'error',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      }));
+    } finally {
+      setIsRunningAll(false);
+    }
+  };
+
+  const summaryText = useMemo(() => {
+    if (error) {
+      return error;
+    }
+    if (loading) {
+      return "Loading studies…";
+    }
+    if (studies.length === 0) {
+      return "No studies match the current filters.";
+    }
+    const parts = [
+      `${studies.length} of ${meta.total} quality-filtered studies`,
+      `${meta.sourceCount.toLocaleString()} matches before quality filters`,
+    ];
+    if (loadTime !== null) {
+      parts.push(`loaded in ${Math.round(loadTime)}ms`);
+    }
+    const breakdown: string[] = [];
+    if (qualitySummary.high > 0) {
+      breakdown.push(`${qualitySummary.high} high`);
+    }
+    if (qualitySummary.medium > 0) {
+      breakdown.push(`${qualitySummary.medium} medium`);
+    }
+    if ((qualitySummary.low > 0 && !filters.excludeLowQuality) || filters.confidenceBand === "low") {
+      breakdown.push(`${qualitySummary.low} low`);
+    }
+    if (breakdown.length > 0) {
+      parts.push(`Confidence mix: ${breakdown.join(", ")}`);
+    }
+    if (meta.truncated) {
+      parts.push(`showing the top ${meta.limit}`);
+    }
+    if (qualitySummary.flagged > 0 && !filters.excludeLowQuality) {
+      parts.push(`${qualitySummary.flagged} flagged as lower confidence`);
+    }
+    return parts.join(" · ");
+  }, [
+    studies.length,
+    meta,
+    loading,
+    error,
+    loadTime,
+    qualitySummary.high,
+    qualitySummary.medium,
+    qualitySummary.low,
+    qualitySummary.flagged,
+    filters.excludeLowQuality,
+    filters.confidenceBand,
+  ]);
+
+  return (
+    <div className="app-container">
+      <TermsAcceptanceModal
+        isOpen={showTermsModal}
+        onAccept={() => setShowTermsModal(false)}
+      />
+      <MenuBar />
+
+      <main className="page">
+        <section className={`panel ${sectionCollapsed ? "collapsed" : ""}`}>
+        <div className="panel-header">
+          <div className="hero-title-section">
+            {!sectionCollapsed && (
+              <>
+                <h2>Study Filters</h2>
+                <p>Filter genetic association studies by various criteria.</p>
+              </>
+            )}
+            {sectionCollapsed && <h3>Study Filters</h3>}
+          </div>
+          <div className="hero-controls">
+            {!sectionCollapsed && (
+              <button className="tour-trigger-link" type="button" onClick={() => setTourOpen(true)}>
+                Take the tour
+              </button>
+            )}
+            {!sectionCollapsed && (
+              <button className="reset-button" type="button" onClick={resetFilters}>
+                Reset filters
+              </button>
+            )}
+            <button
+              className="collapse-button"
+              type="button"
+              onClick={() => setSectionCollapsed(!sectionCollapsed)}
+              title={sectionCollapsed ? "Expand" : "Collapse"}
+            >
+              {sectionCollapsed ? "↓" : "↑"}
+            </button>
+          </div>
+        </div>
+        {!sectionCollapsed && (
+          <div className="panel-content">
+            <div className="panel-row">
+              <div className="panel-field">
+                <label htmlFor="search">
+                  Search <InfoIcon text="Search titles, authors, genes, accessions." />
+                </label>
+                <DebouncedTextInput
+                  id="search"
+                  type="search"
+                  placeholder="Keywords..."
+                  value={filters.search}
+                  onDebouncedChange={handleDebouncedSearchChange}
+                />
+                <div style={{ marginTop: "0.5rem", display: "flex", gap: "1rem" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
+                    <input
+                      type="radio"
+                      name="searchMode"
+                      value="similarity"
+                      checked={filters.searchMode === "similarity"}
+                      onChange={(event) => { const m = event.target.value as "similarity" | "exact"; updateFilter("searchMode", m); trackSearchModeChanged(m); }}
+                    />
+                    Similarity
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.9rem" }}>
+                    <input
+                      type="radio"
+                      name="searchMode"
+                      value="exact"
+                      checked={filters.searchMode === "exact"}
+                      onChange={(event) => { const m = event.target.value as "similarity" | "exact"; updateFilter("searchMode", m); trackSearchModeChanged(m); }}
+                    />
+                    Exact match
+                  </label>
+                </div>
+              </div>
+              <div className="panel-field">
+                <label htmlFor="trait">
+                  Trait <InfoIcon text="Autocomplete from GWAS Catalog traits." />
+                </label>
+                <DebouncedTextInput
+                  id="trait"
+                  type="text"
+                  list="trait-options"
+                  placeholder="All traits"
+                  value={filters.trait}
+                  onDebouncedChange={handleDebouncedTraitChange}
+                />
+                <datalist id="trait-options">
+                  {traits.map((traitOption) => (
+                    <option key={traitOption} value={traitOption} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="panel-field">
+                <label htmlFor="minSample">
+                  Min samples <InfoIcon text="Filter by discovery cohort size." />
+                </label>
+                <input
+                  id="minSample"
+                  type="number"
+                  min={0}
+                  step={100}
+                  placeholder="500"
+                  value={filters.minSampleSize}
+                  onChange={(event) => updateFilter("minSampleSize", event.target.value)}
+                />
+              </div>
+            </div>
+            <div className="panel-row">
+              <div className="panel-field">
+                <label htmlFor="maxPValue">
+                  Max p-value <InfoIcon text="Statistical significance threshold." />
+                </label>
+                <select
+                  id="maxPValue"
+                  value={filters.maxPValue}
+                  onChange={(event) => updateFilter("maxPValue", event.target.value)}
+                >
+                  <option value="">Any significance (including non-significant)</option>
+                  <option value="0.1">p ≤ 0.1 (Trend/suggestive)</option>
+                  <option value="0.05">p ≤ 0.05 (Traditional threshold)</option>
+                  <option value="0.01">p ≤ 0.01 (Strong evidence)</option>
+                  <option value="1e-3">p ≤ 0.001 (Very strong)</option>
+                  <option value="1e-4">p ≤ 1×10⁻⁴ (Extremely strong)</option>
+                  <option value="1e-6">p ≤ 1×10⁻⁶ (Highly significant)</option>
+                  <option value="5e-8">p ≤ 5×10⁻⁸ (Genome-wide significant)</option>
+                  <option value="5e-9">p ≤ 5×10⁻⁹ (Ultra-stringent)</option>
+                </select>
+              </div>
+              <div className="panel-field">
+                <label htmlFor="limit">
+                  Results <InfoIcon text="Number of studies to show." />
+                </label>
+                <select
+                  id="limit"
+                  value={filters.limit}
+                  onChange={(event) => updateFilter("limit", Number(event.target.value))}
+                >
+                  {[25, 50, 75, 100, 150, 200, 1000].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="panel-field checkbox-field">
+                <input
+                  id="genotypeToggle"
+                  type="checkbox"
+                  checked={filters.excludeMissingGenotype}
+                  onChange={(event) => updateFilter("excludeMissingGenotype", event.target.checked)}
+                />
+                <label htmlFor="genotypeToggle">
+                  Require genotype <InfoIcon text="Hide associations without SNP risk allele." />
+                </label>
+              </div>
+              {isUploaded && (
+                <div className="panel-field checkbox-field">
+                  <input
+                    id="userSNPToggle"
+                    type="checkbox"
+                    checked={filters.requireUserSNPs}
+                    onChange={(event) => updateFilter("requireUserSNPs", event.target.checked)}
+                  />
+                  <label htmlFor="userSNPToggle">
+                    Only my variants <InfoIcon text="Show only studies with SNPs in your personal data." />
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="summary" aria-live="polite">
+        <p>{summaryText}</p>
+
+      </section>
+
+      <section className="table-wrapper" aria-busy={loading}>
+        <div className="table-scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th
+                scope="col"
+                title="Click to sort by study title or publication date. Cycles between alphabetical and recent."
+                className={`sortable ${filters.sort === "alphabetical" || filters.sort === "recent" ? "sorted" : ""}`}
+                onClick={handleStudyColumnSort}
+              >
+                Study {filters.sort === "recent" && "(by date)"}
+                <span className="info-icon">ⓘ</span>
+                {(filters.sort === "alphabetical" || filters.sort === "recent") && (
+                  <span className="sort-indicator">{filters.sortDirection === "asc" ? " ↑" : " ↓"}</span>
+                )}
+              </th>
+              {studies.some(s => s.similarity !== undefined) && (
+                <th
+                  scope="col"
+                  title="Semantic similarity score (0-1, higher is more similar). Based on vector embeddings of your search query vs study descriptions. Only shown when using search."
+                  className="sortable sorted"
+                >
+                  Similarity <span className="info-icon">ⓘ</span>
+                  <span className="sort-indicator"> ↓</span>
+                </th>
+              )}
+              <th scope="col" title="The original disease or trait label reported for the study. This is usually the most human-readable description of what was actually studied.">
+                Trait <span className="info-icon">ⓘ</span>
+              </th>
+              <th scope="col" title="The ontology-mapped trait label from the GWAS Catalog. This is the standardized mapped-trait field used for trait normalization and catalog grouping.">
+                Mapped Trait <span className="info-icon">ⓘ</span>
+              </th>
+              <th scope="col" title="The specific genetic variant (SNP) associated with the trait. These are locations in DNA where people differ from each other. Click variants to see detailed genetic information.">
+                Variant <span className="info-icon">ⓘ</span>
+              </th>
+              <th
+                scope="col"
+                title="Statistical strength of the finding (-log₁₀ p-value). Higher is better. Strong: ≥9, Moderate: 7-9, Weak: <7. Genome-wide significance threshold is ~7.3. Click to sort by relevance."
+                className={`sortable ${filters.sort === "relevance" ? "sorted" : ""}`}
+                onClick={() => handleColumnSort("relevance")}
+              >
+                Relevance
+                <span className="info-icon">ⓘ</span>
+                {filters.sort === "relevance" && (
+                  <span className="sort-indicator">{filters.sortDirection === "asc" ? " ↑" : " ↓"}</span>
+                )}
+              </th>
+              <th
+                scope="col"
+                title="How many people were studied (sample size). Larger is better. Large: ≥50k, Medium: 5k-50k, Small: 1k-5k, Very small: <1k. Studies with <500 participants are often unreliable. Click to sort by sample size."
+                className={`sortable ${filters.sort === "power" ? "sorted" : ""}`}
+                onClick={() => handleColumnSort("power")}
+              >
+                Power
+                <span className="info-icon">ⓘ</span>
+                {filters.sort === "power" && (
+                  <span className="sort-indicator">{filters.sortDirection === "asc" ? " ↑" : " ↓"}</span>
+                )}
+              </th>
+              <th scope="col" title="How much this genetic variant changes the trait. For odds ratios (OR): 1.0 = no effect, 1.1-1.5 = small effect, 1.5-2.0 = moderate effect, >2.0 = large effect. Values <1.0 indicate protective effects. For beta coefficients, the magnitude depends on the trait's measurement scale.">
+                Effect <span className="info-icon">ⓘ</span>
+              </th>
+              <th scope="col" title="Our assessment of study reliability based on sample size, statistical significance, and data quality. High confidence studies are most trustworthy.">
+                Quality <span className="info-icon">ⓘ</span>
+              </th>
+              <th scope="col" title="Your personal genetic result for this study. Upload your 23andMe data to see your results." data-tour="your-result-header">
+                Your Result <span className="info-icon">ⓘ</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 10 : 9} className="loading-row">
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!loading && studies.length === 0 && (
+              <tr>
+                <td colSpan={studies.some(s => s.similarity !== undefined) ? 10 : 9} className="empty-row">
+                  No studies found. Try widening your filters.
+                </td>
+              </tr>
+            )}
+            {!loading &&
+              studies.map((study, index) => {
+                const trait = study.disease_trait ?? study.mapped_trait ?? "-";
+                const mappedTrait = study.mapped_trait ?? "-";
+                const date = study.publicationDate
+                  ? new Date(study.publicationDate).toLocaleDateString()
+                  : study.date
+                  ? new Date(study.date).toLocaleDateString() || study.date
+                  : "-";
+                const relevance = study.logPValue ? study.logPValue.toFixed(2) : "-";
+                const power = study.sampleSizeLabel ?? "-";
+                const effect = study.or_or_beta ?? "-";
+                const relevanceCategory = getRelevanceCategory(study.logPValue);
+                const powerCategory = getPowerCategory(study.sampleSize);
+                const effectCategory = getEffectCategory(study.or_or_beta);
+                const gwasLink = study.study_accession
+                  ? `https://www.ebi.ac.uk/gwas/studies/${study.study_accession}`
+                  : null;
+                const studyLink =
+                  gwasLink || study.link || (study.pubmedid ? `https://pubmed.ncbi.nlm.nih.gov/${study.pubmedid}` : null);
+                const variantIds = parseVariantIds(study.snps);
+                const variantGenotype = study.strongest_snp_risk_allele?.trim() ?? "";
+                const hasGenotype = variantGenotype.length > 0;
+                const confidenceLabel =
+                  study.confidenceBand === "high"
+                    ? "High confidence"
+                    : study.confidenceBand === "medium"
+                    ? "Medium confidence"
+                    : "Lower confidence";
+                return (
+                  <tr key={`${study.id}-${index}`} className={study.isLowQuality ? "low-quality" : undefined}>
+                    <td data-label="Study">
+                      <div className="study-title">
+                        <Link href={`/study/${study.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                          {study.study ?? "Untitled study"}
+                        </Link>
+                      </div>
+                      <div className="study-meta">
+                        <span>{study.first_author ?? "Unknown author"}</span>
+                        <span>{date}</span>
+                        {study.study_accession && <span>{study.study_accession}</span>}
+                        {study.mapped_gene && <span>Gene: {study.mapped_gene}</span>}
+                      </div>
+                    </td>
+                    {study.similarity !== undefined && (
+                      <td data-label="Similarity">
+                        <span className="metric">{study.similarity.toFixed(3)}</span>
+                      </td>
+                    )}
+                    <td data-label="Trait">{trait}</td>
+                    <td data-label="Mapped Trait">{mappedTrait}</td>
+                    <td data-label="Variant & Genotype">
+                      <VariantChips snps={study.snps} riskAllele={study.strongest_snp_risk_allele} />
+                    </td>
+                    <td data-label="Relevance">
+                      <span className={`metric ${relevanceCategory.className}`}>{relevance}</span>
+                      {relevanceCategory.label && (
+                        <span className="submetric context-label">{relevanceCategory.label}</span>
+                      )}
+                      {study.pValueNumeric !== null && (
+                        <span className="submetric">p = {study.pValueLabel}</span>
+                      )}
+                    </td>
+                    <td data-label="Power">
+                      <span className={`metric ${powerCategory.className}`}>{power}</span>
+                      {powerCategory.label && (
+                        <span className="submetric context-label">{powerCategory.label}</span>
+                      )}
+                      {study.initial_sample_size && (
+                        <span className="submetric">Initial: {study.initial_sample_size}</span>
+                      )}
+                      {study.replication_sample_size && (
+                        <span className="submetric">Replication: {study.replication_sample_size}</span>
+                      )}
+                    </td>
+                    <td data-label="Effect">
+                      <span className={`metric ${effectCategory.className}`}>{effect}</span>
+                      {effectCategory.label && (
+                        <span className="submetric context-label">{effectCategory.label}</span>
+                      )}
+                      {study.risk_allele_frequency && (
+                        <span className="submetric">RAF: {study.risk_allele_frequency}</span>
+                      )}
+                    </td>
+                    <td data-label="Quality">
+                      <div className="quality-cell">
+                        <span className={`quality-pill ${study.confidenceBand}`}>{confidenceLabel}</span>
+                        {study.qualityFlags.length > 0 && (
+                          <div className="quality-flags">
+                            {study.qualityFlags.map((flag, index) => (
+                              <span key={index} className={`quality-flag quality-flag-${flag.severity}`}>
+                                {flag.message}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td data-label="Your Result">
+                      <StudyResultReveal
+                        studyId={study.id}
+                        studyAccession={study.study_accession}
+                        snps={study.snps}
+                        traitName={trait}
+                        studyTitle={study.study || "Untitled study"}
+                        riskAllele={study.strongest_snp_risk_allele}
+                        orOrBeta={study.or_or_beta}
+                        ciText={study.ci_text}
+                        isAnalyzable={study.isAnalyzable}
+                        nonAnalyzableReason={study.nonAnalyzableReason}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+        </div>
+
+        {/* Load More Button */}
+        {!loading && studies.length > 0 && studies.length < meta.sourceCount && (
+          <div style={{
+            marginTop: '2rem',
+            textAlign: 'center',
+            padding: '1rem',
+            borderTop: '1px solid #e0e0e0'
+          }}>
+            <p style={{ marginBottom: '1rem', color: '#666' }}>
+              Showing {studies.length.toLocaleString()} of {meta.sourceCount.toLocaleString()} matches
+            </p>
+            <button
+              onClick={() => {
+                // Save current scroll position before loading more
+                scrollPositionRef.current = window.scrollY;
+                isLoadingMoreRef.current = true;
+                updateFilter('offset', filters.offset + filters.limit);
+              }}
+              style={{
+                padding: '0.75rem 2rem',
+                fontSize: '1rem',
+                backgroundColor: '#0070f3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#0051cc'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#0070f3'}
+            >
+              Load More Results
+            </button>
+          </div>
+        )}
+      </section>
+      </main>
+      <Footer />
+      <DisclaimerModal
+        isOpen={showRunAllDisclaimer}
+        onClose={() => setShowRunAllDisclaimer(false)}
+        type="initial"
+        onAccept={handleRunAllDisclaimerAccept}
+      />
+      <RunAllModal
+        isOpen={showRunAllModal}
+        onClose={() => setShowRunAllModal(false)}
+        status={runAllStatus}
+      />
+      <GuidedTour tour={exploreTour} isOpen={tourOpen} onClose={() => { setTourOpen(false); openTermsIfNeeded(); }} />
+    </div>
+  );
+}
+
+export default function ExplorePageWrapper() {
+  return <ExplorePage />;
+}

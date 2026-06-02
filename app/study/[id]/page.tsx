@@ -107,7 +107,7 @@ export default function StudyDetailPage() {
             <div style={{ padding: "2rem" }}>
               <h2>Study Not Found</h2>
               <p>{error || 'The requested study could not be found.'}</p>
-              <Link href="/explore" style={{
+              <Link href="/browse" style={{
                 display: "inline-block",
                 marginTop: "1rem",
                 padding: "0.75rem 1.5rem",
@@ -116,7 +116,7 @@ export default function StudyDetailPage() {
                 textDecoration: "none",
                 borderRadius: "6px"
               }}>
-                ← Back to Explore
+                ← Back to Browse
               </Link>
             </div>
           </main>
@@ -174,7 +174,7 @@ export default function StudyDetailPage() {
           <div style={{ padding: "1rem 0", fontSize: "0.9rem", color: "#666" }}>
             <Link href="/" style={{ color: "#667eea", textDecoration: "none" }}>Home</Link>
             {" > "}
-            <Link href="/explore" style={{ color: "#667eea", textDecoration: "none" }}>Explore</Link>
+            <Link href="/browse" style={{ color: "#667eea", textDecoration: "none" }}>Browse</Link>
             {" > "}
             <span>Study {study.id}</span>
           </div>
@@ -319,7 +319,7 @@ export default function StudyDetailPage() {
 
           {/* Back Button */}
           <div style={{ marginBottom: "2rem" }}>
-            <Link href="/explore" style={{
+            <Link href="/browse" style={{
               display: "inline-block",
               padding: "0.75rem 1.5rem",
               backgroundColor: "#667eea",
@@ -327,7 +327,7 @@ export default function StudyDetailPage() {
               textDecoration: "none",
               borderRadius: "6px"
             }}>
-              ← Back to Explore
+              ← Back to Browse
             </Link>
           </div>
         </main>

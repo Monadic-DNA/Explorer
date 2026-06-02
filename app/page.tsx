@@ -51,7 +51,7 @@ const websiteJsonLd = {
     "@type": "SearchAction",
     "target": {
       "@type": "EntryPoint",
-      "urlTemplate": "https://explorer.monadicdna.com/explore?q={search_term_string}",
+      "urlTemplate": "https://explorer.monadicdna.com/browse?q={search_term_string}",
     },
     "query-input": "required name=search_term_string",
   },
