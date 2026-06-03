@@ -326,7 +326,29 @@ IMPORTANT: Consider how this user's background (ancestry, age, gender, family hi
         }
       }
 
-      const prompt = `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
+      const prompt = inline
+        ? `You are a genetic counselor writing a short interpretation of a GWAS result shown on a study page.
+${studyQualityContext}${userContext}
+
+RESULT:
+Trait: ${currentResult.traitName}
+Study: ${currentResult.studyTitle}
+Genotype: ${currentResult.userGenotype}
+Risk allele: ${currentResult.riskAllele}
+Effect size: ${currentResult.effectSize}
+Risk score: ${formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} (${currentResult.riskLevel})
+Matched SNP: ${currentResult.matchedSnp}
+
+OTHER SAVED RESULTS FOR CONTEXT:
+${contextResults}
+
+Write a plain-language interpretation. Cover:
+1. What this genetic variant does and why scientists study it
+2. What the user's specific genotype means for them
+3. How it relates to any other results they have, if relevant
+
+Do not repeat the study title, genotype, or effect size — the user can see all of that on the page. Do not include disclaimers. Write in a direct, informative tone, 200-350 words.`
+        : `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
 
 IMPORTANT DISCLAIMERS TO INCLUDE:
 1. This is for educational and entertainment purposes only
@@ -365,7 +387,9 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       const response = await callLLM([
         {
           role: "system",
-          content: "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
+          content: inline
+            ? "You are a knowledgeable genetic counselor who explains GWAS results clearly and concisely. Write directly without disclaimers or repeating information the user can already see."
+            : "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
         },
         {
           role: "user",
@@ -841,18 +865,20 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
           </p>
         </div>
 
-        <div className="commentary-result-summary">
-          <h3>{currentResult.traitName}</h3>
-          <p className="commentary-study-title">{currentResult.studyTitle}</p>
-          <div className="commentary-result-details">
-            <span>
-              <strong>Your genotype:</strong> {currentResult.userGenotype}
-            </span>
-            <span>
-              <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
-            </span>
+        {!inline && (
+          <div className="commentary-result-summary">
+            <h3>{currentResult.traitName}</h3>
+            <p className="commentary-study-title">{currentResult.studyTitle}</p>
+            <div className="commentary-result-details">
+              <span>
+                <strong>Your genotype:</strong> {currentResult.userGenotype}
+              </span>
+              <span>
+                <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="commentary-text">
           {isLoading && (
@@ -909,35 +935,38 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
           {!isLoading && !error && commentary && (
             <div className="commentary-content">
-              {studyMetadata && (
+              {!inline && studyMetadata && (
                 <StudyQualityIndicators metadata={studyMetadata} />
               )}
 
-              {/* Analysis Metadata */}
-              <div className="analysis-metadata">
-                <div className="metadata-item">
-                  <span className="metadata-icon">📊</span>
-                  <span className="metadata-label">Results analyzed:</span>
-                  <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
+              {!inline && (
+                <div className="analysis-metadata">
+                  <div className="metadata-item">
+                    <span className="metadata-icon">📊</span>
+                    <span className="metadata-label">Results analyzed:</span>
+                    <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
+                  </div>
+                  <div className="metadata-item">
+                    <span className="metadata-icon">👤</span>
+                    <span className="metadata-label">Personalization:</span>
+                    <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
+                  </div>
+                  <div className="metadata-item metadata-note">
+                    <span className="metadata-icon">🔍</span>
+                    <span className="metadata-note-text">
+                      Results selected using semantic relevance matching (check browser console for details)
+                    </span>
+                  </div>
                 </div>
-                <div className="metadata-item">
-                  <span className="metadata-icon">👤</span>
-                  <span className="metadata-label">Personalization:</span>
-                  <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
-                </div>
-                <div className="metadata-item metadata-note">
-                  <span className="metadata-icon">🔍</span>
-                  <span className="metadata-note-text">
-                    Results selected using semantic relevance matching (check browser console for details)
-                  </span>
-                </div>
-              </div>
+              )}
 
               <div className="commentary-section">
-                <div className="commentary-header">
-                  <span className="commentary-icon">🤖</span>
-                  <h3>LLM-Generated Interpretation</h3>
-                </div>
+                {!inline && (
+                  <div className="commentary-header">
+                    <span className="commentary-icon">🤖</span>
+                    <h3>LLM-Generated Interpretation</h3>
+                  </div>
+                )}
                 <div
                   className="commentary-body"
                   dangerouslySetInnerHTML={{ __html: commentary }}
@@ -990,18 +1019,20 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                 </details>
               )}
 
-              <div className="ai-limitations-disclaimer">
-                <div className="disclaimer-icon">⚠️</div>
-                <div>
-                  <strong>LLM-Generated Content Limitations</strong>
-                  <p>
-                    This commentary is generated by an LLM model and may not fully account for study
-                    limitations, your specific ancestry, the latest research, or individual medical factors.
-                    It should be used for educational purposes only. Always consult a healthcare professional
-                    or genetic counselor for personalized medical interpretation and advice.
-                  </p>
+              {!inline && (
+                <div className="ai-limitations-disclaimer">
+                  <div className="disclaimer-icon">⚠️</div>
+                  <div>
+                    <strong>LLM-Generated Content Limitations</strong>
+                    <p>
+                      This commentary is generated by an LLM model and may not fully account for study
+                      limitations, your specific ancestry, the latest research, or individual medical factors.
+                      It should be used for educational purposes only. Always consult a healthcare professional
+                      or genetic counselor for personalized medical interpretation and advice.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

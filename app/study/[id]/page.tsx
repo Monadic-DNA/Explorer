@@ -189,28 +189,58 @@ export default function StudyDetailPage() {
     return "Very subtle effect";
   };
 
+  const navButtons = (
+    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+      <Link href="/browse" style={{
+        display: "inline-block",
+        padding: "0.5rem 1rem",
+        backgroundColor: "#667eea",
+        color: "white",
+        textDecoration: "none",
+        borderRadius: "6px",
+        fontSize: "0.85rem",
+        fontWeight: 600,
+      }}>
+        ← Back to Browse
+      </Link>
+      <button
+        onClick={handleNextRandom}
+        disabled={navigating || (savedResults.length === 0 && totalStudies === null)}
+        style={{ fontSize: "0.85rem", padding: "0.5rem 1rem", background: "linear-gradient(135deg, #667eea, #764ba2)", border: "none", color: "white", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 600, boxShadow: "0 2px 6px rgba(102,126,234,0.4)", opacity: (navigating || (savedResults.length === 0 && totalStudies === null)) ? 0.5 : 1 }}
+      >
+        {navigating ? "Loading..." : "Next Random Study →"}
+      </button>
+    </div>
+  );
+
   return (
     <>
       <div className="app-container">
         <MenuBar />
         <main className="page">
-          {/* Breadcrumb */}
-          <div style={{ padding: "1rem 0", fontSize: "0.9rem", color: "#666" }}>
-            <Link href="/" style={{ color: "#667eea", textDecoration: "none" }}>Home</Link>
-            {" > "}
-            <Link href="/browse" style={{ color: "#667eea", textDecoration: "none" }}>Browse</Link>
-            {" > "}
-            <span>Study {study.id}</span>
+          {/* Breadcrumb + top nav */}
+          <div style={{ padding: "1rem 0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
+            <span style={{ fontSize: "0.9rem", color: "#666" }}>
+              <Link href="/" style={{ color: "#667eea", textDecoration: "none" }}>Home</Link>
+              {" > "}
+              <Link href="/browse" style={{ color: "#667eea", textDecoration: "none" }}>Browse</Link>
+              {" > "}
+              <span>Study {study.id}</span>
+            </span>
+            {navButtons}
           </div>
 
           {/* Study Header */}
           <section className="study-header-card">
+            <div style={{ marginBottom: "0.75rem" }}>
+              <span style={{ display: "inline-block", fontSize: "1.1rem", fontWeight: 700, color: "#667eea", background: "rgba(102,126,234,0.1)", border: "1px solid rgba(102,126,234,0.25)", borderRadius: "6px", padding: "0.3rem 0.8rem", letterSpacing: "0.01em" }}>
+                {trait}
+              </span>
+            </div>
             <h1 className="study-header-title">{study.study || "Untitled Study"}</h1>
 
             <div className="study-header-meta">
-              {reportedTrait && <span className="study-meta-item"><strong>Reported trait:</strong> {reportedTrait}</span>}
-              {mappedTrait && mappedTrait !== reportedTrait && <span className="study-meta-item"><strong>Mapped trait:</strong> {mappedTrait}</span>}
-              {!reportedTrait && !mappedTrait && <span className="study-meta-item"><strong>Trait:</strong> Unknown trait</span>}
+              {reportedTrait && mappedTrait && mappedTrait !== reportedTrait && <span className="study-meta-item"><strong>Reported trait:</strong> {reportedTrait}</span>}
               {study.first_author && <span className="study-meta-item"><strong>Author:</strong> {study.first_author}</span>}
               {study.date && <span className="study-meta-item"><strong>Date:</strong> {new Date(study.date).toLocaleDateString()}</span>}
               {study.journal && <span className="study-meta-item"><strong>Journal:</strong> {study.journal}</span>}
@@ -354,25 +384,9 @@ export default function StudyDetailPage() {
             )}
           </section>
 
-          {/* Back Button */}
-          <div style={{ marginBottom: "2rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-            <Link href="/browse" style={{
-              display: "inline-block",
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#667eea",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "6px"
-            }}>
-              ← Back to Browse
-            </Link>
-            <button
-              className="primary-button"
-              onClick={handleNextRandom}
-              disabled={navigating || (savedResults.length === 0 && totalStudies === null)}
-            >
-              {navigating ? "Loading..." : "Next random study →"}
-            </button>
+          {/* Bottom nav */}
+          <div style={{ marginBottom: "2rem" }}>
+            {navButtons}
           </div>
         </main>
         <Footer />
