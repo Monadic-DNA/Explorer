@@ -39,9 +39,16 @@ export default function DNAChatPage() {
   const [tourOpen, setTourOpen] = useState(false);
   const [sampleLoad, setSampleLoad] = useState<SampleLoadState>(initialSampleLoadState);
   const sampleLoadStartedRef = useRef(false);
+  const [initialChatInput, setInitialChatInput] = useState<string | undefined>();
 
   useEffect(() => {
     trackDNAChatViewed();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setInitialChatInput(decodeURIComponent(q));
   }, []);
 
 
@@ -211,7 +218,7 @@ export default function DNAChatPage() {
             >
               Show me how to use this
             </button>
-            <LLMChatInline />
+            <LLMChatInline initialInput={initialChatInput} />
           </div>
         </section>
       </main>

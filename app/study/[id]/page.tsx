@@ -8,7 +8,7 @@ import Footer from "../../components/Footer";
 import VariantChips from "../../components/VariantChips";
 import StudyPersonalResultBanner from "../../components/StudyPersonalResultBanner";
 import { useResults } from "../../components/ResultsContext";
-import LLMCommentaryModal from "../../components/LLMCommentaryModal";
+import StudyInlineAnalysis from "../../components/StudyInlineAnalysis";
 
 type Study = {
   id: number;
@@ -280,15 +280,7 @@ export default function StudyDetailPage() {
 
           {/* Inline LLM analysis when a saved result exists for this study */}
           {hasResult(study.id) && getResult(study.id) && (
-            <LLMCommentaryModal
-              isOpen
-              inline
-              onClose={() => {}}
-              currentResult={getResult(study.id)!}
-              allResults={[]}
-              skipConsent
-              skipPersonalizationPrompt
-            />
+            <StudyInlineAnalysis result={getResult(study.id)!} pubmedId={study.pubmedid} />
           )}
 
           {/* Study Details */}

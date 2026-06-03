@@ -17,7 +17,6 @@ type LLMCommentaryModalProps = {
   allResults: SavedResult[]; // Deprecated - will use SQL query instead
   skipPersonalizationPrompt?: boolean;
   skipConsent?: boolean;
-  inline?: boolean;
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_consent_accepted";
@@ -38,7 +37,6 @@ export default function LLMCommentaryModal({
   allResults, // Deprecated parameter
   skipPersonalizationPrompt = false,
   skipConsent = false,
-  inline = false,
 }: LLMCommentaryModalProps) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
@@ -122,34 +120,26 @@ export default function LLMCommentaryModal({
       setLoadingPhase('query');
       setDelegationStatus(`Querying ${totalResults.toLocaleString()} results...`);
 
-      // Yield to UI to show loading state
       await new Promise(resolve => setTimeout(resolve, 50));
 
       console.log(`[fetchCommentary] Fetching top relevant results from ${totalResults} total using semantic search (5000 studies from embeddings)...`);
       const startFilter = Date.now();
 
-      // Use semantic search to find results most relevant to this trait/study
-      // Query 5000 studies from PostgreSQL to cast a wider net, then filter to top 499 matches
-      // Use only the trait name (condition) for semantic search, not the full study title
       setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
       const queryText = currentResult.traitName;
       let topResults = await getTopResultsByRelevance(queryText, 5000, currentResult.gwasId);
       console.log(`[fetchCommentary] Got ${topResults.length} results from semantic search (queried 5000 studies)`);
 
-      // Take only top 499 matches for the LLM prompt
       topResults = topResults.slice(0, 499);
       console.log(`[fetchCommentary] Using top ${topResults.length} results for LLM prompt`);
 
-      // If we have fewer than 499 results, fill remaining slots with highest risk score results
       if (topResults.length < 499) {
         const remaining = 499 - topResults.length;
         console.log(`[fetchCommentary] Only ${topResults.length} semantically relevant results. Filling ${remaining} slots with high-risk results...`);
         console.log(`[fetchCommentary] Total savedResults available: ${resultsContext.savedResults.length}`);
 
-        // Track existing study IDs to avoid duplicates
         const existingStudyIds = new Set(topResults.map(r => r.studyId));
 
-        // Debug: Check a sample result structure
         const sampleResult = resultsContext.savedResults[0];
         console.log(`[fetchCommentary] Sample result structure:`, {
           hasGwasId: !!sampleResult?.gwasId,
@@ -158,44 +148,29 @@ export default function LLMCommentaryModal({
           keys: sampleResult ? Object.keys(sampleResult) : []
         });
 
-        // Step 1: Filter by gwasId
         const withGwasId = resultsContext.savedResults.filter(r => r.gwasId !== currentResult.gwasId);
         console.log(`[fetchCommentary] After excluding current gwasId: ${withGwasId.length}`);
 
-        // Step 2: Filter by existing study IDs
         const noDuplicates = withGwasId.filter(r => !existingStudyIds.has(r.studyId));
         console.log(`[fetchCommentary] After excluding duplicates: ${noDuplicates.length}`);
 
-        // Step 3: Apply quality filters (only if fields exist)
         const qualityFiltered = noDuplicates.filter(r => {
-          // If pValue exists, apply threshold (genome-wide significance: < 5e-8)
           if (r.pValue) {
             const pValue = parseFloat(r.pValue);
-            if (!isNaN(pValue) && pValue >= 5e-8) {
-              return false;
-            }
+            if (!isNaN(pValue) && pValue >= 5e-8) return false;
           }
-
-          // If sampleSize exists, apply threshold (>= 500 participants)
           if (r.sampleSize) {
-            // Parse sample size from text like "15,000 European ancestry individuals"
             const sampleSizeMatch = r.sampleSize.match(/[\d,]+/);
             if (sampleSizeMatch) {
               const sampleSize = parseInt(sampleSizeMatch[0].replace(/,/g, ''));
-              if (!isNaN(sampleSize) && sampleSize < 500) {
-                return false;
-              }
+              if (!isNaN(sampleSize) && sampleSize < 500) return false;
             }
           }
-
-          // If neither field exists (old results), include all results
           return true;
         });
 
         console.log(`[fetchCommentary] After quality filters: ${qualityFiltered.length}`);
 
-        // Step 4: Random sampling to avoid bias toward high-risk results
-        // Shuffle using Fisher-Yates algorithm
         const shuffled = [...qualityFiltered];
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -209,13 +184,11 @@ export default function LLMCommentaryModal({
         console.log(`[fetchCommentary] Added ${randomSample.length} results. Final total: ${topResults.length}`);
       }
 
-      // Add current result at the top
       const resultsForContext = [currentResult, ...topResults];
 
       const filterTime = Date.now() - startFilter;
       console.log(`Fetched top 5000 results in ${filterTime}ms using semantic similarity search`);
 
-      // Store analysis metadata
       setAnalysisResultsCount(resultsForContext.length);
       setAnalysisResults(resultsForContext);
       setHasCustomization(!!(customization && (
@@ -227,13 +200,8 @@ export default function LLMCommentaryModal({
         (customization.familyConditions && customization.familyConditions.length > 0)
       )));
 
-      // Check console logs to detect if semantic search was actually used
-      // If we see the fallback warning, semantic search failed
-      setUsedSemanticSearch(topResults.length > 0);
-
       setDelegationStatus(`✓ Selected ${resultsForContext.length} most relevant results (${filterTime}ms)`);
 
-      // Yield to UI after query
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Phase 2: Fetch study metadata for quality indicators
@@ -326,29 +294,7 @@ IMPORTANT: Consider how this user's background (ancestry, age, gender, family hi
         }
       }
 
-      const prompt = inline
-        ? `You are a genetic counselor writing a short interpretation of a GWAS result shown on a study page.
-${studyQualityContext}${userContext}
-
-RESULT:
-Trait: ${currentResult.traitName}
-Study: ${currentResult.studyTitle}
-Genotype: ${currentResult.userGenotype}
-Risk allele: ${currentResult.riskAllele}
-Effect size: ${currentResult.effectSize}
-Risk score: ${formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} (${currentResult.riskLevel})
-Matched SNP: ${currentResult.matchedSnp}
-
-OTHER SAVED RESULTS FOR CONTEXT:
-${contextResults}
-
-Write a plain-language interpretation. Cover:
-1. What this genetic variant does and why scientists study it
-2. What the user's specific genotype means for them
-3. How it relates to any other results they have, if relevant
-
-Do not repeat the study title, genotype, or effect size — the user can see all of that on the page. Do not include disclaimers. Write in a direct, informative tone, 200-350 words.`
-        : `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
+      const prompt = `You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
 
 IMPORTANT DISCLAIMERS TO INCLUDE:
 1. This is for educational and entertainment purposes only
@@ -387,9 +333,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       const response = await callLLM([
         {
           role: "system",
-          content: inline
-            ? "You are a knowledgeable genetic counselor who explains GWAS results clearly and concisely. Write directly without disclaimers or repeating information the user can already see."
-            : "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
+          content: "You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."
         },
         {
           role: "user",
@@ -792,7 +736,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
     setShowConsentModal(true);
   };
 
-  if (!isOpen && !inline) return null;
+  if (!isOpen) return null;
 
   // Show personalization prompt if needed
   if (showPersonalizationPrompt) {
@@ -854,8 +798,18 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       : null;
   }
 
-  const commentaryContent = (
-    <>
+  const modalContent = showConsentModal ? (
+    <NilAIConsentModal
+      isOpen={showConsentModal}
+      onAccept={handleConsentAccept}
+      onDecline={handleConsentDecline}
+    />
+  ) : (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-dialog commentary-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
       <div className="modal-content">
         <h2>🤖 AI Commentary on Your Result</h2>
 
@@ -865,20 +819,18 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
           </p>
         </div>
 
-        {!inline && (
-          <div className="commentary-result-summary">
-            <h3>{currentResult.traitName}</h3>
-            <p className="commentary-study-title">{currentResult.studyTitle}</p>
-            <div className="commentary-result-details">
-              <span>
-                <strong>Your genotype:</strong> {currentResult.userGenotype}
-              </span>
-              <span>
-                <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
-              </span>
-            </div>
+        <div className="commentary-result-summary">
+          <h3>{currentResult.traitName}</h3>
+          <p className="commentary-study-title">{currentResult.studyTitle}</p>
+          <div className="commentary-result-details">
+            <span>
+              <strong>Your genotype:</strong> {currentResult.userGenotype}
+            </span>
+            <span>
+              <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
+            </span>
           </div>
-        )}
+        </div>
 
         <div className="commentary-text">
           {isLoading && (
@@ -935,45 +887,40 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
           {!isLoading && !error && commentary && (
             <div className="commentary-content">
-              {!inline && studyMetadata && (
+              {studyMetadata && (
                 <StudyQualityIndicators metadata={studyMetadata} />
               )}
 
-              {!inline && (
-                <div className="analysis-metadata">
-                  <div className="metadata-item">
-                    <span className="metadata-icon">📊</span>
-                    <span className="metadata-label">Results analyzed:</span>
-                    <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
-                  </div>
-                  <div className="metadata-item">
-                    <span className="metadata-icon">👤</span>
-                    <span className="metadata-label">Personalization:</span>
-                    <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
-                  </div>
-                  <div className="metadata-item metadata-note">
-                    <span className="metadata-icon">🔍</span>
-                    <span className="metadata-note-text">
-                      Results selected using semantic relevance matching (check browser console for details)
-                    </span>
-                  </div>
+              <div className="analysis-metadata">
+                <div className="metadata-item">
+                  <span className="metadata-icon">📊</span>
+                  <span className="metadata-label">Results analyzed:</span>
+                  <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
                 </div>
-              )}
+                <div className="metadata-item">
+                  <span className="metadata-icon">👤</span>
+                  <span className="metadata-label">Personalization:</span>
+                  <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
+                </div>
+                <div className="metadata-item metadata-note">
+                  <span className="metadata-icon">🔍</span>
+                  <span className="metadata-note-text">
+                    Results selected using semantic relevance matching (check browser console for details)
+                  </span>
+                </div>
+              </div>
 
               <div className="commentary-section">
-                {!inline && (
-                  <div className="commentary-header">
-                    <span className="commentary-icon">🤖</span>
-                    <h3>LLM-Generated Interpretation</h3>
-                  </div>
-                )}
+                <div className="commentary-header">
+                  <span className="commentary-icon">🤖</span>
+                  <h3>LLM-Generated Interpretation</h3>
+                </div>
                 <div
                   className="commentary-body"
                   dangerouslySetInnerHTML={{ __html: commentary }}
                 />
               </div>
 
-              {/* Collapsible list of studies used in analysis */}
               {analysisResults.length > 0 && (
                 <details className="studies-used-section">
                   <summary className="studies-used-summary">
@@ -1019,20 +966,18 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
                 </details>
               )}
 
-              {!inline && (
-                <div className="ai-limitations-disclaimer">
-                  <div className="disclaimer-icon">⚠️</div>
-                  <div>
-                    <strong>LLM-Generated Content Limitations</strong>
-                    <p>
-                      This commentary is generated by an LLM model and may not fully account for study
-                      limitations, your specific ancestry, the latest research, or individual medical factors.
-                      It should be used for educational purposes only. Always consult a healthcare professional
-                      or genetic counselor for personalized medical interpretation and advice.
-                    </p>
-                  </div>
+              <div className="ai-limitations-disclaimer">
+                <div className="disclaimer-icon">⚠️</div>
+                <div>
+                  <strong>LLM-Generated Content Limitations</strong>
+                  <p>
+                    This commentary is generated by an LLM model and may not fully account for study
+                    limitations, your specific ancestry, the latest research, or individual medical factors.
+                    It should be used for educational purposes only. Always consult a healthcare professional
+                    or genetic counselor for personalized medical interpretation and advice.
+                  </p>
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -1044,36 +989,10 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
             🖨️ Print Analysis
           </button>
         )}
-        {!inline && (
-          <button className="disclaimer-button secondary" onClick={onClose}>
-            Close
-          </button>
-        )}
+        <button className="disclaimer-button secondary" onClick={onClose}>
+          Close
+        </button>
       </div>
-    </>
-  );
-
-  if (inline) {
-    return showConsentModal ? null : (
-      <div className="commentary-modal commentary-modal--inline">
-        {commentaryContent}
-      </div>
-    );
-  }
-
-  const modalContent = showConsentModal ? (
-    <NilAIConsentModal
-      isOpen={showConsentModal}
-      onAccept={handleConsentAccept}
-      onDecline={handleConsentDecline}
-    />
-  ) : (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-dialog commentary-modal"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {commentaryContent}
       </div>
     </div>
   );

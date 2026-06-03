@@ -320,6 +320,13 @@ function ExplorePage() {
   }, [mounted]);
 
   const [filters, setFilters] = useState<Filters>(defaultFilters);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setFilters(prev => ({ ...prev, search: q }));
+  }, []);
+
   const scrollPositionRef = useRef<number>(0);
   const isLoadingMoreRef = useRef<boolean>(false);
   const [traits, setTraits] = useState<string[]>([]);

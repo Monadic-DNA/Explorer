@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo } from "react";
 import { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
@@ -210,7 +210,6 @@ export default function StudyPersonalResultBanner({
             currentResult={currentResultForModal}
             allResults={[]}
             skipPersonalizationPrompt
-            skipConsent={commentaryAutoTriggered}
           />
         )}
         <div className={`study-result-banner study-result-banner--${result.riskLevel}`}>

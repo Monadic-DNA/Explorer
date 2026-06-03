@@ -56,13 +56,21 @@ const FOLLOWUP_SUGGESTIONS = [
   "How should I adjust my diet and lifestyle?"
 ];
 
-export default function AIChatInline() {
+export default function AIChatInline({ initialInput }: { initialInput?: string } = {}) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
+
+  useEffect(() => {
+    if (!initialInput) return;
+    setInputValue(initialInput);
+    const t = setTimeout(() => handleSendMessage(false, initialInput), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialInput]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -300,8 +308,8 @@ export default function AIChatInline() {
     return parts;
   };
 
-  const handleSendMessage = async (skipConsentCheck = false) => {
-    const query = inputValue.trim();
+  const handleSendMessage = async (skipConsentCheck = false, queryOverride?: string) => {
+    const query = (queryOverride ?? inputValue).trim();
     if (!query) return;
 
     // Check consent before sending first message
