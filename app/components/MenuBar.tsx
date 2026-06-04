@@ -404,11 +404,11 @@ export default function MenuBar() {
             Home
           </Link>
           <Link
-            href="/browse"
-            className={pathname === "/browse" ? "nav-link active" : "nav-link"}
-            style={getNavLinkStyle(pathname === "/browse")}
+            href="/explore"
+            className={pathname === "/explore" ? "nav-link active" : "nav-link"}
+            style={getNavLinkStyle(pathname === "/explore")}
           >
-            Browse
+            Explore
           </Link>
           <Link
             href="/dna-chat"
@@ -428,11 +428,11 @@ export default function MenuBar() {
             </span>
           </Link>
           <Link
-            href="/explore"
-            className={pathname === "/explore" ? "nav-link active" : "nav-link"}
-            style={getNavLinkStyle(pathname === "/explore")}
+            href="/browse"
+            className={pathname === "/browse" ? "nav-link active" : "nav-link"}
+            style={getNavLinkStyle(pathname === "/browse")}
           >
-            Explore
+            Browse
           </Link>
         </nav>
       </div>
