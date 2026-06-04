@@ -7,14 +7,38 @@ import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
 import { useResults } from "../components/ResultsContext";
 import { useGenotype } from "../components/UserDataUpload";
+import { useCustomization } from "../components/CustomizationContext";
+
+const STOP_WORDS = new Set([
+  'and', 'or', 'the', 'of', 'with', 'in', 'to', 'a', 'an', 'for', 'by', 'at', 'on',
+  'is', 'it', 'its', 'as', 'my', 'our', 'their', 'has', 'have', 'had',
+  // Generic medical terms that match too broadly
+  'disease', 'disorder', 'syndrome', 'condition', 'related', 'associated',
+  'chronic', 'acute', 'primary', 'secondary', 'other', 'type', 'stage',
+]);
+
+function extractKeywords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+function scoreMatch(keywords: string[], traitName: string): number {
+  const trait = traitName.toLowerCase();
+  return keywords.reduce((sum, kw) => sum + (trait.includes(kw) ? 1 : 0), 0);
+}
 
 export default function ExplorePage() {
   const router = useRouter();
   const { savedResults } = useResults();
   const { isUploaded } = useGenotype();
+  const { customization } = useCustomization();
   const [navigating, setNavigating] = useState(false);
   const [shownIncreased, setShownIncreased] = useState(5);
   const [shownDecreased, setShownDecreased] = useState(5);
+  const [healthCardPages, setHealthCardPages] = useState<Record<string, number>>({});
 
   const INITIAL_SHOW = 5;
   const PAGE_SIZE = 5;
@@ -46,8 +70,32 @@ export default function ExplorePage() {
       .filter(r => r.riskLevel === "decreased" && isValidOR(r) && r.riskScore <= 0.87)
       .sort((a, b) => Math.log(a.riskScore) - Math.log(b.riskScore));
 
-    return { increased, decreased, neutral, topIncreased, topDecreased };
+    return { increased, decreased, neutral, topIncreased, topDecreased, unique };
   }, [savedResults, hasResults]);
+
+  const healthMatches = useMemo(() => {
+    if (!hasResults || !customization || !stats) return [];
+    const conditions = [
+      ...(customization.personalConditions ?? []).map(c => ({ label: c, type: 'personal' as const })),
+      ...(customization.familyConditions ?? []).map(c => ({ label: c, type: 'family' as const })),
+    ];
+    if (conditions.length === 0) return [];
+
+    return conditions
+      .map(({ label, type }) => {
+        const keywords = extractKeywords(label);
+        if (keywords.length === 0) return null;
+        const matches = stats.unique
+          .map(r => ({ result: r, score: scoreMatch(keywords, r.traitName) }))
+          .filter(({ score }) => score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 20)
+          .map(({ result }) => result);
+        if (matches.length === 0) return null;
+        return { label, type, matches };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+  }, [hasResults, customization, stats]);
 
   const handleRandom = () => {
     if (!hasResults) return;
@@ -153,6 +201,71 @@ export default function ExplorePage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Health history matches */}
+            {healthMatches.length > 0 && (
+              <div className="explore-health-section">
+                <h2 className="explore-section-title">Based on your health history</h2>
+                <div className="explore-health-grid">
+                  {healthMatches.map(({ label, type, matches }) => {
+                    const page = healthCardPages[label] ?? 0;
+                    const pageSize = 5;
+                    const pageMatches = matches.slice(page * pageSize, (page + 1) * pageSize);
+                    const hasPrev = page > 0;
+                    const hasNext = (page + 1) * pageSize < matches.length;
+                    return (
+                      <div key={label} className="explore-health-card">
+                        <div className="explore-health-card-header">
+                          <span className="explore-health-condition">{label}</span>
+                          <span className={`explore-health-tag explore-health-tag--${type}`}>
+                            {type === 'personal' ? 'Your history' : 'Family history'}
+                          </span>
+                        </div>
+                        <div className="explore-highlight-list">
+                          {pageMatches.map(r => (
+                            <Link
+                              key={r.studyId}
+                              href={`/study/${r.studyId}`}
+                              className={`explore-highlight-item explore-highlight-item--${r.riskLevel}`}
+                            >
+                              <span className="explore-highlight-trait" title={r.traitName}>{r.traitName}</span>
+                              <span className="explore-highlight-score">
+                                {r.riskLevel === 'increased' ? `${r.riskScore.toFixed(2)}x ↑`
+                                  : r.riskLevel === 'decreased' ? `${r.riskScore.toFixed(2)}x ↓`
+                                  : '→'}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                        {(hasPrev || hasNext) && (
+                          <div className="explore-health-card-nav">
+                            <button
+                              className="explore-health-card-nav-btn"
+                              onClick={() => setHealthCardPages(p => ({ ...p, [label]: page - 1 }))}
+                              disabled={!hasPrev}
+                              aria-label="Previous"
+                            >
+                              ←
+                            </button>
+                            <span className="explore-health-card-nav-count">
+                              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, matches.length)} of {matches.length}
+                            </span>
+                            <button
+                              className="explore-health-card-nav-btn"
+                              onClick={() => setHealthCardPages(p => ({ ...p, [label]: page + 1 }))}
+                              disabled={!hasNext}
+                              aria-label="Next"
+                            >
+                              →
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

@@ -2560,6 +2560,120 @@ tbody tr:hover {
 .explore-highlight-item--increased .explore-highlight-score { color: #dc2626; }
 .explore-highlight-item--decreased .explore-highlight-score { color: #16a34a; }
 
+.explore-highlight-item--neutral {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.explore-highlight-item--neutral:hover { background: rgba(0, 0, 0, 0.06); }
+.explore-highlight-item--neutral .explore-highlight-score { color: #6b7280; }
+
+/* Health history section */
+.explore-health-section {
+  margin-bottom: 1.5rem;
+}
+
+.explore-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.explore-health-card {
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.explore-health-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.explore-health-condition {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.explore-health-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.explore-health-tag--personal {
+  background: rgba(102, 126, 234, 0.1);
+  color: #4338ca;
+  border: 1px solid rgba(102, 126, 234, 0.25);
+}
+
+.explore-health-tag--family {
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.explore-health-study-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
+  min-width: 1.25rem;
+  padding: 0.15rem 0.35rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.explore-health-card-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0 0.25rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: 0.25rem;
+}
+
+.explore-health-card-nav-btn {
+  background: none;
+  border: 1px solid rgba(102, 126, 234, 0.35);
+  border-radius: 4px;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.25rem 0.6rem;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.explore-health-card-nav-btn:hover:not(:disabled) {
+  background: rgba(102, 126, 234, 0.08);
+}
+
+.explore-health-card-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.explore-health-card-nav-count {
+  font-size: 0.75rem;
+  color: #888;
+  min-width: 6rem;
+  text-align: center;
+}
+
 .explore-show-more {
   background: none;
   border: none;
