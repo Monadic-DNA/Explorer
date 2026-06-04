@@ -209,6 +209,12 @@ The chat questions should be specific, conversational questions the user might w
 
   const hasSuggestions = suggestions.chat.length > 0 || suggestions.browse.length > 0;
 
+  const dnaChatContinueUrl = (() => {
+    const riskAllele = result.riskAllele.split('-').pop() || result.riskAllele;
+    const q = `I've just read the AI interpretation of my result for "${result.traitName}" (study: "${result.studyTitle}"). I carry the ${result.userGenotype} genotype at ${result.matchedSnp} — the risk allele is ${riskAllele} and my effect is ${result.riskLevel}. I'd like to discuss this result and ask follow-up questions.`;
+    return `/dna-chat?q=${encodeURIComponent(q)}`;
+  })();
+
   return (
     <div className="study-inline-analysis">
       <div className="sia-header">
@@ -276,6 +282,14 @@ The chat questions should be specific, conversational questions the user might w
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {!isLoading && commentary && (
+        <div className="sia-continue-row">
+          <Link href={dnaChatContinueUrl} className="sia-continue-button">
+            Continue this conversation in DNA Chat →
+          </Link>
         </div>
       )}
     </div>

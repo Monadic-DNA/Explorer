@@ -2333,6 +2333,28 @@ tbody tr:hover {
   border-color: rgba(102, 126, 234, 0.4);
 }
 
+.sia-continue-row {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.sia-continue-button {
+  display: inline-block;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.sia-continue-button:hover {
+  opacity: 0.88;
+}
+
 .commentary-powered-by-header {
   padding: 0 1.5rem;
   margin-bottom: 1rem;
