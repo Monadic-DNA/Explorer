@@ -15,6 +15,7 @@ import TermsAcceptanceModal from "../components/TermsAcceptanceModal";
 import RunAllModal from "../components/RunAllModal";
 import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
 import { exploreTour } from "../components/tours/tourContent";
+import BrowseHeatmap from "../components/BrowseHeatmap";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
 import { isDevModeEnabled } from "@/lib/dev-mode";
@@ -115,7 +116,7 @@ const defaultFilters: Filters = {
   requireUserSNPs: false,
   sort: "relevance",
   sortDirection: "desc",
-  limit: 1000,
+  limit: 2000,
   confidenceBand: null,
   offset: 0,
 };
@@ -339,7 +340,7 @@ function ExplorePage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sectionCollapsed, setSectionCollapsed] = useState(false);
+  const [sectionCollapsed, setSectionCollapsed] = useState(true);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
@@ -370,6 +371,7 @@ function ExplorePage() {
     matchCount: 0,
   });
   const [loadTime, setLoadTime] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'table' | 'heatmap'>('table');
 
   // Terms modal opens after tour (or immediately if tour already completed)
   const openTermsIfNeeded = useCallback(() => {
@@ -423,6 +425,14 @@ function ExplorePage() {
       });
     }
   }, [filters.trait, updateFilter]);
+
+  // Auto-check "Only my variants" if data is already uploaded on mount
+  useEffect(() => {
+    if (isUploaded) {
+      updateFilter("requireUserSNPs", true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUploaded]);
 
   // Set up callback to auto-check "Only my variants" when genotype data is loaded
   useEffect(() => {
@@ -933,9 +943,27 @@ function ExplorePage() {
 
       <section className="summary" aria-live="polite">
         <p>{summaryText}</p>
-
+        <div className="browse-tab-toggle">
+          <button
+            className={`browse-tab-btn${activeTab === 'table' ? ' browse-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('table')}
+          >
+            Table
+          </button>
+          <button
+            className={`browse-tab-btn${activeTab === 'heatmap' ? ' browse-tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('heatmap')}
+          >
+            Heatmap
+          </button>
+        </div>
       </section>
 
+      {activeTab === 'heatmap' ? (
+        <section className="browse-heatmap-section" aria-busy={loading}>
+          <BrowseHeatmap studies={studies} totalCount={meta.sourceCount} />
+        </section>
+      ) : (
       <section className="table-wrapper" aria-busy={loading}>
         <div className="table-scroll-container">
         <table>
@@ -1177,6 +1205,7 @@ function ExplorePage() {
           </div>
         )}
       </section>
+      )}
       </main>
       <Footer />
       <DisclaimerModal

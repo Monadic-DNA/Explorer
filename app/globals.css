@@ -11910,3 +11910,142 @@ details[open] .summary-arrow {
   border-color: rgba(15, 23, 42, 0.35);
 }
 
+/* Browse page tab toggle */
+.browse-tab-toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.browse-tab-btn {
+  background: none;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.9rem;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.browse-tab-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.browse-tab-btn--active {
+  background: #667eea;
+  border-color: #667eea;
+  color: #fff;
+}
+
+.browse-tab-btn--active:hover {
+  background: #5a6fd6;
+}
+
+/* Browse heatmap */
+.browse-heatmap-section {
+  padding: 1rem 0 2rem;
+}
+
+.browse-heatmap {
+  font-size: 0.82rem;
+}
+
+.browse-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.heatmap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.browse-heatmap-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.browse-heatmap-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.browse-heatmap-row:last-child {
+  border-bottom: none;
+}
+
+.browse-heatmap-trait {
+  flex: 0 0 200px;
+  color: #374151;
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-top: 1px;
+}
+
+.browse-heatmap-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+}
+
+.heatmap-chip {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+a.heatmap-chip:hover {
+  opacity: 0.8;
+  transform: scale(1.25);
+}
+
+.heatmap-chip--increased {
+  background: rgba(220, 38, 38, 0.6);
+}
+
+.heatmap-chip--decreased {
+  background: rgba(22, 163, 74, 0.6);
+}
+
+.heatmap-chip--neutral {
+  background: rgba(148, 163, 184, 0.55);
+}
+
+.heatmap-chip--none {
+  background: rgba(209, 213, 219, 0.5);
+  border: 1px solid rgba(156, 163, 175, 0.3);
+}
+
+.browse-heatmap-count {
+  font-size: 0.68rem;
+  color: #9ca3af;
+  margin-left: 0.2rem;
+  flex-shrink: 0;
+}
+
+.browse-heatmap-note {
+  margin-top: 1.5rem;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
