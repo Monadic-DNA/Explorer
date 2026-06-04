@@ -2245,6 +2245,23 @@ tbody tr:hover {
   margin: 1rem 0 0.5rem;
 }
 
+.sia-rerun-button {
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+  cursor: pointer;
+  line-height: 1;
+  margin-left: auto;
+}
+
+.sia-rerun-button:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #374151;
+}
+
 .sia-warning {
   font-size: 0.8rem;
   color: #92400e;

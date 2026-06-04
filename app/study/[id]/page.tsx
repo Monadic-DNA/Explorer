@@ -280,7 +280,12 @@ export default function StudyDetailPage() {
 
           {/* Inline LLM analysis when a saved result exists for this study */}
           {hasResult(study.id) && getResult(study.id) && (
-            <StudyInlineAnalysis result={getResult(study.id)!} pubmedId={study.pubmedid} />
+            <StudyInlineAnalysis
+              result={getResult(study.id)!}
+              pubmedId={study.pubmedid}
+              mappedGene={study.mapped_gene}
+              reportedTrait={study.disease_trait}
+            />
           )}
 
           {/* Study Details */}

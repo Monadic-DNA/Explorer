@@ -9,6 +9,8 @@ import { callLLM } from "@/lib/llm-client";
 type Props = {
   result: SavedResult;
   pubmedId?: string | null;
+  mappedGene?: string | null;
+  reportedTrait?: string | null;
 };
 
 type Suggestions = {
@@ -81,7 +83,7 @@ function parseSuggestions(raw: string): { commentary: string; suggestions: Sugge
   }
 }
 
-export default function StudyInlineAnalysis({ result, pubmedId }: Props) {
+export default function StudyInlineAnalysis({ result, pubmedId, mappedGene, reportedTrait }: Props) {
   const { customization } = useCustomization();
   const [commentary, setCommentary] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestions>({ chat: [], browse: [] });
@@ -159,7 +161,8 @@ ${parts.join('\n')}`;
       const prompt = `You are a genetic counselor writing a brief interpretation of a GWAS result shown on a study page.${pubmedContext}${studyQualityContext}${userContext}
 
 RESULT:
-Trait: ${result.traitName}
+Trait (mapped): ${result.traitName}${reportedTrait && reportedTrait !== result.traitName ? `\nTrait (as measured in study): ${reportedTrait}` : ''}
+Mapped gene: ${mappedGene || 'not specified'}
 Genotype: ${result.userGenotype}
 Risk allele: ${result.riskAllele}
 Effect size: ${result.effectSize} (${result.effectType === 'beta' ? 'beta coefficient' : 'odds ratio'})
@@ -168,11 +171,12 @@ Risk score: ${formatRiskScore(result.riskScore, result.riskLevel, result.effectT
 Matched SNP: ${result.matchedSnp}
 
 Write a plain-language interpretation covering:
-1. What this study investigated and what its key finding was — including the biological mechanism if known
-2. How well-established this association is, considering the sample size, replication, and p-value
-3. What this specific genotype means for the user — spend at least two sentences here. Explain how many copies of the risk allele they carry, what the effect size means in practical terms (use the "Effect in plain terms" field), and how their result compares to a typical person without this variant. For beta coefficients, use your knowledge of how this trait is typically measured to express the effect in concrete units — for example, if the trait is height and beta is in cm, convert to inches; if blood pressure, say "X mmHg"; if cholesterol, say "X mg/dL". If the beta is in SD units, estimate the real-world equivalent using typical population distributions. For odds ratios on common diseases, use your knowledge of baseline prevalence to give approximate absolute risk figures alongside the relative odds. Always signal when you are inferring units or prevalence rather than reading them from the data — use phrasing like "assuming the beta is in cm, this is roughly..." or "based on a typical population prevalence of around X%...".
+1. The trait itself — what is being measured, what it represents biologically, and why scientists study it. Lead with the trait, not the gene. If the measured trait (see "Trait as measured") is a complex ratio, imaging metric, or mass spec measurement, explain what that measurement captures and what it means in the body. Only bring in the mapped gene as supporting context for how it influences this specific trait — do not describe the gene's general fame or its associations with unrelated conditions unless those associations directly explain the trait being studied.
+2. How well-established this association is, considering the sample size, replication, and p-value. Note any ancestry or population limitations relevant to the user.
+3. What this specific genotype means for the user — at least two sentences. Explain how many copies of the risk allele they carry and calculate the cumulative effect (e.g. 2 copies × per-allele effect). For beta coefficients, use your knowledge of how this trait is measured to express the effect in concrete terms. For odds ratios, use your knowledge of baseline prevalence to give approximate absolute risk figures. Always signal when you are inferring rather than reading from the data.
+4. The "so what" — what does this result actually imply for the user's biology, health, or function? Commit to what IS known about this trait, even if incomplete. For example, if higher white matter connectivity is generally associated with better cognitive performance in the literature, say that. If a gene variant's known biology has implications for how the brain or body ages, say that specifically. Do not retreat into pure neutrality ("associated with variations in how the brain processes information" is not useful). Be calibrated — these are common population variants, not diagnoses — but calibrated does not mean saying nothing. State what is currently understood as confidently as the evidence allows, and flag uncertainty clearly where it exists.
 
-Do not repeat the genotype, effect size, or SNP — the user can already see those on the page. Do not include disclaimers. 200-300 words, direct and informative.
+Do not repeat the genotype, effect size, or SNP — the user can already see those on the page. Do not include disclaimers. 250-350 words, direct and informative.
 
 After the interpretation, on a new line, output follow-up suggestions in this exact format (valid JSON, no markdown):
 SUGGESTIONS:{"chat":["question 1 for DNA Chat","question 2 for DNA Chat"],"browse":["related trait 1","related trait 2","related trait 3"]}
@@ -182,10 +186,10 @@ The chat questions should be specific, conversational questions the user might w
       const response = await callLLM([
         {
           role: "system",
-          content: "You are a knowledgeable genetic counselor. Explain GWAS results clearly and concisely. No disclaimers, no repetition of information the user can already see on the page. Always end your response with the SUGGESTIONS line as instructed.",
+          content: "You are a knowledgeable genetic counselor. Explain GWAS results clearly and concisely. No disclaimers, no repetition of information the user can already see on the page. Avoid vague hedges — say something specific and useful about health implications. Do not use LaTeX or math notation; write numbers in plain text (e.g. 9×10⁻¹⁰ or p=9e-10). Always end your response with the SUGGESTIONS line as instructed.",
         },
         { role: "user", content: prompt },
-      ], { maxTokens: 900, temperature: 0.7, reasoningEffort: 'low' });
+      ], { maxTokens: 1100, temperature: 0.7, reasoningEffort: 'low' });
 
       if (!response.content) throw new Error("No commentary generated");
       const { commentary: parsed, suggestions: parsedSuggestions } = parseSuggestions(response.content);
@@ -211,6 +215,9 @@ The chat questions should be specific, conversational questions the user might w
         <span className="sia-icon">🤖</span>
         <h3 className="sia-title">AI Interpretation</h3>
         <span className="sia-powered-by">Private AI</span>
+        {!isLoading && (commentary || error) && (
+          <button className="sia-rerun-button" onClick={analyze} title="Regenerate analysis">↺</button>
+        )}
       </div>
 
       {isLoading && (
