@@ -11956,8 +11956,11 @@ details[open] .summary-arrow {
 .browse-heatmap-legend {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: 1.5rem;
   margin-bottom: 1.25rem;
+  padding: 0.6rem 0.75rem;
+  background: #f8f9fa;
+  border-radius: 6px;
   flex-wrap: wrap;
 }
 
@@ -11966,35 +11969,89 @@ details[open] .summary-arrow {
   align-items: center;
   gap: 0.4rem;
   color: #6b7280;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
 .browse-heatmap-rows {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
 }
 
 .browse-heatmap-row {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  transition: background 0.1s;
 }
 
-.browse-heatmap-row:last-child {
-  border-bottom: none;
+.browse-heatmap-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.browse-heatmap-row--increased {
+  border-left: 3px solid rgba(220, 38, 38, 0.4);
+}
+
+.browse-heatmap-row--decreased {
+  border-left: 3px solid rgba(22, 163, 74, 0.4);
+}
+
+.browse-heatmap-row--mixed {
+  border-left: 3px solid rgba(234, 179, 8, 0.5);
+}
+
+.browse-heatmap-row--none {
+  border-left: 3px solid rgba(209, 213, 219, 0.5);
 }
 
 .browse-heatmap-trait {
-  flex: 0 0 200px;
-  color: #374151;
+  flex: 0 0 190px;
+  color: #1f2937;
   font-size: 0.78rem;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-top: 1px;
+}
+
+.browse-heatmap-summary {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-width: 70px;
+}
+
+.heatmap-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 10px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.heatmap-badge--increased {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+}
+
+.heatmap-badge--decreased {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+}
+
+.heatmap-badge--none {
+  background: #f3f4f6;
+  color: #9ca3af;
+  border: 1px solid rgba(156, 163, 175, 0.3);
 }
 
 .browse-heatmap-chips {
@@ -12002,44 +12059,32 @@ details[open] .summary-arrow {
   flex-wrap: wrap;
   gap: 3px;
   align-items: center;
+  flex: 1;
 }
 
 .heatmap-chip {
   display: inline-block;
-  width: 13px;
-  height: 13px;
-  border-radius: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
   flex-shrink: 0;
-  transition: opacity 0.12s, transform 0.12s;
+  transition: transform 0.1s, box-shadow 0.1s;
 }
 
 a.heatmap-chip:hover {
-  opacity: 0.8;
-  transform: scale(1.25);
-}
-
-.heatmap-chip--increased {
-  background: rgba(220, 38, 38, 0.6);
-}
-
-.heatmap-chip--decreased {
-  background: rgba(22, 163, 74, 0.6);
+  transform: scale(1.4);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  z-index: 1;
+  position: relative;
 }
 
 .heatmap-chip--neutral {
-  background: rgba(148, 163, 184, 0.55);
+  background: rgba(148, 163, 184, 0.5);
 }
 
 .heatmap-chip--none {
-  background: rgba(209, 213, 219, 0.5);
-  border: 1px solid rgba(156, 163, 175, 0.3);
-}
-
-.browse-heatmap-count {
-  font-size: 0.68rem;
-  color: #9ca3af;
-  margin-left: 0.2rem;
-  flex-shrink: 0;
+  background: rgba(229, 231, 235, 0.8);
+  border: 1px solid rgba(209, 213, 219, 0.6);
 }
 
 .browse-heatmap-note {

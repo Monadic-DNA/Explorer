@@ -905,9 +905,9 @@ function ExplorePage() {
                   value={filters.limit}
                   onChange={(event) => updateFilter("limit", Number(event.target.value))}
                 >
-                  {[25, 50, 75, 100, 150, 200, 1000].map((size) => (
+                  {[25, 50, 100, 200, 500, 1000, 2000, 5000, 10000].map((size) => (
                     <option key={size} value={size}>
-                      {size}
+                      {size.toLocaleString()}
                     </option>
                   ))}
                 </select>
