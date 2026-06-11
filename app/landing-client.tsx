@@ -1,192 +1,221 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useGenotype } from "./components/UserDataUpload";
-import { trackGetStartedClicked, trackIntroModalShown } from "@/lib/analytics";
+import { useResults } from "./components/ResultsContext";
+import { useCustomization, type UserCustomization } from "./components/CustomizationContext";
+import { ResultsManager } from "@/lib/results-manager";
+import { trackGetStartedClicked, trackSampleDataStarted, trackSampleDataLoaded, trackSampleDataFailed } from "@/lib/analytics";
 
+const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
+const SAMPLE_CUSTOMIZATION_PASSWORD = "sample-data";
 
-const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
+const SAMPLE_CUSTOMIZATION: UserCustomization = {
+  ethnicities: ["European"],
+  countriesOfOrigin: [],
+  genderAtBirth: "male",
+  age: 44,
+  personalConditions: ["Type 2 diabetes", "Hypertension"],
+  familyConditions: ["Coronary artery disease", "Alzheimer's disease"],
+  smokingHistory: "past-smoker",
+  alcoholUse: "mild",
+  medications: [],
+  diet: "mediterranean",
+};
+
+type SampleLoadStatus = "idle" | "downloading" | "loading" | "loaded" | "error";
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return "0 KB";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
-const NEW_USER_CHOICE_STORAGE_KEY = "new_user_choice_completed";
-const MOTHBALLED_ONBOARDING_STORAGE_KEY = "conversion_onboarding_completed";
 
-const introCopy = [
+const featureCopy = [
   {
-    label: "DNA insights",
-    text: "Monadic DNA Explorer lets you unlock the potential of DNA data to inform diet, lifestyle, and health.",
+    label: "Explore",
+    href: "/explore",
+    text: "Explore your results trait by trait. Browse elevated and protective associations ranked by effect size, and see which traits connect to conditions in your personal and family health history.",
   },
   {
-    label: "GWAS Catalog",
-    text: "We use over one million scientifically vetted traits from the GWAS Catalog to help you understand your DNA.",
+    label: "DNA Chat",
+    href: "/dna-chat",
+    text: "Ask questions about your genetic results in plain English. Get explanations of specific traits, genes, and what population studies say about your variants.",
+  },
+  {
+    label: "Browse",
+    href: "/browse",
+    text: "Browse studies from the GWAS Catalog with advanced filtering by trait, sample size, and significance. View a heatmap of your SNP matches across selected studies.",
+  },
+  {
+    label: "Analyze",
+    href: "/overview-report",
+    text: "Generate AI-written reports that synthesize patterns across your results, surface hypotheses about your biology, and connect findings to your health history. Premium feature.",
   },
   {
     label: "Privacy first",
-    text: "Your DNA is the most sensitive data you own, so we ensure your data stays private and secure. We do not store, snoop on, or sell your data.",
-  },
-  {
-    label: "Secure AI",
-    text: "Using local processing in your browser and AI running in Trusted Execution Environments, we maximize your anonymity and privacy.",
+    href: null,
+    text: "Your DNA stays in your browser. We do not store, transmit, or sell your raw genetic data. AI runs in Trusted Execution Environments for maximum anonymity.",
   },
 ];
 
-function NewUserChoiceModal({
-  isOpen,
-  onClose,
-  onTryChat,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onTryChat: () => void;
-}) {
-  const [countdown, setCountdown] = useState(5);
-  const onTryChatRef = useRef(onTryChat);
-  onTryChatRef.current = onTryChat;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setCountdown(5);
-    const interval = setInterval(() => {
-      setCountdown(prev => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (countdown === 0 && isOpen) {
-      onTryChatRef.current();
-    }
-  }, [countdown, isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="wire-onboarding-overlay">
-      <div className="wire-onboarding-shell">
-        <div className="wire-onboarding-frame">
-          <section className="wire-onboarding-slide new-user-choice-slide">
-            <p className="new-user-redirect-text">
-              We are automatically redirecting you to our DNA Chat page so you can see our app in action.
-            </p>
-            <div className="new-user-countdown">{countdown}</div>
-            <button
-              className="wire-onboarding-choice"
-              onClick={onClose}
-              type="button"
-            >
-              Click here to just go to the home page to learn about the app
-            </button>
-            <button
-              className="wire-onboarding-text-link"
-              onClick={onClose}
-              type="button"
-            >
-              Never show this again
-            </button>
-          </section>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function LandingClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { error } = useGenotype();
-  const [showWelcomeChoice, setShowWelcomeChoice] = useState(false);
+  const { addResultsBatch, clearResults, savedResults } = useResults();
+  const { saveCustomization, status: customizationStatus } = useCustomization();
+  const [sampleStatus, setSampleStatus] = useState<SampleLoadStatus>("idle");
+  const [sampleError, setSampleError] = useState<string | null>(null);
+  const [sampleBytes, setSampleBytes] = useState(0);
+  const [sampleTotalBytes, setSampleTotalBytes] = useState(0);
 
-  const completeWelcomeChoice = useCallback(() => {
-    localStorage.setItem(NEW_USER_CHOICE_STORAGE_KEY, "true");
-    localStorage.setItem(MOTHBALLED_ONBOARDING_STORAGE_KEY, "true");
-    setShowWelcomeChoice(false);
-  }, []);
+  const loadSampleData = async () => {
+    trackSampleDataStarted('home');
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const completed = localStorage.getItem(NEW_USER_CHOICE_STORAGE_KEY) === "true";
-    const forceOpen = searchParams.get("onboarding") === "1";
-
-    if (forceOpen || !completed) {
-      setShowWelcomeChoice(true);
-      trackIntroModalShown();
+    if (savedResults.length > 0) {
+      router.push("/explore");
+      return;
     }
 
-    if (forceOpen) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("onboarding");
-      window.history.replaceState({}, "", url.toString());
+    try {
+      setSampleStatus("downloading");
+      setSampleError(null);
+      setSampleBytes(0);
+      setSampleTotalBytes(0);
+
+      const response = await fetch("/api/sample-results", { method: "GET" });
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+
+      const total = Number(response.headers.get("content-length") || "0");
+      setSampleTotalBytes(total);
+
+      const decoder = new TextDecoder();
+      let content = "";
+      let downloaded = 0;
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            downloaded += value.byteLength;
+            content += decoder.decode(value, { stream: true });
+            setSampleBytes(downloaded);
+          }
+        }
+        content += decoder.decode();
+      } else {
+        content = await response.text();
+        downloaded = new Blob([content]).size;
+        setSampleBytes(downloaded);
+      }
+
+      setSampleStatus("loading");
+
+      const session = ResultsManager.parseResultsFile(content, SAMPLE_RESULTS_FILE_NAME);
+      if (!session.results.length) throw new Error("Sample file contained no usable results.");
+
+      await clearResults();
+      await addResultsBatch(session.results);
+
+      if (customizationStatus === "not-set") {
+        await saveCustomization(SAMPLE_CUSTOMIZATION, SAMPLE_CUSTOMIZATION_PASSWORD);
+      }
+
+      trackSampleDataLoaded('home', downloaded, session.results.length);
+      setSampleStatus("loaded");
+      router.push("/explore");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not load sample data.";
+      trackSampleDataFailed('home', msg);
+      setSampleStatus("error");
+      setSampleError(msg);
     }
-  }, [searchParams]);
+  };
 
-  useEffect(() => {
-    const handleOpen = () => {
-      setShowWelcomeChoice(true);
-    };
+  const sampleLabel =
+    sampleStatus === "downloading" ? "Downloading…" :
+    sampleStatus === "loading" ? "Parsing…" :
+    sampleStatus === "loaded" ? "Loaded" :
+    "Try with sample data";
 
-    window.addEventListener("openConversionOnboarding", handleOpen as EventListener);
-    window.addEventListener("openNewUserChoiceModal", handleOpen as EventListener);
-    return () => {
-      window.removeEventListener("openConversionOnboarding", handleOpen as EventListener);
-      window.removeEventListener("openNewUserChoiceModal", handleOpen as EventListener);
-    };
-  }, []);
+  const sampleProgressText =
+    sampleStatus === "downloading" && sampleBytes > 0
+      ? sampleTotalBytes > 0
+        ? `${formatBytes(sampleBytes)} / ${formatBytes(sampleTotalBytes)}`
+        : `${formatBytes(sampleBytes)} downloaded`
+      : sampleStatus === "loading"
+      ? "Parsing results…"
+      : null;
 
   return (
-    <>
-      <NewUserChoiceModal
-        isOpen={showWelcomeChoice}
-        onClose={completeWelcomeChoice}
-        onTryChat={() => {
-          completeWelcomeChoice();
-          trackGetStartedClicked("try_dna_chat_directly");
-          router.push("/dna-chat?sample=1");
-        }}
-      />
+    <main className="page landing-page landing-home-page">
+      <section className="landing-home-intro" style={{ display: 'block', padding: '2rem 2.5rem' }}>
+        <div className="landing-home-copy">
+          <h1 style={{ maxWidth: 'none' }}>Understand your DNA without giving it away.</h1>
 
-      <main className="page landing-page landing-home-page">
-        <section className="landing-home-intro">
-          <div className="landing-home-copy">
-            <h1>Understand your DNA without giving it away.</h1>
-
-            <div className="landing-home-explainer" aria-label="Monadic DNA Explorer overview">
-              {introCopy.map((item) => (
-                <p key={item.label}>
-                  <span>{item.label}</span>
-                  {item.text}
-                </p>
-              ))}
-            </div>
-
-            {error && <p className="landing-upload-error">{error}</p>}
+          <div className="landing-home-explainer" aria-label="Monadic DNA Explorer features" style={{ maxWidth: 'none' }}>
+            {featureCopy.map((item) => (
+              <p key={item.label}>
+                <span>
+                  {item.href ? (
+                    <Link href={item.href} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {item.label}
+                    </Link>
+                  ) : (
+                    item.label
+                  )}
+                </span>
+                {item.text}
+              </p>
+            ))}
           </div>
 
-          <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
-            <h2 id="landing-start-heading">Get Started</h2>
-            <div className="landing-start-actions">
-              <a
-                className="landing-secondary-button"
-                href={INSTRUCTIONAL_VIDEO_URL}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => trackGetStartedClicked("instructional_video")}
+          {error && <p className="landing-upload-error">{error}</p>}
+
+          <div style={{ marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <button
+                className="secondary-button"
+                onClick={loadSampleData}
+                disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
+                style={{ fontSize: '0.85rem' }}
               >
-                Watch Instructional Video
-              </a>
-              <a
-                className="landing-secondary-button"
-                href={SCHEDULE_CALL_URL}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => trackGetStartedClicked("schedule_video_call")}
-              >
-                Book a Free Help Call
-              </a>
+                {sampleLabel}
+              </button>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                No DNA file? Load an example to explore the app.
+              </span>
             </div>
-          </aside>
-        </section>
-      </main>
-    </>
+            {sampleProgressText && (
+              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {sampleProgressText}
+              </p>
+            )}
+            {sampleError && (
+              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--error)' }}>{sampleError}</p>
+            )}
+          </div>
+
+          <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            New to the app?{' '}
+            <a
+              href={SCHEDULE_CALL_URL}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
+              onClick={() => trackGetStartedClicked("schedule_video_call")}
+            >
+              Book a free help call.
+            </a>
+          </p>
+        </div>
+      </section>
+    </main>
   );
 }

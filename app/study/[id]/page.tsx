@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import MenuBar from "../../components/MenuBar";
 import Footer from "../../components/Footer";
 import VariantChips from "../../components/VariantChips";
 import StudyPersonalResultBanner from "../../components/StudyPersonalResultBanner";
+import { useResults } from "../../components/ResultsContext";
+import StudyInlineAnalysis from "../../components/StudyInlineAnalysis";
 
 type Study = {
   id: number;
@@ -45,10 +47,32 @@ type Study = {
 
 export default function StudyDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const studyId = params.id as string;
   const [study, setStudy] = useState<Study | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { savedResults, hasResult, getResult } = useResults();
+  const [totalStudies, setTotalStudies] = useState<number | null>(null);
+  const [navigating, setNavigating] = useState(false);
+
+  useEffect(() => {
+    if (savedResults.length > 0) return;
+    fetch("/api/studies?limit=1")
+      .then(r => r.json())
+      .then(data => { if (data.total) setTotalStudies(data.total); })
+      .catch(() => {});
+  }, [savedResults.length]);
+
+  const handleNextRandom = () => {
+    setNavigating(true);
+    if (savedResults.length > 0) {
+      const result = savedResults[Math.floor(Math.random() * savedResults.length)];
+      router.push(`/study/${result.studyId}`);
+    } else if (totalStudies !== null) {
+      router.push(`/study/${Math.floor(Math.random() * totalStudies) + 1}`);
+    }
+  };
 
   useEffect(() => {
     const fetchStudy = async () => {
@@ -57,7 +81,7 @@ export default function StudyDetailPage() {
         setError(null);
 
         // Fetch study by ID from the API
-        const response = await fetch(`/api/studies?limit=1&offset=${parseInt(studyId) - 1}`);
+        const response = await fetch(`/api/studies?id=${parseInt(studyId)}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch study details');
@@ -107,7 +131,7 @@ export default function StudyDetailPage() {
             <div style={{ padding: "2rem" }}>
               <h2>Study Not Found</h2>
               <p>{error || 'The requested study could not be found.'}</p>
-              <Link href="/explore" style={{
+              <Link href="/browse" style={{
                 display: "inline-block",
                 marginTop: "1rem",
                 padding: "0.75rem 1.5rem",
@@ -116,7 +140,7 @@ export default function StudyDetailPage() {
                 textDecoration: "none",
                 borderRadius: "6px"
               }}>
-                ← Back to Explore
+                ← Back to Browse
               </Link>
             </div>
           </main>
@@ -165,28 +189,58 @@ export default function StudyDetailPage() {
     return "Very subtle effect";
   };
 
+  const navButtons = (
+    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+      <Link href="/browse" style={{
+        display: "inline-block",
+        padding: "0.5rem 1rem",
+        backgroundColor: "#667eea",
+        color: "white",
+        textDecoration: "none",
+        borderRadius: "6px",
+        fontSize: "0.85rem",
+        fontWeight: 600,
+      }}>
+        ← Back to Browse
+      </Link>
+      <button
+        onClick={handleNextRandom}
+        disabled={navigating || (savedResults.length === 0 && totalStudies === null)}
+        style={{ fontSize: "0.85rem", padding: "0.5rem 1rem", background: "linear-gradient(135deg, #667eea, #764ba2)", border: "none", color: "white", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 600, boxShadow: "0 2px 6px rgba(102,126,234,0.4)", opacity: (navigating || (savedResults.length === 0 && totalStudies === null)) ? 0.5 : 1 }}
+      >
+        {navigating ? "Loading..." : "Next Random Study →"}
+      </button>
+    </div>
+  );
+
   return (
     <>
       <div className="app-container">
         <MenuBar />
         <main className="page">
-          {/* Breadcrumb */}
-          <div style={{ padding: "1rem 0", fontSize: "0.9rem", color: "#666" }}>
-            <Link href="/" style={{ color: "#667eea", textDecoration: "none" }}>Home</Link>
-            {" > "}
-            <Link href="/explore" style={{ color: "#667eea", textDecoration: "none" }}>Explore</Link>
-            {" > "}
-            <span>Study {study.id}</span>
+          {/* Breadcrumb + top nav */}
+          <div style={{ padding: "1rem 0", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
+            <span style={{ fontSize: "0.9rem", color: "#666" }}>
+              <Link href="/" style={{ color: "#667eea", textDecoration: "none" }}>Home</Link>
+              {" > "}
+              <Link href="/browse" style={{ color: "#667eea", textDecoration: "none" }}>Browse</Link>
+              {" > "}
+              <span>Study {study.id}</span>
+            </span>
+            {navButtons}
           </div>
 
           {/* Study Header */}
           <section className="study-header-card">
+            <div style={{ marginBottom: "0.75rem" }}>
+              <span style={{ display: "inline-block", fontSize: "1.1rem", fontWeight: 700, color: "#667eea", background: "rgba(102,126,234,0.1)", border: "1px solid rgba(102,126,234,0.25)", borderRadius: "6px", padding: "0.3rem 0.8rem", letterSpacing: "0.01em" }}>
+                {trait}
+              </span>
+            </div>
             <h1 className="study-header-title">{study.study || "Untitled Study"}</h1>
 
             <div className="study-header-meta">
-              {reportedTrait && <span className="study-meta-item"><strong>Reported trait:</strong> {reportedTrait}</span>}
-              {mappedTrait && mappedTrait !== reportedTrait && <span className="study-meta-item"><strong>Mapped trait:</strong> {mappedTrait}</span>}
-              {!reportedTrait && !mappedTrait && <span className="study-meta-item"><strong>Trait:</strong> Unknown trait</span>}
+              {reportedTrait && mappedTrait && mappedTrait !== reportedTrait && <span className="study-meta-item"><strong>Reported trait:</strong> {reportedTrait}</span>}
               {study.first_author && <span className="study-meta-item"><strong>Author:</strong> {study.first_author}</span>}
               {study.date && <span className="study-meta-item"><strong>Date:</strong> {new Date(study.date).toLocaleDateString()}</span>}
               {study.journal && <span className="study-meta-item"><strong>Journal:</strong> {study.journal}</span>}
@@ -223,6 +277,16 @@ export default function StudyDetailPage() {
             isAnalyzable={study.isAnalyzable}
             nonAnalyzableReason={study.nonAnalyzableReason}
           />
+
+          {/* Inline LLM analysis when a saved result exists for this study */}
+          {hasResult(study.id) && getResult(study.id) && (
+            <StudyInlineAnalysis
+              result={getResult(study.id)!}
+              pubmedId={study.pubmedid}
+              mappedGene={study.mapped_gene}
+              reportedTrait={study.disease_trait}
+            />
+          )}
 
           {/* Study Details */}
           <section className="study-details-card">
@@ -317,18 +381,9 @@ export default function StudyDetailPage() {
             )}
           </section>
 
-          {/* Back Button */}
+          {/* Bottom nav */}
           <div style={{ marginBottom: "2rem" }}>
-            <Link href="/explore" style={{
-              display: "inline-block",
-              padding: "0.75rem 1.5rem",
-              backgroundColor: "#667eea",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "6px"
-            }}>
-              ← Back to Explore
-            </Link>
+            {navButtons}
           </div>
         </main>
         <Footer />

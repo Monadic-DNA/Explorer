@@ -415,7 +415,14 @@ export default function MenuBar() {
             className={isDNAChatActive ? "nav-link active" : "nav-link"}
             style={getNavLinkStyle(isDNAChatActive)}
           >
-            DNA Chat
+            Chat
+          </Link>
+          <Link
+            href="/browse"
+            className={pathname === "/browse" ? "nav-link active" : "nav-link"}
+            style={getNavLinkStyle(pathname === "/browse")}
+          >
+            Browse
           </Link>
           <Link
             href="/overview-report"
@@ -423,7 +430,7 @@ export default function MenuBar() {
             style={getNavLinkStyle(isOverviewReportActive)}
           >
             <span className="nav-link-content">
-              Overview Report
+              Analyze
               <span className="nav-premium-badge">Premium</span>
             </span>
           </Link>

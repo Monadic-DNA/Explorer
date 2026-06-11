@@ -39,9 +39,28 @@ export default function DNAChatPage() {
   const [tourOpen, setTourOpen] = useState(false);
   const [sampleLoad, setSampleLoad] = useState<SampleLoadState>(initialSampleLoadState);
   const sampleLoadStartedRef = useRef(false);
+  const [initialChatInput, setInitialChatInput] = useState<string | undefined>();
 
   useEffect(() => {
     trackDNAChatViewed();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search).get("q");
+    const storedReport = localStorage.getItem('health_report_context');
+    if (storedReport) localStorage.removeItem('health_report_context');
+    if (q && storedReport) {
+      setInitialChatInput(
+        `I just generated a report from my genetic data. Here it is:\n\n${storedReport}\n\n${decodeURIComponent(q)}`
+      );
+    } else if (q) {
+      setInitialChatInput(decodeURIComponent(q));
+    } else if (storedReport) {
+      setInitialChatInput(
+        `I just generated a Health Insights Report from my genetic data. Here it is:\n\n${storedReport}\n\nCan you help me understand the key mechanisms and what I should read more about?`
+      );
+    }
   }, []);
 
 
@@ -211,7 +230,7 @@ export default function DNAChatPage() {
             >
               Show me how to use this
             </button>
-            <LLMChatInline />
+            <LLMChatInline initialInput={initialChatInput} />
           </div>
         </section>
       </main>

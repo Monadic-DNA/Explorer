@@ -39,3 +39,4 @@ yarn-error.log*
 /embeddings_backup.npz
 /AGENTS.md
 /CLAUDE.md
+/scripts/ga-performance.env

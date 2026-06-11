@@ -206,13 +206,13 @@ export function trackOnboardingAction(action: string, metadata?: Record<string, 
   });
 }
 
-export function trackSampleDataStarted(source: 'onboarding' | 'menu' = 'onboarding') {
+export function trackSampleDataStarted(source: 'onboarding' | 'menu' | 'home' = 'onboarding') {
   trackEvent('sample_data_started', {
     source,
   });
 }
 
-export function trackSampleDataLoaded(source: 'onboarding' | 'menu', fileSize: number, variantCount?: number) {
+export function trackSampleDataLoaded(source: 'onboarding' | 'menu' | 'home', fileSize: number, variantCount?: number) {
   trackEvent('sample_data_loaded', {
     source,
     file_size_kb: Math.round(fileSize / 1024),
@@ -220,7 +220,7 @@ export function trackSampleDataLoaded(source: 'onboarding' | 'menu', fileSize: n
   });
 }
 
-export function trackSampleDataFailed(source: 'onboarding' | 'menu', reason?: string) {
+export function trackSampleDataFailed(source: 'onboarding' | 'menu' | 'home', reason?: string) {
   trackEvent('sample_data_failed', {
     source,
     reason: sanitizeErrorReason(reason),
@@ -497,6 +497,45 @@ export function trackOverviewReportGenerated(resultCount: number) {
   trackEvent('overview_report_generated', {
     result_count: resultCount,
   });
+}
+
+export function trackHealthReportGenerated(resultCount: number, conditionCount: number) {
+  trackEvent('health_report_generated', {
+    result_count: resultCount,
+    condition_count: conditionCount,
+  });
+}
+
+export function trackHealthspanReportGenerated(resultCount: number, domainCount: number) {
+  trackEvent('healthspan_report_generated', {
+    result_count: resultCount,
+    domain_count: domainCount,
+  });
+}
+
+export function trackTopTraitsReportGenerated(resultCount: number) {
+  trackEvent('top_traits_report_generated', {
+    result_count: resultCount,
+  });
+}
+
+export function trackReportOpenedInChat(reportType: 'health_insights' | 'healthspan' | 'top_traits', withQuestion: boolean) {
+  trackEvent('report_opened_in_chat', {
+    report_type: reportType,
+    with_question: withQuestion,
+  });
+}
+
+export function trackExplorePageViewed() {
+  trackEvent('explore_page_viewed');
+}
+
+export function trackContinueInDNAChat(source: 'study_analysis') {
+  trackEvent('continue_in_dna_chat', { source });
+}
+
+export function trackFollowupQuestionClicked() {
+  trackEvent('followup_question_clicked');
 }
 
 export function trackSubscribePageViewed(state: 'signed_out' | 'signed_in' | 'subscribed') {

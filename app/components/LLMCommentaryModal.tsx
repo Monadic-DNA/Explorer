@@ -16,6 +16,7 @@ type LLMCommentaryModalProps = {
   currentResult: SavedResult;
   allResults: SavedResult[]; // Deprecated - will use SQL query instead
   skipPersonalizationPrompt?: boolean;
+  skipConsent?: boolean;
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_consent_accepted";
@@ -35,6 +36,7 @@ export default function LLMCommentaryModal({
   currentResult,
   allResults, // Deprecated parameter
   skipPersonalizationPrompt = false,
+  skipConsent = false,
 }: LLMCommentaryModalProps) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
@@ -63,27 +65,28 @@ export default function LLMCommentaryModal({
   }, []);
 
   useEffect(() => {
-    console.log('[LLMCommentaryModal] isOpen changed:', isOpen, 'hasConsent:', hasConsent);
     if (isOpen) {
+      if (skipConsent) {
+        setShowPersonalizationPrompt(false);
+        setShowConsentModal(false);
+        fetchCommentary();
+        return;
+      }
+
       if (skipPersonalizationPrompt) {
-        console.log('[LLMCommentaryModal] Skipping personalization prompt');
         setShowPersonalizationPrompt(false);
         setShowConsentModal(true);
         return;
       }
 
-      // Check if personalization is not set or locked
       if (customizationStatus === 'not-set' || customizationStatus === 'locked') {
-        console.log('[LLMCommentaryModal] Showing personalization prompt');
         setShowPersonalizationPrompt(true);
       } else {
-        // Always show consent modal first, even if consent was previously given
-        // This ensures user explicitly triggers the analysis each time
-        console.log('[LLMCommentaryModal] Showing consent modal');
         setShowConsentModal(true);
       }
     }
-  }, [isOpen, customizationStatus, skipPersonalizationPrompt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, customizationStatus, skipPersonalizationPrompt, skipConsent]);
 
   const handleConsentAccept = () => {
     if (typeof window !== "undefined") {
@@ -117,34 +120,26 @@ export default function LLMCommentaryModal({
       setLoadingPhase('query');
       setDelegationStatus(`Querying ${totalResults.toLocaleString()} results...`);
 
-      // Yield to UI to show loading state
       await new Promise(resolve => setTimeout(resolve, 50));
 
       console.log(`[fetchCommentary] Fetching top relevant results from ${totalResults} total using semantic search (5000 studies from embeddings)...`);
       const startFilter = Date.now();
 
-      // Use semantic search to find results most relevant to this trait/study
-      // Query 5000 studies from PostgreSQL to cast a wider net, then filter to top 499 matches
-      // Use only the trait name (condition) for semantic search, not the full study title
       setDelegationStatus(`Analyzing semantic relevance (may generate embeddings on first use)...`);
       const queryText = currentResult.traitName;
       let topResults = await getTopResultsByRelevance(queryText, 5000, currentResult.gwasId);
       console.log(`[fetchCommentary] Got ${topResults.length} results from semantic search (queried 5000 studies)`);
 
-      // Take only top 499 matches for the LLM prompt
       topResults = topResults.slice(0, 499);
       console.log(`[fetchCommentary] Using top ${topResults.length} results for LLM prompt`);
 
-      // If we have fewer than 499 results, fill remaining slots with highest risk score results
       if (topResults.length < 499) {
         const remaining = 499 - topResults.length;
         console.log(`[fetchCommentary] Only ${topResults.length} semantically relevant results. Filling ${remaining} slots with high-risk results...`);
         console.log(`[fetchCommentary] Total savedResults available: ${resultsContext.savedResults.length}`);
 
-        // Track existing study IDs to avoid duplicates
         const existingStudyIds = new Set(topResults.map(r => r.studyId));
 
-        // Debug: Check a sample result structure
         const sampleResult = resultsContext.savedResults[0];
         console.log(`[fetchCommentary] Sample result structure:`, {
           hasGwasId: !!sampleResult?.gwasId,
@@ -153,44 +148,29 @@ export default function LLMCommentaryModal({
           keys: sampleResult ? Object.keys(sampleResult) : []
         });
 
-        // Step 1: Filter by gwasId
         const withGwasId = resultsContext.savedResults.filter(r => r.gwasId !== currentResult.gwasId);
         console.log(`[fetchCommentary] After excluding current gwasId: ${withGwasId.length}`);
 
-        // Step 2: Filter by existing study IDs
         const noDuplicates = withGwasId.filter(r => !existingStudyIds.has(r.studyId));
         console.log(`[fetchCommentary] After excluding duplicates: ${noDuplicates.length}`);
 
-        // Step 3: Apply quality filters (only if fields exist)
         const qualityFiltered = noDuplicates.filter(r => {
-          // If pValue exists, apply threshold (genome-wide significance: < 5e-8)
           if (r.pValue) {
             const pValue = parseFloat(r.pValue);
-            if (!isNaN(pValue) && pValue >= 5e-8) {
-              return false;
-            }
+            if (!isNaN(pValue) && pValue >= 5e-8) return false;
           }
-
-          // If sampleSize exists, apply threshold (>= 500 participants)
           if (r.sampleSize) {
-            // Parse sample size from text like "15,000 European ancestry individuals"
             const sampleSizeMatch = r.sampleSize.match(/[\d,]+/);
             if (sampleSizeMatch) {
               const sampleSize = parseInt(sampleSizeMatch[0].replace(/,/g, ''));
-              if (!isNaN(sampleSize) && sampleSize < 500) {
-                return false;
-              }
+              if (!isNaN(sampleSize) && sampleSize < 500) return false;
             }
           }
-
-          // If neither field exists (old results), include all results
           return true;
         });
 
         console.log(`[fetchCommentary] After quality filters: ${qualityFiltered.length}`);
 
-        // Step 4: Random sampling to avoid bias toward high-risk results
-        // Shuffle using Fisher-Yates algorithm
         const shuffled = [...qualityFiltered];
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
@@ -204,13 +184,11 @@ export default function LLMCommentaryModal({
         console.log(`[fetchCommentary] Added ${randomSample.length} results. Final total: ${topResults.length}`);
       }
 
-      // Add current result at the top
       const resultsForContext = [currentResult, ...topResults];
 
       const filterTime = Date.now() - startFilter;
       console.log(`Fetched top 5000 results in ${filterTime}ms using semantic similarity search`);
 
-      // Store analysis metadata
       setAnalysisResultsCount(resultsForContext.length);
       setAnalysisResults(resultsForContext);
       setHasCustomization(!!(customization && (
@@ -222,13 +200,8 @@ export default function LLMCommentaryModal({
         (customization.familyConditions && customization.familyConditions.length > 0)
       )));
 
-      // Check console logs to detect if semantic search was actually used
-      // If we see the fallback warning, semantic search failed
-      setUsedSemanticSearch(topResults.length > 0);
-
       setDelegationStatus(`✓ Selected ${resultsForContext.length} most relevant results (${filterTime}ms)`);
 
-      // Yield to UI after query
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Phase 2: Fetch study metadata for quality indicators
@@ -837,191 +810,189 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
         className="modal-dialog commentary-modal"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-content">
-          <h2>🤖 AI Commentary on Your Result</h2>
+      <div className="modal-content">
+        <h2>🤖 AI Commentary on Your Result</h2>
 
-          <div className="commentary-powered-by-header">
-            <p className="powered-by">
-              {getLLMDescription()}
-            </p>
+        <div className="commentary-powered-by-header">
+          <p className="powered-by">
+            {getLLMDescription()}
+          </p>
+        </div>
+
+        <div className="commentary-result-summary">
+          <h3>{currentResult.traitName}</h3>
+          <p className="commentary-study-title">{currentResult.studyTitle}</p>
+          <div className="commentary-result-details">
+            <span>
+              <strong>Your genotype:</strong> {currentResult.userGenotype}
+            </span>
+            <span>
+              <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
+            </span>
           </div>
+        </div>
 
-          <div className="commentary-result-summary">
-            <h3>{currentResult.traitName}</h3>
-            <p className="commentary-study-title">{currentResult.studyTitle}</p>
-            <div className="commentary-result-details">
-              <span>
-                <strong>Your genotype:</strong> {currentResult.userGenotype}
-              </span>
-              <span>
-                <strong>Risk score:</strong> {formatRiskScore(currentResult.riskScore, currentResult.riskLevel, currentResult.effectType)} ({currentResult.riskLevel})
-              </span>
+        <div className="commentary-text">
+          {isLoading && (
+            <div className="commentary-loading">
+              <div className="loading-spinner"></div>
+              <p>Generating personalized commentary with private AI...</p>
+
+              {/* Progress indicator */}
+              <div className="loading-progress">
+                <div className="progress-steps">
+                  <div className={`progress-step ${loadingPhase === 'query' ? 'active' : 'completed'}`}>
+                    <span className="step-icon">{loadingPhase !== 'query' ? '✓' : '○'}</span>
+                    <span className="step-label">Query Results</span>
+                  </div>
+                  <div className={`progress-step ${loadingPhase === 'metadata' ? 'active' : ['token', 'llm', 'done'].includes(loadingPhase) ? 'completed' : ''}`}>
+                    <span className="step-icon">{['token', 'llm', 'done'].includes(loadingPhase) ? '✓' : '○'}</span>
+                    <span className="step-label">Study Metadata</span>
+                  </div>
+                  <div className={`progress-step ${loadingPhase === 'token' ? 'active' : ['llm', 'done'].includes(loadingPhase) ? 'completed' : ''}`}>
+                    <span className="step-icon">{['llm', 'done'].includes(loadingPhase) ? '✓' : '○'}</span>
+                    <span className="step-label">Secure Token</span>
+                  </div>
+                  <div className={`progress-step ${loadingPhase === 'llm' ? 'active' : loadingPhase === 'done' ? 'completed' : ''}`}>
+                    <span className="step-icon">{loadingPhase === 'done' ? '✓' : '○'}</span>
+                    <span className="step-label">LLM Analysis</span>
+                  </div>
+                </div>
+              </div>
+
+              {delegationStatus && (
+                <p className="loading-subtext delegation-status">
+                  {delegationStatus}
+                  {resultsCount > 0 && loadingPhase === 'query' && (
+                    <span className="results-count"> ({resultsCount.toLocaleString()} total results)</span>
+                  )}
+                </p>
+              )}
+              {!delegationStatus && (
+                <p className="loading-subtext">
+                  Your data is processed securely in a Trusted Execution Environment
+                </p>
+              )}
             </div>
-          </div>
+          )}
 
-          <div className="commentary-text">
-            {isLoading && (
-              <div className="commentary-loading">
-                <div className="loading-spinner"></div>
-                <p>Generating personalized commentary with private AI...</p>
+          {error && (
+            <div className="commentary-error">
+              <p className="error-message">❌ {error}</p>
+              <button className="retry-button" onClick={handleRetry}>
+                Try Again
+              </button>
+            </div>
+          )}
 
-                {/* Progress indicator */}
-                <div className="loading-progress">
-                  <div className="progress-steps">
-                    <div className={`progress-step ${loadingPhase === 'query' ? 'active' : 'completed'}`}>
-                      <span className="step-icon">{loadingPhase !== 'query' ? '✓' : '○'}</span>
-                      <span className="step-label">Query Results</span>
-                    </div>
-                    <div className={`progress-step ${loadingPhase === 'metadata' ? 'active' : ['token', 'llm', 'done'].includes(loadingPhase) ? 'completed' : ''}`}>
-                      <span className="step-icon">{['token', 'llm', 'done'].includes(loadingPhase) ? '✓' : '○'}</span>
-                      <span className="step-label">Study Metadata</span>
-                    </div>
-                    <div className={`progress-step ${loadingPhase === 'token' ? 'active' : ['llm', 'done'].includes(loadingPhase) ? 'completed' : ''}`}>
-                      <span className="step-icon">{['llm', 'done'].includes(loadingPhase) ? '✓' : '○'}</span>
-                      <span className="step-label">Secure Token</span>
-                    </div>
-                    <div className={`progress-step ${loadingPhase === 'llm' ? 'active' : loadingPhase === 'done' ? 'completed' : ''}`}>
-                      <span className="step-icon">{loadingPhase === 'done' ? '✓' : '○'}</span>
-                      <span className="step-label">LLM Analysis</span>
-                    </div>
-                  </div>
+          {!isLoading && !error && commentary && (
+            <div className="commentary-content">
+              {studyMetadata && (
+                <StudyQualityIndicators metadata={studyMetadata} />
+              )}
+
+              <div className="analysis-metadata">
+                <div className="metadata-item">
+                  <span className="metadata-icon">📊</span>
+                  <span className="metadata-label">Results analyzed:</span>
+                  <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
                 </div>
-
-                {delegationStatus && (
-                  <p className="loading-subtext delegation-status">
-                    {delegationStatus}
-                    {resultsCount > 0 && loadingPhase === 'query' && (
-                      <span className="results-count"> ({resultsCount.toLocaleString()} total results)</span>
-                    )}
-                  </p>
-                )}
-                {!delegationStatus && (
-                  <p className="loading-subtext">
-                    Your data is processed securely in a Trusted Execution Environment
-                  </p>
-                )}
+                <div className="metadata-item">
+                  <span className="metadata-icon">👤</span>
+                  <span className="metadata-label">Personalization:</span>
+                  <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
+                </div>
+                <div className="metadata-item metadata-note">
+                  <span className="metadata-icon">🔍</span>
+                  <span className="metadata-note-text">
+                    Results selected using semantic relevance matching (check browser console for details)
+                  </span>
+                </div>
               </div>
-            )}
 
-            {error && (
-              <div className="commentary-error">
-                <p className="error-message">❌ {error}</p>
-                <button className="retry-button" onClick={handleRetry}>
-                  Try Again
-                </button>
+              <div className="commentary-section">
+                <div className="commentary-header">
+                  <span className="commentary-icon">🤖</span>
+                  <h3>LLM-Generated Interpretation</h3>
+                </div>
+                <div
+                  className="commentary-body"
+                  dangerouslySetInnerHTML={{ __html: commentary }}
+                />
               </div>
-            )}
 
-            {!isLoading && !error && commentary && (
-              <div className="commentary-content">
-                {studyMetadata && (
-                  <StudyQualityIndicators metadata={studyMetadata} />
-                )}
-
-                {/* Analysis Metadata */}
-                <div className="analysis-metadata">
-                  <div className="metadata-item">
-                    <span className="metadata-icon">📊</span>
-                    <span className="metadata-label">Results analyzed:</span>
-                    <span className="metadata-value">{analysisResultsCount.toLocaleString()}</span>
-                  </div>
-                  <div className="metadata-item">
-                    <span className="metadata-icon">👤</span>
-                    <span className="metadata-label">Personalization:</span>
-                    <span className="metadata-value">{hasCustomization ? 'Enabled' : 'Not configured'}</span>
-                  </div>
-                  <div className="metadata-item metadata-note">
-                    <span className="metadata-icon">🔍</span>
-                    <span className="metadata-note-text">
-                      Results selected using semantic relevance matching (check browser console for details)
+              {analysisResults.length > 0 && (
+                <details className="studies-used-section">
+                  <summary className="studies-used-summary">
+                    <span className="summary-icon">📚</span>
+                    <span className="summary-text">
+                      View all {analysisResults.length} studies used in this analysis
                     </span>
-                  </div>
-                </div>
-
-                <div className="commentary-section">
-                  <div className="commentary-header">
-                    <span className="commentary-icon">🤖</span>
-                    <h3>LLM-Generated Interpretation</h3>
-                  </div>
-                  <div
-                    className="commentary-body"
-                    dangerouslySetInnerHTML={{ __html: commentary }}
-                  />
-                </div>
-
-                {/* Collapsible list of studies used in analysis */}
-                {analysisResults.length > 0 && (
-                  <details className="studies-used-section">
-                    <summary className="studies-used-summary">
-                      <span className="summary-icon">📚</span>
-                      <span className="summary-text">
-                        View all {analysisResults.length} studies used in this analysis
-                      </span>
-                      <span className="summary-arrow">▼</span>
-                    </summary>
-                    <div className="studies-used-list">
-                      {analysisResults.map((result, index) => (
-                        <div key={result.studyId} className="study-item">
-                          <div className="study-item-header">
-                            <span className="study-number">{index + 1}.</span>
-                            <span className="study-trait">{result.traitName}</span>
-                            {index === 0 && (
-                              <span className="current-badge">Current</span>
-                            )}
+                    <span className="summary-arrow">▼</span>
+                  </summary>
+                  <div className="studies-used-list">
+                    {analysisResults.map((result, index) => (
+                      <div key={result.studyId} className="study-item">
+                        <div className="study-item-header">
+                          <span className="study-number">{index + 1}.</span>
+                          <span className="study-trait">{result.traitName}</span>
+                          {index === 0 && (
+                            <span className="current-badge">Current</span>
+                          )}
+                        </div>
+                        <div className="study-item-details">
+                          <div className="study-detail">
+                            <span className="detail-label">Study:</span>
+                            <span className="detail-value">{result.studyTitle}</span>
                           </div>
-                          <div className="study-item-details">
-                            <div className="study-detail">
-                              <span className="detail-label">Study:</span>
-                              <span className="detail-value">{result.studyTitle}</span>
-                            </div>
-                            <div className="study-detail">
-                              <span className="detail-label">Your genotype:</span>
-                              <span className="detail-value">{result.userGenotype}</span>
-                            </div>
-                            <div className="study-detail">
-                              <span className="detail-label">Risk score:</span>
-                              <span className={`detail-value risk-${result.riskLevel}`}>
-                                {formatRiskScore(result.riskScore, result.riskLevel, result.effectType)} ({result.riskLevel})
-                              </span>
-                            </div>
-                            <div className="study-detail">
-                              <span className="detail-label">SNP:</span>
-                              <span className="detail-value">{result.matchedSnp}</span>
-                            </div>
+                          <div className="study-detail">
+                            <span className="detail-label">Your genotype:</span>
+                            <span className="detail-value">{result.userGenotype}</span>
+                          </div>
+                          <div className="study-detail">
+                            <span className="detail-label">Risk score:</span>
+                            <span className={`detail-value risk-${result.riskLevel}`}>
+                              {formatRiskScore(result.riskScore, result.riskLevel, result.effectType)} ({result.riskLevel})
+                            </span>
+                          </div>
+                          <div className="study-detail">
+                            <span className="detail-label">SNP:</span>
+                            <span className="detail-value">{result.matchedSnp}</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-
-                <div className="ai-limitations-disclaimer">
-                  <div className="disclaimer-icon">⚠️</div>
-                  <div>
-                    <strong>LLM-Generated Content Limitations</strong>
-                    <p>
-                      This commentary is generated by an LLM model and may not fully account for study
-                      limitations, your specific ancestry, the latest research, or individual medical factors.
-                      It should be used for educational purposes only. Always consult a healthcare professional
-                      or genetic counselor for personalized medical interpretation and advice.
-                    </p>
+                      </div>
+                    ))}
                   </div>
+                </details>
+              )}
+
+              <div className="ai-limitations-disclaimer">
+                <div className="disclaimer-icon">⚠️</div>
+                <div>
+                  <strong>LLM-Generated Content Limitations</strong>
+                  <p>
+                    This commentary is generated by an LLM model and may not fully account for study
+                    limitations, your specific ancestry, the latest research, or individual medical factors.
+                    It should be used for educational purposes only. Always consult a healthcare professional
+                    or genetic counselor for personalized medical interpretation and advice.
+                  </p>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="modal-actions">
-          {!isLoading && !error && commentary && (
-            <button className="disclaimer-button primary" onClick={handlePrint}>
-              🖨️ Print Analysis
-            </button>
+            </div>
           )}
-          <button className="disclaimer-button secondary" onClick={onClose}>
-            Close
-          </button>
         </div>
+      </div>
+
+      <div className="modal-actions">
+        {!isLoading && !error && commentary && (
+          <button className="disclaimer-button primary" onClick={handlePrint}>
+            🖨️ Print Analysis
+          </button>
+        )}
+        <button className="disclaimer-button secondary" onClick={onClose}>
+          Close
+        </button>
+      </div>
       </div>
     </div>
   );

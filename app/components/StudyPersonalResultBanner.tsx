@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useLayoutEffect, useMemo } from "react";
 import { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide, UserStudyResult, determineEffectTypeAndSize } from "@/lib/risk-calculator";
 import DisclaimerModal from "./DisclaimerModal";
-import LLMCommentaryModal from "./LLMCommentaryModal";
 import { SavedResult } from "@/lib/results-manager";
 import { trackStudyResultReveal } from "@/lib/analytics";
 
@@ -102,13 +101,12 @@ export default function StudyPersonalResultBanner({
   const [isRevealed, setIsRevealed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
-  const [showCommentary, setShowCommentary] = useState(false);
 
   const savedResult = useMemo(() => {
     return hasResult(studyId) ? getResult(studyId) : undefined;
   }, [studyId, resultsVersion, hasResult, getResult]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (savedResult) {
       setResult({
         hasMatch: true,
@@ -126,24 +124,6 @@ export default function StudyPersonalResultBanner({
       setIsRevealed(false);
     }
   }, [savedResult]);
-
-  const currentResultForModal = useMemo(() => {
-    if (!result?.hasMatch) return null;
-    return {
-      studyId,
-      gwasId: studyAccession || "",
-      traitName,
-      studyTitle,
-      userGenotype: result.userGenotype!,
-      riskAllele: result.riskAllele!,
-      effectSize: result.effectSize!,
-      effectType: result.effectType,
-      riskScore: result.riskScore!,
-      riskLevel: result.riskLevel!,
-      matchedSnp: result.matchedSnp!,
-      analysisDate: new Date().toISOString(),
-    };
-  }, [result, studyId, studyAccession, traitName, studyTitle]);
 
   const analyzeStudy = async () => {
     if (!genotypeData || !snps || !riskAllele) return;
@@ -202,41 +182,28 @@ export default function StudyPersonalResultBanner({
     }
 
     return (
-      <>
-        {showCommentary && currentResultForModal && (
-          <LLMCommentaryModal
-            isOpen={showCommentary}
-            onClose={() => setShowCommentary(false)}
-            currentResult={currentResultForModal}
-            allResults={[]}
-          />
-        )}
-        <div className={`study-result-banner study-result-banner--${result.riskLevel}`}>
-          <div className="srb-header">
-            <span className="srb-icon">🧬</span>
-            <h2 className="srb-title">Your Personal Result</h2>
-          </div>
-          <div className="srb-result-row">
-            <div className="srb-genotype">
-              <span className="srb-label">Your genotype</span>
-              <span className="srb-genotype-value">{result.userGenotype}</span>
-            </div>
-            <div className="srb-risk">
-              <span className="srb-label">Risk score</span>
-              <span className={`srb-risk-value srb-risk-value--${result.riskLevel}`}>
-                {formatRiskScore(result.riskScore!, result.riskLevel!, result.effectType)}
-                <span className="srb-direction">
-                  {result.riskLevel === "increased" ? " ↑" : result.riskLevel === "decreased" ? " ↓" : " →"}
-                </span>
-              </span>
-            </div>
-          </div>
-          <p className="srb-explanation">{generateTooltip(result)}</p>
-          <button className="commentary-button" onClick={() => setShowCommentary(true)}>
-            🛡️ Private LLM Analysis
-          </button>
+      <div className={`study-result-banner study-result-banner--${result.riskLevel}`}>
+        <div className="srb-header">
+          <span className="srb-icon">🧬</span>
+          <h2 className="srb-title">Your Personal Result</h2>
         </div>
-      </>
+        <div className="srb-result-row">
+          <div className="srb-genotype">
+            <span className="srb-label">Your genotype</span>
+            <span className="srb-genotype-value">{result.userGenotype}</span>
+          </div>
+          <div className="srb-risk">
+            <span className="srb-label">Risk score</span>
+            <span className={`srb-risk-value srb-risk-value--${result.riskLevel}`}>
+              {formatRiskScore(result.riskScore!, result.riskLevel!, result.effectType)}
+              <span className="srb-direction">
+                {result.riskLevel === "increased" ? " ↑" : result.riskLevel === "decreased" ? " ↓" : " →"}
+              </span>
+            </span>
+          </div>
+        </div>
+        <p className="srb-explanation">{generateTooltip(result)}</p>
+      </div>
     );
   }
 
