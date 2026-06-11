@@ -28,6 +28,7 @@ type Message = {
   timestamp: Date;
   studiesUsed?: SavedResult[];
   attachments?: Attachment[];
+  followupQuestions?: string[];
 };
 
 const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
@@ -48,13 +49,6 @@ const EXAMPLE_QUESTIONS = [
   "What can you guess about my appearance?"
 ];
 
-const FOLLOWUP_SUGGESTIONS = [
-  "Give me film, TV and music recommendations based on these results!",
-  "Is there anything fun in the results?",
-  "Tell me more about the science of my results.",
-  "Any supplements or vitamins I should consider?",
-  "How should I adjust my diet and lifestyle?"
-];
 
 export default function AIChatInline({ initialInput }: { initialInput?: string } = {}) {
   const resultsContext = useResults();
@@ -128,6 +122,11 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
     setInputValue(question);
     inputRef.current?.focus();
     trackExampleQuestionClicked();
+  };
+
+  const handleFollowupClick = (question: string) => {
+    trackExampleQuestionClicked();
+    void handleSendMessage(false, question);
   };
 
   const handleCopyMessage = async (content: string) => {
@@ -445,7 +444,16 @@ RESPONSE STYLE:
 - Maintain the same helpful, educational tone as before
 - NO need for comprehensive action plans or structured sections unless specifically asked
 
-Remember: This is educational, not medical advice. The detailed disclaimers were already provided in your initial response.`;
+Remember: This is educational, not medical advice. The detailed disclaimers were already provided in your initial response.
+
+After the response, append exactly this block (required):
+
+FOLLOWUP:
+- [a question that ties what you just said directly to this user's personal situation — their age, ancestry, conditions, medications, or lifestyle]
+- [a question that digs deeper into the most interesting or surprising point in your response]
+- [a question that connects this topic to something else in their profile or health history]
+
+Write questions from the user's perspective — as if the user is asking you. Not "do you notice X?" but "Why does ANK3 affect my RLS symptoms?" Reference the user's actual details where relevant.`;
 
       const systemPrompt = `You are an expert providing personalized, holistic insights about GWAS results. ${llmDescription}
 
@@ -540,7 +548,16 @@ RESPONSE REQUIREMENTS:
 - This is educational, NOT medical advice
 - COMPLETE your full response - never stop abruptly
 
-Remember: You have plenty of space. Use ALL of it to provide a complete, thorough, personalized analysis. Do not rush. Do not truncate.`;
+Remember: You have plenty of space. Use ALL of it to provide a complete, thorough, personalized analysis. Do not rush. Do not truncate.
+
+After the response, append exactly this block (required):
+
+FOLLOWUP:
+- [a question that connects one of the findings directly to this user's personal background, age, conditions, or lifestyle — make it feel like it was written for them specifically]
+- [a question that goes deeper on the most surprising or high-impact finding from this response]
+- [a question connecting two findings or asking how a specific gene or pathway interacts with something in their health history or life situation]
+
+Write questions from the user's perspective — as if the user is asking you. Not "would you like to know X?" but "How does my APOE status interact with my family history of dementia?" Reference the user's actual details where relevant.`;
 
       console.log('=== LLM CHAT PROMPT ===');
       console.log('System Prompt:', systemPrompt);
@@ -638,6 +655,23 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
       if (!accumulatedContent) {
         throw new Error("No response generated from LLM");
       }
+
+      // Parse and strip the FOLLOWUP block from the response
+      const followupMatch = accumulatedContent.split(/\n+FOLLOWUP:\n/);
+      const displayContent = followupMatch[0].trim();
+      const followupQuestions = followupMatch[1]
+        ? followupMatch[1].split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim()).filter(Boolean)
+        : [];
+
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          content: displayContent,
+          followupQuestions,
+        };
+        return updated;
+      });
 
       // Clear attachments after successful send
       setAttachedFiles([]);
@@ -952,15 +986,16 @@ Remember: You have plenty of space. Use ALL of it to provide a complete, thoroug
                     )}
                   </div>
                 )}
-                {message.role === 'assistant' && isLastAssistantMessage && !isLoading && (
+                {message.role === 'assistant' && isLastAssistantMessage && !isLoading && (message.followupQuestions?.length ?? 0) > 0 && (
                   <div className="followup-suggestions">
                     <div className="followup-header">Try asking:</div>
                     <div className="followup-buttons">
-                      {FOLLOWUP_SUGGESTIONS.map((suggestion, sidx) => (
+                      {message.followupQuestions!.map((suggestion, sidx) => (
                         <button
                           key={sidx}
                           className="followup-button"
-                          onClick={() => handleExampleClick(suggestion)}
+                          onClick={() => handleFollowupClick(suggestion)}
+                          disabled={isLoading}
                         >
                           {suggestion}
                         </button>

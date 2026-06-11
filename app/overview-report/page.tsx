@@ -7,6 +7,8 @@ import Footer from "../components/Footer";
 import PremiumFeatureHeader from "../components/PremiumFeatureHeader";
 import { PremiumPaywall } from "../components/PremiumPaywall";
 import OverviewReportModal from "../components/OverviewReportModal";
+import HealthReportModal from "../components/HealthReportModal";
+import HealthspanReportModal from "../components/HealthspanReportModal";
 import { OverviewReportIcon } from "../components/Icons";
 import { useAuth } from "../components/AuthProvider";
 import { useResults } from "../components/ResultsContext";
@@ -20,6 +22,8 @@ export default function OverviewReportPage() {
   const { savedResults } = useResults();
   const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
+  const [showHealthReportModal, setShowHealthReportModal] = useState(false);
+  const [showHealthspanReportModal, setShowHealthspanReportModal] = useState(false);
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
 
@@ -46,22 +50,28 @@ export default function OverviewReportPage() {
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
   const hasResults = savedResults.length > 0;
 
-  const handleGenerateReport = () => {
-    if (!hasResults) {
-      return;
-    }
-
+  const requirePremium = () => {
     if (!hasPremiumAccess && !hasValidPromoAccess()) {
-      if (!isAuthenticated) {
-        openAuthModal();
-        return;
-      }
-
+      if (!isAuthenticated) { openAuthModal(); return false; }
       router.push('/subscribe');
-      return;
+      return false;
     }
+    return true;
+  };
 
+  const handleGenerateReport = () => {
+    if (!hasResults || !requirePremium()) return;
     setShowOverviewReportModal(true);
+  };
+
+  const handleGenerateHealthReport = () => {
+    if (!hasResults) return;
+    setShowHealthReportModal(true);
+  };
+
+  const handleGenerateHealthspanReport = () => {
+    if (!hasResults) return;
+    setShowHealthspanReportModal(true);
   };
 
   return (
@@ -102,10 +112,9 @@ export default function OverviewReportPage() {
               <OverviewReportIcon size={56} />
             </div>
             <div className="overview-report-copy">
-              <h3>Generate your report</h3>
+              <h3>Comprehensive Overview Report</h3>
               <p>
-                The report works best after you have run broad analysis. Use
-                Run All from the Menu Bar or load a saved results file first.
+                Analyzes all your saved genetic results across categories: health, lifestyle, appearance, personality, and more. Works best after running broad analysis.
               </p>
               <div className="overview-report-stats">
                 <span data-tour="saved-results-count">{savedResults.length.toLocaleString()} saved results</span>
@@ -123,12 +132,76 @@ export default function OverviewReportPage() {
               </button>
             </div>
           </div>
+
+          <div className="overview-report-panel" style={{ marginTop: '1rem' }}>
+            <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
+              🧬
+            </div>
+            <div className="overview-report-copy">
+              <h3>
+                Health Insights Report
+                <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
+              </h3>
+              <p>
+                Anchors to your personal and family health history. Selects the most relevant genetic associations and identifies the biological mechanisms that may be affecting your health.
+              </p>
+              <div className="overview-report-stats">
+                <span>{savedResults.length.toLocaleString()} saved results</span>
+                <span>Single AI call · faster</span>
+              </div>
+            </div>
+            <div className="overview-report-actions">
+              <button
+                className="primary-button"
+                onClick={handleGenerateHealthReport}
+                disabled={!hasResults}
+              >
+                {!hasResults ? "Load Results First" : "Generate Health Insights"}
+              </button>
+            </div>
+          </div>
+
+          <div className="overview-report-panel" style={{ marginTop: '1rem' }}>
+            <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
+              📊
+            </div>
+            <div className="overview-report-copy">
+              <h3>
+                Healthspan Report
+                <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
+              </h3>
+              <p>
+                Organizes your associations by healthspan domain: cardiovascular, metabolic, neurological, immune, musculoskeletal, and cancer susceptibility. Synthesizes patterns within and across domains.
+              </p>
+              <div className="overview-report-stats">
+                <span>{savedResults.length.toLocaleString()} saved results</span>
+                <span>6 domains · single AI call</span>
+              </div>
+            </div>
+            <div className="overview-report-actions">
+              <button
+                className="primary-button"
+                onClick={handleGenerateHealthspanReport}
+                disabled={!hasResults}
+              >
+                {!hasResults ? "Load Results First" : "Generate Healthspan Report"}
+              </button>
+            </div>
+          </div>
         </section>
       </main>
       <Footer />
       <OverviewReportModal
         isOpen={showOverviewReportModal}
         onClose={() => setShowOverviewReportModal(false)}
+      />
+      <HealthReportModal
+        isOpen={showHealthReportModal}
+        onClose={() => setShowHealthReportModal(false)}
+      />
+      <HealthspanReportModal
+        isOpen={showHealthspanReportModal}
+        onClose={() => setShowHealthspanReportModal(false)}
       />
       <GuidedTour tour={overviewReportTour} isOpen={tourOpen} onClose={() => setTourOpen(false)} />
     </div>

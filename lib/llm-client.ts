@@ -199,24 +199,39 @@ async function callNilAI(
   const { delegationToken } = await tokenResponse.json();
   client.updateDelegation(delegationToken);
 
-  // Call nilAI
-  const response = await client.chat.completions.create({
-    model: modelId,
-    messages: messages as any,
-    max_tokens: maxTokens || 262144, // Default to model max if not specified
-    temperature,
-    reasoning_effort: reasoningEffort,
-  });
+  // Call nilAI with automatic retry on 429 (rate limit)
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAYS_MS = [15000, 30000];
 
-  const content = response.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error('No response from nilAI');
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      const delayMs = RETRY_DELAYS_MS[attempt - 1];
+      console.log(`[nilAI] Rate limited (429). Retrying in ${delayMs / 1000}s (attempt ${attempt + 1}/${MAX_ATTEMPTS})…`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
+    try {
+      const response = await client.chat.completions.create({
+        model: modelId,
+        messages: messages as any,
+        max_tokens: maxTokens || 262144,
+        temperature,
+        reasoning_effort: reasoningEffort,
+      });
+
+      const content = response.choices?.[0]?.message?.content;
+      if (!content) throw new Error('No response from nilAI');
+
+      return { content, usage: response.usage as any };
+    } catch (error) {
+      lastError = error;
+      const is429 = error instanceof Error && error.message.includes('429');
+      if (!is429 || attempt === MAX_ATTEMPTS - 1) throw error;
+    }
   }
 
-  return {
-    content,
-    usage: response.usage as any,
-  };
+  throw lastError;
 }
 
 /**

@@ -48,7 +48,19 @@ export default function DNAChatPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const q = new URLSearchParams(window.location.search).get("q");
-    if (q) setInitialChatInput(decodeURIComponent(q));
+    const storedReport = localStorage.getItem('health_report_context');
+    if (storedReport) localStorage.removeItem('health_report_context');
+    if (q && storedReport) {
+      setInitialChatInput(
+        `I just generated a report from my genetic data. Here it is:\n\n${storedReport}\n\n${decodeURIComponent(q)}`
+      );
+    } else if (q) {
+      setInitialChatInput(decodeURIComponent(q));
+    } else if (storedReport) {
+      setInitialChatInput(
+        `I just generated a Health Insights Report from my genetic data. Here it is:\n\n${storedReport}\n\nCan you help me understand the key mechanisms and what I should read more about?`
+      );
+    }
   }, []);
 
 
