@@ -7,6 +7,7 @@ import { useCustomization } from "./CustomizationContext";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { SelectedResult } from "@/lib/health-report-service";
+import { trackHealthReportGenerated, trackReportOpenedInChat } from "@/lib/analytics";
 
 type Phase = 'idle' | 'generating' | 'complete' | 'error';
 
@@ -64,6 +65,8 @@ export default function HealthReportModal({ isOpen, onClose }: HealthReportModal
       setQuestions(qs);
       setProgress(100);
       setPhase('complete');
+      const conditionCount = (customization?.personalConditions?.length ?? 0) + (customization?.familyConditions?.length ?? 0);
+      trackHealthReportGenerated(selected.length, conditionCount);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Generation failed.';
       setError(msg.includes('429') ? 'nilAI is rate-limited. The service retried automatically but is still overloaded. Wait 30-60 seconds and try again.' : msg);
@@ -106,6 +109,7 @@ export default function HealthReportModal({ isOpen, onClose }: HealthReportModal
 
   const handleOpenInChat = (question?: string) => {
     if (!report) return;
+    trackReportOpenedInChat('health_insights', !!question);
     localStorage.setItem('health_report_context', report);
     router.push(question ? `/dna-chat?q=${encodeURIComponent(question)}` : '/dna-chat');
   };

@@ -7,7 +7,7 @@ import { useGenotype } from "./components/UserDataUpload";
 import { useResults } from "./components/ResultsContext";
 import { useCustomization, type UserCustomization } from "./components/CustomizationContext";
 import { ResultsManager } from "@/lib/results-manager";
-import { trackGetStartedClicked } from "@/lib/analytics";
+import { trackGetStartedClicked, trackSampleDataStarted, trackSampleDataLoaded, trackSampleDataFailed } from "@/lib/analytics";
 
 const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
 const SAMPLE_CUSTOMIZATION_PASSWORD = "sample-data";
@@ -74,6 +74,8 @@ export default function LandingClient() {
   const [sampleTotalBytes, setSampleTotalBytes] = useState(0);
 
   const loadSampleData = async () => {
+    trackSampleDataStarted('home');
+
     if (savedResults.length > 0) {
       router.push("/explore");
       return;
@@ -125,11 +127,14 @@ export default function LandingClient() {
         await saveCustomization(SAMPLE_CUSTOMIZATION, SAMPLE_CUSTOMIZATION_PASSWORD);
       }
 
+      trackSampleDataLoaded('home', downloaded, session.results.length);
       setSampleStatus("loaded");
       router.push("/explore");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not load sample data.";
+      trackSampleDataFailed('home', msg);
       setSampleStatus("error");
-      setSampleError(err instanceof Error ? err.message : "Could not load sample data.");
+      setSampleError(msg);
     }
   };
 

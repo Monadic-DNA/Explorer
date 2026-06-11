@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { DOMAIN_LABELS } from "@/lib/healthspan-report-service";
 import type { HealthspanReportResult } from "@/lib/healthspan-report-service";
+import { trackHealthspanReportGenerated, trackReportOpenedInChat } from "@/lib/analytics";
 
 type Phase = 'idle' | 'generating' | 'complete' | 'error';
 
@@ -61,6 +62,8 @@ export default function HealthspanReportModal({ isOpen, onClose }: HealthspanRep
       setQuestions(res.questions ?? []);
       setProgress(100);
       setPhase('complete');
+      const domainCount = Object.values(res.domainCounts).filter(c => c.elevated + c.protective >= 2).length;
+      trackHealthspanReportGenerated(res.selected.length, domainCount);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Generation failed.';
       setError(msg.includes('429') ? 'nilAI is rate-limited. The service retried automatically but is still overloaded. Wait 30-60 seconds and try again.' : msg);
@@ -103,6 +106,7 @@ export default function HealthspanReportModal({ isOpen, onClose }: HealthspanRep
 
   const handleOpenInChat = (question?: string) => {
     if (!result?.report) return;
+    trackReportOpenedInChat('healthspan', !!question);
     localStorage.setItem('health_report_context', result.report);
     router.push(question ? `/dna-chat?q=${encodeURIComponent(question)}` : '/dna-chat');
   };

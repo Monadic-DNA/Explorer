@@ -8,7 +8,7 @@ import { useCustomization } from "./CustomizationContext";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
-import { trackLLMQuestionAsked, trackAIConsentGiven, trackAIConsentDeclined, trackAIConsentModalShown, trackExampleQuestionClicked } from "@/lib/analytics";
+import { trackLLMQuestionAsked, trackAIConsentGiven, trackAIConsentDeclined, trackAIConsentModalShown, trackExampleQuestionClicked, trackFollowupQuestionClicked } from "@/lib/analytics";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -125,7 +125,7 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
   };
 
   const handleFollowupClick = (question: string) => {
-    trackExampleQuestionClicked();
+    trackFollowupQuestionClicked();
     void handleSendMessage(false, question);
   };
 

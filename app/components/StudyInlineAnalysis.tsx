@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SavedResult } from "@/lib/results-manager";
 import { useCustomization } from "./CustomizationContext";
 import { callLLM } from "@/lib/llm-client";
+import { trackContinueInDNAChat } from "@/lib/analytics";
 
 type Props = {
   result: SavedResult;
@@ -287,7 +288,7 @@ The chat questions should be specific, conversational questions the user might w
 
       {!isLoading && commentary && (
         <div className="sia-continue-row">
-          <Link href={dnaChatContinueUrl} className="sia-continue-button">
+          <Link href={dnaChatContinueUrl} className="sia-continue-button" onClick={() => trackContinueInDNAChat('study_analysis')}>
             Continue this conversation in DNA Chat →
           </Link>
         </div>

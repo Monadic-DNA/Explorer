@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import MenuBar from "../components/MenuBar";
@@ -8,6 +8,7 @@ import Footer from "../components/Footer";
 import { useResults } from "../components/ResultsContext";
 import { useGenotype } from "../components/UserDataUpload";
 import { useCustomization } from "../components/CustomizationContext";
+import { trackExplorePageViewed } from "@/lib/analytics";
 
 const STOP_WORDS = new Set([
   'and', 'or', 'the', 'of', 'with', 'in', 'to', 'a', 'an', 'for', 'by', 'at', 'on',
@@ -37,6 +38,8 @@ export default function ExplorePage() {
   const { customization } = useCustomization();
   const [navigating, setNavigating] = useState(false);
   const [shownIncreased, setShownIncreased] = useState(5);
+
+  useEffect(() => { trackExplorePageViewed(); }, []);
   const [shownDecreased, setShownDecreased] = useState(5);
   const [healthCardPages, setHealthCardPages] = useState<Record<string, number>>({});
 
