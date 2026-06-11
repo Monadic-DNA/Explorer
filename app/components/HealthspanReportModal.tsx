@@ -215,7 +215,7 @@ export default function HealthspanReportModal({ isOpen, onClose }: HealthspanRep
           {phase === 'complete' && result && (
             <div style={{ background: 'var(--modal-bg)', borderRadius: '8px', padding: '1.5rem' }}>
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                <button className="secondary-button" onClick={handleOpenInChat}>💬 Discuss in DNA Chat</button>
+                <button className="secondary-button" onClick={() => handleOpenInChat()}>💬 Discuss in DNA Chat</button>
                 <button className="secondary-button" onClick={handleCopy}>📋 Copy</button>
                 <button className="secondary-button" onClick={handlePrint}>🖨️ Print</button>
                 <button className="secondary-button" onClick={() => setPhase('idle')}>↺ Regenerate</button>
