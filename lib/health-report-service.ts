@@ -202,6 +202,9 @@ The most surprising, largest-effect, or cross-cutting discoveries. Prioritize fi
 **5. What to investigate further**
 3-4 specific research threads the user could pursue to understand their genetic dynamics better. Frame these as topics to read about or questions to explore, not clinical actions. Focus on: specific genes that appeared repeatedly and have well-studied literature, pathway connections worth understanding, or cross-trait mechanisms that link seemingly unrelated findings.
 
+**6. Hypotheses about you** (4 hypotheses, each 2-3 sentences)
+Based on the signal patterns in these results, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the strongest signals. Frame each as "People with this signal pattern tend to..." or "This combination of variants is consistent with someone who...". Be direct and specific. These should feel like genuine insights, not generic disclaimers. Reference specific genes or findings from this report.
+
 Language rules (strictly enforced):
 - These are population-level GWAS associations, not individual predictions. Write accordingly: "population studies associate this variant with X", "carriers of this allele show", "this signal is consistent with"; never "your genome does X" or "this drives your Y".
 - For mechanisms: describe what the gene/pathway does in the population literature, not what it is doing in this person's body. "BTBD9 is associated with dopamine regulation in RLS cohorts" not "your BTBD9 variants are disrupting your dopamine signaling."
@@ -222,11 +225,14 @@ Then add:
 **Most notable findings**: 4-5 bullets of the most striking discoveries.
 **What to investigate further**: 3-4 research threads the user could explore. Specific genes, pathways, or cross-trait connections with well-studied literature.
 
+**Hypotheses about you** (4 hypotheses, each 2-3 sentences)
+Based on the signal patterns in these results, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the strongest signals. Frame each as "People with this signal pattern tend to..." or "This combination of variants is consistent with someone who...". Be direct and specific. Reference specific genes or findings from this report.
+
 Language rules (strictly enforced):
 - These are population-level statistics. Write "population studies associate this variant with X", never "your genome does X" or deterministic personal claims.
 - Do not recommend clinical tests, doctors, or lifestyle changes.
 
-700-900 words.`;
+800-1000 words.`;
 
   return `You are a genetic counselor writing a personalized health insights report. Your goal is to surface insights the user does not already know from their symptoms alone.
 ${userCtx}

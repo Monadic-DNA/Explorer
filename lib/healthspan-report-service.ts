@@ -209,6 +209,9 @@ Briefly mention 2-3 additional signals from domains not covered in Key findings.
 **What to understand about your aging biology**
 4 genes, each with a 1-sentence hook explaining WHY it matters for how the body ages, not just what trait it is associated with. Write these for someone who will go and search for more.
 
+**Hypotheses about you** (4 hypotheses, each 2-3 sentences)
+Based on the patterns across these healthspan signals, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the findings. Frame each as "People with this signal pattern tend to..." or "This combination of variants is consistent with someone who...". Be direct and specific. These should feel like insights, not disclaimers. Reference specific genes or findings from this report.
+
 Style rules:
 - No domain-name headers in the body of the report.
 - The "Key findings" headers should describe the biological theme, not the domain (e.g., "The metabolic-inflammatory axis" not "Cardiovascular").

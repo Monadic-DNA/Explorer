@@ -110,38 +110,8 @@ export default function OverviewReportPage() {
             </div>
           </div>
 
-          {/* Top Traits Report */}
-          <div className="overview-report-panel">
-            <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
-              🏆
-            </div>
-            <div className="overview-report-copy">
-              <h3>
-                Top Traits Report
-                <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
-              </h3>
-              <p>
-                Takes your 50 strongest genetic associations by effect size and synthesizes what they reveal about your biology. The fastest way to see what stands out most in your results.
-              </p>
-              <div className="overview-report-stats">
-                <span>{savedResults.length.toLocaleString()} saved results</span>
-                <span>Top 100 signals · single AI call</span>
-              </div>
-            </div>
-            <div className="overview-report-actions">
-              <button
-                className="primary-button"
-                onClick={handleGenerateTopTraitsReport}
-                disabled={!hasResults}
-                data-tour="generate-report-button"
-              >
-                {!hasResults ? "Load Results First" : "Generate Top Traits Report"}
-              </button>
-            </div>
-          </div>
-
           {/* Health Insights Report */}
-          <div className="overview-report-panel" style={{ marginTop: '1rem' }}>
+          <div className="overview-report-panel">
             <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
               🧬
             </div>
@@ -151,18 +121,15 @@ export default function OverviewReportPage() {
                 <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
               </h3>
               <p>
-                Anchors to your personal and family health history. Selects the most relevant genetic associations and identifies the biological mechanisms that may be affecting your health.
+                Anchors to your personal and family health history. Selects the most relevant genetic associations and identifies the biological mechanisms that may be affecting your health. Add conditions in Personalization for best results.
               </p>
-              <div className="overview-report-stats">
-                <span>{savedResults.length.toLocaleString()} saved results</span>
-                <span>Health-history anchored · single AI call</span>
-              </div>
             </div>
             <div className="overview-report-actions">
               <button
                 className="primary-button"
                 onClick={handleGenerateHealthReport}
                 disabled={!hasResults}
+                data-tour="generate-report-button"
               >
                 {!hasResults ? "Load Results First" : "Generate Health Insights"}
               </button>
@@ -182,10 +149,6 @@ export default function OverviewReportPage() {
               <p>
                 Organizes your associations by healthspan domain: cardiovascular, metabolic, neurological, immune, musculoskeletal, and cancer susceptibility. Synthesizes patterns within and across domains.
               </p>
-              <div className="overview-report-stats">
-                <span>{savedResults.length.toLocaleString()} saved results</span>
-                <span>6 domains · single AI call</span>
-              </div>
             </div>
             <div className="overview-report-actions">
               <button
@@ -194,6 +157,31 @@ export default function OverviewReportPage() {
                 disabled={!hasResults}
               >
                 {!hasResults ? "Load Results First" : "Generate Healthspan Report"}
+              </button>
+            </div>
+          </div>
+
+          {/* Top Traits Report */}
+          <div className="overview-report-panel" style={{ marginTop: '1rem' }}>
+            <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
+              🏆
+            </div>
+            <div className="overview-report-copy">
+              <h3>
+                Top Traits Report
+                <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
+              </h3>
+              <p>
+                Takes your 100 strongest genetic associations by effect size and synthesizes what they reveal about your biology. Good starting point if you have not added health history yet.
+              </p>
+            </div>
+            <div className="overview-report-actions">
+              <button
+                className="primary-button"
+                onClick={handleGenerateTopTraitsReport}
+                disabled={!hasResults}
+              >
+                {!hasResults ? "Load Results First" : "Generate Top Traits Report"}
               </button>
             </div>
           </div>
@@ -211,10 +199,6 @@ export default function OverviewReportPage() {
               <p>
                 Analyzes all your saved genetic results across categories: health, lifestyle, appearance, personality, and more. Works best after running broad analysis. Currently under development.
               </p>
-              <div className="overview-report-stats">
-                <span>{savedResults.length.toLocaleString()} saved results</span>
-                <span>{hasPremiumAccess ? "Premium access active" : "Premium required"}</span>
-              </div>
             </div>
             <div className="overview-report-actions">
               <button
