@@ -9,6 +9,7 @@ import { PremiumPaywall } from "../components/PremiumPaywall";
 import OverviewReportModal from "../components/OverviewReportModal";
 import HealthReportModal from "../components/HealthReportModal";
 import HealthspanReportModal from "../components/HealthspanReportModal";
+import TopTraitsReportModal from "../components/TopTraitsReportModal";
 import { OverviewReportIcon } from "../components/Icons";
 import { useAuth } from "../components/AuthProvider";
 import { useResults } from "../components/ResultsContext";
@@ -24,6 +25,7 @@ export default function OverviewReportPage() {
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [showHealthReportModal, setShowHealthReportModal] = useState(false);
   const [showHealthspanReportModal, setShowHealthspanReportModal] = useState(false);
+  const [showTopTraitsReportModal, setShowTopTraitsReportModal] = useState(false);
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
 
@@ -65,13 +67,18 @@ export default function OverviewReportPage() {
   };
 
   const handleGenerateHealthReport = () => {
-    if (!hasResults) return;
+    if (!hasResults || !requirePremium()) return;
     setShowHealthReportModal(true);
   };
 
   const handleGenerateHealthspanReport = () => {
-    if (!hasResults) return;
+    if (!hasResults || !requirePremium()) return;
     setShowHealthspanReportModal(true);
+  };
+
+  const handleGenerateTopTraitsReport = () => {
+    if (!hasResults || !requirePremium()) return;
+    setShowTopTraitsReportModal(true);
   };
 
   return (
@@ -95,44 +102,45 @@ export default function OverviewReportPage() {
               <div className="premium-feature-title-row">
                 <h2>Overview Report</h2>
                 <span className="premium-tab-badge">Premium</span>
-                <span className="experimental-badge">Experimental</span>
               </div>
               <p>
                 Turn your saved analysis results into a concise AI-generated
                 report covering patterns, themes, and suggested next steps.
               </p>
-              <p className="experimental-notice">
-                This feature is experimental and is currently under development.
-              </p>
             </div>
           </div>
 
+          {/* Top Traits Report */}
           <div className="overview-report-panel">
-            <div className="overview-report-icon">
-              <OverviewReportIcon size={56} />
+            <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
+              🏆
             </div>
             <div className="overview-report-copy">
-              <h3>Comprehensive Overview Report</h3>
+              <h3>
+                Top Traits Report
+                <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
+              </h3>
               <p>
-                Analyzes all your saved genetic results across categories: health, lifestyle, appearance, personality, and more. Works best after running broad analysis.
+                Takes your 50 strongest genetic associations by effect size and synthesizes what they reveal about your biology. The fastest way to see what stands out most in your results.
               </p>
               <div className="overview-report-stats">
-                <span data-tour="saved-results-count">{savedResults.length.toLocaleString()} saved results</span>
-                <span>{hasPremiumAccess ? "Premium access active" : "Premium required"}</span>
+                <span>{savedResults.length.toLocaleString()} saved results</span>
+                <span>Top 100 signals · single AI call</span>
               </div>
             </div>
             <div className="overview-report-actions">
               <button
                 className="primary-button"
-                onClick={handleGenerateReport}
+                onClick={handleGenerateTopTraitsReport}
                 disabled={!hasResults}
                 data-tour="generate-report-button"
               >
-                {!hasResults ? "Load Results First" : "Generate Overview Report"}
+                {!hasResults ? "Load Results First" : "Generate Top Traits Report"}
               </button>
             </div>
           </div>
 
+          {/* Health Insights Report */}
           <div className="overview-report-panel" style={{ marginTop: '1rem' }}>
             <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
               🧬
@@ -147,7 +155,7 @@ export default function OverviewReportPage() {
               </p>
               <div className="overview-report-stats">
                 <span>{savedResults.length.toLocaleString()} saved results</span>
-                <span>Single AI call · faster</span>
+                <span>Health-history anchored · single AI call</span>
               </div>
             </div>
             <div className="overview-report-actions">
@@ -161,6 +169,7 @@ export default function OverviewReportPage() {
             </div>
           </div>
 
+          {/* Healthspan Report */}
           <div className="overview-report-panel" style={{ marginTop: '1rem' }}>
             <div className="overview-report-icon" style={{ fontSize: '2.5rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 56, height: 56 }}>
               📊
@@ -188,6 +197,35 @@ export default function OverviewReportPage() {
               </button>
             </div>
           </div>
+
+          {/* Comprehensive Overview Report (experimental, at bottom) */}
+          <div className="overview-report-panel" style={{ marginTop: '2rem', opacity: 0.85 }}>
+            <div className="overview-report-icon">
+              <OverviewReportIcon size={56} />
+            </div>
+            <div className="overview-report-copy">
+              <h3>
+                Comprehensive Overview Report
+                <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>Experimental</span>
+              </h3>
+              <p>
+                Analyzes all your saved genetic results across categories: health, lifestyle, appearance, personality, and more. Works best after running broad analysis. Currently under development.
+              </p>
+              <div className="overview-report-stats">
+                <span>{savedResults.length.toLocaleString()} saved results</span>
+                <span>{hasPremiumAccess ? "Premium access active" : "Premium required"}</span>
+              </div>
+            </div>
+            <div className="overview-report-actions">
+              <button
+                className="primary-button"
+                onClick={handleGenerateReport}
+                disabled={!hasResults}
+              >
+                {!hasResults ? "Load Results First" : "Generate Overview Report"}
+              </button>
+            </div>
+          </div>
         </section>
       </main>
       <Footer />
@@ -202,6 +240,10 @@ export default function OverviewReportPage() {
       <HealthspanReportModal
         isOpen={showHealthspanReportModal}
         onClose={() => setShowHealthspanReportModal(false)}
+      />
+      <TopTraitsReportModal
+        isOpen={showTopTraitsReportModal}
+        onClose={() => setShowTopTraitsReportModal(false)}
       />
       <GuidedTour tour={overviewReportTour} isOpen={tourOpen} onClose={() => setTourOpen(false)} />
     </div>

@@ -136,8 +136,8 @@ function pValueTier(r: SavedResult): string {
 }
 
 function orCaveat(score: number): string {
-  if (score >= 10) return ' ⚠ unusually large OR — likely rare subtype or specialized cohort';
-  if (score >= 5) return ' ⚠ large OR — interpret with caution';
+  if (score >= 10) return ' ⚠ unusually large OR; likely rare subtype or specialized cohort';
+  if (score >= 5) return ' ⚠ large OR; interpret with caution';
   return '';
 }
 
@@ -183,18 +183,18 @@ function buildPrompt(selected: SelectedResult[], customization: any): string {
   ].filter(Boolean).join('\n\n');
 
   const instruction = hasHealthHistory ? `
-The user already knows they have these conditions — do NOT simply report "you have variants for X and you reported X." That adds no value.
+The user already knows they have these conditions. Do NOT simply report "you have variants for X and you reported X." That adds no value.
 
 Instead, write a report that tells them something genuinely new. Structure it as follows:
 
 **1. Genetic mechanisms underlying your conditions**
-Explain WHY the user has certain conditions at a biological pathway level. What mechanism do the variants operate through? How do multiple variants converge on the same pathway? Be specific — not "increases inflammation" but which cells, which signaling molecules, which process.
+Explain WHY the user has certain conditions at a biological pathway level. What mechanism do the variants operate through? How do multiple variants converge on the same pathway? Be specific: not "increases inflammation" but which cells, which signaling molecules, which process.
 
 **2. What your genome protects you from**
-Use the protective signals section. Identify any large protective effects — especially any that counterbalance elevated risks in the same pathway, or protect against conditions that run in the family. These are often the most surprising and useful findings.
+Use the protective signals section. Identify any large protective effects, especially those that counterbalance elevated risks in the same pathway or protect against conditions that run in the family. These are often the most surprising and useful findings.
 
 **3. Signals outside your known health history**
-From the strongest overall signals, identify anything that points to conditions or traits NOT mentioned in the user's health history. These are genuinely novel — flag them clearly as "you may not have known this."
+From the strongest overall signals, identify anything that points to conditions or traits NOT mentioned in the user's health history. These are genuinely novel; flag them clearly as "you may not have known this."
 
 **4. Most notable findings** (4-5 bullets)
 The most surprising, largest-effect, or cross-cutting discoveries. Prioritize findings that the user could not have known just from their symptoms.
@@ -203,11 +203,11 @@ The most surprising, largest-effect, or cross-cutting discoveries. Prioritize fi
 3-4 specific research threads the user could pursue to understand their genetic dynamics better. Frame these as topics to read about or questions to explore, not clinical actions. Focus on: specific genes that appeared repeatedly and have well-studied literature, pathway connections worth understanding, or cross-trait mechanisms that link seemingly unrelated findings.
 
 Language rules (strictly enforced):
-- These are population-level GWAS associations, not individual predictions. Write accordingly: "population studies associate this variant with X", "carriers of this allele show", "this signal is consistent with" — never "your genome does X" or "this drives your Y".
+- These are population-level GWAS associations, not individual predictions. Write accordingly: "population studies associate this variant with X", "carriers of this allele show", "this signal is consistent with"; never "your genome does X" or "this drives your Y".
 - For mechanisms: describe what the gene/pathway does in the population literature, not what it is doing in this person's body. "BTBD9 is associated with dopamine regulation in RLS cohorts" not "your BTBD9 variants are disrupting your dopamine signaling."
 - For protective signals: "population studies find this allele associated with lower rates of X" not "your genome protects you from X."
 - Include rsIDs when mentioning specific variants (e.g., "rs429358, an APOE variant"). Where the user's genotype is informative (heterozygous vs homozygous), note it: "carrying one copy of the risk allele" vs "homozygous for the risk allele."
-- Flag any OR > 5x as "large effect — likely a specialized or rare-variant study; treat as uncertain." Do not anchor conclusions on it.
+- Flag any OR > 5x as "large effect, likely a specialized or rare-variant study; treat as uncertain." Do not anchor conclusions on it.
 - Do not recommend clinical tests, doctors, or lifestyle changes.
 - Distinguish between well-replicated signals (strong p-value label, named gene) and single suggestive hits.
 - 700-900 words total`
@@ -277,7 +277,7 @@ export async function generateHealthReport(
     [
       {
         role: 'system',
-        content: 'You are a genetic epidemiologist writing an educational report about population-level GWAS associations. These data are statistical patterns from large cohorts — they are not individual predictions or diagnoses. Maintain appropriate epistemic humility throughout: write "population studies associate this variant with X" or "carriers of this allele show Y in cohort data", never "your genome does X" or "this is driving your condition." Do not convert population odds ratios into statements about what is happening in this individual\'s body. Do not use LaTeX or math notation. Do not recommend clinical tests, doctors, or healthcare appointments. Do not repeat what the user told you about their own health history as if it is a novel finding.',
+        content: 'You are a genetic epidemiologist writing an educational report about population-level GWAS associations. These data are statistical patterns from large cohorts; they are not individual predictions or diagnoses. Maintain appropriate epistemic humility throughout: write "population studies associate this variant with X" or "carriers of this allele show Y in cohort data", never "your genome does X" or "this is driving your condition." Do not convert population odds ratios into statements about what is happening in this individual\'s body. Do not use LaTeX or math notation. Do not recommend clinical tests, doctors, or healthcare appointments. Do not repeat what the user told you about their own health history as if it is a novel finding.',
       },
       { role: 'user', content: prompt },
     ],

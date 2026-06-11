@@ -63,7 +63,7 @@ export default function HealthspanReportModal({ isOpen, onClose }: HealthspanRep
       setPhase('complete');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Generation failed.';
-      setError(msg.includes('429') ? 'nilAI is rate-limited. The service retried automatically but is still overloaded — wait 30–60 seconds and try again.' : msg);
+      setError(msg.includes('429') ? 'nilAI is rate-limited. The service retried automatically but is still overloaded. Wait 30-60 seconds and try again.' : msg);
       setPhase('error');
     } finally {
       inFlightRef.current = false;

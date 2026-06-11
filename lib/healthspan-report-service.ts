@@ -179,9 +179,9 @@ ${familyConditions.map(c => `- Family: ${c}`).join('\n')}
 
   const healthHistoryNote = hasHealthHistory
     ? `Use the health history to anchor the report: note where genetic signals reinforce known conditions, where they diverge, and which findings the user is unlikely to have encountered from their symptoms alone.`
-    : `No health history provided — focus on the strongest and most surprising signals.`;
+    : `No health history provided. Focus on the strongest and most surprising signals.`;
 
-  return `You are writing a personalized genetic healthspan report. The reader is not a scientist but is curious and health-conscious. Write the way a knowledgeable friend who happens to be a geneticist would explain this — clear, specific, and honest about uncertainty. These are population-level statistics; use "population studies associate" / "carriers show" throughout, never deterministic claims.
+  return `You are writing a personalized genetic healthspan report. The reader is not a scientist but is curious and health-conscious. Write the way a knowledgeable friend who happens to be a geneticist would explain this: clear, specific, and honest about uncertainty. These are population-level statistics; use "population studies associate" / "carriers show" throughout, never deterministic claims.
 ${userCtx}
 ${healthHistorySection}
 DATA FORMAT: Trait | Effect size (↑ elevated / ↓ protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence
@@ -190,7 +190,7 @@ ${domainSections}
 
 ${healthHistoryNote}
 
-Structure the report as follows — do NOT use the domain names as section headers:
+Structure the report as follows. Do NOT use the domain names as section headers:
 
 **Your aging profile** (write this first)
 2-3 sentences. What are the 1-2 most important things to understand about this person's genetic aging biology? Be direct and specific. This is the executive summary a non-scientist will actually remember.
@@ -199,7 +199,7 @@ Structure the report as follows — do NOT use the domain names as section heade
 Choose the 3-4 most important and interesting genetic themes across ALL domains combined. These should be the signals that matter most for long-term healthspan — the things a person would actually want to know and think about. Each finding should:
 - Have a short, plain-English header (e.g., "Metabolic-cardiovascular tension", "Cognitive aging and APOE", "Immune system tuning")
 - Open with a one-sentence plain statement of what the finding is
-- Explain the biology in 2 paragraphs — what the gene or pathway does, what the signal pattern suggests, and why it matters for aging
+- Explain the biology in 2 paragraphs: what the gene or pathway does, what the signal pattern suggests, and why it matters for aging
 - ${hasHealthHistory ? 'Connect explicitly to the user\'s health history when relevant' : 'Focus on what is most surprising or actionable from a healthspan perspective'}
 - Skip pseudogenes (LINC, LOC, MIR) entirely
 
@@ -207,14 +207,14 @@ Choose the 3-4 most important and interesting genetic themes across ALL domains 
 Briefly mention 2-3 additional signals from domains not covered in Key findings. One sentence each. This gives breadth without diluting the main findings.
 
 **What to understand about your aging biology**
-4 genes — each with a 1-sentence hook explaining WHY it matters for how the body ages, not just what trait it is associated with. Write these for someone who will go and search for more.
+4 genes, each with a 1-sentence hook explaining WHY it matters for how the body ages, not just what trait it is associated with. Write these for someone who will go and search for more.
 
 Style rules:
 - No domain-name headers in the body of the report.
 - The "Key findings" headers should describe the biological theme, not the domain (e.g., "The metabolic-inflammatory axis" not "Cardiovascular").
 - Write for someone who wants to understand their biology, not catalog it.
 - When citing a specific variant, include the rsID where available (e.g., "rs429358, an APOE variant"). Where the genotype is informative, note it: "heterozygous for the risk allele" vs "homozygous."
-- Population-level language — never "your genome does X."
+- Population-level language; never "your genome does X."
 - Do not recommend clinical tests, doctors, or lifestyle changes.
 - 800-1000 words total
 
@@ -258,7 +258,7 @@ export async function generateHealthspanReport(
     [
       {
         role: 'system',
-        content: 'You are a science writer with deep genetics knowledge. Write engagingly for a reader who understands GWAS but wants insight, not inventory. Use population-level language ("population studies associate", "carriers show") but keep it fluid — not bureaucratic. Never add a disclaimer paragraph at the top; focus entirely on what is scientifically interesting. Do not recommend clinical tests, doctors, or healthcare appointments.',
+        content: 'You are a science writer with deep genetics knowledge. Write engagingly for a reader who understands GWAS but wants insight, not inventory. Use population-level language ("population studies associate", "carriers show") but keep it fluid, not bureaucratic. Never add a disclaimer paragraph at the top; focus entirely on what is scientifically interesting. Do not recommend clinical tests, doctors, or healthcare appointments.',
       },
       { role: 'user', content: prompt },
     ],
