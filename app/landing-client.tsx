@@ -1,8 +1,37 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useGenotype } from "./components/UserDataUpload";
+import { useResults } from "./components/ResultsContext";
+import { useCustomization, type UserCustomization } from "./components/CustomizationContext";
+import { ResultsManager } from "@/lib/results-manager";
 import { trackGetStartedClicked } from "@/lib/analytics";
+
+const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
+const SAMPLE_CUSTOMIZATION_PASSWORD = "sample-data";
+
+const SAMPLE_CUSTOMIZATION: UserCustomization = {
+  ethnicities: ["European"],
+  countriesOfOrigin: [],
+  genderAtBirth: "male",
+  age: 44,
+  personalConditions: ["Type 2 diabetes", "Hypertension"],
+  familyConditions: ["Coronary artery disease", "Alzheimer's disease"],
+  smokingHistory: "past-smoker",
+  alcoholUse: "mild",
+  medications: [],
+  diet: "mediterranean",
+};
+
+type SampleLoadStatus = "idle" | "downloading" | "loading" | "loaded" | "error";
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return "0 KB";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
 
@@ -35,7 +64,89 @@ const featureCopy = [
 ];
 
 export default function LandingClient() {
+  const router = useRouter();
   const { error } = useGenotype();
+  const { addResultsBatch, clearResults, savedResults } = useResults();
+  const { saveCustomization, status: customizationStatus } = useCustomization();
+  const [sampleStatus, setSampleStatus] = useState<SampleLoadStatus>("idle");
+  const [sampleError, setSampleError] = useState<string | null>(null);
+  const [sampleBytes, setSampleBytes] = useState(0);
+  const [sampleTotalBytes, setSampleTotalBytes] = useState(0);
+
+  const loadSampleData = async () => {
+    if (savedResults.length > 0) {
+      router.push("/explore");
+      return;
+    }
+
+    try {
+      setSampleStatus("downloading");
+      setSampleError(null);
+      setSampleBytes(0);
+      setSampleTotalBytes(0);
+
+      const response = await fetch("/api/sample-results", { method: "GET" });
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+
+      const total = Number(response.headers.get("content-length") || "0");
+      setSampleTotalBytes(total);
+
+      const decoder = new TextDecoder();
+      let content = "";
+      let downloaded = 0;
+
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            downloaded += value.byteLength;
+            content += decoder.decode(value, { stream: true });
+            setSampleBytes(downloaded);
+          }
+        }
+        content += decoder.decode();
+      } else {
+        content = await response.text();
+        downloaded = new Blob([content]).size;
+        setSampleBytes(downloaded);
+      }
+
+      setSampleStatus("loading");
+
+      const session = ResultsManager.parseResultsFile(content, SAMPLE_RESULTS_FILE_NAME);
+      if (!session.results.length) throw new Error("Sample file contained no usable results.");
+
+      await clearResults();
+      await addResultsBatch(session.results);
+
+      if (customizationStatus === "not-set") {
+        await saveCustomization(SAMPLE_CUSTOMIZATION, SAMPLE_CUSTOMIZATION_PASSWORD);
+      }
+
+      setSampleStatus("loaded");
+      router.push("/explore");
+    } catch (err) {
+      setSampleStatus("error");
+      setSampleError(err instanceof Error ? err.message : "Could not load sample data.");
+    }
+  };
+
+  const sampleLabel =
+    sampleStatus === "downloading" ? "Downloading…" :
+    sampleStatus === "loading" ? "Parsing…" :
+    sampleStatus === "loaded" ? "Loaded" :
+    "Try with sample data";
+
+  const sampleProgressText =
+    sampleStatus === "downloading" && sampleBytes > 0
+      ? sampleTotalBytes > 0
+        ? `${formatBytes(sampleBytes)} / ${formatBytes(sampleTotalBytes)}`
+        : `${formatBytes(sampleBytes)} downloaded`
+      : sampleStatus === "loading"
+      ? "Parsing results…"
+      : null;
 
   return (
     <main className="page landing-page landing-home-page">
@@ -62,7 +173,31 @@ export default function LandingClient() {
 
           {error && <p className="landing-upload-error">{error}</p>}
 
-          <p style={{ marginTop: '1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          <div style={{ marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <button
+                className="secondary-button"
+                onClick={loadSampleData}
+                disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
+                style={{ fontSize: '0.85rem' }}
+              >
+                {sampleLabel}
+              </button>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                No DNA file? Load an example to explore the app.
+              </span>
+            </div>
+            {sampleProgressText && (
+              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                {sampleProgressText}
+              </p>
+            )}
+            {sampleError && (
+              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--error)' }}>{sampleError}</p>
+            )}
+          </div>
+
+          <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
             New to the app?{' '}
             <a
               href={SCHEDULE_CALL_URL}
