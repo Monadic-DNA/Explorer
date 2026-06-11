@@ -1,28 +1,36 @@
 "use client";
 
+import Link from "next/link";
 import { useGenotype } from "./components/UserDataUpload";
 import { trackGetStartedClicked } from "@/lib/analytics";
 
-
-const INSTRUCTIONAL_VIDEO_URL = "https://youtu.be/1mqLYTAOK90";
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
 
-const introCopy = [
+const featureCopy = [
   {
-    label: "DNA insights",
-    text: "Monadic DNA Explorer lets you unlock the potential of DNA data to inform diet, lifestyle, and health.",
+    label: "Explore",
+    href: "/explore",
+    text: "Explore your results trait by trait. Browse elevated and protective associations ranked by effect size, and see which traits connect to conditions in your personal and family health history.",
   },
   {
-    label: "GWAS Catalog",
-    text: "We use over one million scientifically vetted traits from the GWAS Catalog to help you understand your DNA.",
+    label: "DNA Chat",
+    href: "/dna-chat",
+    text: "Ask questions about your genetic results in plain English. Get explanations of specific traits, genes, and what population studies say about your variants.",
+  },
+  {
+    label: "Browse",
+    href: "/browse",
+    text: "Browse studies from the GWAS Catalog with advanced filtering by trait, sample size, and significance. View a heatmap of your SNP matches across selected studies.",
+  },
+  {
+    label: "Analyze",
+    href: "/overview-report",
+    text: "Generate AI-written reports that synthesize patterns across your results, surface hypotheses about your biology, and connect findings to your health history. Premium feature.",
   },
   {
     label: "Privacy first",
-    text: "Your DNA is the most sensitive data you own, so we ensure your data stays private and secure. We do not store, snoop on, or sell your data.",
-  },
-  {
-    label: "Secure AI",
-    text: "Using local processing in your browser and AI running in Trusted Execution Environments, we maximize your anonymity and privacy.",
+    href: null,
+    text: "Your DNA stays in your browser. We do not store, transmit, or sell your raw genetic data. AI runs in Trusted Execution Environments for maximum anonymity.",
   },
 ];
 
@@ -31,45 +39,42 @@ export default function LandingClient() {
 
   return (
     <main className="page landing-page landing-home-page">
-      <section className="landing-home-intro">
+      <section className="landing-home-intro" style={{ display: 'block', padding: '2rem 2.5rem' }}>
         <div className="landing-home-copy">
-          <h1>Understand your DNA without giving it away.</h1>
+          <h1 style={{ maxWidth: 'none' }}>Understand your DNA without giving it away.</h1>
 
-          <div className="landing-home-explainer" aria-label="Monadic DNA Explorer overview">
-            {introCopy.map((item) => (
+          <div className="landing-home-explainer" aria-label="Monadic DNA Explorer features" style={{ maxWidth: 'none' }}>
+            {featureCopy.map((item) => (
               <p key={item.label}>
-                <span>{item.label}</span>
+                <span>
+                  {item.href ? (
+                    <Link href={item.href} style={{ color: 'inherit', textDecoration: 'none' }}>
+                      {item.label}
+                    </Link>
+                  ) : (
+                    item.label
+                  )}
+                </span>
                 {item.text}
               </p>
             ))}
           </div>
 
           {error && <p className="landing-upload-error">{error}</p>}
-        </div>
 
-        <aside className="landing-home-start-panel" aria-labelledby="landing-start-heading">
-          <h2 id="landing-start-heading">Get Started</h2>
-          <div className="landing-start-actions">
+          <p style={{ marginTop: '1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            New to the app?{' '}
             <a
-              className="landing-secondary-button"
-              href={INSTRUCTIONAL_VIDEO_URL}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => trackGetStartedClicked("instructional_video")}
-            >
-              Watch Instructional Video
-            </a>
-            <a
-              className="landing-secondary-button"
               href={SCHEDULE_CALL_URL}
               target="_blank"
               rel="noreferrer"
+              style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
               onClick={() => trackGetStartedClicked("schedule_video_call")}
             >
-              Book a Free Help Call
+              Book a free help call.
             </a>
-          </div>
-        </aside>
+          </p>
+        </div>
       </section>
     </main>
   );
