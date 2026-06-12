@@ -162,6 +162,43 @@ export default function LandingClient() {
         <div className="landing-home-copy">
           <h1 style={{ maxWidth: 'none' }}>Understand your DNA without giving it away.</h1>
 
+          <p style={{ marginTop: '0.5rem', marginBottom: '1.5rem', fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+            Upload your DNA file or try it now with sample data, free.
+          </p>
+
+          {error && <p className="landing-upload-error">{error}</p>}
+
+          <div style={{ marginBottom: '2rem' }}>
+            <button
+              className="primary-button"
+              onClick={loadSampleData}
+              disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
+              style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
+            >
+              {sampleLabel}
+            </button>
+            {sampleProgressText && (
+              <p style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                {sampleProgressText}
+              </p>
+            )}
+            {sampleError && (
+              <p style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--error)' }}>{sampleError}</p>
+            )}
+            <p style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              No DNA file needed. Your data never leaves your device.{' '}
+              <a
+                href={SCHEDULE_CALL_URL}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
+                onClick={() => trackGetStartedClicked("schedule_video_call")}
+              >
+                Need help? Book a free call.
+              </a>
+            </p>
+          </div>
+
           <div className="landing-home-explainer" aria-label="Monadic DNA Explorer features" style={{ maxWidth: 'none' }}>
             {featureCopy.map((item) => (
               <p key={item.label}>
@@ -184,45 +221,6 @@ export default function LandingClient() {
               </p>
             ))}
           </div>
-
-          {error && <p className="landing-upload-error">{error}</p>}
-
-          <div style={{ marginTop: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <button
-                className="secondary-button"
-                onClick={loadSampleData}
-                disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
-                style={{ fontSize: '0.85rem' }}
-              >
-                {sampleLabel}
-              </button>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                No DNA file? Load an example to explore the app.
-              </span>
-            </div>
-            {sampleProgressText && (
-              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {sampleProgressText}
-              </p>
-            )}
-            {sampleError && (
-              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--error)' }}>{sampleError}</p>
-            )}
-          </div>
-
-          <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            New to the app?{' '}
-            <a
-              href={SCHEDULE_CALL_URL}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
-              onClick={() => trackGetStartedClicked("schedule_video_call")}
-            >
-              Book a free help call.
-            </a>
-          </p>
         </div>
       </section>
     </main>
