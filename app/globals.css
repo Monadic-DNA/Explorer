@@ -2568,6 +2568,31 @@ tbody tr:hover {
 .explore-highlight-item--neutral:hover { background: rgba(0, 0, 0, 0.06); }
 .explore-highlight-item--neutral .explore-highlight-score { color: #6b7280; }
 
+/* Personalization notice */
+.explore-personalization-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--surface-elevated, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.explore-personalization-notice-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.explore-personalization-notice strong {
+  color: var(--text-primary, inherit);
+}
+
 /* Health history section */
 .explore-health-section {
   margin-bottom: 1.5rem;

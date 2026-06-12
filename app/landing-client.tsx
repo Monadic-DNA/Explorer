@@ -35,31 +35,34 @@ function formatBytes(bytes: number): string {
 
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
 
+const PRIVACY_POLICY_URL = "https://monadicdna.com/privacy";
+
 const featureCopy = [
   {
     label: "Explore",
     href: "/explore",
-    text: "Explore your results trait by trait. Browse elevated and protective associations ranked by effect size, and see which traits connect to conditions in your personal and family health history.",
+    text: "Get an overview of what your results actually mean. See your strongest genetic signals, both elevated risks and protective findings, and find which ones connect to conditions in your personal or family health history.",
   },
   {
     label: "DNA Chat",
     href: "/dna-chat",
-    text: "Ask questions about your genetic results in plain English. Get explanations of specific traits, genes, and what population studies say about your variants.",
+    text: "Ask questions about your genetic data in plain English. Get clear explanations of specific findings, genes, and what the research says. It works like a conversation with a knowledgeable friend.",
   },
   {
     label: "Browse",
     href: "/browse",
-    text: "Browse studies from the GWAS Catalog with advanced filtering by trait, sample size, and significance. View a heatmap of your SNP matches across selected studies.",
+    text: "Search and filter thousands of genetic research studies. See which ones matched your DNA, how strong the effect is, and read the published science behind each result.",
   },
   {
     label: "Analyze",
     href: "/overview-report",
-    text: "Generate AI-written reports that synthesize patterns across your results, surface hypotheses about your biology, and connect findings to your health history. Premium feature.",
+    text: "Generate AI-written reports from your full set of results. Reports find patterns, connect findings to your health history, and build a picture of your genetic biology. Premium feature.",
   },
   {
     label: "Privacy first",
-    href: null,
-    text: "Your DNA stays in your browser. We do not store, transmit, or sell your raw genetic data. AI runs in Trusted Execution Environments for maximum anonymity.",
+    href: PRIVACY_POLICY_URL,
+    text: "Your DNA never leaves your device. We don't store, share, or sell your genetic data. All AI analysis runs in a private computing environment so your data stays yours.",
+    external: true,
   },
 ];
 
@@ -164,9 +167,15 @@ export default function LandingClient() {
               <p key={item.label}>
                 <span>
                   {item.href ? (
-                    <Link href={item.href} style={{ color: 'inherit', textDecoration: 'none' }}>
-                      {item.label}
-                    </Link>
+                    item.external ? (
+                      <a href={item.href} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link href={item.href} style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {item.label}
+                      </Link>
+                    )
                   ) : (
                     item.label
                   )}

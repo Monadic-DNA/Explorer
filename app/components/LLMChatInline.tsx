@@ -2,13 +2,12 @@
 
 import { useEffect, useState, useRef } from "react";
 import { SavedResult } from "@/lib/results-manager";
-import NilAIConsentModal from "./NilAIConsentModal";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
-import { trackLLMQuestionAsked, trackAIConsentGiven, trackAIConsentDeclined, trackAIConsentModalShown, trackExampleQuestionClicked, trackFollowupQuestionClicked } from "@/lib/analytics";
+import { trackLLMQuestionAsked, trackExampleQuestionClicked, trackFollowupQuestionClicked } from "@/lib/analytics";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -31,7 +30,6 @@ type Message = {
   followupQuestions?: string[];
 };
 
-const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const MAX_CONTEXT_RESULTS = 500;
 const MAX_TEXT_FILE_SIZE = 2 * 1024 * 1024; // 2MB for text/csv/tsv
 const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;  // 5MB for PDF
@@ -61,15 +59,13 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
   useEffect(() => {
     if (!initialInput) return;
     setInputValue(initialInput);
-    const t = setTimeout(() => handleSendMessage(false, initialInput), 0);
+    const t = setTimeout(() => handleSendMessage(initialInput), 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInput]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -80,43 +76,14 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
 
   useEffect(() => {
     setMounted(true);
-
-    // Check consent
-    const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
-    if (consent === 'true') {
-      setHasConsent(true);
-    }
   }, []);
 
   // Determine if this is the first message or a follow-up
   const isFirstMessage = messages.length === 0;
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
-      setHasConsent(consent === "true");
-    }
-  }, []);
-
 
   // Removed auto-scroll so user doesn't have to scroll up to read responses
   // Also removed auto-focus to prevent scrolling to bottom on tab load
-
-  const handleConsentAccept = () => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(CONSENT_STORAGE_KEY, "true");
-      setHasConsent(true);
-      setShowConsentModal(false);
-      trackAIConsentGiven();
-      void handleSendMessage(true);
-    }
-  };
-
-  const handleConsentDecline = () => {
-    setShowConsentModal(false);
-    trackAIConsentDeclined();
-  };
-
 
   const handleExampleClick = (question: string) => {
     setInputValue(question);
@@ -126,7 +93,7 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
 
   const handleFollowupClick = (question: string) => {
     trackFollowupQuestionClicked();
-    void handleSendMessage(false, question);
+    void handleSendMessage(question);
   };
 
   const handleCopyMessage = async (content: string) => {
@@ -307,16 +274,9 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
     return parts;
   };
 
-  const handleSendMessage = async (skipConsentCheck = false, queryOverride?: string) => {
+  const handleSendMessage = async (queryOverride?: string) => {
     const query = (queryOverride ?? inputValue).trim();
     if (!query) return;
-
-    // Check consent before sending first message
-    if (!skipConsentCheck && !hasConsent) {
-      setShowConsentModal(true);
-      trackAIConsentModalShown();
-      return;
-    }
 
     setInputValue("");
     setIsLoading(true);
@@ -884,13 +844,6 @@ Write questions from the user's perspective — as if the user is asking you. No
 
   return (
     <>
-      {showConsentModal && (
-        <NilAIConsentModal
-          isOpen={showConsentModal}
-          onAccept={handleConsentAccept}
-          onDecline={handleConsentDecline}
-        />
-      )}
       <div className="ai-chat-inline" style={{ position: 'relative' }}>
         {messages.length > 0 && (
           <div className="chat-info">

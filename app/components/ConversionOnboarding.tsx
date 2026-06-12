@@ -10,11 +10,9 @@ import { runAllAnalysisOnboarding, type OnboardingRunAllProgress } from "@/lib/r
 import { useGenotype } from "./UserDataUpload";
 import { useResults } from "./ResultsContext";
 import LLMCommentaryModal from "./LLMCommentaryModal";
-import NilAIConsentModal from "./NilAIConsentModal";
+
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
 import {
-  trackAIConsentDeclined,
-  trackAIConsentGiven,
   trackLLMQuestionAsked,
   trackOnboardingAction,
   trackOnboardingCompleted,
@@ -55,7 +53,6 @@ interface ConversionOnboardingProps {
   mode?: FlowMode;
 }
 
-const CONSENT_STORAGE_KEY = "nilai_llm_consent_accepted";
 const SAMPLE_DATA_URL = "/api/sample-genotype";
 const GUIDE_23ANDME_URL = "https://monadicdna.com/guide/23andme";
 const GUIDE_ANCESTRY_URL = "https://monadicdna.com/guide/ancestry";
@@ -228,8 +225,6 @@ export default function ConversionOnboarding({
   const [mounted, setMounted] = useState(false);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("intro");
   const [completionPath, setCompletionPath] = useState<CompletionPath>("own_dna");
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
   const [traitCandidates, setTraitCandidates] = useState<SavedResult[]>([]);
   const [selectedTraitIds, setSelectedTraitIds] = useState<number[]>([]);
   const [previewResponses, setPreviewResponses] = useState<PreviewChatAnswer[]>([]);
@@ -242,7 +237,6 @@ export default function ConversionOnboarding({
   const [detailResult, setDetailResult] = useState<SavedResult | null>(null);
   const [expandedTraitId, setExpandedTraitId] = useState<number | null>(null);
   const [commentaryResult, setCommentaryResult] = useState<SavedResult | null>(null);
-  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
   const [runAllProgress, setRunAllProgress] = useState<OnboardingRunAllProgress>({
     phase: "downloading",
@@ -260,9 +254,6 @@ export default function ConversionOnboarding({
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== "undefined") {
-      setHasConsent(localStorage.getItem(CONSENT_STORAGE_KEY) === "true");
-    }
   }, []);
 
   useEffect(() => {
@@ -601,26 +592,6 @@ RESPONSE STRUCTURE:
         />
       )}
 
-      <NilAIConsentModal
-        isOpen={showConsentModal}
-        onAccept={() => {
-          localStorage.setItem(CONSENT_STORAGE_KEY, "true");
-          setHasConsent(true);
-          setShowConsentModal(false);
-          trackAIConsentGiven();
-          if (pendingQuestion) {
-            const nextQuestion = pendingQuestion;
-            setPendingQuestion(null);
-            void generateSecureResponses(nextQuestion);
-            return;
-          }
-        }}
-        onDecline={() => {
-          setPendingQuestion(null);
-          setShowConsentModal(false);
-          trackAIConsentDeclined();
-        }}
-      />
 
       <div className="wire-onboarding-overlay">
         <div className="wire-onboarding-shell">
@@ -1093,12 +1064,6 @@ RESPONSE STRUCTURE:
                             trackOnboardingAction("chat_preview_question_selected");
 
                             if (response) {
-                              return;
-                            }
-
-                            if (!hasConsent) {
-                              setPendingQuestion(question);
-                              setShowConsentModal(true);
                               return;
                             }
 
