@@ -43,6 +43,7 @@ export default function OverviewReportPage() {
     trackOverviewReportViewed();
   }, []);
 
+
   useEffect(() => {
     if (!hasCompletedTour(overviewReportTour.id)) {
       setTourOpen(true);
@@ -67,7 +68,7 @@ export default function OverviewReportPage() {
   };
 
   const handleGenerateHealthReport = () => {
-    if (!hasResults || !requirePremium()) return;
+    if (!hasResults) return;
     setShowHealthReportModal(true);
   };
 
@@ -84,10 +85,12 @@ export default function OverviewReportPage() {
   return (
     <div className="app-container">
       <MenuBar />
-      <main className="page premium-feature-page">
+      <main className="page">
         <PremiumFeatureHeader
-          featureName="Overview Report"
-          description="Generate a synthesized report across your saved genetic results."
+          featureName="Analyze"
+          description="Health Insights is free. Healthspan, Top Traits, and Overview reports require a subscription."
+          gateTitle="Some reports require a subscription"
+          gateDescription="Subscribe for $4.99/month to access Healthspan, Top Traits, and Overview reports."
         />
         <div style={{ textAlign: "right", padding: "0 1rem" }}>
           <button className="tour-trigger-link" onClick={() => setTourOpen(true)}>
@@ -101,7 +104,6 @@ export default function OverviewReportPage() {
             <div>
               <div className="premium-feature-title-row">
                 <h2>Overview Report</h2>
-                <span className="premium-tab-badge">Premium</span>
               </div>
               <p>
                 Turn your saved analysis results into a concise AI-generated
@@ -145,6 +147,7 @@ export default function OverviewReportPage() {
               <h3>
                 Healthspan Report
                 <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
+                <span className="premium-tab-badge" style={{ marginLeft: '0.5rem' }}>Premium</span>
               </h3>
               <p>
                 Organizes your associations by healthspan domain: cardiovascular, metabolic, neurological, immune, musculoskeletal, and cancer susceptibility. Synthesizes patterns within and across domains.
@@ -170,6 +173,7 @@ export default function OverviewReportPage() {
               <h3>
                 Top Traits Report
                 <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>New</span>
+                <span className="premium-tab-badge" style={{ marginLeft: '0.5rem' }}>Premium</span>
               </h3>
               <p>
                 Takes your 100 strongest genetic associations by effect size and synthesizes what they reveal about your biology. Good starting point if you have not added health history yet.
@@ -195,6 +199,7 @@ export default function OverviewReportPage() {
               <h3>
                 Comprehensive Overview Report
                 <span className="experimental-badge" style={{ marginLeft: '0.5rem' }}>Experimental</span>
+                <span className="premium-tab-badge" style={{ marginLeft: '0.5rem' }}>Premium</span>
               </h3>
               <p>
                 Analyzes all your saved genetic results across categories: health, lifestyle, appearance, personality, and more. Works best after running broad analysis. Currently under development.

@@ -9,11 +9,15 @@ import { trackOverviewReportTabViewed } from "@/lib/analytics";
 type PremiumFeatureHeaderProps = {
   featureName: string;
   description: string;
+  gateTitle?: string;       // overrides default "featureName is a premium tab" / "Premium subscription required"
+  gateDescription?: string; // overrides default "Subscribe for $4.99/month to access featureName."
 };
 
 export default function PremiumFeatureHeader({
   featureName,
   description,
+  gateTitle,
+  gateDescription,
 }: PremiumFeatureHeaderProps) {
   const {
     isAuthenticated,
@@ -60,7 +64,7 @@ export default function PremiumFeatureHeader({
         {!isAuthenticated && !hasPromoAccess ? (
           <div className="auth-prompt-inline">
             <div className="subscription-message">
-              <strong>{featureName} is a premium tab</strong>
+              <strong>{gateTitle ?? `${featureName} is a premium tab`}</strong>
               <span>{description}</span>
             </div>
             <button
@@ -73,8 +77,8 @@ export default function PremiumFeatureHeader({
         ) : !hasPremiumAccess ? (
           <div className="subscription-prompt-inline">
             <div className="subscription-message">
-              <strong>Premium subscription required</strong>
-              <span>Subscribe for $4.99/month to access {featureName}.</span>
+              <strong>{gateTitle ?? 'Premium subscription required'}</strong>
+              <span>{gateDescription ?? `Subscribe for $4.99/month to access ${featureName}.`}</span>
             </div>
             <Link href="/subscribe" className="subscribe-button">
               Subscribe

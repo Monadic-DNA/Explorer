@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { SavedResult } from "@/lib/results-manager";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
-import { useAuth, AuthButton } from "./AuthProvider";
+import { useAuth } from "./AuthProvider";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -58,7 +58,7 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
-  const { isAuthenticated, hasActiveSubscription, openAuthModal, initializeDynamic, isDynamicInitialized } = useAuth();
+  const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -93,10 +93,6 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
     window.addEventListener('premiumAccessUpdated', refresh);
     return () => window.removeEventListener('premiumAccessUpdated', refresh);
   }, []);
-
-  useEffect(() => {
-    if (!isDynamicInitialized) initializeDynamic();
-  }, [initializeDynamic, isDynamicInitialized]);
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
 
@@ -967,7 +963,7 @@ Write questions from the user's perspective — as if the user is asking you. No
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
-              {}
+              <p className="chat-welcome-prompt">Try asking something about your results:</p>
 
               <ul className="example-questions">
                 {EXAMPLE_QUESTIONS.map((question) => (
@@ -1228,9 +1224,6 @@ Write questions from the user's perspective — as if the user is asking you. No
               </div>
             )}
             <div className="chat-buttons">
-              <div className="chat-dynamic-widget">
-                <AuthButton />
-              </div>
               <button
                 className="chat-attachment-button"
                 onClick={handleAttachmentClick}
@@ -1257,8 +1250,10 @@ Write questions from the user's perspective — as if the user is asking you. No
                 {isLoading ? 'Sending...' : 'Send'}
               </button>
             </div>
+          </div>
+          <div className="chat-input-footer">
             <p className="chat-research-hint">
-              <strong>Send</strong> answers your question directly. <strong>Research</strong> searches 10 genetic angles and synthesizes a deeper answer.
+              <strong>Send</strong> — quick answer. <strong>Research</strong> — explores 10 genetic angles in depth.
             </p>
           </div>
         </div>

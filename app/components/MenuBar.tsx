@@ -426,13 +426,10 @@ export default function MenuBar() {
           </Link>
           <Link
             href="/overview-report"
-            className={isOverviewReportActive ? "nav-link active nav-premium-link" : "nav-link nav-premium-link"}
+            className={isOverviewReportActive ? "nav-link active" : "nav-link"}
             style={getNavLinkStyle(isOverviewReportActive)}
           >
-            <span className="nav-link-content">
-              Analyze
-              <span className="nav-premium-badge">Premium</span>
-            </span>
+            Analyze
           </Link>
         </nav>
       </div>

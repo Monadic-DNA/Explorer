@@ -56,7 +56,7 @@ const featureCopy = [
   {
     label: "Analyze",
     href: "/overview-report",
-    text: "Generate AI-written reports from your full set of results. Reports find patterns, connect findings to your health history, and build a picture of your genetic biology. Premium feature.",
+    text: "Generate AI-written reports from your full set of results. Reports find patterns, connect findings to your health history, and build a picture of your genetic biology. The Health Insights report is free. Additional reports require a subscription.",
   },
   {
     label: "Privacy first",
