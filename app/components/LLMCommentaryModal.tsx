@@ -692,7 +692,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
   const handlePersonalizationPromptContinue = () => {
     setShowPersonalizationPrompt(false);
-    setShowConsentModal(true);
+    fetchCommentary();
   };
 
   if (!isOpen) return null;

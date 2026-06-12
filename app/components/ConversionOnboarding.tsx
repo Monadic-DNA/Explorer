@@ -274,9 +274,7 @@ export default function ConversionOnboarding({
     setDetailResult(null);
     setExpandedTraitId(null);
     setCommentaryResult(null);
-    setPendingQuestion(null);
     setActiveQuestion(null);
-    setShowConsentModal(false);
     setRunAllProgress({
       phase: "downloading",
       loaded: 0,
@@ -299,11 +297,6 @@ export default function ConversionOnboarding({
       });
     }
   }, [completionPath, currentStep, isOpen, mode, mounted]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || commentaryResult) return;
-    setHasConsent(localStorage.getItem(CONSENT_STORAGE_KEY) === "true");
-  }, [commentaryResult]);
 
   const selectedTraitResults = useMemo(
     () => traitCandidates.filter((result) => selectedTraitIds.includes(result.studyId)),
@@ -568,7 +561,6 @@ RESPONSE STRUCTURE:
     setResponseError(null);
     setResponsesLoading(false);
     setDetailResult(null);
-    setPendingQuestion(null);
     setActiveQuestion(null);
 
     setCurrentStep("responses");
