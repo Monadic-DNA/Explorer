@@ -312,7 +312,7 @@ export default function MenuBar() {
     textDecoration: "none",
     color: active ? "var(--primary-color, #667eea)" : "inherit",
     borderBottom: active ? "2px solid var(--primary-color, #667eea)" : "none",
-    fontWeight: active ? 600 : 400
+    fontWeight: active ? 700 : 500
   });
 
   const isDNAChatActive = pathname === "/dna-chat" || pathname === "/llm-chat";

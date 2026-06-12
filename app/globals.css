@@ -3634,8 +3634,9 @@ details[open] .summary-arrow {
   }
 
   .nav-link {
-    padding: 0.35rem 0.25rem !important;
-    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
   .nav-premium-badge {
