@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import MenuBar from "../components/MenuBar";
+import PremiumFeatureHeader from "../components/PremiumFeatureHeader";
 import Footer from "../components/Footer";
 import LLMChatInline from "../components/LLMChatInline";
 import GuidedTour from "../components/GuidedTour";
@@ -175,6 +176,12 @@ export default function DNAChatPage() {
     <div className="app-container">
       <MenuBar />
       <main className="page premium-feature-page dna-chat-page">
+        <PremiumFeatureHeader
+          featureName="DNA Chat Research"
+          description="Send and chat are free. The Research feature requires a subscription."
+          gateTitle="Research requires a subscription"
+          gateDescription="Subscribe for $4.99/month to unlock the Research feature in DNA Chat."
+        />
         <section className="premium-section premium-feature-section dna-chat-section">
           {(sampleLoad.status === "downloading" || sampleLoad.status === "loading") && (
             <div className="dna-chat-sample-notice loading">

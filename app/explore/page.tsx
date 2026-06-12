@@ -35,7 +35,7 @@ export default function ExplorePage() {
   const router = useRouter();
   const { savedResults } = useResults();
   const { isUploaded } = useGenotype();
-  const { customization } = useCustomization();
+  const { customization, status: customizationStatus } = useCustomization();
   const [navigating, setNavigating] = useState(false);
   const [shownIncreased, setShownIncreased] = useState(5);
 
@@ -204,6 +204,37 @@ export default function ExplorePage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Personalization notice */}
+            {customizationStatus === 'not-set' && (
+              <div className="explore-personalization-notice">
+                <span className="explore-personalization-notice-icon">🧬</span>
+                <div>
+                  <strong>Add your health history for personalized results.</strong>{' '}
+                  The "Based on your health history" section matches your genetic results to conditions you or your family have. Click <strong>Personalize</strong> in the menu above to set it up.
+                </div>
+              </div>
+            )}
+            {customizationStatus === 'locked' && (
+              <div className="explore-personalization-notice">
+                <span className="explore-personalization-notice-icon">🔒</span>
+                <div>
+                  <strong>Unlock personalization to see condition-matched results.</strong>{' '}
+                  Your health history is saved but locked. Click <strong>Personalize</strong> in the menu above and enter your password to unlock it.
+                </div>
+              </div>
+            )}
+            {customizationStatus === 'unlocked' && healthMatches.length === 0 &&
+              (customization?.personalConditions?.length ?? 0) === 0 &&
+              (customization?.familyConditions?.length ?? 0) === 0 && (
+              <div className="explore-personalization-notice">
+                <span className="explore-personalization-notice-icon">🧬</span>
+                <div>
+                  <strong>No health conditions added yet.</strong>{' '}
+                  Add personal and family conditions in <strong>Personalize</strong> to see traits matched to your health history.
+                </div>
               </div>
             )}
 

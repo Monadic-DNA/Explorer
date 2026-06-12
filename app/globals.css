@@ -2568,6 +2568,31 @@ tbody tr:hover {
 .explore-highlight-item--neutral:hover { background: rgba(0, 0, 0, 0.06); }
 .explore-highlight-item--neutral .explore-highlight-score { color: #6b7280; }
 
+/* Personalization notice */
+.explore-personalization-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--surface-elevated, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+  border-radius: 8px;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.explore-personalization-notice-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.explore-personalization-notice strong {
+  color: var(--text-primary, inherit);
+}
+
 /* Health history section */
 .explore-health-section {
   margin-bottom: 1.5rem;
@@ -3609,8 +3634,9 @@ details[open] .summary-arrow {
   }
 
   .nav-link {
-    padding: 0.35rem 0.25rem !important;
-    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
   .nav-premium-badge {
@@ -4882,6 +4908,70 @@ details[open] .summary-arrow {
   cursor: not-allowed;
 }
 
+.chat-research-button {
+  padding: 0 1.25rem;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.chat-research-button:hover:not(:disabled) {
+  background: #6d28d9;
+  transform: translateY(-1px);
+}
+
+.chat-research-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-research-premium-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  vertical-align: middle;
+}
+
+.chat-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 1.5rem 0.5rem;
+  gap: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.chat-dynamic-widget {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chat-research-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-align: right;
+  margin: 0;
+}
+
+.chat-welcome-prompt {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+
 .chat-footer-disclaimer {
   padding: 0.5rem 1.5rem;
   background: rgba(245, 158, 11, 0.05);
@@ -5536,6 +5626,30 @@ details[open] .summary-arrow {
 }
 
 .ai-chat-inline .chat-send-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-chat-inline .chat-research-button {
+  padding: 0.6rem 1.25rem;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ai-chat-inline .chat-research-button:hover:not(:disabled) {
+  background: #6d28d9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.ai-chat-inline .chat-research-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -6363,11 +6477,18 @@ details[open] .summary-arrow {
   overflow-y: auto;
   padding: 0.65rem 1rem;
   background: var(--primary-bg);
+  display: flex;
+  flex-direction: column;
 }
 
 .dna-chat-section .chat-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   max-width: 1040px;
   margin: 0 auto;
+  width: 100%;
   padding: 0.25rem 0;
   text-align: left;
 }
@@ -6495,7 +6616,8 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section .ai-chat-inline .chat-attachment-button,
-.dna-chat-section .ai-chat-inline .chat-send-button {
+.dna-chat-section .ai-chat-inline .chat-send-button,
+.dna-chat-section .ai-chat-inline .chat-research-button {
   min-height: 38px;
   border-radius: 6px;
   font-size: 0.86rem;
@@ -6510,9 +6632,29 @@ details[open] .summary-arrow {
   padding: 0.55rem 1rem;
 }
 
+.dna-chat-section .ai-chat-inline .chat-research-button {
+  min-width: 106px;
+  padding: 0.55rem 1rem;
+}
+
 .dna-chat-section .chat-footer-disclaimer {
   padding: 0.35rem 0.85rem;
   font-size: 0.68rem;
+}
+
+.dna-chat-section .chat-input-footer {
+  padding: 0.3rem 0.85rem 0.4rem;
+  border-top: 1px solid rgba(15, 118, 110, 0.12);
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.dna-chat-section .chat-research-hint {
+  font-size: 0.74rem;
+}
+
+.dna-chat-section .chat-welcome-prompt {
+  font-size: 0.85rem;
+  margin-bottom: 0.6rem;
 }
 
 @media (max-width: 900px) {
@@ -6835,13 +6977,23 @@ details[open] .summary-arrow {
 }
 
 .dna-chat-section .ai-chat-inline .chat-attachment-button,
-.dna-chat-section .ai-chat-inline .chat-send-button {
+.dna-chat-section .ai-chat-inline .chat-send-button,
+.dna-chat-section .ai-chat-inline .chat-research-button {
   min-height: 40px;
   font-weight: 800;
 }
 
 .dna-chat-section .ai-chat-inline .chat-send-button {
   background: #0f766e;
+}
+
+.dna-chat-section .ai-chat-inline .chat-research-button {
+  background: #7c3aed;
+}
+
+.dna-chat-section .ai-chat-inline .chat-research-button:hover:not(:disabled) {
+  background: #6d28d9;
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.24);
 }
 
 .dna-chat-section .ai-chat-inline .chat-send-button:hover:not(:disabled) {

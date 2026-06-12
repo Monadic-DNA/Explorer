@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { SavedResult } from "@/lib/results-manager";
-import NilAIConsentModal from "./NilAIConsentModal";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
+import { useAuth } from "./AuthProvider";
+import { hasValidPromoAccess } from "@/lib/promo-access";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
-import { trackLLMQuestionAsked, trackAIConsentGiven, trackAIConsentDeclined, trackAIConsentModalShown, trackExampleQuestionClicked, trackFollowupQuestionClicked } from "@/lib/analytics";
+import { trackLLMQuestionAsked, trackExampleQuestionClicked, trackFollowupQuestionClicked } from "@/lib/analytics";
+import { runResearchPipeline, type ResearchAngle } from "@/lib/research-service";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -29,9 +32,9 @@ type Message = {
   studiesUsed?: SavedResult[];
   attachments?: Attachment[];
   followupQuestions?: string[];
+  researchMeta?: ResearchAngle[];
 };
 
-const CONSENT_STORAGE_KEY = "nilai_llm_chat_consent_accepted";
 const MAX_CONTEXT_RESULTS = 500;
 const MAX_TEXT_FILE_SIZE = 2 * 1024 * 1024; // 2MB for text/csv/tsv
 const MAX_PDF_FILE_SIZE = 5 * 1024 * 1024;  // 5MB for PDF
@@ -51,9 +54,12 @@ const EXAMPLE_QUESTIONS = [
 
 
 export default function AIChatInline({ initialInput }: { initialInput?: string } = {}) {
+  const router = useRouter();
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
   const { customization, status: customizationStatus } = useCustomization();
+  const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
+  const [hasPromoAccess, setHasPromoAccess] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -61,62 +67,50 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
   useEffect(() => {
     if (!initialInput) return;
     setInputValue(initialInput);
-    const t = setTimeout(() => handleSendMessage(false, initialInput), 0);
+    const t = setTimeout(() => handleSendMessage(initialInput), 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInput]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
   const [expandedMessageIndex, setExpandedMessageIndex] = useState<number | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [expandedAttachmentIndex, setExpandedAttachmentIndex] = useState<number | null>(null);
+  const [expandedResearchIndex, setExpandedResearchIndex] = useState<number | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
-
-    // Check consent
-    const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
-    if (consent === 'true') {
-      setHasConsent(true);
-    }
   }, []);
+
+  useEffect(() => {
+    const refresh = () => setHasPromoAccess(hasValidPromoAccess());
+    refresh();
+    window.addEventListener('premiumAccessUpdated', refresh);
+    return () => window.removeEventListener('premiumAccessUpdated', refresh);
+  }, []);
+
+  const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
+
+  const requirePremium = (): boolean => {
+    if (!hasPremiumAccess && !hasValidPromoAccess()) {
+      if (!isAuthenticated) { openAuthModal(); return false; }
+      router.push('/subscribe');
+      return false;
+    }
+    return true;
+  };
 
   // Determine if this is the first message or a follow-up
   const isFirstMessage = messages.length === 0;
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
-      setHasConsent(consent === "true");
-    }
-  }, []);
-
 
   // Removed auto-scroll so user doesn't have to scroll up to read responses
   // Also removed auto-focus to prevent scrolling to bottom on tab load
-
-  const handleConsentAccept = () => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(CONSENT_STORAGE_KEY, "true");
-      setHasConsent(true);
-      setShowConsentModal(false);
-      trackAIConsentGiven();
-      void handleSendMessage(true);
-    }
-  };
-
-  const handleConsentDecline = () => {
-    setShowConsentModal(false);
-    trackAIConsentDeclined();
-  };
-
 
   const handleExampleClick = (question: string) => {
     setInputValue(question);
@@ -126,7 +120,7 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
 
   const handleFollowupClick = (question: string) => {
     trackFollowupQuestionClicked();
-    void handleSendMessage(false, question);
+    void handleSendMessage(question);
   };
 
   const handleCopyMessage = async (content: string) => {
@@ -307,16 +301,51 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
     return parts;
   };
 
-  const handleSendMessage = async (skipConsentCheck = false, queryOverride?: string) => {
+  const buildUserContext = (): string => {
+    if (!customization) return '';
+    const parts: string[] = [];
+    if (customization.ethnicities.length > 0) {
+      parts.push(`Ethnicities: ${customization.ethnicities.join(', ')}`);
+    }
+    if (customization.countriesOfOrigin.length > 0) {
+      parts.push(`Countries of ancestral origin: ${customization.countriesOfOrigin.join(', ')}`);
+    }
+    if (customization.genderAtBirth) {
+      parts.push(`Gender assigned at birth: ${customization.genderAtBirth}`);
+    }
+    if (customization.age) {
+      parts.push(`Age: ${customization.age}`);
+    }
+    if (customization.smokingHistory) {
+      const smokingLabel = customization.smokingHistory === 'still-smoking' ? 'Currently smoking' :
+                           customization.smokingHistory === 'past-smoker' ? 'Former smoker' :
+                           'Never smoked';
+      parts.push(`Smoking history: ${smokingLabel}`);
+    }
+    if (customization.alcoholUse) {
+      const alcoholLabel = customization.alcoholUse.charAt(0).toUpperCase() + customization.alcoholUse.slice(1);
+      parts.push(`Alcohol use: ${alcoholLabel}`);
+    }
+    if (customization.medications && customization.medications.length > 0) {
+      parts.push(`Current medications/supplements: ${customization.medications.join(', ')}`);
+    }
+    if (customization.diet) {
+      const dietLabel = customization.diet === 'regular' ? 'Regular diet (no restrictions)' :
+                       customization.diet.charAt(0).toUpperCase() + customization.diet.slice(1) + ' diet';
+      parts.push(`Dietary preferences: ${dietLabel}`);
+    }
+    if (customization.personalConditions && customization.personalConditions.length > 0) {
+      parts.push(`Personal medical history: ${customization.personalConditions.join(', ')}`);
+    }
+    if (customization.familyConditions && customization.familyConditions.length > 0) {
+      parts.push(`Family medical history: ${customization.familyConditions.join(', ')}`);
+    }
+    return parts.join('\n');
+  };
+
+  const handleSendMessage = async (queryOverride?: string) => {
     const query = (queryOverride ?? inputValue).trim();
     if (!query) return;
-
-    // Check consent before sending first message
-    if (!skipConsentCheck && !hasConsent) {
-      setShowConsentModal(true);
-      trackAIConsentModalShown();
-      return;
-    }
 
     setInputValue("");
     setIsLoading(true);
@@ -371,55 +400,10 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
 
       console.log(`[LLM Chat] Including ${relevantResults.length} results in LLM context`);
 
-      let userContext = '';
-      if (customization) {
-        const parts = [];
-        if (customization.ethnicities.length > 0) {
-          parts.push(`Ethnicities: ${customization.ethnicities.join(', ')}`);
-        }
-        if (customization.countriesOfOrigin.length > 0) {
-          parts.push(`Countries of ancestral origin: ${customization.countriesOfOrigin.join(', ')}`);
-        }
-        if (customization.genderAtBirth) {
-          parts.push(`Gender assigned at birth: ${customization.genderAtBirth}`);
-        }
-        if (customization.age) {
-          parts.push(`Age: ${customization.age}`);
-        }
-        if (customization.smokingHistory) {
-          const smokingLabel = customization.smokingHistory === 'still-smoking' ? 'Currently smoking' :
-                               customization.smokingHistory === 'past-smoker' ? 'Former smoker' :
-                               'Never smoked';
-          parts.push(`Smoking history: ${smokingLabel}`);
-        }
-        if (customization.alcoholUse) {
-          const alcoholLabel = customization.alcoholUse.charAt(0).toUpperCase() + customization.alcoholUse.slice(1);
-          parts.push(`Alcohol use: ${alcoholLabel}`);
-        }
-        if (customization.medications && customization.medications.length > 0) {
-          parts.push(`Current medications/supplements: ${customization.medications.join(', ')}`);
-        }
-        if (customization.diet) {
-          const dietLabel = customization.diet === 'regular' ? 'Regular diet (no restrictions)' :
-                           customization.diet.charAt(0).toUpperCase() + customization.diet.slice(1) + ' diet';
-          parts.push(`Dietary preferences: ${dietLabel}`);
-        }
-        if (customization.personalConditions && customization.personalConditions.length > 0) {
-          parts.push(`Personal medical history: ${customization.personalConditions.join(', ')}`);
-        }
-        if (customization.familyConditions && customization.familyConditions.length > 0) {
-          parts.push(`Family medical history: ${customization.familyConditions.join(', ')}`);
-        }
-
-        if (parts.length > 0) {
-          userContext = `
-
-USER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):
-${parts.join('\n')}
-
-Consider how this user's background, lifestyle factors (smoking, alcohol, diet), and current medications may affect their risk profile and the applicability of these study findings.`;
-        }
-      }
+      const userContextSummary = buildUserContext();
+      const userContext = userContextSummary
+        ? `\n\nUSER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):\n${userContextSummary}\n\nConsider how this user's background, lifestyle factors (smoking, alcohol, diet), and current medications may affect their risk profile and the applicability of these study findings.`
+        : '';
 
       const llmDescription = getLLMDescription();
 
@@ -707,6 +691,84 @@ Write questions from the user's perspective — as if the user is asking you. No
     }
   };
 
+  const handleResearch = async () => {
+    const query = inputValue.trim();
+    if (!query || isLoading) return;
+    if (!requirePremium()) return;
+
+    setInputValue('');
+    setIsLoading(true);
+    setError(null);
+    setAttachmentError(null);
+
+    trackLLMQuestionAsked({ isFollowUp: messages.length > 0 });
+
+    const userMessage: Message = { role: 'user', content: query, timestamp: new Date() };
+    const assistantMessage: Message = { role: 'assistant', content: '', timestamp: new Date() };
+    setMessages(prev => [...prev, userMessage, assistantMessage]);
+
+    try {
+      const llmDescription = getLLMDescription();
+      const customizationSummary = buildUserContext();
+
+      let capturedAngles: ResearchAngle[] | undefined;
+
+      const stream = runResearchPipeline(
+        query,
+        customizationSummary,
+        resultsContext.savedResults.length,
+        getTopResultsByRelevance,
+        setLoadingStatus,
+        llmDescription,
+        (angles) => { capturedAngles = angles; },
+      );
+
+      let accumulatedContent = '';
+      let isFirstChunk = true;
+
+      for await (const chunk of stream) {
+        if (isFirstChunk) {
+          setIsLoading(false);
+          setLoadingStatus('');
+          isFirstChunk = false;
+        }
+        accumulatedContent += chunk;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: accumulatedContent };
+          return updated;
+        });
+      }
+
+      if (!accumulatedContent) throw new Error('No response from research pipeline.');
+
+      const followupMatch = accumulatedContent.split(/\n+FOLLOWUP:\n/);
+      const displayContent = followupMatch[0].trim();
+      const followupQuestions = followupMatch[1]
+        ? followupMatch[1].split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim()).filter(Boolean)
+        : [];
+
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content: displayContent, followupQuestions, researchMeta: capturedAngles };
+        return updated;
+      });
+    } catch (err) {
+      console.error('[Research] Error:', err);
+      let errorMessage = err instanceof Error ? err.message : 'Research failed.';
+      if (errorMessage.includes('429')) errorMessage = 'Rate limit exceeded. Please wait and try again.';
+      setError(errorMessage);
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg?.role === 'assistant' && !lastMsg.content) return prev.slice(0, -1);
+        return prev;
+      });
+    } finally {
+      setIsLoading(false);
+      setLoadingStatus('');
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -884,13 +946,6 @@ Write questions from the user's perspective — as if the user is asking you. No
 
   return (
     <>
-      {showConsentModal && (
-        <NilAIConsentModal
-          isOpen={showConsentModal}
-          onAccept={handleConsentAccept}
-          onDecline={handleConsentDecline}
-        />
-      )}
       <div className="ai-chat-inline" style={{ position: 'relative' }}>
         {messages.length > 0 && (
           <div className="chat-info">
@@ -908,7 +963,7 @@ Write questions from the user's perspective — as if the user is asking you. No
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
-              {}
+              <p className="chat-welcome-prompt">Try asking something about your results:</p>
 
               <ul className="example-questions">
                 {EXAMPLE_QUESTIONS.map((question) => (
@@ -979,6 +1034,28 @@ Write questions from the user's perspective — as if the user is asking you. No
                                   Match: {(study.similarity * 100).toFixed(0)}%
                                 </span>
                               )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {message.role === 'assistant' && message.researchMeta && message.researchMeta.length > 0 && (
+                  <div className="studies-used">
+                    <button
+                      className="studies-toggle"
+                      onClick={() => setExpandedResearchIndex(expandedResearchIndex === idx ? null : idx)}
+                    >
+                      {expandedResearchIndex === idx ? '▼' : '▶'} Researched {message.researchMeta.length} angles
+                    </button>
+                    {expandedResearchIndex === idx && (
+                      <div className="studies-list">
+                        {message.researchMeta.map((angle, aidx) => (
+                          <div key={aidx} className="study-item">
+                            <div className="study-trait">{angle.keyword}</div>
+                            <div className="study-details">
+                              <span className="study-snp">{angle.resultsCount} studies searched</span>
                             </div>
                           </div>
                         ))}
@@ -1157,6 +1234,15 @@ Write questions from the user's perspective — as if the user is asking you. No
                 Attach
               </button>
               <button
+                className="chat-research-button"
+                onClick={handleResearch}
+                disabled={isLoading || !inputValue.trim()}
+                title="Searches 10 targeted keyword angles across your genetic data, then synthesizes findings into a comprehensive answer."
+              >
+                {isLoading ? 'Thinking...' : 'Research'}
+                <span className="chat-research-premium-badge">Premium</span>
+              </button>
+              <button
                 className="chat-send-button"
                 onClick={() => handleSendMessage()}
                 disabled={isLoading || !inputValue.trim()}
@@ -1164,6 +1250,11 @@ Write questions from the user's perspective — as if the user is asking you. No
                 {isLoading ? 'Sending...' : 'Send'}
               </button>
             </div>
+          </div>
+          <div className="chat-input-footer">
+            <p className="chat-research-hint">
+              <strong>Send</strong> — quick answer. <strong>Research</strong> — explores 10 genetic angles in depth.
+            </p>
           </div>
         </div>
 

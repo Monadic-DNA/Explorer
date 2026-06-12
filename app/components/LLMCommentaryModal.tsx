@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { SavedResult } from "@/lib/results-manager";
-import NilAIConsentModal from "./NilAIConsentModal";
+
 import StudyQualityIndicators from "./StudyQualityIndicators";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import { callLLM, getLLMDescription } from "@/lib/llm-client";
-import { trackAIAnalysisRun } from "@/lib/analytics";
+
 
 type LLMCommentaryModalProps = {
   isOpen: boolean;
@@ -16,10 +16,7 @@ type LLMCommentaryModalProps = {
   currentResult: SavedResult;
   allResults: SavedResult[]; // Deprecated - will use SQL query instead
   skipPersonalizationPrompt?: boolean;
-  skipConsent?: boolean;
 };
-
-const CONSENT_STORAGE_KEY = "nilai_llm_consent_accepted";
 
 // Helper function to format risk scores consistently
 function formatRiskScore(score: number, level: string, effectType?: 'OR' | 'beta'): string {
@@ -36,7 +33,6 @@ export default function LLMCommentaryModal({
   currentResult,
   allResults, // Deprecated parameter
   skipPersonalizationPrompt = false,
-  skipConsent = false,
 }: LLMCommentaryModalProps) {
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
@@ -45,9 +41,7 @@ export default function LLMCommentaryModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [delegationStatus, setDelegationStatus] = useState<string>("");
-  const [showConsentModal, setShowConsentModal] = useState(false);
   const [showPersonalizationPrompt, setShowPersonalizationPrompt] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
   const [studyMetadata, setStudyMetadata] = useState<any>(null);
   const [loadingPhase, setLoadingPhase] = useState<'query' | 'metadata' | 'token' | 'llm' | 'done'>('query');
   const [resultsCount, setResultsCount] = useState<number>(0);
@@ -57,51 +51,16 @@ export default function LLMCommentaryModal({
   const [usedSemanticSearch, setUsedSemanticSearch] = useState<boolean>(false);
 
   useEffect(() => {
-    // Check if user has previously consented
-    if (typeof window !== "undefined") {
-      const consent = localStorage.getItem(CONSENT_STORAGE_KEY);
-      setHasConsent(consent === "true");
-    }
-  }, []);
-
-  useEffect(() => {
     if (isOpen) {
-      if (skipConsent) {
+      if (skipPersonalizationPrompt || customizationStatus === 'unlocked') {
         setShowPersonalizationPrompt(false);
-        setShowConsentModal(false);
         fetchCommentary();
-        return;
-      }
-
-      if (skipPersonalizationPrompt) {
-        setShowPersonalizationPrompt(false);
-        setShowConsentModal(true);
-        return;
-      }
-
-      if (customizationStatus === 'not-set' || customizationStatus === 'locked') {
-        setShowPersonalizationPrompt(true);
       } else {
-        setShowConsentModal(true);
+        setShowPersonalizationPrompt(true);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, customizationStatus, skipPersonalizationPrompt, skipConsent]);
-
-  const handleConsentAccept = () => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(CONSENT_STORAGE_KEY, "true");
-      setHasConsent(true);
-      setShowConsentModal(false);
-      trackAIAnalysisRun();
-      fetchCommentary();
-    }
-  };
-
-  const handleConsentDecline = () => {
-    setShowConsentModal(false);
-    onClose();
-  };
+  }, [isOpen, customizationStatus, skipPersonalizationPrompt]);
 
   const fetchCommentary = async () => {
     console.log('[fetchCommentary] Starting...');
@@ -733,7 +692,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
 
   const handlePersonalizationPromptContinue = () => {
     setShowPersonalizationPrompt(false);
-    setShowConsentModal(true);
+    fetchCommentary();
   };
 
   if (!isOpen) return null;
@@ -798,13 +757,7 @@ Keep your response concise (400-600 words), educational, and reassuring where ap
       : null;
   }
 
-  const modalContent = showConsentModal ? (
-    <NilAIConsentModal
-      isOpen={showConsentModal}
-      onAccept={handleConsentAccept}
-      onDecline={handleConsentDecline}
-    />
-  ) : (
+  const modalContent = (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-dialog commentary-modal"

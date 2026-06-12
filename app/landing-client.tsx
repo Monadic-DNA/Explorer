@@ -35,31 +35,34 @@ function formatBytes(bytes: number): string {
 
 const SCHEDULE_CALL_URL = "https://calendar.app.google/eVDN4d44GreUjR8p8";
 
+const PRIVACY_POLICY_URL = "https://monadicdna.com/privacy";
+
 const featureCopy = [
   {
     label: "Explore",
     href: "/explore",
-    text: "Explore your results trait by trait. Browse elevated and protective associations ranked by effect size, and see which traits connect to conditions in your personal and family health history.",
+    text: "Get an overview of what your results actually mean. See your strongest genetic signals, both elevated risks and protective findings, and find which ones connect to conditions in your personal or family health history.",
   },
   {
     label: "DNA Chat",
     href: "/dna-chat",
-    text: "Ask questions about your genetic results in plain English. Get explanations of specific traits, genes, and what population studies say about your variants.",
+    text: "Ask questions about your genetic data in plain English. Get clear explanations of specific findings, genes, and what the research says. It works like a conversation with a knowledgeable friend.",
   },
   {
     label: "Browse",
     href: "/browse",
-    text: "Browse studies from the GWAS Catalog with advanced filtering by trait, sample size, and significance. View a heatmap of your SNP matches across selected studies.",
+    text: "Search and filter thousands of genetic research studies. See which ones matched your DNA, how strong the effect is, and read the published science behind each result.",
   },
   {
     label: "Analyze",
     href: "/overview-report",
-    text: "Generate AI-written reports that synthesize patterns across your results, surface hypotheses about your biology, and connect findings to your health history. Premium feature.",
+    text: "Generate AI-written reports from your full set of results. Reports find patterns, connect findings to your health history, and build a picture of your genetic biology. The Health Insights report is free. Additional reports require a subscription.",
   },
   {
     label: "Privacy first",
-    href: null,
-    text: "Your DNA stays in your browser. We do not store, transmit, or sell your raw genetic data. AI runs in Trusted Execution Environments for maximum anonymity.",
+    href: PRIVACY_POLICY_URL,
+    text: "Your DNA never leaves your device. We don't store, share, or sell your genetic data. All AI analysis runs in a private computing environment so your data stays yours.",
+    external: true,
   },
 ];
 
@@ -159,14 +162,57 @@ export default function LandingClient() {
         <div className="landing-home-copy">
           <h1 style={{ maxWidth: 'none' }}>Understand your DNA without giving it away.</h1>
 
+          <p style={{ marginTop: '0.5rem', marginBottom: '1.5rem', fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+            Upload your DNA file or try it now with sample data, free.
+          </p>
+
+          {error && <p className="landing-upload-error">{error}</p>}
+
+          <div style={{ marginBottom: '2rem' }}>
+            <button
+              className="primary-button"
+              onClick={loadSampleData}
+              disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
+              style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
+            >
+              {sampleLabel}
+            </button>
+            {sampleProgressText && (
+              <p style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                {sampleProgressText}
+              </p>
+            )}
+            {sampleError && (
+              <p style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--error)' }}>{sampleError}</p>
+            )}
+            <p style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              No DNA file needed. Your data never leaves your device.{' '}
+              <a
+                href={SCHEDULE_CALL_URL}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
+                onClick={() => trackGetStartedClicked("schedule_video_call")}
+              >
+                Need help? Book a free call.
+              </a>
+            </p>
+          </div>
+
           <div className="landing-home-explainer" aria-label="Monadic DNA Explorer features" style={{ maxWidth: 'none' }}>
             {featureCopy.map((item) => (
               <p key={item.label}>
                 <span>
                   {item.href ? (
-                    <Link href={item.href} style={{ color: 'inherit', textDecoration: 'none' }}>
-                      {item.label}
-                    </Link>
+                    item.external ? (
+                      <a href={item.href} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link href={item.href} style={{ color: 'inherit', textDecoration: 'none' }}>
+                        {item.label}
+                      </Link>
+                    )
                   ) : (
                     item.label
                   )}
@@ -175,45 +221,6 @@ export default function LandingClient() {
               </p>
             ))}
           </div>
-
-          {error && <p className="landing-upload-error">{error}</p>}
-
-          <div style={{ marginTop: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <button
-                className="secondary-button"
-                onClick={loadSampleData}
-                disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
-                style={{ fontSize: '0.85rem' }}
-              >
-                {sampleLabel}
-              </button>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                No DNA file? Load an example to explore the app.
-              </span>
-            </div>
-            {sampleProgressText && (
-              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                {sampleProgressText}
-              </p>
-            )}
-            {sampleError && (
-              <p style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: 'var(--error)' }}>{sampleError}</p>
-            )}
-          </div>
-
-          <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            New to the app?{' '}
-            <a
-              href={SCHEDULE_CALL_URL}
-              target="_blank"
-              rel="noreferrer"
-              style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
-              onClick={() => trackGetStartedClicked("schedule_video_call")}
-            >
-              Book a free help call.
-            </a>
-          </p>
         </div>
       </section>
     </main>
