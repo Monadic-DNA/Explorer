@@ -53,7 +53,7 @@ function SubscribeContent() {
         <section className="subscribe-hero">
           <div className="subscribe-copy">
             <span className="premium-eyebrow">Premium</span>
-            <h1>Subscribe to Monadic DNA Premium</h1>
+            <h1>Subscribe to Monadic DNA Explorer Premium</h1>
             <p>$4.99/month. Cancel any time.</p>
           </div>
 
