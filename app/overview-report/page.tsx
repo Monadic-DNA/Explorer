@@ -55,7 +55,6 @@ export default function OverviewReportPage() {
 
   const requirePremium = () => {
     if (!hasPremiumAccess && !hasValidPromoAccess()) {
-      if (!isAuthenticated) { openAuthModal(); return false; }
       router.push('/subscribe');
       return false;
     }

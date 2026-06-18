@@ -98,7 +98,6 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
 
   const requirePremium = (): boolean => {
     if (!hasPremiumAccess && !hasValidPromoAccess()) {
-      if (!isAuthenticated) { openAuthModal(); return false; }
       router.push('/subscribe');
       return false;
     }
@@ -692,9 +691,10 @@ Write questions from the user's perspective — as if the user is asking you. No
   };
 
   const handleResearch = async () => {
-    const query = inputValue.trim();
-    if (!query || isLoading) return;
+    if (isLoading) return;
     if (!requirePremium()) return;
+    const query = inputValue.trim();
+    if (!query) return;
 
     setInputValue('');
     setIsLoading(true);
@@ -1236,7 +1236,7 @@ Write questions from the user's perspective — as if the user is asking you. No
               <button
                 className="chat-research-button"
                 onClick={handleResearch}
-                disabled={isLoading || !inputValue.trim()}
+                disabled={isLoading || (hasPremiumAccess && !inputValue.trim())}
                 title="Searches 10 targeted keyword angles across your genetic data, then synthesizes findings into a comprehensive answer."
               >
                 {isLoading ? 'Thinking...' : 'Research'}
