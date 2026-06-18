@@ -53,12 +53,38 @@ function SubscribeContent() {
         <section className="subscribe-hero">
           <div className="subscribe-copy">
             <span className="premium-eyebrow">Premium</span>
-            <h1>Subscribe to Monadic DNA Premium</h1>
-            <p>$4.99/month</p>
+            <h1>Subscribe to Monadic DNA Explorer Premium</h1>
+            <p>$4.99/month. Cancel any time.</p>
           </div>
 
           <div className="subscribe-auth">
             <AuthButton />
+          </div>
+        </section>
+
+        <section className="subscribe-features">
+          <div className="subscribe-features-col">
+            <h3>Included with Premium</h3>
+            <ul>
+              <li>
+                <strong>Research in DNA Chat</strong>
+                Searches your results from 10 angles before synthesizing an answer. More thorough than a standard chat response.
+              </li>
+              <li>
+                <strong>All premium reports in Analyze</strong>
+                Healthspan, Top Traits, and Comprehensive Overview reports. <a href="/overview-report" style={{ color: 'var(--accent-blue)' }}>See what each report covers.</a>
+              </li>
+            </ul>
+          </div>
+          <div className="subscribe-features-col">
+            <h3>Always free</h3>
+            <ul className="free-list">
+              <li>Health Insights Report</li>
+              <li>Send in DNA Chat</li>
+              <li>Browse and search all studies</li>
+              <li>Explore your results</li>
+              <li>Upload your own DNA file</li>
+            </ul>
           </div>
         </section>
 
@@ -72,22 +98,21 @@ function SubscribeContent() {
           <section className="subscribe-status-card">
             <h2>Premium access is active</h2>
             <p>
-              Your subscription is ready for DNA Chat and Overview Report.
+              Research in DNA Chat and all premium reports are unlocked.
               {subscriptionData?.expiresAt
                 ? ` Your current billing period renews ${new Date(subscriptionData.expiresAt).toLocaleDateString()}.`
                 : ""}
             </p>
             <div className="subscribe-actions">
               <button onClick={() => router.push("/dna-chat")}>Open DNA Chat</button>
-              <button onClick={() => router.push("/overview-report")}>Open Overview Report</button>
+              <button onClick={() => router.push("/overview-report")}>Open Analyze</button>
             </div>
           </section>
         ) : !isAuthenticated ? (
           <section className="subscribe-status-card">
             <h2>Sign in to subscribe</h2>
             <p>
-              Sign in with your wallet first so your subscription can be tied
-              to your Monadic DNA account.
+              Sign in to continue. We do not store your genetic data, tie your DNA to your identity, or share your information with third parties.
             </p>
             <button className="primary-action" onClick={openAuthModal}>
               Sign In
@@ -165,6 +190,71 @@ function SubscribeContent() {
           min-width: 170px;
           display: flex;
           justify-content: flex-end;
+        }
+
+        .subscribe-features {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 2rem;
+          margin-bottom: 2.5rem;
+          padding: 2rem;
+          border: 1px solid var(--border-color);
+          border-radius: 16px;
+          background: var(--surface-bg);
+        }
+
+        .subscribe-features-col h3 {
+          margin: 0 0 1rem;
+          font-size: 0.78rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: var(--text-secondary);
+        }
+
+        .subscribe-features-col ul {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .subscribe-features-col li {
+          font-size: 0.95rem;
+          color: var(--text-primary);
+          line-height: 1.5;
+          padding-left: 1.4rem;
+          position: relative;
+        }
+
+        .subscribe-features-col li::before {
+          content: '✓';
+          position: absolute;
+          left: 0;
+          color: #2563eb;
+          font-weight: 700;
+        }
+
+        .subscribe-features-col li strong {
+          display: block;
+          font-weight: 700;
+        }
+
+        .free-list li {
+          color: var(--text-secondary);
+        }
+
+        .free-list li::before {
+          color: var(--text-secondary);
+        }
+
+        @media (max-width: 720px) {
+          .subscribe-features {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+          }
         }
 
         .subscribe-notice {
