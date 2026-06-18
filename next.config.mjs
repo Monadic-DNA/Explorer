@@ -16,6 +16,8 @@ const nextConfig = {
   // Mark server-only packages as external (prevents bundling for browser)
   // Nillion packages removed - need webpack bundling to apply libsodium alias
   serverExternalPackages: [
+    'pg',
+    'pg-native',
     'onnxruntime-node',
     'sharp',
     'alchemy-sdk',
@@ -85,6 +87,9 @@ const nextConfig = {
         util: false,
         assert: false,
         'pino-pretty': false,
+        dns: false,
+        net: false,
+        tls: false,
       };
     }
 
