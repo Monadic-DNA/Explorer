@@ -1857,6 +1857,13 @@ tbody tr:hover {
   cursor: wait;
 }
 
+.upload-format-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
 .sample-data-section {
   display: flex;
   flex-direction: column;

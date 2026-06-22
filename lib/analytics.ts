@@ -327,18 +327,21 @@ export function trackGenotypeFileUploadStarted(source: string = 'unknown') {
   });
 }
 
-export function trackGenotypeFileUploadFailed(source: string = 'unknown', reason?: string) {
+export function trackGenotypeFileUploadFailed(source: string = 'unknown', reason?: string, fileExtension?: string) {
   trackEvent('genotype_file_upload_failed', {
     source,
     reason: sanitizeErrorReason(reason),
+    ...(fileExtension && { file_extension: fileExtension }),
   });
 }
 
-export function trackGenotypeFileLoaded(fileSize: number, variantCount: number, source: string = 'unknown') {
+export function trackGenotypeFileLoaded(fileSize: number, variantCount: number, source: string = 'unknown', detectedFormat?: string, fileExtension?: string) {
   const metadata = {
     file_size_kb: Math.round(fileSize / 1024),
     variant_count: variantCount,
     source,
+    ...(detectedFormat && { detected_format: detectedFormat }),
+    ...(fileExtension && { file_extension: fileExtension }),
   };
 
   trackEvent('genotype_file_loaded', metadata);

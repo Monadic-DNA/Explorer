@@ -14,64 +14,68 @@ export type ParseResult = {
   detectedFormat?: 'monadic' | '23andme' | 'ancestrydna';
 };
 
+// Chromosome 26 = mitochondrial in AncestryDNA exports.
+const VALID_CHROMOSOMES = new Set([
+  '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+  '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22',
+  'X', 'Y', 'MT', 'M', '26',
+]);
+
+const VALID_BASES = new Set(['A', 'T', 'G', 'C', 'I', 'D', '0', '-']);
+
+function splitLines(content: string): string[] {
+  return content.split(/\r?\n/);
+}
+
+function stripQuotes(value: string): string {
+  // Remove all quote characters — DNA field values (rsid, chr, position, allele) never contain quotes.
+  return value.trim().replace(/"/g, '');
+}
+
 export function parse23andMeFile(content: string): ParseResult {
   try {
-    const lines = content.split('\n');
+    const lines = splitLines(content);
     const genotypeData: GenotypeData[] = [];
     let totalVariants = 0;
     let validVariants = 0;
 
     for (const line of lines) {
       const trimmedLine = line.trim();
-
-      // Skip empty lines and comments
-      if (!trimmedLine || trimmedLine.startsWith('#')) {
-        continue;
-      }
+      if (!trimmedLine || trimmedLine.startsWith('#')) continue;
 
       totalVariants++;
       const parts = trimmedLine.split(/\s+/);
 
-      // Expected format: rsid chromosome position genotype
-      if (parts.length !== 4) {
-        continue;
+      if (parts.length < 4) continue;
+
+      const [rsid, chromosome, positionStr] = parts;
+      let genotype = parts[3];
+
+      // Some providers (e.g. LivingDNA alt format) output allele1 allele2 as separate columns.
+      // Combine single-char alleles into a 2-char genotype.
+      if (parts.length >= 5 && genotype.length === 1 && parts[4].length === 1) {
+        genotype = genotype + parts[4];
       }
 
-      const [rsid, chromosome, positionStr, genotype] = parts;
+      if (!rsid.startsWith('rs')) continue;
 
-      // Validate rsid format (should start with rs)
-      if (!rsid.startsWith('rs')) {
-        continue;
-      }
+      if (!VALID_CHROMOSOMES.has(chromosome)) continue;
 
-      // Validate chromosome (1-22, X, Y, MT)
-      const validChromosomes = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
-        '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y', 'MT']);
-      if (!validChromosomes.has(chromosome)) {
-        continue;
-      }
-
-      // Validate position (should be a positive integer)
       const position = parseInt(positionStr, 10);
-      if (!Number.isInteger(position) || position <= 0) {
+      if (!Number.isInteger(position) || position <= 0) continue;
+
+      // Normalize no-calls
+      if (genotype === '--' || genotype === '-') {
+        genotypeData.push({ rsid, chromosome, position, genotype: '--' });
+        validVariants++;
         continue;
       }
 
-      // Validate genotype (should be 2 characters, A, T, G, C, I, D, or --)
-      const validBases = new Set(['A', 'T', 'G', 'C', 'I', 'D', '-']);
-      if (genotype.length !== 2 ||
-          !validBases.has(genotype[0]) ||
-          !validBases.has(genotype[1])) {
-        continue;
-      }
+      if (genotype.length !== 2) continue;
+      const validSnpBases = new Set(['A', 'T', 'G', 'C', 'I', 'D', '-']);
+      if (!validSnpBases.has(genotype[0]) || !validSnpBases.has(genotype[1])) continue;
 
-      genotypeData.push({
-        rsid,
-        chromosome,
-        position,
-        genotype,
-      });
-
+      genotypeData.push({ rsid, chromosome, position, genotype });
       validVariants++;
     }
 
@@ -82,81 +86,62 @@ export function parse23andMeFile(content: string): ParseResult {
       };
     }
 
-    return {
-      success: true,
-      data: genotypeData,
-      totalVariants,
-      validVariants,
-      detectedFormat: '23andme',
-    };
+    return { success: true, data: genotypeData, totalVariants, validVariants, detectedFormat: '23andme' };
   } catch (error) {
-    return {
-      success: false,
-      error: `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
+    return { success: false, error: `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 
 export function parseMonadicDNAFile(content: string): ParseResult {
   try {
-    const lines = content.split('\n');
+    const lines = splitLines(content);
     const genotypeData: GenotypeData[] = [];
     let totalVariants = 0;
     let validVariants = 0;
     let headerFound = false;
+    let delimiter = ',';
 
     for (const line of lines) {
       const trimmedLine = line.trim();
+      if (!trimmedLine || trimmedLine.startsWith('#')) continue;
 
-      // Skip empty lines
-      if (!trimmedLine) {
-        continue;
-      }
-
-      // Check for header line
-      if (trimmedLine.toUpperCase().startsWith('RSID,CHROMOSOME,POSITION,RESULT')) {
-        headerFound = true;
-        continue;
-      }
-
-      // Skip if we haven't found the header yet
       if (!headerFound) {
+        const upper = trimmedLine.toUpperCase().replace(/"/g, '');
+        const normalized = upper.replace(/\s+/g, '\t');
+        const hasExplicitDelimiter = upper.includes(',') || upper.includes('\t');
+        // Accept RSID,CHROMOSOME,POSITION,RESULT or RSID,CHROMOSOME,POSITION,GENOTYPE
+        // For tab/space headers, require at least one real delimiter so purely
+        // space-separated files fall through to the 23andMe whitespace parser instead.
+        if (
+          upper.startsWith('RSID,CHROMOSOME,POSITION,RESULT') ||
+          upper.startsWith('RSID,CHROMOSOME,POSITION,GENOTYPE') ||
+          (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tGENOTYPE')) ||
+          (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tRESULT'))
+        ) {
+          headerFound = true;
+          delimiter = trimmedLine.includes('\t') ? '\t' : ',';
+          continue;
+        }
         continue;
       }
 
       totalVariants++;
-      const parts = trimmedLine.split(',');
+      const parts = trimmedLine.split(delimiter).map(stripQuotes);
 
-      // Expected format: RSID,CHROMOSOME,POSITION,RESULT
-      if (parts.length !== 4) {
-        continue;
-      }
+      if (parts.length < 4) continue;
 
       const [rsid, chromosome, positionStr, genotype] = parts;
 
-      // Skip entries without valid rsid (must start with rs)
-      // GSA- and -Y- entries are internal IDs, not standard rsids
-      if (!rsid.startsWith('rs')) {
-        continue;
-      }
+      if (!rsid.startsWith('rs')) continue;
 
-      // Parse position (can be 0 for Monadic DNA files)
       const position = parseInt(positionStr, 10);
-      if (!Number.isInteger(position) || position < 0) {
-        continue;
-      }
+      if (!Number.isInteger(position) || position < 0) continue;
 
-      // Validate genotype (should be 2 characters: AA, TT, GG, CC, or --)
-      if (genotype.length !== 2) {
-        continue;
-      }
+      if (genotype.length !== 2) continue;
 
       const validBases = new Set(['A', 'T', 'G', 'C', '-']);
-      if (!validBases.has(genotype[0]) || !validBases.has(genotype[1])) {
-        continue;
-      }
+      if (!validBases.has(genotype[0]) || !validBases.has(genotype[1])) continue;
 
-      // Store the entry (chromosome can be '0' for Monadic DNA files)
       genotypeData.push({
         rsid,
         chromosome: chromosome === '0' ? '0' : chromosome,
@@ -168,109 +153,114 @@ export function parseMonadicDNAFile(content: string): ParseResult {
     }
 
     if (!headerFound) {
-      return {
-        success: false,
-        error: 'No valid Monadic DNA header found. Expected: RSID,CHROMOSOME,POSITION,RESULT',
-      };
+      return { success: false, error: 'No valid Monadic DNA header found. Expected: RSID,CHROMOSOME,POSITION,RESULT' };
     }
 
     if (validVariants === 0) {
-      return {
-        success: false,
-        error: 'No valid genotype data found in file. Please ensure the file is in Monadic DNA format.',
-      };
+      return { success: false, error: 'No valid genotype data found in file. Please ensure the file is in Monadic DNA format.' };
     }
 
-    return {
-      success: true,
-      data: genotypeData,
-      totalVariants,
-      validVariants,
-      detectedFormat: 'monadic',
-    };
+    return { success: true, data: genotypeData, totalVariants, validVariants, detectedFormat: 'monadic' };
   } catch (error) {
-    return {
-      success: false,
-      error: `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
+    return { success: false, error: `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 
 export function parseAncestryDNAFile(content: string): ParseResult {
   try {
-    const lines = content.split('\n');
+    const lines = splitLines(content);
     const genotypeData: GenotypeData[] = [];
     let totalVariants = 0;
     let validVariants = 0;
     let headerFound = false;
+    let allele1Idx = 3;
+    let allele2Idx = 4;
+    let delimiter = '\t';
+
+    const configureFromHeader = (headerLine: string) => {
+      delimiter = headerLine.includes('\t') ? '\t' : ',';
+      const cols = headerLine.split(delimiter).map(c => stripQuotes(c).toLowerCase());
+      allele1Idx = cols.findIndex(c => /allele.?1|allele$/.test(c));
+      allele2Idx = cols.findIndex(c => /allele.?2/.test(c));
+      if (allele1Idx === -1) allele1Idx = 3;
+      if (allele2Idx === -1) allele2Idx = 4;
+    };
 
     for (const line of lines) {
       const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
 
-      // Skip empty lines and comments
-      if (!trimmedLine || trimmedLine.startsWith('#')) {
-        continue;
-      }
-
-      // Check for header line (AncestryDNA uses rsid, chromosome, position, allele1, allele2)
-      if (trimmedLine.toLowerCase().includes('rsid') &&
-          trimmedLine.toLowerCase().includes('chromosome') &&
-          trimmedLine.toLowerCase().includes('position')) {
-        headerFound = true;
-        continue;
-      }
-
-      // Skip if we haven't found the header yet
       if (!headerFound) {
+        if (trimmedLine.startsWith('#')) {
+          // FTDNA famfinder puts the column header inside a comment line.
+          // Only treat it as a header if it contains "allele" (to avoid matching 23andMe comment headers).
+          const commentContent = trimmedLine.slice(1).trim();
+          const lower = commentContent.toLowerCase();
+          if (
+            (lower.includes('rsid') || lower.includes('name')) &&
+            lower.includes('chromosome') &&
+            lower.includes('position') &&
+            lower.includes('allele')
+          ) {
+            headerFound = true;
+            configureFromHeader(commentContent);
+          }
+          continue;
+        }
+
+        const lower = trimmedLine.toLowerCase();
+        if (lower.includes('rsid') && lower.includes('chromosome') && lower.includes('position')) {
+          headerFound = true;
+          configureFromHeader(trimmedLine);
+          continue;
+        }
         continue;
       }
 
       totalVariants++;
-      const parts = trimmedLine.split(/\t/); // AncestryDNA uses tabs
+      // Split and filter out empty fields caused by inconsistent multi-separator usage.
+      const rawParts = trimmedLine.split(delimiter).map(p => stripQuotes(p));
+      const parts = rawParts.filter(p => p !== '');
 
-      // Expected format: rsid chromosome position allele1 allele2
-      if (parts.length < 5) {
+      if (parts.length <= Math.max(allele1Idx, 2)) continue;
+
+      const rsid = parts[0];
+      const chromosome = parts[1];
+      const positionStr = parts[2];
+      const allele1Raw = parts[allele1Idx] ?? '';
+      const allele2Raw = allele2Idx < parts.length ? (parts[allele2Idx] ?? '') : '';
+
+      // If no allele2 but allele1 is 2 chars, treat it as a combined genotype (generic 4-col format).
+      if (!allele2Raw && allele1Raw.length === 2) {
+        const a1 = allele1Raw[0];
+        const a2 = allele1Raw[1];
+        if (!rsid.startsWith('rs') && !/^\d+$/.test(rsid)) continue;
+        if (!VALID_CHROMOSOMES.has(chromosome)) continue;
+        const position = parseInt(positionStr, 10);
+        if (!Number.isInteger(position) || position <= 0) continue;
+        const validBases = new Set(['A', 'T', 'G', 'C', 'I', 'D', '-']);
+        if (!validBases.has(a1) || !validBases.has(a2)) continue;
+        genotypeData.push({ rsid, chromosome: chromosome === 'M' ? 'MT' : chromosome, position, genotype: allele1Raw });
+        validVariants++;
         continue;
       }
 
-      const [rsid, chromosome, positionStr, allele1, allele2] = parts;
+      if (!rsid.startsWith('rs') && !/^\d+$/.test(rsid)) continue;
+      if (!VALID_CHROMOSOMES.has(chromosome)) continue;
 
-      // Validate rsid format (should start with rs or be a numeric ID)
-      if (!rsid.startsWith('rs') && !/^\d+$/.test(rsid)) {
-        continue;
-      }
-
-      // Validate chromosome (1-22, X, Y, MT)
-      const validChromosomes = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
-        '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y', 'MT', 'M']);
-      if (!validChromosomes.has(chromosome)) {
-        continue;
-      }
-
-      // Validate position (should be a positive integer)
       const position = parseInt(positionStr, 10);
-      if (!Number.isInteger(position) || position <= 0) {
-        continue;
-      }
+      if (!Number.isInteger(position) || position <= 0) continue;
 
-      // Validate alleles (should be single characters: A, T, G, C, I, D, or 0/-)
-      const validBases = new Set(['A', 'T', 'G', 'C', 'I', 'D', '0', '-']);
-      if (!validBases.has(allele1) || !validBases.has(allele2)) {
-        continue;
-      }
+      const a1 = allele1Raw || '0';
+      const a2 = allele2Raw || '0';
 
-      // Combine alleles into genotype format
-      // AncestryDNA uses '0' for no-call, convert to '--'
-      let genotype: string;
-      if (allele1 === '0' || allele2 === '0') {
-        genotype = '--';
-      } else {
-        genotype = allele1 + allele2;
-      }
+      if (!VALID_BASES.has(a1) || !VALID_BASES.has(a2)) continue;
+
+      const genotype = (a1 === '0' || a2 === '0') ? '--' : a1 + a2;
 
       genotypeData.push({
         rsid,
-        chromosome: chromosome === 'M' ? 'MT' : chromosome, // Normalize MT chromosome
+        chromosome: chromosome === 'M' ? 'MT' : chromosome === '26' ? 'MT' : chromosome,
         position,
         genotype,
       });
@@ -286,78 +276,80 @@ export function parseAncestryDNAFile(content: string): ParseResult {
     }
 
     if (validVariants === 0) {
-      return {
-        success: false,
-        error: 'No valid genotype data found in file. Please ensure the file is in AncestryDNA format.',
-      };
+      return { success: false, error: 'No valid genotype data found in file. Please ensure the file is in AncestryDNA format.' };
     }
 
-    return {
-      success: true,
-      data: genotypeData,
-      totalVariants,
-      validVariants,
-      detectedFormat: 'ancestrydna',
-    };
+    return { success: true, data: genotypeData, totalVariants, validVariants, detectedFormat: 'ancestrydna' };
   } catch (error) {
-    return {
-      success: false,
-      error: `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    };
+    return { success: false, error: `Failed to parse file: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 
 export function detectAndParseGenotypeFile(content: string): ParseResult {
-  // Try to detect format by looking at first few non-comment lines
-  const lines = content.split('\n').slice(0, 20);
+  // Scan first 50 lines — some files have long comment/metadata sections before the header.
+  const lines = splitLines(content).slice(0, 50);
 
-  // Check for Monadic DNA format (CSV with header)
-  const hasMonadicHeader = lines.some(line =>
-    line.trim().toUpperCase().startsWith('RSID,CHROMOSOME,POSITION,RESULT')
-  );
-
+  // Monadic DNA: CSV/TSV with specific header (also matches MyHeritage, FTDNA, generic 4-col formats).
+  // Require an explicit tab or comma so purely space-delimited files fall through to the
+  // 23andMe whitespace parser rather than being misrouted here with a comma delimiter.
+  const hasMonadicHeader = lines.some(line => {
+    const upper = line.trim().toUpperCase().replace(/"/g, '');
+    const normalized = upper.replace(/\s+/g, '\t');
+    const hasExplicitDelimiter = upper.includes(',') || upper.includes('\t');
+    return (
+      upper.startsWith('RSID,CHROMOSOME,POSITION,RESULT') ||
+      upper.startsWith('RSID,CHROMOSOME,POSITION,GENOTYPE') ||
+      (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tGENOTYPE')) ||
+      (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tRESULT'))
+    );
+  });
   if (hasMonadicHeader) {
     return parseMonadicDNAFile(content);
   }
 
-  // Check for AncestryDNA format (tab-separated with specific header)
+  // AncestryDNA: non-comment header line with rsid + chromosome + position + allele columns.
+  // Skip lines starting with # to avoid matching 23andMe's comment-based column header.
   const hasAncestryHeader = lines.some(line => {
-    const lower = line.trim().toLowerCase();
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) return false;
+    const lower = trimmed.toLowerCase();
     return lower.includes('rsid') &&
            lower.includes('chromosome') &&
-           lower.includes('position') &&
-           lower.includes('allele1') &&
-           lower.includes('allele2');
+           lower.includes('position');
   });
-
   if (hasAncestryHeader) {
     return parseAncestryDNAFile(content);
   }
 
-  // Check for 23andMe format (comment lines starting with #)
+  // 23andMe and compatible formats: comment lines starting with #.
+  // But check if the data rows are AncestryDNA-style (5 columns with separate alleles) —
+  // FTDNA famfinder puts its column header in a comment line.
   const has23andMeComments = lines.some(line => line.trim().startsWith('#'));
-
   if (has23andMeComments) {
+    // If any comment line looks like an AncestryDNA header (has "allele"), try AncestryDNA first.
+    const commentHasAlleleHeader = lines.some(line => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('#')) return false;
+      const lower = trimmed.slice(1).toLowerCase();
+      return (lower.includes('rsid') || lower.includes('name')) && lower.includes('chromosome') && lower.includes('allele');
+    });
+    if (commentHasAlleleHeader) {
+      const ancestryResult = parseAncestryDNAFile(content);
+      if (ancestryResult.success) return ancestryResult;
+    }
     return parse23andMeFile(content);
   }
 
-  // Try parsers in order of popularity
+  // Blind fallback.
   const result23andMe = parse23andMeFile(content);
-  if (result23andMe.success) {
-    return result23andMe;
-  }
+  if (result23andMe.success) return result23andMe;
 
   const resultAncestry = parseAncestryDNAFile(content);
-  if (resultAncestry.success) {
-    return resultAncestry;
-  }
+  if (resultAncestry.success) return resultAncestry;
 
   const resultMonadic = parseMonadicDNAFile(content);
-  if (resultMonadic.success) {
-    return resultMonadic;
-  }
+  if (resultMonadic.success) return resultMonadic;
 
-  // If all fail, return generic error
   return {
     success: false,
     error: 'Unable to detect file format. Supported formats: 23andMe (.txt), AncestryDNA (.txt), or Monadic DNA (.csv)',

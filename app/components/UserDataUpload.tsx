@@ -5,7 +5,6 @@ import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFil
 import { calculateFileHash } from "@/lib/file-hash";
 import {
   trackFileCleared,
-  trackFileUploadError,
   trackGenotypeFileLoaded,
   trackGenotypeFileUploadFailed,
   trackGenotypeFileUploadStarted,
@@ -38,59 +37,53 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const uploadGenotype = async (file: File, source: string = 'unknown') => {
-    const startTime = performance.now();
-    const fileExtension = file.name.split('.').pop() || '';
+    const dotIdx = file.name.lastIndexOf('.');
+    const fileExtension = dotIdx !== -1 ? file.name.slice(dotIdx + 1).toLowerCase() : '';
 
     setIsLoading(true);
     setError(null);
     trackGenotypeFileUploadStarted(source);
 
     try {
-      // Validate file size (50MB limit)
       if (!validateFileSize(file, 50)) {
         throw new Error('File too large. Maximum size is 50MB.');
       }
 
-      // Validate file format
       if (!validateFileFormat(file)) {
-        throw new Error('Invalid file format. Please upload a .txt, .tsv, or .csv file from 23andMe, AncestryDNA, or Monadic DNA.');
+        throw new Error('Unsupported file type. Please upload a .txt, .tsv, or .csv file exported from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, or a compatible provider.');
       }
 
-      // Read and parse file entirely client-side
       const fileContent = await file.text();
       const hash = calculateFileHash(fileContent);
 
-      // Parse the genotype file client-side
       const parseResult = detectAndParseGenotypeFile(fileContent);
 
       if (!parseResult.success) {
-        throw new Error(parseResult.error || 'Failed to parse genotype data');
+        const reason = parseResult.error || 'Failed to parse genotype data';
+        console.error('[Upload] Parse failed', { file: file.name, ext: fileExtension, reason });
+        throw new Error(reason);
       }
 
-      // Create a map for quick SNP lookup
       const genotypeMap = new Map<string, string>();
       parseResult.data!.forEach((variant: GenotypeData) => {
         genotypeMap.set(variant.rsid, variant.genotype);
       });
 
-      const parseDuration = performance.now() - startTime;
-
-      // Track successful genotype file load
-      trackGenotypeFileLoaded(file.size, genotypeMap.size, source);
+      trackGenotypeFileLoaded(file.size, genotypeMap.size, source, parseResult.detectedFormat, fileExtension);
 
       setGenotypeData(genotypeMap);
       setFileHash(hash);
       setOriginalFileName(file.name);
 
-      // Call the callback if it exists
       if (onDataLoadedRef.current) {
         onDataLoadedRef.current();
       }
       return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
+      console.error('[Upload] Failed', { file: file.name, ext: fileExtension, source, reason: errorMessage });
       setError(errorMessage);
-      trackGenotypeFileUploadFailed(source, errorMessage);
+      trackGenotypeFileUploadFailed(source, errorMessage, fileExtension);
       return false;
     } finally {
       setIsLoading(false);
@@ -159,19 +152,6 @@ export default function UserDataUpload() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    const fileName = file.name.toLowerCase();
-    if (!fileName.endsWith('.txt') && !fileName.endsWith('.tsv') && !fileName.endsWith('.csv')) {
-      trackFileUploadError('unsupported_file_type');
-      return;
-    }
-
-    // Validate file size (50MB limit)
-    if (file.size > 50 * 1024 * 1024) {
-      trackFileUploadError('file_too_large');
-      return;
-    }
-
     // Dev mode: Try to use File System Access API to save handle for future auto-load
     if (isDevModeEnabled()) {
       try {
@@ -228,9 +208,10 @@ export default function UserDataUpload() {
       <label htmlFor="genotype-upload" className={`genotype-upload-label ${isLoading ? 'loading' : ''}`}>
         {isLoading ? 'Analyzing your genetic map...' : 'Choose File to Upload'}
       </label>
+      <p className="upload-format-hint">23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, and more</p>
       {error && (
-        <div className="genotype-error" title={error}>
-          Upload failed
+        <div className="genotype-error">
+          {error}
         </div>
       )}
       <div className="sample-data-section">
