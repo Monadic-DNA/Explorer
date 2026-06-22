@@ -108,13 +108,15 @@ export function parseMonadicDNAFile(content: string): ParseResult {
       if (!headerFound) {
         const upper = trimmedLine.toUpperCase().replace(/"/g, '');
         const normalized = upper.replace(/\s+/g, '\t');
+        const hasExplicitDelimiter = upper.includes(',') || upper.includes('\t');
         // Accept RSID,CHROMOSOME,POSITION,RESULT or RSID,CHROMOSOME,POSITION,GENOTYPE
-        // Also accept tab/space-separated generic format.
+        // For tab/space headers, require at least one real delimiter so purely
+        // space-separated files fall through to the 23andMe whitespace parser instead.
         if (
           upper.startsWith('RSID,CHROMOSOME,POSITION,RESULT') ||
           upper.startsWith('RSID,CHROMOSOME,POSITION,GENOTYPE') ||
-          normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tGENOTYPE') ||
-          normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tRESULT')
+          (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tGENOTYPE')) ||
+          (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tRESULT'))
         ) {
           headerFound = true;
           delimiter = trimmedLine.includes('\t') ? '\t' : ',';
@@ -288,15 +290,17 @@ export function detectAndParseGenotypeFile(content: string): ParseResult {
   const lines = splitLines(content).slice(0, 50);
 
   // Monadic DNA: CSV/TSV with specific header (also matches MyHeritage, FTDNA, generic 4-col formats).
-  // Normalize whitespace so space-delimited headers match alongside tab/comma.
+  // Require an explicit tab or comma so purely space-delimited files fall through to the
+  // 23andMe whitespace parser rather than being misrouted here with a comma delimiter.
   const hasMonadicHeader = lines.some(line => {
     const upper = line.trim().toUpperCase().replace(/"/g, '');
     const normalized = upper.replace(/\s+/g, '\t');
+    const hasExplicitDelimiter = upper.includes(',') || upper.includes('\t');
     return (
       upper.startsWith('RSID,CHROMOSOME,POSITION,RESULT') ||
       upper.startsWith('RSID,CHROMOSOME,POSITION,GENOTYPE') ||
-      normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tGENOTYPE') ||
-      normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tRESULT')
+      (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tGENOTYPE')) ||
+      (hasExplicitDelimiter && normalized.startsWith('RSID\tCHROMOSOME\tPOSITION\tRESULT'))
     );
   });
   if (hasMonadicHeader) {

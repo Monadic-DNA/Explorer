@@ -37,7 +37,8 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
 
   const uploadGenotype = async (file: File, source: string = 'unknown') => {
-    const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+    const dotIdx = file.name.lastIndexOf('.');
+    const fileExtension = dotIdx !== -1 ? file.name.slice(dotIdx + 1).toLowerCase() : '';
 
     setIsLoading(true);
     setError(null);
