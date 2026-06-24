@@ -28,6 +28,11 @@ import {
   trackQueryRun,
   trackExploreTabViewed,
   trackSearchModeChanged,
+  trackBrowsePageViewed,
+  trackBrowseFiltersExpanded,
+  trackBrowseSearchChanged,
+  trackStudyOpened,
+  trackRunAllCtaClicked,
 } from "@/lib/analytics";
 
 // Note: Metadata must be exported from layout.tsx or a server component
@@ -310,6 +315,7 @@ function ExplorePage() {
   useEffect(() => {
     if (mounted) {
       trackExploreTabViewed();
+      trackBrowsePageViewed();
     }
   }, [mounted]);
 
@@ -408,6 +414,7 @@ function ExplorePage() {
       startTransition(() => {
         updateFilter("search", value);
       });
+      trackBrowseSearchChanged(value);
     }
   }, [filters.search, updateFilter]);
 
@@ -570,6 +577,15 @@ function ExplorePage() {
     userInitiatedSearchRef.current = false;
   };
 
+  const SEARCH_CHIPS = ['sleep', 'cholesterol', 'caffeine', "Alzheimer's", 'diabetes'] as const;
+
+  const handleChipClick = (term: string) => {
+    userInitiatedSearchRef.current = true;
+    startTransition(() => updateFilter("search", term));
+    setSectionCollapsed(false);
+    trackBrowseSearchChanged(term);
+  };
+
 
   const handleColumnSort = (sortKey: SortOption) => {
     const newDirection = filters.sort === sortKey
@@ -601,6 +617,7 @@ function ExplorePage() {
   };
 
   const handleRunAll = () => {
+    trackRunAllCtaClicked();
     if (!genotypeData || genotypeData.size === 0) {
       trackRunAllFailed("explore", "no_genotype_data");
       alert("No SNPs found in your genetic data");
@@ -775,7 +792,18 @@ function ExplorePage() {
                 <p>Filter genetic association studies by various criteria.</p>
               </>
             )}
-            {sectionCollapsed && <h3>Study Filters</h3>}
+            {sectionCollapsed && (
+              <>
+                <h3>Study Filters</h3>
+                <div className="search-chips">
+                  {SEARCH_CHIPS.map(term => (
+                    <button key={term} className="search-chip" type="button" onClick={() => handleChipClick(term)}>
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
           <div className="hero-controls">
             {!sectionCollapsed && (
@@ -789,7 +817,10 @@ function ExplorePage() {
             <button
               className="collapse-button"
               type="button"
-              onClick={() => setSectionCollapsed(!sectionCollapsed)}
+              onClick={() => {
+                if (sectionCollapsed) trackBrowseFiltersExpanded();
+                setSectionCollapsed(!sectionCollapsed);
+              }}
               title={sectionCollapsed ? "Expand" : "Collapse"}
             >
               {sectionCollapsed ? "↓" : "↑"}
@@ -1074,7 +1105,7 @@ function ExplorePage() {
                   <tr key={`${study.id}-${index}`} className={study.isLowQuality ? "low-quality" : undefined}>
                     <td data-label="Study">
                       <div className="study-title">
-                        <Link href={`/study/${study.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                        <Link href={`/study/${study.id}`} style={{ textDecoration: "none", color: "inherit" }} onClick={() => trackStudyOpened(study.id)}>
                           {study.study ?? "Untitled study"}
                         </Link>
                       </div>
