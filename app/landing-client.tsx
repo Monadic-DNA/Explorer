@@ -77,12 +77,12 @@ export default function LandingClient() {
   const [sampleTotalBytes, setSampleTotalBytes] = useState(0);
 
   const loadSampleData = async () => {
-    trackSampleDataStarted('home');
-
     if (savedResults.length > 0) {
       router.push("/explore");
       return;
     }
+
+    trackSampleDataStarted('home');
 
     try {
       setSampleStatus("downloading");

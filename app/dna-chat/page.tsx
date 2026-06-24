@@ -230,13 +230,15 @@ export default function DNAChatPage() {
           )}
 
           <div className="dna-chat-inline-wrapper">
-            <button
-              className="dna-chat-tour-button"
-              type="button"
-              onClick={() => setTourOpen(true)}
-            >
-              Show me how to use this
-            </button>
+            <div style={{ textAlign: "right", marginBottom: "0.4rem" }}>
+              <button
+                className="tour-help-button"
+                type="button"
+                onClick={() => setTourOpen(true)}
+                title="Show tour"
+                aria-label="Show tour"
+              >?</button>
+            </div>
             <LLMChatInline initialInput={initialChatInput} />
           </div>
         </section>

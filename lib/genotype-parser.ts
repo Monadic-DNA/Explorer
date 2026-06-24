@@ -361,7 +361,7 @@ export function validateFileSize(file: File, maxSizeMB: number = 50): boolean {
 }
 
 export function validateFileFormat(file: File): boolean {
-  const validExtensions = ['.txt', '.tsv', '.csv'];
+  const validExtensions = ['.txt', '.tsv', '.csv', '.gz'];
   const fileName = file.name.toLowerCase();
   return validExtensions.some(ext => fileName.endsWith(ext));
 }

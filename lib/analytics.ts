@@ -678,6 +678,26 @@ export function trackSearchModeChanged(mode: 'similarity' | 'exact') {
   trackEvent('search_mode_changed', { mode });
 }
 
+export function trackBrowsePageViewed() {
+  trackEvent('browse_page_viewed');
+}
+
+export function trackBrowseFiltersExpanded() {
+  trackEvent('browse_filters_expanded');
+}
+
+export function trackBrowseSearchChanged(query: string) {
+  trackEvent('browse_search_changed', { query_length: query.length });
+}
+
+export function trackStudyOpened(studyId: number) {
+  trackEvent('study_opened', { study_id: String(studyId) });
+}
+
+export function trackRunAllCtaClicked() {
+  trackEvent('run_all_cta_clicked');
+}
+
 export function trackStudyAnalysisStarted() {
   trackEvent('study_analysis_started');
 }

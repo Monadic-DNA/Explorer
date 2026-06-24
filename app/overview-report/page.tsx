@@ -14,7 +14,7 @@ import { OverviewReportIcon } from "../components/Icons";
 import { useAuth } from "../components/AuthProvider";
 import { useResults } from "../components/ResultsContext";
 import { hasValidPromoAccess } from "@/lib/promo-access";
-import GuidedTour, { hasCompletedTour } from "../components/GuidedTour";
+import GuidedTour from "../components/GuidedTour";
 import { overviewReportTour } from "../components/tours/tourContent";
 import { trackOverviewReportViewed } from "@/lib/analytics";
 
@@ -43,12 +43,6 @@ export default function OverviewReportPage() {
     trackOverviewReportViewed();
   }, []);
 
-
-  useEffect(() => {
-    if (!hasCompletedTour(overviewReportTour.id)) {
-      setTourOpen(true);
-    }
-  }, []);
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
   const hasResults = savedResults.length > 0;
@@ -92,9 +86,7 @@ export default function OverviewReportPage() {
           gateDescription="Subscribe for $4.99/month to access Healthspan, Top Traits, and Overview reports."
         />
         <div style={{ textAlign: "right", padding: "0 1rem" }}>
-          <button className="tour-trigger-link" onClick={() => setTourOpen(true)}>
-            Take the tour
-          </button>
+          <button className="tour-help-button" type="button" onClick={() => setTourOpen(true)} title="Show tour" aria-label="Show tour">?</button>
         </div>
         <PremiumPaywall>{null}</PremiumPaywall>
 

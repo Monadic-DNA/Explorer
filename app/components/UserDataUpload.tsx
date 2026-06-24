@@ -50,10 +50,31 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!validateFileFormat(file)) {
-        throw new Error('Unsupported file type. Please upload a .txt, .tsv, or .csv file exported from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, or a compatible provider.');
+        throw new Error('Unsupported file type. Please upload a .txt, .tsv, .csv, or .gz file exported from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, or a compatible provider.');
       }
 
-      const fileContent = await file.text();
+      let fileContent: string;
+      if (fileExtension === 'gz') {
+        const buffer = await file.arrayBuffer();
+        const ds = new DecompressionStream('gzip');
+        const writer = ds.writable.getWriter();
+        writer.write(buffer);
+        writer.close();
+        const chunks: Uint8Array[] = [];
+        const reader = ds.readable.getReader();
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(value);
+        }
+        const total = chunks.reduce((n, c) => n + c.length, 0);
+        const combined = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.length; }
+        fileContent = new TextDecoder().decode(combined);
+      } else {
+        fileContent = await file.text();
+      }
       const hash = calculateFileHash(fileContent);
 
       const parseResult = detectAndParseGenotypeFile(fileContent);
@@ -199,7 +220,7 @@ export default function UserDataUpload() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.tsv,.csv"
+        accept=".txt,.tsv,.csv,.gz"
         onChange={handleFileSelect}
         className="genotype-file-input"
         id="genotype-upload"
@@ -208,7 +229,7 @@ export default function UserDataUpload() {
       <label htmlFor="genotype-upload" className={`genotype-upload-label ${isLoading ? 'loading' : ''}`}>
         {isLoading ? 'Analyzing your genetic map...' : 'Choose File to Upload'}
       </label>
-      <p className="upload-format-hint">23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, and more</p>
+      <p className="upload-format-hint">23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, and more. Compressed .gz files supported.</p>
       {error && (
         <div className="genotype-error">
           {error}
