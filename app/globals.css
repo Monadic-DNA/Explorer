@@ -11832,37 +11832,27 @@ details[open] .summary-arrow {
   padding: 0.1rem 1rem 0.35rem;
 }
 
-.menu-explain-link {
-  background: none;
-  border: none;
-  color: var(--text-muted, #888);
-  font-size: 0.72rem;
+.tour-help-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  opacity: 0.65;
+  transition: border-color 0.15s, color 0.15s;
 }
 
-.menu-explain-link:hover {
-  opacity: 1;
-  color: var(--accent-blue);
-}
-
-.tour-trigger-link {
-  background: none;
-  border: none;
-  color: var(--accent-blue);
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.tour-trigger-link:hover {
-  background: rgba(59, 130, 246, 0.08);
+.tour-help-button:hover {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
 }
 
 .mobile-compatibility-notice {
@@ -12048,26 +12038,6 @@ details[open] .summary-arrow {
   position: relative;
 }
 
-.dna-chat-tour-button {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.6rem;
-  z-index: 10;
-  padding: 0.25rem 0.6rem;
-  border-radius: 4px;
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  background: rgba(255, 255, 255, 0.9);
-  color: rgba(15, 23, 42, 0.55);
-  font-size: 0.72rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.dna-chat-tour-button:hover {
-  background: #ffffff;
-  color: rgba(15, 23, 42, 0.85);
-  border-color: rgba(15, 23, 42, 0.35);
-}
 
 /* Browse page tab toggle */
 .browse-tab-toggle {

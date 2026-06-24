@@ -313,13 +313,6 @@ function ExplorePage() {
     }
   }, [mounted]);
 
-  // Auto-show guided tour on first visit
-  useEffect(() => {
-    if (mounted && !hasCompletedTour(exploreTour.id)) {
-      setTourOpen(true);
-    }
-  }, [mounted]);
-
   const [filters, setFilters] = useState<Filters>(defaultFilters);
 
   useEffect(() => {
@@ -786,9 +779,7 @@ function ExplorePage() {
           </div>
           <div className="hero-controls">
             {!sectionCollapsed && (
-              <button className="tour-trigger-link" type="button" onClick={() => setTourOpen(true)}>
-                Take the tour
-              </button>
+              <button className="tour-help-button" type="button" onClick={() => setTourOpen(true)} title="Show tour" aria-label="Show tour">?</button>
             )}
             {!sectionCollapsed && (
               <button className="reset-button" type="button" onClick={resetFilters}>

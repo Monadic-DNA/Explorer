@@ -53,13 +53,6 @@ export const exploreTour: TourContent = {
       selector: '[data-tour="run-all-button"]',
       placement: "bottom",
     },
-    {
-      name: "your_result",
-      title: "Your personal result",
-      body: "After analyzing, the Your Result column shows how your genotype compares to each study. Click any row to see the details.",
-      selector: '[data-tour="your-result-header"]',
-      placement: "bottom",
-    },
   ],
 };
 
@@ -73,27 +66,6 @@ export const dnaChatTour: TourContent = {
       body: "DNA Chat is an anonymous and confidential LLM chat that uses your genetic results as context. Ask anything about your traits, sleep, diet, or risks.",
     },
     myDataStep,
-    {
-      name: "prompts",
-      title: "Try a suggested prompt",
-      body: "Not sure what to ask? Tap any of these suggestions to fill the chat box. They're a great starting point.",
-      selector: ".example-questions",
-      placement: "top",
-    },
-    {
-      name: "input",
-      title: "Or type your own",
-      body: "Type any question about your DNA here. The chat keeps your context across follow-up questions.",
-      selector: "textarea.chat-input",
-      placement: "top",
-    },
-    {
-      name: "send",
-      title: "Send your question",
-      body: "Click here to send. The first answer pulls in your most relevant results as context and follow-ups continue the conversation.",
-      selector: ".chat-send-button",
-      placement: "top",
-    },
     {
       name: "attach",
       title: "Upload lab reports and documents",
@@ -162,13 +134,6 @@ export const menuBarTour: TourContent = {
       placement: "bottom",
     },
     {
-      name: "results",
-      title: "Results",
-      body: "Save your analysis results to a file or load a previous session. Use this to pick up where you left off or share results between devices.",
-      selector: '[data-tour="results-button"]',
-      placement: "bottom",
-    },
-    {
       name: "run_all",
       title: "Run All",
       body: "Analyze your DNA against every matching study in the GWAS Catalog in one go. The results feed DNA Chat and the Overview Report.",
@@ -194,20 +159,6 @@ export const menuBarTour: TourContent = {
       title: "Cache",
       body: "The first Run All downloads ~54 MB of GWAS Catalog data and stores it locally. Here you can see how much is cached or clear it to re-download.",
       selector: '[data-tour="cache-button"]',
-      placement: "bottom",
-    },
-    {
-      name: "help",
-      title: "Help",
-      body: "Reopen the onboarding tour or find answers to common questions here.",
-      selector: '[data-tour="help-button"]',
-      placement: "bottom",
-    },
-    {
-      name: "theme",
-      title: "Light / Dark mode",
-      body: "Toggle between light and dark themes. Your preference is saved and applied on every visit.",
-      selector: '[data-tour="theme-button"]',
       placement: "bottom",
     },
   ],

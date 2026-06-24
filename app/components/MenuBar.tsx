@@ -551,9 +551,7 @@ export default function MenuBar() {
 
         </div>
         <div className="menu-explain-row">
-          <button className="menu-explain-link" onClick={() => setMenuTourOpen(true)}>
-            Explain these buttons
-          </button>
+          <button className="tour-help-button" type="button" onClick={() => setMenuTourOpen(true)} title="Show tour" aria-label="Show tour">?</button>
         </div>
       </div>
       </div>
