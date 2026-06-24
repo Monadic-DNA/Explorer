@@ -339,7 +339,7 @@ function ExplorePage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sectionCollapsed, setSectionCollapsed] = useState(true);
+  const [sectionCollapsed, setSectionCollapsed] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [runAllProgress, setRunAllProgress] = useState({ current: 0, total: 0 });
