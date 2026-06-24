@@ -53,7 +53,7 @@ function SubscribeContent() {
         <section className="subscribe-hero">
           <div className="subscribe-copy">
             <span className="premium-eyebrow">Premium</span>
-            <h1>Subscribe to Monadic DNA Explorer Premium</h1>
+            <h1>Unlock research and premium reports</h1>
             <p>$4.99/month. Cancel any time.</p>
           </div>
 
@@ -80,7 +80,7 @@ function SubscribeContent() {
             <h3>Always free</h3>
             <ul className="free-list">
               <li>Health Insights Report</li>
-              <li>Send in DNA Chat</li>
+              <li>Ask questions in DNA Chat</li>
               <li>Browse and search all studies</li>
               <li>Explore your results</li>
               <li>Upload your own DNA file</li>

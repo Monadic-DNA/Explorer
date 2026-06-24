@@ -170,11 +170,11 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         <div className="features-list">
           <div className="feature-item">
             <span className="feature-icon">✓</span>
-            <span>DNA Chat Assistant</span>
+            <span>Research in DNA Chat</span>
           </div>
           <div className="feature-item">
             <span className="feature-icon">✓</span>
-            <span>Overview Report</span>
+            <span>All premium reports (Healthspan, Top Traits, Overview)</span>
           </div>
         </div>
 

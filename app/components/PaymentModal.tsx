@@ -409,7 +409,7 @@ export default function PaymentModal({ isOpen = true, onClose, onSuccess, displa
 
         <div className="modal-header">
           <h2>Subscribe to Premium</h2>
-          <p>Get DNA Chat and Overview Report</p>
+          <p>Research in DNA Chat + all premium reports</p>
         </div>
 
         {step === 'choice' && (
