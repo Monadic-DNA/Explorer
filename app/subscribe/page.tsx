@@ -37,7 +37,7 @@ function SubscribeContent() {
   };
 
   const paymentCancelled = searchParams.get("payment") === "cancelled";
-  const walletAddress = user?.verifiedCredentials?.[0]?.address;
+  const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
   const subscribeState = hasActiveSubscription ? "subscribed" : isAuthenticated ? "signed_in" : "signed_out";
 
   useEffect(() => {

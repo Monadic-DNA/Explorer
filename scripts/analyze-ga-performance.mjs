@@ -142,6 +142,7 @@ const APP_EVENTS = [
   'premium_section_viewed',
   'premium_tab_viewed',
   'subscribe_page_viewed',
+  'payment_method_selected',
   'checkout_started',
   'checkout_submitted',
   'checkout_failed',
@@ -178,6 +179,61 @@ async function fetchEventCounts(propertyId, accessToken, startDate, endDate) {
     orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
     limit: 100,
   });
+}
+
+async function fetchSubscribeFunnel(propertyId, accessToken, startDate, endDate) {
+  // Detailed funnel: subscribe_page_viewed broken down by customEvent:subscribe_state (if registered)
+  // plus payment_method_selected broken down by method
+  const [funnelReport, methodReport] = await Promise.all([
+    ga4Post(propertyId, accessToken, {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: 'eventName' }],
+      metrics: [{ name: 'eventCount' }],
+      dimensionFilter: {
+        filter: {
+          fieldName: 'eventName',
+          inListFilter: { values: ['subscribe_page_viewed', 'payment_method_selected', 'checkout_started', 'checkout_submitted', 'checkout_failed'] },
+        },
+      },
+      orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      limit: 20,
+    }),
+    ga4Post(propertyId, accessToken, {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: 'eventName' }, { name: 'customEvent:method' }],
+      metrics: [{ name: 'eventCount' }],
+      dimensionFilter: {
+        filter: {
+          fieldName: 'eventName',
+          inListFilter: { values: ['payment_method_selected', 'checkout_started', 'checkout_failed'] },
+        },
+      },
+      orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+      limit: 20,
+    }).catch(() => ({ rows: [] })), // method dimension may not be registered
+  ]);
+  return { funnelReport, methodReport };
+}
+
+function formatSubscribeFunnel({ funnelReport, methodReport }) {
+  const lines = [];
+  if (funnelReport.rows?.length) {
+    lines.push('Step counts:');
+    funnelReport.rows.forEach(r => {
+      lines.push(`  ${r.dimensionValues[0].value.padEnd(35)} ${r.metricValues[0].value}`);
+    });
+  } else {
+    lines.push('(no subscribe funnel data)');
+  }
+  if (methodReport.rows?.length) {
+    lines.push('By method:');
+    methodReport.rows.forEach(r => {
+      const event = r.dimensionValues[0].value.padEnd(30);
+      const method = (r.dimensionValues[1].value || '?').padEnd(12);
+      lines.push(`  ${event} method=${method} count=${r.metricValues[0].value}`);
+    });
+  }
+  return lines.join('\n');
 }
 
 async function fetchSessionMetrics(propertyId, accessToken, startDate, endDate) {
@@ -238,7 +294,7 @@ async function queryOllama(baseUrl, model, prompt) {
 // Analysis prompt
 // ---------------------------------------------------------------------------
 
-function buildPrompt(periodLabel, sessionBlock, eventBlock) {
+function buildPrompt(periodLabel, sessionBlock, eventBlock, subscribeFunnelBlock) {
   return `You are analyzing performance data for "Monadic DNA Explorer" (codenamed GWASifier), a Next.js web app where users upload their personal DNA files (23andMe, AncestryDNA) and match them against GWAS (Genome-Wide Association Studies) research using AI analysis. Paid features cost $4.99/month.
 
 Core user journey:
@@ -248,13 +304,21 @@ Core user journey:
   4. Upload DNA: genotype_file_upload_started -> genotype_file_loaded (failure: genotype_file_upload_failed)
   5. Analyze matches: match_revealed, run_all_started -> run_all_completed
   6. AI features (premium): ai_analysis_run, llm_question_asked, overview_report_generated
-  7. Subscribe: subscribe_page_viewed -> checkout_started -> subscribed_credit_card / subscribed_stablecoin
+  7. Subscribe: subscribe_page_viewed -> payment_method_selected -> checkout_started -> subscribed_credit_card / subscribed_stablecoin
+
+Subscribe funnel notes:
+  - subscribe_page_viewed has a "state" dimension: signed_out (must sign in first), signed_in (wallet ready, can pay), subscribed (already subscribed)
+  - payment_method_selected fires when the user clicks "Pay with Card" or "Pay with Stablecoin" in the payment modal
+  - checkout_started fires when the Stripe form actually loads (card) or when stablecoin payment is submitted
+  - If subscribe_page_viewed(signed_out) >> subscribe_page_viewed(signed_in), most visitors are not signing in
+  - If payment_method_selected = 0, no one is clicking a payment button
 
 Key conversion funnels to evaluate:
   - Onboarding: onboarding_started -> onboarding_completed
   - DNA upload success: genotype_file_loaded / genotype_file_upload_started
   - AI engagement: ai_consent_given / match_revealed
   - Premium conversion: subscribed_* / subscribe_page_viewed
+  - Subscribe funnel: subscribe_page_viewed(signed_in) -> payment_method_selected -> checkout_started -> subscribed_*
 
 SESSION METRICS (${periodLabel}):
 ${sessionBlock}
@@ -262,11 +326,14 @@ ${sessionBlock}
 EVENT COUNTS (${periodLabel}):
 ${eventBlock}
 
+SUBSCRIBE FUNNEL BY AUTH STATE (${periodLabel}):
+${subscribeFunnelBlock}
+
 Analyze the above data and provide:
 1. Traffic summary (users, sessions, engagement quality)
 2. Onboarding funnel with completion rate
 3. Core feature usage (DNA upload, study exploration, AI analysis)
-4. Premium and subscription funnel (if any activity)
+4. Premium and subscription funnel — identify exactly where drop-off occurs (not signed in, not clicking pay, not completing checkout)
 5. What is working well, and what looks like it needs attention
 6. Any anomalies or patterns worth flagging
 
@@ -306,21 +373,25 @@ async function main() {
   const accessToken = await getAccessToken(clientEmail, privateKey);
 
   console.log(`Querying GA4 property ${propertyId} for ${periodLabel}...`);
-  const [eventReport, sessionReport] = await Promise.all([
+  const [eventReport, sessionReport, subscribeFunnelReport] = await Promise.all([
     fetchEventCounts(propertyId, accessToken, startDate, endDate),
     fetchSessionMetrics(propertyId, accessToken, startDate, endDate),
+    fetchSubscribeFunnel(propertyId, accessToken, startDate, endDate),
   ]);
 
   const sessionBlock = formatSessionMetrics(sessionReport);
   const eventBlock = formatEventTable(eventReport);
+  const subscribeFunnelBlock = formatSubscribeFunnel(subscribeFunnelReport);
 
   console.log('\n--- Session Metrics ---');
   console.log(sessionBlock);
   console.log('\n--- Event Counts ---');
   console.log(eventBlock);
+  console.log('\n--- Subscribe Funnel (by auth state) ---');
+  console.log(subscribeFunnelBlock);
 
   console.log(`\nSending to Ollama (${ollamaModel})...`);
-  const analysis = await queryOllama(ollamaBaseUrl, ollamaModel, buildPrompt(periodLabel, sessionBlock, eventBlock));
+  const analysis = await queryOllama(ollamaBaseUrl, ollamaModel, buildPrompt(periodLabel, sessionBlock, eventBlock, subscribeFunnelBlock));
 
   console.log('\n=== Performance Analysis ===');
   console.log(`Period: ${periodLabel}  |  Property: ${propertyId}  |  Model: ${ollamaModel}\n`);
