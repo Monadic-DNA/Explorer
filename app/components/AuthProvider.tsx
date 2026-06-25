@@ -56,7 +56,7 @@ function AuthStateSync({
   useEffect(() => {
     console.log('[AuthStateSync] Dynamic state:', {
       hasUser: !!dynamicUser,
-      userAddress: dynamicUser?.verifiedCredentials?.[0]?.address
+      userAddress: dynamicUser?.verifiedCredentials?.find((c: any) => c.address)?.address
     });
 
     // If we have a user with a wallet, treat them as authenticated
@@ -160,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshSubscription = async (skipRetries = false) => {
-    const walletAddress = user?.verifiedCredentials?.[0]?.address;
+    const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
     if (walletAddress) {
       // Clear any cached subscription data first
       localStorage.removeItem(`subscription_${walletAddress.toLowerCase()}`);
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // If we already have a user (from previous session), check subscription
     if (user) {
-      const walletAddress = user?.verifiedCredentials?.[0]?.address;
+      const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
       if (walletAddress) {
         console.log('[AuthProvider] Checking subscription for existing user:', walletAddress);
         checkSubscription(walletAddress);
@@ -214,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isDynamicEnabled, isDynamicInitialized, user, checkSubscription]);
 
   const handleAuthStateChange = useCallback((isAuth: boolean, dynamicUser: any) => {
-    console.log('[AuthProvider] Auth state changed:', { isAuth, hasUser: !!dynamicUser, userAddress: dynamicUser?.verifiedCredentials?.[0]?.address });
+    console.log('[AuthProvider] Auth state changed:', { isAuth, hasUser: !!dynamicUser, userAddress: dynamicUser?.verifiedCredentials?.find((c: any) => c.address)?.address });
 
     const wasAuthenticated = isAuthenticated;
     setIsAuthenticated(isAuth);
@@ -227,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCheckingSubscription(false);
     } else if (dynamicUser && isDynamicInitialized) {
       // User logged in
-      const walletAddress = dynamicUser?.verifiedCredentials?.[0]?.address;
+      const walletAddress = dynamicUser?.verifiedCredentials?.find((c: any) => c.address)?.address;
       if (walletAddress) {
         console.log('[AuthProvider] User logged in, checking subscription:', walletAddress);
 

@@ -563,8 +563,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
                 Overview Report requires an active premium subscription.
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Subscribe for $4.99/month to unlock comprehensive LLM-powered analysis
-                of all your genetic results.
+                Try free for 7 days, then $4.99/month to unlock comprehensive analysis of all your genetic results.
               </p>
             </div>
           ) : progress.phase === 'idle' ? (

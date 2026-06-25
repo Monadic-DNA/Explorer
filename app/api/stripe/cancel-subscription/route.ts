@@ -34,27 +34,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find all active subscriptions for these customers
+    // Find all active and trialing subscriptions for these customers
     const cancelledSubscriptions: string[] = [];
-    
-    for (const customer of customers.data) {
-      const subscriptions = await stripe.subscriptions.list({
-        customer: customer.id,
-        status: 'active',
-        limit: 100,
-      });
 
-      // Cancel all active subscriptions (cancel at period end)
-      for (const subscription of subscriptions.data) {
+    for (const customer of customers.data) {
+      const [active, trialing] = await Promise.all([
+        stripe.subscriptions.list({ customer: customer.id, status: 'active', limit: 100 }),
+        stripe.subscriptions.list({ customer: customer.id, status: 'trialing', limit: 100 }),
+      ]);
+
+      // Cancel active subscriptions at period end (user keeps access until billing date)
+      for (const subscription of active.data) {
         const updated = await stripe.subscriptions.update(subscription.id, {
           cancel_at_period_end: true,
         });
         cancelledSubscriptions.push(subscription.id);
-        console.log(`[Stripe] Cancelled subscription: ${subscription.id} for wallet ${walletAddress}`, {
+        console.log(`[Stripe] Scheduled cancellation: ${subscription.id} for wallet ${walletAddress}`, {
           cancel_at_period_end: updated.cancel_at_period_end,
           current_period_end: new Date(updated.current_period_end * 1000).toISOString(),
-          status: updated.status,
         });
+      }
+
+      // Cancel trialing subscriptions immediately — no charge has occurred
+      for (const subscription of trialing.data) {
+        await stripe.subscriptions.cancel(subscription.id);
+        cancelledSubscriptions.push(subscription.id);
+        console.log(`[Stripe] Immediately cancelled trial subscription: ${subscription.id} for wallet ${walletAddress}`);
       }
     }
 
@@ -67,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `${cancelledSubscriptions.length} subscription(s) will be cancelled at the end of the billing period`,
+      message: `${cancelledSubscriptions.length} subscription(s) cancelled`,
       cancelledSubscriptions,
     });
   } catch (error: any) {

@@ -10,7 +10,7 @@ type PremiumFeatureHeaderProps = {
   featureName: string;
   description: string;
   gateTitle?: string;       // overrides default "featureName is a premium tab" / "Premium subscription required"
-  gateDescription?: string; // overrides default "Subscribe for $4.99/month to access featureName."
+  gateDescription?: string; // overrides default "Try free for 7 days, then $4.99/month to access featureName."
 };
 
 export default function PremiumFeatureHeader({
@@ -78,10 +78,10 @@ export default function PremiumFeatureHeader({
           <div className="subscription-prompt-inline">
             <div className="subscription-message">
               <strong>{gateTitle ?? 'Premium subscription required'}</strong>
-              <span>{gateDescription ?? `Subscribe for $4.99/month to access ${featureName}.`}</span>
+              <span>{gateDescription ?? `Try free for 7 days, then $4.99/month to access ${featureName}.`}</span>
             </div>
             <Link href="/subscribe" className="subscribe-button">
-              Subscribe
+              Try free
             </Link>
           </div>
         ) : (
@@ -155,7 +155,7 @@ export default function PremiumFeatureHeader({
                             return;
                           }
                           try {
-                            const walletAddress = user?.verifiedCredentials?.[0]?.address;
+                            const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
                             if (!walletAddress) {
                               alert('Could not find wallet address');
                               return;
