@@ -53,7 +53,18 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
         stripe.subscriptions.list({ customer: customer.id, status: 'trialing', limit: 100 }),
       ]);
 
-      allSubscriptions.push(...active.data, ...trialing.data);
+      allSubscriptions.push(...active.data);
+
+      // Only count trialing subscriptions that have a confirmed payment method attached.
+      // Without a payment method the user abandoned the form before submitting card details,
+      // so we should not grant access.
+      for (const sub of trialing.data) {
+        if (sub.default_payment_method) {
+          allSubscriptions.push(sub);
+        } else {
+          console.log(`[Stripe Manager] Skipping trialing subscription ${sub.id} — no payment method attached`);
+        }
+      }
     }
 
     console.log(`[Stripe Manager] Found ${allSubscriptions.length} active/trialing subscriptions`);

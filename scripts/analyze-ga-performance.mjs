@@ -182,8 +182,7 @@ async function fetchEventCounts(propertyId, accessToken, startDate, endDate) {
 }
 
 async function fetchSubscribeFunnel(propertyId, accessToken, startDate, endDate) {
-  // Detailed funnel: subscribe_page_viewed broken down by customEvent:subscribe_state (if registered)
-  // plus payment_method_selected broken down by method
+  // Detailed funnel counts plus payment_method_selected broken down by method.
   const [funnelReport, methodReport] = await Promise.all([
     ga4Post(propertyId, accessToken, {
       dateRanges: [{ startDate, endDate }],
@@ -307,18 +306,16 @@ Core user journey:
   7. Subscribe: subscribe_page_viewed -> payment_method_selected -> checkout_started -> subscribed_credit_card / subscribed_stablecoin
 
 Subscribe funnel notes:
-  - subscribe_page_viewed has a "state" dimension: signed_out (must sign in first), signed_in (wallet ready, can pay), subscribed (already subscribed)
   - payment_method_selected fires when the user clicks "Pay with Card" or "Pay with Stablecoin" in the payment modal
   - checkout_started fires when the Stripe form actually loads (card) or when stablecoin payment is submitted
-  - If subscribe_page_viewed(signed_out) >> subscribe_page_viewed(signed_in), most visitors are not signing in
-  - If payment_method_selected = 0, no one is clicking a payment button
+  - If payment_method_selected = 0, no one is clicking a payment button after reaching the subscribe page
 
 Key conversion funnels to evaluate:
   - Onboarding: onboarding_started -> onboarding_completed
   - DNA upload success: genotype_file_loaded / genotype_file_upload_started
   - AI engagement: ai_consent_given / match_revealed
   - Premium conversion: subscribed_* / subscribe_page_viewed
-  - Subscribe funnel: subscribe_page_viewed(signed_in) -> payment_method_selected -> checkout_started -> subscribed_*
+  - Subscribe funnel: subscribe_page_viewed -> payment_method_selected -> checkout_started -> subscribed_*
 
 SESSION METRICS (${periodLabel}):
 ${sessionBlock}
@@ -326,14 +323,14 @@ ${sessionBlock}
 EVENT COUNTS (${periodLabel}):
 ${eventBlock}
 
-SUBSCRIBE FUNNEL BY AUTH STATE (${periodLabel}):
+SUBSCRIBE FUNNEL (${periodLabel}):
 ${subscribeFunnelBlock}
 
 Analyze the above data and provide:
 1. Traffic summary (users, sessions, engagement quality)
 2. Onboarding funnel with completion rate
 3. Core feature usage (DNA upload, study exploration, AI analysis)
-4. Premium and subscription funnel — identify exactly where drop-off occurs (not signed in, not clicking pay, not completing checkout)
+4. Premium and subscription funnel — identify where drop-off occurs from subscribe page view to payment selection to checkout completion
 5. What is working well, and what looks like it needs attention
 6. Any anomalies or patterns worth flagging
 
@@ -387,7 +384,7 @@ async function main() {
   console.log(sessionBlock);
   console.log('\n--- Event Counts ---');
   console.log(eventBlock);
-  console.log('\n--- Subscribe Funnel (by auth state) ---');
+  console.log('\n--- Subscribe Funnel ---');
   console.log(subscribeFunnelBlock);
 
   console.log(`\nSending to Ollama (${ollamaModel})...`);
