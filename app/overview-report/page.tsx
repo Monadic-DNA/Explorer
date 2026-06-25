@@ -83,7 +83,7 @@ export default function OverviewReportPage() {
           featureName="Analyze"
           description="Health Insights is free. Healthspan, Top Traits, and Overview reports require a subscription."
           gateTitle="Some reports require a subscription"
-          gateDescription="Subscribe for $4.99/month to access Healthspan, Top Traits, and Overview reports."
+          gateDescription="Try free for 7 days, then $4.99/month to access Healthspan, Top Traits, and Overview reports."
         />
         <div style={{ textAlign: "right", padding: "0 1rem" }}>
           <button className="tour-help-button" type="button" onClick={() => setTourOpen(true)} title="Show tour" aria-label="Show tour">?</button>

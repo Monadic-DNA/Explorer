@@ -54,7 +54,7 @@ function SubscribeContent() {
           <div className="subscribe-copy">
             <span className="premium-eyebrow">Premium</span>
             <h1>Unlock research and premium reports</h1>
-            <p>$4.99/month. Cancel any time.</p>
+            <p>7 days free, then $4.99/month. Cancel any time.</p>
           </div>
 
           <div className="subscribe-auth">

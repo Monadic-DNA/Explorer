@@ -44,20 +44,19 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
       };
     }
 
-    // Collect all active subscriptions from all customers
+    // Collect all active and trialing subscriptions from all customers
     const allSubscriptions: Stripe.Subscription[] = [];
 
     for (const customer of customers.data) {
-      const subscriptions = await stripe.subscriptions.list({
-        customer: customer.id,
-        status: 'active',
-        limit: 100,
-      });
+      const [active, trialing] = await Promise.all([
+        stripe.subscriptions.list({ customer: customer.id, status: 'active', limit: 100 }),
+        stripe.subscriptions.list({ customer: customer.id, status: 'trialing', limit: 100 }),
+      ]);
 
-      allSubscriptions.push(...subscriptions.data);
+      allSubscriptions.push(...active.data, ...trialing.data);
     }
 
-    console.log(`[Stripe Manager] Found ${allSubscriptions.length} active subscriptions`);
+    console.log(`[Stripe Manager] Found ${allSubscriptions.length} active/trialing subscriptions`);
 
     if (allSubscriptions.length === 0) {
       console.log('[Stripe Manager] No active subscriptions found');
@@ -71,12 +70,15 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
       };
     }
 
-    // Find the subscription with the latest current_period_end
+    // Find the subscription with the latest expiry (use trial_end for trialing subs)
+    const subExpiry = (sub: Stripe.Subscription) =>
+      sub.status === 'trialing' && sub.trial_end ? sub.trial_end : sub.current_period_end;
+
     const latestSubscription = allSubscriptions.reduce((latest, sub) => {
-      return sub.current_period_end > latest.current_period_end ? sub : latest;
+      return subExpiry(sub) > subExpiry(latest) ? sub : latest;
     });
 
-    const expiresAt = new Date(latestSubscription.current_period_end * 1000);
+    const expiresAt = new Date(subExpiry(latestSubscription) * 1000);
     const now = Date.now();
     const isActive = now < expiresAt.getTime();
     const daysRemaining = isActive

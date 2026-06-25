@@ -160,11 +160,12 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
       {/* Pricing Summary */}
       <div className="pricing-card">
         <div className="pricing-header">
-          <h4>Premium Subscription</h4>
+          <h4>7-Day Free Trial</h4>
           <div className="price-display">
-            <span className="current-price">$4.99</span>
-            <span className="billing-period">/month</span>
+            <span className="current-price">$0</span>
+            <span className="billing-period"> today</span>
           </div>
+          <div className="trial-note">then $4.99/month, cancel any time</div>
         </div>
 
         <div className="features-list">
@@ -266,14 +267,14 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
               Processing...
             </>
           ) : (
-            'Subscribe Now'
+            'Start Free Trial'
           )}
         </button>
       </div>
 
       <div className="secure-notice">
         <span className="lock-icon">🔒</span>
-        <span>Secured by Stripe • Cancel anytime</span>
+        <span>Secured by Stripe • No charge for 7 days • Cancel anytime</span>
       </div>
 
       <style jsx>{`
@@ -324,6 +325,12 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
         .billing-period {
           font-size: 0.85rem;
           opacity: 0.9;
+        }
+
+        .trial-note {
+          font-size: 0.75rem;
+          opacity: 0.8;
+          margin-top: 0.15rem;
         }
 
         .features-list {

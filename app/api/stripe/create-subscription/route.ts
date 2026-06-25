@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
           price: process.env.STRIPE_PRICE_ID,
         },
       ],
+      trial_period_days: 7,
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
