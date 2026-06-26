@@ -6,6 +6,7 @@ import { SavedResult } from "@/lib/results-manager";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
 import { useAuth } from "./AuthProvider";
+import { useGenotype } from "./UserDataUpload";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -57,6 +58,7 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
   const router = useRouter();
   const resultsContext = useResults();
   const { getTopResultsByRelevance } = resultsContext;
+  const { isUploaded } = useGenotype();
   const { customization, status: customizationStatus } = useCustomization();
   const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
@@ -352,7 +354,12 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
     setAttachmentError(null);
 
     // Track LLM question
-    trackLLMQuestionAsked({ isFollowUp: messages.length > 0 });
+    trackLLMQuestionAsked({
+      isFollowUp: messages.length > 0,
+      hasUploadedDna: isUploaded,
+      resultCount: resultsContext.savedResults.length,
+      source: 'chat',
+    });
 
     // Process attachments if any
     let processedAttachments: Attachment[] = [];
@@ -701,7 +708,12 @@ Write questions from the user's perspective — as if the user is asking you. No
     setError(null);
     setAttachmentError(null);
 
-    trackLLMQuestionAsked({ isFollowUp: messages.length > 0 });
+    trackLLMQuestionAsked({
+      isFollowUp: messages.length > 0,
+      hasUploadedDna: isUploaded,
+      resultCount: resultsContext.savedResults.length,
+      source: 'research',
+    });
 
     const userMessage: Message = { role: 'user', content: query, timestamp: new Date() };
     const assistantMessage: Message = { role: 'assistant', content: '', timestamp: new Date() };

@@ -17,7 +17,8 @@ const ONBOARDING_CATALOG_URL =
 export async function runAllAnalysisOnboarding(
   genotypeData: Map<string, string>,
   onProgress: (progress: OnboardingRunAllProgress) => void,
-  hasResult: (studyId: number) => boolean
+  hasResult: (studyId: number) => boolean,
+  options: { maxResults?: number } = {}
 ): Promise<SavedResult[]> {
   const startTime = Date.now();
 
@@ -120,6 +121,10 @@ export async function runAllAnalysisOnboarding(
   const orBetaIdx = colMap.or_or_beta;
   const ciTextIdx = colMap.ci_text;
   const mappedGeneIdx = colMap.mapped_gene;
+  const pValueIdx = colMap.p_value;
+  const pValueMlogIdx = colMap.pvalue_mlog;
+  const sampleSizeIdx = colMap.initial_sample_size;
+  const replicationSampleSizeIdx = colMap.replication_sample_size;
 
   if (
     idIdx === undefined ||
@@ -244,9 +249,24 @@ export async function runAllAnalysisOnboarding(
           riskLevel,
           matchedSnp: riskSnpId,
           analysisDate: new Date().toISOString(),
+          pValue: pValueIdx !== undefined ? cols[pValueIdx] || undefined : undefined,
+          pValueMlog: pValueMlogIdx !== undefined ? cols[pValueMlogIdx] || undefined : undefined,
           mappedGene: cols[mappedGeneIdx] || undefined,
+          sampleSize: sampleSizeIdx !== undefined ? cols[sampleSizeIdx] || undefined : undefined,
+          replicationSampleSize: replicationSampleSizeIdx !== undefined ? cols[replicationSampleSizeIdx] || undefined : undefined,
         });
         matchCount++;
+        if (options.maxResults && results.length >= options.maxResults) {
+          emitProgress({
+            phase: "complete",
+            loaded: processedStudies,
+            total: processedStudies,
+            processedStudies,
+            matchCount,
+            message: "Preview analysis complete.",
+          });
+          return results;
+        }
       }
     }
 
@@ -311,7 +331,11 @@ export async function runAllAnalysisOnboarding(
             riskLevel,
             matchedSnp: riskSnpId,
             analysisDate: new Date().toISOString(),
+            pValue: pValueIdx !== undefined ? cols[pValueIdx] || undefined : undefined,
+            pValueMlog: pValueMlogIdx !== undefined ? cols[pValueMlogIdx] || undefined : undefined,
             mappedGene: cols[mappedGeneIdx] || undefined,
+            sampleSize: sampleSizeIdx !== undefined ? cols[sampleSizeIdx] || undefined : undefined,
+            replicationSampleSize: replicationSampleSizeIdx !== undefined ? cols[replicationSampleSizeIdx] || undefined : undefined,
           });
           matchCount++;
         }

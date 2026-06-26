@@ -36,6 +36,17 @@ type ResultsContextType = {
 };
 
 const ResultsContext = createContext<ResultsContextType | null>(null);
+const RESULTS_SESSION_FLAG = "monadic_results_session_started";
+
+function markResultsSessionStarted() {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(RESULTS_SESSION_FLAG, "true");
+}
+
+function clearResultsSessionFlag() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(RESULTS_SESSION_FLAG);
+}
 
 export function ResultsProvider({ children }: { children: ReactNode }) {
   // SECURITY: Results stored in memory only (in SQL.js in-memory database), cleared on session end
@@ -63,11 +74,13 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
 
   const addResult = async (result: SavedResult) => {
     await resultsDB.insertResult(result);
+    markResultsSessionStarted();
     await syncFromDatabase();
   };
 
   const addResultsBatch = async (results: SavedResult[]) => {
     await resultsDB.insertResultsBatch(results);
+    if (results.length > 0) markResultsSessionStarted();
     await syncFromDatabase();
   };
 
@@ -79,6 +92,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
   const clearResults = async () => {
     await resultsDB.clear();
     setSavedResults([]);
+    clearResultsSessionFlag();
   };
 
   const saveToFile = async (genotypeSize?: number, genotypeHash?: string) => {
@@ -129,6 +143,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       // Load into SQL database
       await resultsDB.clear();
       await resultsDB.insertResultsBatch(session.results);
+      if (session.results.length > 0) markResultsSessionStarted();
       await syncFromDatabase();
 
       // SECURITY: No longer saving to localStorage

@@ -7,7 +7,19 @@ import { useGenotype } from "./components/UserDataUpload";
 import { useResults } from "./components/ResultsContext";
 import { useCustomization, type UserCustomization } from "./components/CustomizationContext";
 import { ResultsManager } from "@/lib/results-manager";
-import { trackGetStartedClicked, trackSampleDataStarted, trackSampleDataLoaded, trackSampleDataFailed } from "@/lib/analytics";
+import { runAllAnalysisOnboarding, type OnboardingRunAllProgress } from "@/lib/run-all-onboarding";
+import { selectAhaPreviewResults } from "@/lib/preview-insights";
+import {
+  trackFirstResultViewed,
+  trackGetStartedClicked,
+  trackProviderGuideClicked,
+  trackQuickPreviewCompleted,
+  trackQuickPreviewFailed,
+  trackQuickPreviewStarted,
+  trackSampleDataStarted,
+  trackSampleDataLoaded,
+  trackSampleDataFailed,
+} from "@/lib/analytics";
 
 const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
 const SAMPLE_CUSTOMIZATION_PASSWORD = "sample-data";
@@ -26,6 +38,7 @@ const SAMPLE_CUSTOMIZATION: UserCustomization = {
 };
 
 type SampleLoadStatus = "idle" | "downloading" | "loading" | "loaded" | "error";
+type PreviewStatus = "idle" | "running" | "complete" | "error";
 
 function formatBytes(bytes: number): string {
   if (!bytes) return "0 KB";
@@ -68,13 +81,62 @@ const featureCopy = [
 
 export default function LandingClient() {
   const router = useRouter();
-  const { error } = useGenotype();
-  const { addResultsBatch, clearResults, savedResults } = useResults();
+  const { error, isUploaded, genotypeData, originalFileName, originalFileSize, detectedFormat } = useGenotype();
+  const { addResultsBatch, clearResults, savedResults, hasResult } = useResults();
   const { saveCustomization, status: customizationStatus } = useCustomization();
   const [sampleStatus, setSampleStatus] = useState<SampleLoadStatus>("idle");
   const [sampleError, setSampleError] = useState<string | null>(null);
   const [sampleBytes, setSampleBytes] = useState(0);
   const [sampleTotalBytes, setSampleTotalBytes] = useState(0);
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewProgress, setPreviewProgress] = useState<OnboardingRunAllProgress | null>(null);
+  const [previewTraitNames, setPreviewTraitNames] = useState<string[]>([]);
+
+  const openDNAUpload = () => {
+    trackGetStartedClicked("home_upload_raw_dna");
+    window.dispatchEvent(new CustomEvent("openDNAUpload", { detail: { source: "home_upload_raw_dna" } }));
+  };
+
+  const startFullAnalysis = () => {
+    trackGetStartedClicked("home_analyze_uploaded_dna");
+    window.dispatchEvent(new CustomEvent("startRunAllAnalysis"));
+  };
+
+  const runQuickPreview = async () => {
+    if (!genotypeData || previewStatus === "running") return;
+
+    trackQuickPreviewStarted("home");
+    setPreviewStatus("running");
+    setPreviewError(null);
+    setPreviewTraitNames([]);
+
+    try {
+      const results = await runAllAnalysisOnboarding(
+        genotypeData,
+        (progress) => setPreviewProgress(progress),
+        hasResult,
+        { maxResults: 1000 }
+      );
+
+      if (!results.length) {
+        throw new Error("No preview matches were found in the quick scan. You can still run the full catalog analysis.");
+      }
+
+      const curatedResults = selectAhaPreviewResults(results, 12);
+      await addResultsBatch(curatedResults);
+      const traitNames = curatedResults.slice(0, 3).map((result) => result.traitName);
+      setPreviewTraitNames(traitNames);
+      setPreviewStatus("complete");
+      trackQuickPreviewCompleted(curatedResults.length, "home");
+      trackFirstResultViewed("home_preview");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "The quick preview could not complete.";
+      setPreviewStatus("error");
+      setPreviewError(message);
+      trackQuickPreviewFailed(message, "home");
+    }
+  };
 
   const loadSampleData = async () => {
     if (savedResults.length > 0) {
@@ -156,50 +218,41 @@ export default function LandingClient() {
       ? "Parsing results…"
       : null;
 
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return null;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const previewProgressText =
+    previewStatus === "running" && previewProgress
+      ? previewProgress.phase === "downloading"
+        ? "Preparing preview catalog..."
+        : previewProgress.phase === "analyzing"
+        ? `Scanning studies, ${previewProgress.matchCount} candidate matches found`
+        : previewProgress.message
+      : null;
+
   return (
     <main className="page landing-page landing-home-page">
-      <section className="landing-home-intro" style={{ display: 'block', padding: '2rem 2.5rem' }}>
+      <section className="landing-home-intro">
         <div className="landing-home-copy">
-          <h1 style={{ maxWidth: 'none' }}>Understand your DNA without giving it away.</h1>
+          <h1>Analyze your raw DNA file privately.</h1>
 
-          <p style={{ marginTop: '0.5rem', marginBottom: '1.5rem', fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
-            Upload your DNA file or try it now with sample data, free.
+          <p className="landing-home-subtitle">
+            Upload a 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, CSV, or TSV file. Your raw DNA file stays in your browser while the app matches variants against GWAS Catalog research.
           </p>
 
           {error && <p className="landing-upload-error">{error}</p>}
 
-          <div style={{ marginBottom: '2rem' }}>
-            <button
-              className="primary-button"
-              onClick={loadSampleData}
-              disabled={sampleStatus === "downloading" || sampleStatus === "loading"}
-              style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
-            >
-              {sampleLabel}
-            </button>
-            {sampleProgressText && (
-              <p style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                {sampleProgressText}
-              </p>
-            )}
-            {sampleError && (
-              <p style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--error)' }}>{sampleError}</p>
-            )}
-            <p style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-              No DNA file needed. Your data never leaves your device.{' '}
-              <a
-                href={SCHEDULE_CALL_URL}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}
-                onClick={() => trackGetStartedClicked("schedule_video_call")}
-              >
-                Need help? Book a free call.
-              </a>
-            </p>
+          <div className="landing-home-proof" aria-label="Privacy and scientific safeguards">
+            <span>Local file processing</span>
+            <span>No DNA account required</span>
+            <span>GWAS evidence, effect sizes, and p-values</span>
+            <span>Educational use, not diagnosis</span>
           </div>
 
-          <div className="landing-home-explainer" aria-label="Monadic DNA Explorer features" style={{ maxWidth: 'none' }}>
+          <div className="landing-home-explainer" aria-label="Monadic DNA Explorer features">
             {featureCopy.map((item) => (
               <p key={item.label}>
                 <span>
@@ -221,6 +274,128 @@ export default function LandingClient() {
               </p>
             ))}
           </div>
+        </div>
+
+        <div className="landing-home-start-panel" aria-label="Start private DNA analysis">
+          <h2>Start with your raw DNA file</h2>
+
+          <div className="landing-start-actions">
+            {isUploaded ? (
+              <button
+                className="landing-primary-button"
+                onClick={savedResults.length > 0 || previewStatus === "complete" ? () => router.push("/explore") : runQuickPreview}
+                disabled={previewStatus === "running"}
+              >
+                {previewStatus === "running"
+                  ? "Finding preview results..."
+                  : savedResults.length > 0 || previewStatus === "complete"
+                  ? "Explore my results"
+                  : "Run quick preview"}
+              </button>
+            ) : (
+              <button
+                className="landing-primary-button"
+                onClick={openDNAUpload}
+              >
+                Upload raw DNA file
+              </button>
+            )}
+
+            <button
+              className="landing-secondary-button"
+              onClick={isUploaded ? startFullAnalysis : loadSampleData}
+              disabled={previewStatus === "running" || sampleStatus === "downloading" || sampleStatus === "loading"}
+            >
+              {isUploaded ? "Run full analysis" : sampleLabel}
+            </button>
+
+            {isUploaded && savedResults.length === 0 && (
+              <button
+                className="landing-secondary-button"
+                onClick={loadSampleData}
+                disabled={previewStatus === "running" || sampleStatus === "downloading" || sampleStatus === "loading"}
+              >
+                {sampleLabel}
+              </button>
+            )}
+
+            {sampleProgressText && (
+              <p className="landing-start-note">{sampleProgressText}</p>
+            )}
+            {previewProgressText && (
+              <p className="landing-start-note">{previewProgressText}</p>
+            )}
+            {sampleError && (
+              <p className="landing-start-error">{sampleError}</p>
+            )}
+            {previewError && (
+              <p className="landing-start-error">{previewError}</p>
+            )}
+          </div>
+
+          {isUploaded && genotypeData ? (
+            <div className="landing-upload-success" aria-label="Upload success">
+              <strong>File parsed successfully</strong>
+              <span>{genotypeData.size.toLocaleString()} variants loaded{detectedFormat ? ` from ${detectedFormat}` : ""}.</span>
+              {originalFileName && <span>{originalFileName}{formatFileSize(originalFileSize) ? `, ${formatFileSize(originalFileSize)}` : ""}</span>}
+              <span>Your raw DNA file stayed in this browser.</span>
+            </div>
+          ) : (
+            <p className="landing-start-note">
+              Nothing is uploaded to us. The file picker opens locally, and analysis runs in this browser.
+            </p>
+          )}
+
+          {previewTraitNames.length > 0 && (
+            <div className="landing-preview-results" aria-label="Preview result examples">
+              <strong>Preview results ready</strong>
+              {previewTraitNames.map((traitName) => (
+                <span key={traitName}>{traitName}</span>
+              ))}
+            </div>
+          )}
+
+          <ol className="landing-home-steps">
+            <li>Choose your raw DNA file.</li>
+            <li>Start with a quick local preview.</li>
+            <li>Explore results and ask DNA Chat questions.</li>
+          </ol>
+
+          <div className="landing-provider-guides" aria-label="Provider download guides">
+            {[
+              ["23andMe", "23andme"],
+              ["AncestryDNA", "ancestry"],
+              ["MyHeritage", "myheritage"],
+              ["FTDNA", "ftdna"],
+              ["LivingDNA", "livingdna"],
+            ].map(([label, provider]) => (
+              <a
+                key={provider}
+                href={`https://monadicdna.com/guide/${provider}`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => trackProviderGuideClicked(provider, "home")}
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+
+          <p className="landing-start-help">
+            Need help getting your raw DNA file?{" "}
+            <a
+              href={SCHEDULE_CALL_URL}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => trackGetStartedClicked("schedule_video_call")}
+            >
+              Book a free call
+            </a>
+            {" "}or use a provider guide above.{" "}
+            <Link href="/raw-dna-guide">
+              Share the raw DNA guide
+            </Link>.
+          </p>
         </div>
       </section>
     </main>

@@ -5,9 +5,13 @@ import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFil
 import { calculateFileHash } from "@/lib/file-hash";
 import {
   trackFileCleared,
+  trackGenotypeParseStarted,
+  trackGenotypeParseSucceeded,
   trackGenotypeFileLoaded,
   trackGenotypeFileUploadFailed,
   trackGenotypeFileUploadStarted,
+  trackProviderGuideClicked,
+  trackUploadPickerOpened,
 } from "@/lib/analytics";
 import {
   isDevModeEnabled,
@@ -24,6 +28,9 @@ type GenotypeContextType = {
   setOnDataLoadedCallback: (callback: (() => void) | null) => void;
   fileHash: string | null;
   originalFileName: string | null;
+  originalFileSize: number | null;
+  detectedFormat: string | null;
+  fileExtension: string | null;
 };
 
 const GenotypeContext = createContext<GenotypeContextType | null>(null);
@@ -35,6 +42,9 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const onDataLoadedRef = useRef<(() => void) | null>(null);
   const [fileHash, setFileHash] = useState<string | null>(null);
   const [originalFileName, setOriginalFileName] = useState<string | null>(null);
+  const [originalFileSize, setOriginalFileSize] = useState<number | null>(null);
+  const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
+  const [storedFileExtension, setStoredFileExtension] = useState<string | null>(null);
 
   const uploadGenotype = async (file: File, source: string = 'unknown') => {
     const dotIdx = file.name.lastIndexOf('.');
@@ -77,6 +87,7 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       }
       const hash = calculateFileHash(fileContent);
 
+      trackGenotypeParseStarted(source, fileExtension);
       const parseResult = detectAndParseGenotypeFile(fileContent);
 
       if (!parseResult.success) {
@@ -90,11 +101,15 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
         genotypeMap.set(variant.rsid, variant.genotype);
       });
 
+      trackGenotypeParseSucceeded(source, parseResult.detectedFormat, genotypeMap.size);
       trackGenotypeFileLoaded(file.size, genotypeMap.size, source, parseResult.detectedFormat, fileExtension);
 
       setGenotypeData(genotypeMap);
       setFileHash(hash);
       setOriginalFileName(file.name);
+      setOriginalFileSize(file.size);
+      setDetectedFormat(parseResult.detectedFormat || null);
+      setStoredFileExtension(fileExtension || null);
 
       if (onDataLoadedRef.current) {
         onDataLoadedRef.current();
@@ -116,6 +131,9 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setFileHash(null);
     setOriginalFileName(null);
+    setOriginalFileSize(null);
+    setDetectedFormat(null);
+    setStoredFileExtension(null);
     trackFileCleared();
   };
 
@@ -135,6 +153,9 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       setOnDataLoadedCallback,
       fileHash,
       originalFileName,
+      originalFileSize,
+      detectedFormat,
+      fileExtension: storedFileExtension,
     }}>
       {children}
     </GenotypeContext.Provider>
@@ -150,12 +171,26 @@ export function useGenotype() {
 }
 
 export default function UserDataUpload() {
-  const { uploadGenotype, clearGenotype, isUploaded, isLoading, error } = useGenotype();
+  const {
+    uploadGenotype,
+    clearGenotype,
+    isUploaded,
+    isLoading,
+    error,
+    genotypeData,
+    originalFileName,
+    originalFileSize,
+    detectedFormat,
+  } = useGenotype();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const openFilePicker = () => {
+    const openFilePicker = (event: Event) => {
       if (!isLoading) {
+        const source = event instanceof CustomEvent && typeof event.detail?.source === 'string'
+          ? event.detail.source
+          : 'menu_upload';
+        trackUploadPickerOpened(source);
         fileInputRef.current?.click();
       }
     };
@@ -168,6 +203,12 @@ export default function UserDataUpload() {
       window.removeEventListener('triggerDNAUpload', openFilePicker);
     };
   }, [isLoading]);
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return null;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -184,7 +225,7 @@ export default function UserDataUpload() {
           }
           return;
         }
-      } catch (error) {
+      } catch {
         console.log('[Dev Mode] Failed to use File System Access API, falling back to regular upload');
       }
     }
@@ -199,11 +240,23 @@ export default function UserDataUpload() {
   };
 
   if (isUploaded) {
+    const fileSizeLabel = formatFileSize(originalFileSize);
     return (
       <div className="genotype-status">
-        <span className="genotype-indicator">
-          ✓ DNA loaded - ready to explore
-        </span>
+        <div className="genotype-status-main">
+          <span className="genotype-indicator">
+            DNA file loaded
+          </span>
+          <span className="genotype-status-detail">
+            {genotypeData?.size.toLocaleString()} variants parsed
+            {detectedFormat ? ` from ${detectedFormat}` : ""}
+            {fileSizeLabel ? `, ${fileSizeLabel}` : ""}
+          </span>
+          {originalFileName && (
+            <span className="genotype-status-file">{originalFileName}</span>
+          )}
+          <span className="genotype-status-privacy">The raw file stayed in this browser.</span>
+        </div>
         <button
           className="genotype-clear"
           onClick={clearGenotype}
@@ -230,6 +283,13 @@ export default function UserDataUpload() {
         {isLoading ? 'Analyzing your genetic map...' : 'Choose File to Upload'}
       </label>
       <p className="upload-format-hint">23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, and more. Compressed .gz files supported.</p>
+      <div className="provider-guide-row" aria-label="Raw DNA download guides">
+        <a href="https://monadicdna.com/guide/23andme" target="_blank" rel="noopener noreferrer" onClick={() => trackProviderGuideClicked("23andme", "upload")}>23andMe</a>
+        <a href="https://monadicdna.com/guide/ancestry" target="_blank" rel="noopener noreferrer" onClick={() => trackProviderGuideClicked("ancestry", "upload")}>AncestryDNA</a>
+        <a href="https://monadicdna.com/guide/myheritage" target="_blank" rel="noopener noreferrer" onClick={() => trackProviderGuideClicked("myheritage", "upload")}>MyHeritage</a>
+        <a href="https://monadicdna.com/guide/ftdna" target="_blank" rel="noopener noreferrer" onClick={() => trackProviderGuideClicked("ftdna", "upload")}>FTDNA</a>
+        <a href="https://monadicdna.com/guide/livingdna" target="_blank" rel="noopener noreferrer" onClick={() => trackProviderGuideClicked("livingdna", "upload")}>LivingDNA</a>
+      </div>
       {error && (
         <div className="genotype-error">
           {error}
@@ -248,7 +308,7 @@ export default function UserDataUpload() {
         >
           Download Sample Data
         </a>
-        <p className="sample-description">Try the app with an anonymized sample dataset if you don't have your own DNA file yet.</p>
+        <p className="sample-description">Try the app with an anonymized sample dataset if you do not have your own DNA file yet.</p>
       </div>
     </div>
   );

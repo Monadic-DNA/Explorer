@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type CSSProperties } from "react";
+import { useCallback, useState, useEffect, type CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import UserDataUpload, { useGenotype } from "./UserDataUpload";
@@ -138,12 +138,15 @@ export default function MenuBar() {
   }, [theme]);
 
   useEffect(() => {
-    const handleOpenDNAUpload = () => {
+    const handleOpenDNAUpload = (event: Event) => {
       setShowMyDataDropdown(true);
+      const source = event instanceof CustomEvent && typeof event.detail?.source === "string"
+        ? event.detail.source
+        : "home_upload_raw_dna";
 
       // Wait for the dropdown and uploader to mount, then open the file picker.
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('openDNAUploadPicker'));
+        window.dispatchEvent(new CustomEvent('openDNAUploadPicker', { detail: { source } }));
       }, 60);
     };
 
@@ -151,6 +154,14 @@ export default function MenuBar() {
 
     return () => {
       window.removeEventListener('openDNAUpload', handleOpenDNAUpload);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOpenPersonalization = () => setShowCustomizationModal(true);
+    window.addEventListener("openPersonalization", handleOpenPersonalization);
+    return () => {
+      window.removeEventListener("openPersonalization", handleOpenPersonalization);
     };
   }, []);
 
@@ -171,7 +182,7 @@ export default function MenuBar() {
     }
   };
 
-  const handleRunAll = () => {
+  const handleRunAll = useCallback(() => {
     window.dispatchEvent(new Event("showMobileCompatibilityNotice"));
 
     if (isRunningAll) {
@@ -187,7 +198,7 @@ export default function MenuBar() {
     }
 
     setShowRunAllDisclaimer(true);
-  };
+  }, [genotypeData, isRunningAll]);
 
   const handleRunAllDisclaimerAccept = async () => {
     setShowRunAllDisclaimer(false);
@@ -317,6 +328,18 @@ export default function MenuBar() {
 
   const isDNAChatActive = pathname === "/dna-chat" || pathname === "/llm-chat";
   const isOverviewReportActive = pathname === "/overview-report";
+  const isPublicEntryPage = pathname === "/" || pathname === "/raw-dna-guide";
+  const hasUserWork = isUploaded || savedResults.length > 0;
+  const showAdvancedControls = !isPublicEntryPage || hasUserWork;
+  const showRunAllControl = !isPublicEntryPage || isUploaded || savedResults.length > 0;
+
+  useEffect(() => {
+    const handleStartRunAll = () => handleRunAll();
+    window.addEventListener("startRunAllAnalysis", handleStartRunAll);
+    return () => {
+      window.removeEventListener("startRunAllAnalysis", handleStartRunAll);
+    };
+  }, [handleRunAll]);
 
   return (
     <>
@@ -424,13 +447,15 @@ export default function MenuBar() {
           >
             Browse
           </Link>
-          <Link
-            href="/overview-report"
-            className={isOverviewReportActive ? "nav-link active" : "nav-link"}
-            style={getNavLinkStyle(isOverviewReportActive)}
-          >
-            Analyze
-          </Link>
+          {showAdvancedControls && (
+            <Link
+              href="/overview-report"
+              className={isOverviewReportActive ? "nav-link active" : "nav-link"}
+              style={getNavLinkStyle(isOverviewReportActive)}
+            >
+              Analyze
+            </Link>
+          )}
         </nav>
       </div>
 
@@ -452,75 +477,85 @@ export default function MenuBar() {
             )}
           </button>
 
-          <button
-            className="menu-icon-button"
-            onClick={() => setShowResultsDropdown(!showResultsDropdown)}
-            title="Load, export, and manage results"
-            data-tour="results-button"
-          >
-            <span className="icon">
-              <FolderIcon size={32} />
-            </span>
-            <span className="label">Results</span>
-            {savedResults.length > 0 && (
-              <span className="badge">{savedResults.length}</span>
-            )}
-          </button>
+          {showAdvancedControls && (
+            <button
+              className="menu-icon-button"
+              onClick={() => setShowResultsDropdown(!showResultsDropdown)}
+              title="Load, export, and manage results"
+              data-tour="results-button"
+            >
+              <span className="icon">
+                <FolderIcon size={32} />
+              </span>
+              <span className="label">Results</span>
+              {savedResults.length > 0 && (
+                <span className="badge">{savedResults.length}</span>
+              )}
+            </button>
+          )}
 
-          <button
-            className={isRunningAll ? "menu-icon-button running" : "menu-icon-button"}
-            onClick={handleRunAll}
-            title="Analyze your DNA against all matching GWAS traits"
-            data-tour="run-all-button"
-          >
-            <span className="icon">
-              <RunAllIcon size={32} />
-            </span>
-            <span className="label">Run All</span>
-            {isRunningAll && (
-              <span className="badge">Running</span>
-            )}
-          </button>
+          {showRunAllControl && (
+            <button
+              className={isRunningAll ? "menu-icon-button running" : "menu-icon-button"}
+              onClick={handleRunAll}
+              title="Analyze your DNA against all matching GWAS traits"
+              data-tour="run-all-button"
+            >
+              <span className="icon">
+                <RunAllIcon size={32} />
+              </span>
+              <span className="label">Run All</span>
+              {isRunningAll && (
+                <span className="badge">Running</span>
+              )}
+            </button>
+          )}
 
-          <button
-            className={`menu-icon-button ${customizationStatus}`}
-            onClick={() => setShowCustomizationModal(true)}
-            title={getCustomizationTooltip()}
-            data-tour="personalize-button"
-          >
-            <span className="icon">
-              <MicroscopeIcon size={32} />
-            </span>
-            <span className="label">Personalize</span>
-          </button>
+          {showAdvancedControls && (
+            <button
+              className={`menu-icon-button ${customizationStatus}`}
+              onClick={() => setShowCustomizationModal(true)}
+              title={getCustomizationTooltip()}
+              data-tour="personalize-button"
+            >
+              <span className="icon">
+                <MicroscopeIcon size={32} />
+              </span>
+              <span className="label">Personalize</span>
+            </button>
+          )}
 
-          <button
-            className="menu-icon-button"
-            onClick={() => setShowLLMConfigModal(true)}
-            title="Configure LLM provider and model"
-            data-tour="llm-config-button"
-          >
-            <span className="icon">
-              <SparklesIcon size={32} />
-            </span>
-            <span className="label">LLM</span>
-            <span className="badge">{llmProvider || 'OpenAI'}</span>
-          </button>
+          {showAdvancedControls && (
+            <button
+              className="menu-icon-button"
+              onClick={() => setShowLLMConfigModal(true)}
+              title="Configure LLM provider and model"
+              data-tour="llm-config-button"
+            >
+              <span className="icon">
+                <SparklesIcon size={32} />
+              </span>
+              <span className="label">LLM</span>
+              <span className="badge">{llmProvider || 'OpenAI'}</span>
+            </button>
+          )}
 
-          <button
-            className="menu-icon-button"
-            onClick={() => setShowCacheDropdown(!showCacheDropdown)}
-            title="View and manage cached GWAS data"
-            data-tour="cache-button"
-          >
-            <span className="icon">
-              <CacheIcon size={32} />
-            </span>
-            <span className="label">Cache</span>
-            {cacheInfo && (
-              <span className="badge">{cacheInfo.studies.toLocaleString()}</span>
-            )}
-          </button>
+          {showAdvancedControls && (
+            <button
+              className="menu-icon-button"
+              onClick={() => setShowCacheDropdown(!showCacheDropdown)}
+              title="View and manage cached GWAS data"
+              data-tour="cache-button"
+            >
+              <span className="icon">
+                <CacheIcon size={32} />
+              </span>
+              <span className="label">Cache</span>
+              {cacheInfo && (
+                <span className="badge">{cacheInfo.studies.toLocaleString()}</span>
+              )}
+            </button>
+          )}
 
           <button
             className="menu-icon-button"

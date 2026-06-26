@@ -5,12 +5,12 @@ import Footer from "./components/Footer";
 import LandingClient from "./landing-client";
 
 export const metadata: Metadata = {
-  title: "Monadic DNA | Personal DNA insights with privacy, autonomy, and boundless curiosity",
-  description: "Private DNA insights from trusted genetic research. Learn from your DNA while your data remains private, protected, and entirely in your hands.",
-  keywords: ["GWAS", "genetics", "DNA analysis", "genome explorer", "genetic traits", "personal genomics", "23andMe", "AncestryDNA"],
+  title: "Private Raw DNA Analysis | Monadic DNA Explorer",
+  description: "Upload a raw DNA file from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, CSV, or TSV. Analyze genetic traits privately in your browser using GWAS Catalog research.",
+  keywords: ["raw DNA upload", "private DNA analysis", "secure DNA analysis", "GWAS", "genetics", "DNA analysis", "genome explorer", "genetic traits", "personal genomics", "23andMe", "AncestryDNA"],
   openGraph: {
-    title: "Monadic DNA | Personal DNA insights with privacy, autonomy, and boundless curiosity",
-    description: "Private DNA insights from trusted genetic research. Learn from your DNA while your data remains private, protected, and entirely in your hands.",
+    title: "Private Raw DNA Analysis | Monadic DNA Explorer",
+    description: "Upload a raw DNA file and analyze genetic traits privately in your browser using GWAS Catalog research.",
     type: "website",
     url: "https://explorer.monadicdna.com",
     siteName: "Monadic DNA Explorer",
@@ -26,8 +26,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Monadic DNA | Personal DNA insights with privacy, autonomy, and boundless curiosity",
-    description: "Private DNA insights from trusted genetic research. Learn from your DNA while your data remains private, protected, and entirely in your hands.",
+    title: "Private Raw DNA Analysis | Monadic DNA Explorer",
+    description: "Upload a raw DNA file and analyze genetic traits privately in your browser using GWAS Catalog research.",
     images: ["/og-image.png"],
   },
 };
@@ -46,7 +46,7 @@ const websiteJsonLd = {
   "@type": "WebSite",
   "name": "Monadic DNA Explorer",
   "url": "https://explorer.monadicdna.com",
-  "description": "Private DNA insights from trusted genetic research.",
+  "description": "Private raw DNA analysis from trusted genetic research.",
   "potentialAction": {
     "@type": "SearchAction",
     "target": {

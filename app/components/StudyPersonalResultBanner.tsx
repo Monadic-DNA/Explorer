@@ -7,6 +7,7 @@ import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide, UserStudyResult, determineEffectTypeAndSize } from "@/lib/risk-calculator";
 import DisclaimerModal from "./DisclaimerModal";
 import { SavedResult } from "@/lib/results-manager";
+import { getEvidenceDetails, getEvidenceLabel } from "@/lib/evidence-labels";
 import { trackStudyResultReveal } from "@/lib/analytics";
 
 type Props = {
@@ -20,6 +21,10 @@ type Props = {
   ciText?: string | null;
   isAnalyzable?: boolean;
   nonAnalyzableReason?: string;
+  pValue?: string | null;
+  pValueMlog?: string | null;
+  initialSampleSize?: string | null;
+  replicationSampleSize?: string | null;
 };
 
 function formatRiskScore(score: number, level: string, effectType?: string): string {
@@ -93,9 +98,13 @@ export default function StudyPersonalResultBanner({
   ciText,
   isAnalyzable,
   nonAnalyzableReason,
+  pValue,
+  pValueMlog,
+  initialSampleSize,
+  replicationSampleSize,
 }: Props) {
   const { genotypeData, isUploaded } = useGenotype();
-  const { addResult, hasResult, getResult, resultsVersion } = useResults();
+  const { addResult, hasResult, getResult } = useResults();
   const [result, setResult] = useState<UserStudyResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -104,7 +113,41 @@ export default function StudyPersonalResultBanner({
 
   const savedResult = useMemo(() => {
     return hasResult(studyId) ? getResult(studyId) : undefined;
-  }, [studyId, resultsVersion, hasResult, getResult]);
+  }, [studyId, hasResult, getResult]);
+
+  const evidenceResult = useMemo<SavedResult | null>(() => {
+    if (savedResult) return savedResult;
+    if (!result?.hasMatch) return null;
+
+    return {
+      studyId,
+      gwasId: result.gwasId,
+      traitName,
+      studyTitle,
+      userGenotype: result.userGenotype || "",
+      riskAllele: result.riskAllele || "",
+      effectSize: result.effectSize || "",
+      effectType: result.effectType,
+      riskScore: result.riskScore || 1,
+      riskLevel: result.riskLevel || "neutral",
+      matchedSnp: result.matchedSnp || "",
+      analysisDate: new Date().toISOString(),
+      pValue: pValue || undefined,
+      pValueMlog: pValueMlog || undefined,
+      sampleSize: initialSampleSize || undefined,
+      replicationSampleSize: replicationSampleSize || undefined,
+    };
+  }, [
+    initialSampleSize,
+    pValue,
+    pValueMlog,
+    replicationSampleSize,
+    result,
+    savedResult,
+    studyId,
+    studyTitle,
+    traitName,
+  ]);
 
   useLayoutEffect(() => {
     if (savedResult) {
@@ -157,6 +200,10 @@ export default function StudyPersonalResultBanner({
           riskLevel: analysisResult.riskLevel!,
           matchedSnp: analysisResult.matchedSnp!,
           analysisDate: new Date().toISOString(),
+          pValue: pValue || undefined,
+          pValueMlog: pValueMlog || undefined,
+          sampleSize: initialSampleSize || undefined,
+          replicationSampleSize: replicationSampleSize || undefined,
         };
         await addResult(toSave);
       }
@@ -203,6 +250,16 @@ export default function StudyPersonalResultBanner({
           </div>
         </div>
         <p className="srb-explanation">{generateTooltip(result)}</p>
+        {evidenceResult && (
+          <div className={`srb-evidence srb-evidence--${getEvidenceLabel(evidenceResult).toLowerCase().split(" ")[0]}`}>
+            <strong>{getEvidenceLabel(evidenceResult)}</strong>
+            <div className="srb-evidence-items">
+              {getEvidenceDetails(evidenceResult).map((detail) => (
+                <span key={detail}>{detail}</span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -8,7 +8,13 @@ import Footer from "../components/Footer";
 import { useResults } from "../components/ResultsContext";
 import { useGenotype } from "../components/UserDataUpload";
 import { useCustomization } from "../components/CustomizationContext";
-import { trackExplorePageViewed } from "@/lib/analytics";
+import { trackExploreFollowupClicked, trackExplorePageViewed } from "@/lib/analytics";
+import {
+  buildPreviewInsight,
+  formatPreviewEffect,
+  getPreviewCategory,
+  selectAhaPreviewResults,
+} from "@/lib/preview-insights";
 
 const STOP_WORDS = new Set([
   'and', 'or', 'the', 'of', 'with', 'in', 'to', 'a', 'an', 'for', 'by', 'at', 'on',
@@ -33,19 +39,37 @@ function scoreMatch(keywords: string[], traitName: string): number {
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { savedResults } = useResults();
+  const { savedResults, loadFromFile } = useResults();
   const { isUploaded } = useGenotype();
   const { customization, status: customizationStatus } = useCustomization();
   const [navigating, setNavigating] = useState(false);
   const [shownIncreased, setShownIncreased] = useState(5);
+  const [privateSessionWasCleared, setPrivateSessionWasCleared] = useState(false);
+  const [loadResultsError, setLoadResultsError] = useState<string | null>(null);
 
   useEffect(() => { trackExplorePageViewed(); }, []);
   const [shownDecreased, setShownDecreased] = useState(5);
   const [healthCardPages, setHealthCardPages] = useState<Record<string, number>>({});
 
-  const INITIAL_SHOW = 5;
   const PAGE_SIZE = 5;
   const hasResults = savedResults.length > 0;
+  const isQuickPreview = isUploaded && savedResults.length > 0 && savedResults.length <= 24;
+
+  useEffect(() => {
+    if (hasResults) {
+      setPrivateSessionWasCleared(false);
+      return;
+    }
+
+    setPrivateSessionWasCleared(sessionStorage.getItem("monadic_results_session_started") === "true");
+  }, [hasResults]);
+
+  const chatQuestion = "I just ran a quick preview on my raw DNA file. Which of these results should I pay attention to first, and what caveats matter?";
+  const chatHref = `/dna-chat?q=${encodeURIComponent(chatQuestion)}`;
+  const previewInsight = useMemo(
+    () => (hasResults ? buildPreviewInsight(savedResults) : null),
+    [hasResults, savedResults]
+  );
 
   const stats = useMemo(() => {
     if (!hasResults) return null;
@@ -76,6 +100,12 @@ export default function ExplorePage() {
     return { increased, decreased, neutral, topIncreased, topDecreased, unique };
   }, [savedResults, hasResults]);
 
+  const previewStarterResults = useMemo(() => {
+    if (!hasResults) return [];
+
+    return selectAhaPreviewResults(savedResults, 4);
+  }, [hasResults, savedResults]);
+
   const healthMatches = useMemo(() => {
     if (!hasResults || !customization || !stats) return [];
     const conditions = [
@@ -105,6 +135,25 @@ export default function ExplorePage() {
     setNavigating(true);
     const result = savedResults[Math.floor(Math.random() * savedResults.length)];
     router.push(`/study/${result.studyId}`);
+  };
+
+  const handleRunFullAnalysis = () => {
+    trackExploreFollowupClicked("run_full_analysis");
+    window.dispatchEvent(new CustomEvent("startRunAllAnalysis"));
+  };
+
+  const handleOpenPersonalization = () => {
+    trackExploreFollowupClicked("personalize");
+    window.dispatchEvent(new CustomEvent("openPersonalization"));
+  };
+
+  const handleLoadSavedResults = async () => {
+    setLoadResultsError(null);
+    try {
+      await loadFromFile();
+    } catch (error) {
+      setLoadResultsError(error instanceof Error ? error.message : "Could not load the results file.");
+    }
   };
 
   return (
@@ -144,6 +193,90 @@ export default function ExplorePage() {
                 <span className="explore-stat-label">neutral</span>
               </div>
             </div>
+
+            {isQuickPreview && previewInsight && (
+              <section className="explore-next-steps" aria-label="Quick preview next steps">
+                <div className="explore-next-steps-copy">
+                  <span className="explore-next-steps-eyebrow">First readout</span>
+                  <h2>{previewInsight.headline}</h2>
+                  <p>
+                    The quick preview scanned a wider candidate set and kept {savedResults.length.toLocaleString()} readable matches. This starter set has {previewInsight.elevatedCount} elevated and {previewInsight.protectiveCount} reduced associations. Treat these as research leads, not diagnoses.
+                  </p>
+                </div>
+
+                <div className="explore-next-actions">
+                  <button className="explore-next-primary" onClick={handleRunFullAnalysis}>
+                    Run the full catalog
+                  </button>
+                  <Link
+                    className="explore-next-secondary"
+                    href={chatHref}
+                    onClick={() => trackExploreFollowupClicked("ask_dna_chat")}
+                  >
+                    Ask what matters first
+                  </Link>
+                  <button className="explore-next-secondary" onClick={handleOpenPersonalization}>
+                    Add health history
+                  </button>
+                  <Link
+                    className="explore-next-secondary"
+                    href="/browse"
+                    onClick={() => trackExploreFollowupClicked("browse")}
+                  >
+                    Browse all studies
+                  </Link>
+                </div>
+
+                <div className="explore-preview-guide">
+                  {previewInsight.standout && (
+                    <Link
+                      href={`/study/${previewInsight.standout.studyId}`}
+                      className="explore-preview-insight-card explore-preview-insight-card--link"
+                    >
+                      <strong>Standout match</strong>
+                      <span className="explore-preview-insight-title">{previewInsight.standout.traitName}</span>
+                      <small>{getPreviewCategory(previewInsight.standout).label}, {formatPreviewEffect(previewInsight.standout)}</small>
+                    </Link>
+                  )}
+                  <div className="explore-preview-insight-card">
+                    <strong>Main themes</strong>
+                    <div className="explore-theme-list" aria-label="Main quick preview themes">
+                      {previewInsight.themes.map((theme) => (
+                        <span key={theme.label}>{theme.label} <b>{theme.count}</b></span>
+                      ))}
+                    </div>
+                  </div>
+                  <Link
+                    href={chatHref}
+                    className="explore-preview-insight-card explore-preview-insight-card--link"
+                    onClick={() => trackExploreFollowupClicked("preview_best_question")}
+                  >
+                    <strong>Best next question</strong>
+                    <span>Which of these findings should I read first, and what caveats matter?</span>
+                  </Link>
+                </div>
+
+                {previewStarterResults.length > 0 && (
+                  <div className="explore-preview-results-panel">
+                    <h3>Start with these preview matches</h3>
+                    <div className="explore-preview-result-list">
+                      {previewStarterResults.map((result) => (
+                        <Link
+                          key={`${result.studyId}-${result.matchedSnp}-${result.traitName}`}
+                          href={`/study/${result.studyId}`}
+                          className={`explore-highlight-item explore-highlight-item--${result.riskLevel}`}
+                        >
+                          <span className="explore-highlight-trait" title={result.traitName}>{result.traitName}</span>
+                          <span className="explore-highlight-score">
+                            {formatPreviewEffect(result, true)}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
 
             {/* Discovery card */}
             <div className="explore-discovery-card">
@@ -311,6 +444,27 @@ export default function ExplorePage() {
           </>
         ) : (
           <>
+            {privateSessionWasCleared && (
+              <section className="explore-session-recovery" aria-label="Private session recovery">
+                <div>
+                  <span className="explore-next-steps-eyebrow">Private session cleared</span>
+                  <h2>Your previous results were kept in memory and cleared by the page reload.</h2>
+                  <p>
+                    This protects your DNA data from being stored automatically. Reload a saved results file, or go back to the home page and run the quick preview again.
+                  </p>
+                  {loadResultsError && <p className="explore-session-recovery-error">{loadResultsError}</p>}
+                </div>
+                <div className="explore-session-recovery-actions">
+                  <button className="explore-next-primary" onClick={handleLoadSavedResults}>
+                    Load saved results
+                  </button>
+                  <Link className="explore-next-secondary" href="/">
+                    Upload again
+                  </Link>
+                </div>
+              </section>
+            )}
+
             {/* Empty state — how it works */}
             <div className="explore-how-it-works">
               <h2 className="explore-section-title">How it works</h2>
