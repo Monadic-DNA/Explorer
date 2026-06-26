@@ -136,6 +136,10 @@ export default async function StudyDetailPage({ params }: { params: Promise<{ id
           pubmedId={study.pubmedid}
           mappedGene={study.mapped_gene}
           reportedTrait={study.disease_trait}
+          pValue={study.p_value}
+          pValueMlog={study.pvalue_mlog}
+          initialSampleSize={study.initial_sample_size}
+          replicationSampleSize={study.replication_sample_size}
         />
 
         {/* Study Details */}

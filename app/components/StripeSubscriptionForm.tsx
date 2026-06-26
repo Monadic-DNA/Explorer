@@ -12,6 +12,18 @@ import {
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
+interface InitializePaymentResponse {
+  success: boolean;
+  clientSecret?: string;
+  isSetupIntent?: boolean;
+  subscriptionId?: string;
+  customerId?: string;
+  discount?: DiscountInfo;
+  error?: string;
+}
+
+const paymentInitializationRequests = new Map<string, Promise<InitializePaymentResponse>>();
+
 interface DiscountInfo {
   originalAmount: string;
   discountAmount: string;
@@ -608,36 +620,51 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
   const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
 
-  const [hasInitialized, setHasInitialized] = React.useState(false);
   const checkoutStartedRef = React.useRef(false);
+  const activeRequestKeyRef = React.useRef<string | null>(null);
 
-  const initializePayment = (promoCode: string) => {
-    // Prevent double initialization
-    if (hasInitialized && !promoCode) {
+  const initializePayment = React.useCallback((promoCode: string) => {
+    const normalizedPromoCode = promoCode.trim();
+    const requestKey = `${walletAddress.toLowerCase()}:${normalizedPromoCode || 'none'}`;
+
+    if (activeRequestKeyRef.current === requestKey && (isInitializing || clientSecret)) {
       return;
     }
 
+    activeRequestKeyRef.current = requestKey;
     setIsInitializing(true);
     setError(null);
+    setClientSecret(null);
     if (!checkoutStartedRef.current) {
       checkoutStartedRef.current = true;
-      trackCheckoutStarted('card', { hasPromoCode: !!promoCode.trim(), amount: 4.99, currency: 'USD' });
+      trackCheckoutStarted('card', { hasPromoCode: !!normalizedPromoCode, amount: 4.99, currency: 'USD' });
     }
 
-    console.log('[StripeForm] Initializing subscription for wallet:', walletAddress, 'with promo:', promoCode || 'none');
+    console.log('[StripeForm] Initializing subscription for wallet:', walletAddress, 'with promo:', normalizedPromoCode || 'none');
 
-    // Create subscription
-    fetch('/api/stripe/create-subscription', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress,
-        couponCode: promoCode.trim() || undefined
-      }),
-    })
-      .then((res) => res.json())
+    let request = paymentInitializationRequests.get(requestKey);
+    if (!request) {
+      request = fetch('/api/stripe/create-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress,
+          couponCode: normalizedPromoCode || undefined
+        }),
+      })
+        .then((res) => res.json())
+        .finally(() => {
+          paymentInitializationRequests.delete(requestKey);
+        });
+      paymentInitializationRequests.set(requestKey, request);
+    }
+
+    request
       .then((data) => {
         console.log('[StripeForm] Subscription response:', data);
+        if (activeRequestKeyRef.current !== requestKey) {
+          return;
+        }
 
         if (data.success) {
           if (data.clientSecret) {
@@ -645,9 +672,8 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
             setIsSetupIntent(data.isSetupIntent || false);
             setSubscriptionId(data.subscriptionId || null);
             setCustomerId(data.customerId || null);
-            setHasInitialized(true);
-            if (promoCode) {
-              setAppliedCoupon(promoCode);
+            if (normalizedPromoCode) {
+              setAppliedCoupon(normalizedPromoCode);
             }
             // Set discount info from API response
             if (data.discount) {
@@ -667,22 +693,26 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
         }
       })
       .catch((err) => {
+        if (activeRequestKeyRef.current !== requestKey) {
+          return;
+        }
         setError('Network error. Please try again.');
         trackCheckoutFailed('card', err instanceof Error ? err.message : 'network_error');
         console.error('[StripeForm] Network error:', err);
       })
       .finally(() => {
-        setIsInitializing(false);
+        if (activeRequestKeyRef.current === requestKey) {
+          setIsInitializing(false);
+        }
       });
-  };
+  }, [clientSecret, isInitializing, walletAddress]);
 
   React.useEffect(() => {
     initializePayment('');
-  }, []);
+  }, [initializePayment]);
 
   const handleApplyPromo = (code: string) => {
     trackStripePromoCodeApplied();
-    setHasInitialized(false);
     initializePayment(code);
   };
 
@@ -801,7 +831,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
 
   return (
     <div>
-      <Elements stripe={stripePromise} options={options}>
+      <Elements key={clientSecret} stripe={stripePromise} options={options}>
         <SubscriptionForm
           clientSecret={clientSecret}
           walletAddress={walletAddress}

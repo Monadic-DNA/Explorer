@@ -5,6 +5,24 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder'
   apiVersion: '2025-02-24.acacia',
 });
 
+async function getOrCreateCustomer(walletAddress: string) {
+  const normalizedWallet = walletAddress.toLowerCase();
+  const existingCustomers = await stripe.customers.search({
+    query: `metadata['walletAddress']:'${normalizedWallet}'`,
+    limit: 1,
+  });
+
+  if (existingCustomers.data[0]) {
+    return existingCustomers.data[0];
+  }
+
+  return stripe.customers.create({
+    metadata: {
+      walletAddress: normalizedWallet,
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { walletAddress, couponCode } = await request.json();
@@ -40,8 +58,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the base URL for redirect
-    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const requestOrigin = request.headers.get('origin');
+    const forwardedProto = request.headers.get('x-forwarded-proto') || 'http';
+    const forwardedHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+    const origin = requestOrigin || process.env.NEXT_PUBLIC_APP_URL || (forwardedHost ? `${forwardedProto}://${forwardedHost}` : 'http://localhost:3001');
 
     // Validate promotion code if provided
     let discounts = undefined;
@@ -86,10 +106,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const customer = await getOrCreateCustomer(walletAddress);
+
     // Create Stripe Checkout Session for subscription
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription', // Recurring subscription
+      customer: customer.id,
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID, // Reference existing price from Stripe Dashboard

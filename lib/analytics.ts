@@ -25,7 +25,7 @@ declare global {
 function trackEvent(eventName: string, params?: Record<string, any>) {
   if (typeof window !== 'undefined' && window.gtag) {
     try {
-      window.gtag('event', eventName, params);
+      window.gtag('event', eventName, sanitizeAnalyticsParams(params));
     } catch (error) {
       console.warn('Analytics tracking failed:', error);
     }
@@ -128,6 +128,20 @@ function sanitizeErrorReason(reason?: string): string | undefined {
   return reason.slice(0, 120);
 }
 
+const SENSITIVE_ANALYTICS_KEYS = new Set<string>();
+
+function sanitizeAnalyticsParams(params?: Record<string, any>): Record<string, any> | undefined {
+  if (!params) return undefined;
+
+  const safeParams = Object.fromEntries(
+    Object.entries(params).filter(([key, value]) =>
+      value !== undefined && !SENSITIVE_ANALYTICS_KEYS.has(key)
+    )
+  );
+
+  return Object.keys(safeParams).length > 0 ? safeParams : undefined;
+}
+
 /**
  * User accepted terms and moved past initial modal
  */
@@ -190,7 +204,7 @@ export function trackOnboardingDismissed(step: string) {
 /**
  * User clicked one of the homepage Get Started actions
  */
-export function trackGetStartedClicked(action: 'onboarding_tour' | 'welcome_options' | 'try_dna_chat_directly' | 'instructional_video' | 'schedule_video_call' | 'restart_onboarding') {
+export function trackGetStartedClicked(action: 'onboarding_tour' | 'welcome_options' | 'try_dna_chat_directly' | 'instructional_video' | 'schedule_video_call' | 'restart_onboarding' | 'home_upload_raw_dna' | 'home_analyze_uploaded_dna') {
   trackEvent('get_started_clicked', {
     action,
   });
@@ -327,11 +341,32 @@ export function trackGenotypeFileUploadStarted(source: string = 'unknown') {
   });
 }
 
+export function trackUploadPickerOpened(source: string = 'unknown') {
+  trackEvent('upload_picker_opened', {
+    source,
+  });
+}
+
+export function trackGenotypeParseStarted(source: string = 'unknown', fileExtension?: string) {
+  trackEvent('genotype_parse_started', {
+    source,
+    file_extension: fileExtension,
+  });
+}
+
+export function trackGenotypeParseSucceeded(source: string = 'unknown', detectedFormat?: string, variantCount?: number) {
+  trackEvent('genotype_parse_succeeded', {
+    source,
+    detected_format: detectedFormat,
+    variant_count: variantCount,
+  });
+}
+
 export function trackGenotypeFileUploadFailed(source: string = 'unknown', reason?: string, fileExtension?: string) {
   trackEvent('genotype_file_upload_failed', {
     source,
     reason: sanitizeErrorReason(reason),
-    ...(fileExtension && { file_extension: fileExtension }),
+    file_extension: fileExtension,
   });
 }
 
@@ -340,13 +375,12 @@ export function trackGenotypeFileLoaded(fileSize: number, variantCount: number, 
     file_size_kb: Math.round(fileSize / 1024),
     variant_count: variantCount,
     source,
-    ...(detectedFormat && { detected_format: detectedFormat }),
-    ...(fileExtension && { file_extension: fileExtension }),
+    detected_format: detectedFormat,
+    file_extension: fileExtension,
   };
 
   trackEvent('genotype_file_loaded', metadata);
 
-  // Track as Lead event on Reddit (DNA upload is a lead generation action)
   const conversionId = `dna_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   trackRedditEvent('Lead', {
     conversionId,
@@ -355,8 +389,7 @@ export function trackGenotypeFileLoaded(fileSize: number, variantCount: number, 
     conversion_id: conversionId,
   });
 
-  // Track as Lead event on X
-  trackXEvent('tw-r9lkr-rbtjs', { // Custom event - DNA File Upload
+  trackXEvent('tw-r9lkr-rbtjs', {
     conversion_id: conversionId,
   });
   trackXConversion('Lead', {
@@ -459,9 +492,45 @@ export function trackRunAllFailed(source: 'menu' | 'explore' | 'onboarding', rea
   });
 }
 
-export function trackLLMQuestionAsked(params?: { isFollowUp?: boolean }) {
+export function trackQuickPreviewStarted(source: 'home' | 'onboarding' = 'home') {
+  trackEvent('quick_preview_started', {
+    source,
+  });
+}
+
+export function trackQuickPreviewCompleted(resultCount: number, source: 'home' | 'onboarding' = 'home') {
+  trackEvent('quick_preview_completed', {
+    source,
+    result_count: resultCount,
+  });
+}
+
+export function trackQuickPreviewFailed(reason?: string, source: 'home' | 'onboarding' = 'home') {
+  trackEvent('quick_preview_failed', {
+    source,
+    reason: sanitizeErrorReason(reason),
+  });
+}
+
+export function trackFirstResultViewed(source: 'home_preview' | 'study' | 'results' = 'results') {
+  trackEvent('first_result_viewed', {
+    source,
+  });
+}
+
+export function trackProviderGuideClicked(provider: string, source: 'home' | 'upload' | 'study' = 'home') {
+  trackEvent('provider_guide_clicked', {
+    provider,
+    source,
+  });
+}
+
+export function trackLLMQuestionAsked(params?: { isFollowUp?: boolean; hasUploadedDna?: boolean; resultCount?: number; source?: 'chat' | 'research' | 'onboarding' }) {
   trackEvent('llm_question_asked', {
     is_follow_up: params?.isFollowUp ?? false,
+    has_uploaded_dna: params?.hasUploadedDna,
+    result_count: params?.resultCount,
+    source: params?.source,
   });
 }
 
@@ -489,8 +558,11 @@ export function trackAIConsentModalShown() {
   trackEvent('ai_consent_modal_shown');
 }
 
-export function trackOverviewReportViewed() {
-  trackEvent('overview_report_viewed');
+export function trackOverviewReportViewed(params?: { resultCount?: number; hasResults?: boolean }) {
+  trackEvent('overview_report_viewed', {
+    result_count: params?.resultCount,
+    has_results: params?.hasResults,
+  });
 }
 
 /**
@@ -531,6 +603,12 @@ export function trackReportOpenedInChat(reportType: 'health_insights' | 'healths
 
 export function trackExplorePageViewed() {
   trackEvent('explore_page_viewed');
+}
+
+export function trackExploreFollowupClicked(action: 'run_full_analysis' | 'ask_dna_chat' | 'preview_best_question' | 'personalize' | 'browse') {
+  trackEvent('explore_followup_clicked', {
+    action,
+  });
 }
 
 export function trackContinueInDNAChat(source: 'study_analysis') {

@@ -40,3 +40,4 @@ yarn-error.log*
 /AGENTS.md
 /CLAUDE.md
 /scripts/ga-performance.env
+/.junie/

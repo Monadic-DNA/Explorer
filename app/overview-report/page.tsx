@@ -40,8 +40,11 @@ export default function OverviewReportPage() {
   }, []);
 
   useEffect(() => {
-    trackOverviewReportViewed();
-  }, []);
+    trackOverviewReportViewed({
+      resultCount: savedResults.length,
+      hasResults: savedResults.length > 0,
+    });
+  }, [savedResults.length]);
 
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;

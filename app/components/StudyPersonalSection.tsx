@@ -18,6 +18,10 @@ type Props = {
   pubmedId?: string | null;
   mappedGene?: string | null;
   reportedTrait?: string | null;
+  pValue?: string | null;
+  pValueMlog?: string | null;
+  initialSampleSize?: string | null;
+  replicationSampleSize?: string | null;
 };
 
 export default function StudyPersonalSection({
@@ -34,6 +38,10 @@ export default function StudyPersonalSection({
   pubmedId,
   mappedGene,
   reportedTrait,
+  pValue,
+  pValueMlog,
+  initialSampleSize,
+  replicationSampleSize,
 }: Props) {
   const { hasResult, getResult } = useResults();
   const result = getResult(studyId);
@@ -51,6 +59,10 @@ export default function StudyPersonalSection({
         ciText={ciText}
         isAnalyzable={isAnalyzable}
         nonAnalyzableReason={nonAnalyzableReason}
+        pValue={pValue}
+        pValueMlog={pValueMlog}
+        initialSampleSize={initialSampleSize}
+        replicationSampleSize={replicationSampleSize}
       />
       {hasResult(studyId) && result && (
         <StudyInlineAnalysis
