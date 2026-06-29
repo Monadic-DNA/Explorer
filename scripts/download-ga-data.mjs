@@ -10,10 +10,13 @@
  *   overview.json        - session/user/engagement summary
  *   events.json          - all app event counts
  *   events_by_date.json  - daily event time series
+ *   events_by_country.json - event counts segmented by country
  *   pages.json           - page views by path
  *   acquisition.json     - sessions by source / medium
  *   devices.json         - sessions by device category
  *   countries.json       - sessions by country
+ *   upload_failures.json - upload failure breakdown by country/source/file/reason
+ *   upload_successes.json - upload success breakdown by country/source/file/format
  *   onboarding_paths.json - onboarding_path_chosen breakdown
  *   onboarding_steps.json - onboarding_step_viewed by step name and number
  *   index.json           - metadata about this download
@@ -96,6 +99,14 @@ async function ga4Report(propertyId, token, body) {
   return res.json();
 }
 
+async function ga4Metadata(propertyId, token) {
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}/metadata`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`GA4 metadata error (${res.status}): ${await res.text()}`);
+  return res.json();
+}
+
 const APP_EVENTS = [
   'terms_accepted', 'onboarding_started', 'onboarding_completed', 'onboarding_dismissed',
   'onboarding_path_chosen', 'get_started_clicked', 'onboarding_action',
@@ -172,6 +183,19 @@ async function fetchEventsByDate(propertyId, token, startDate, endDate) {
   });
 }
 
+async function fetchEventsByCountry(propertyId, token, startDate, endDate) {
+  return ga4Report(propertyId, token, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions: [{ name: 'country' }, { name: 'eventName' }],
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', inListFilter: { values: APP_EVENTS } },
+    },
+    orderBys: [{ dimension: { dimensionName: 'country' } }, { metric: { metricName: 'eventCount' }, desc: true }],
+    limit: 1000,
+  });
+}
+
 async function fetchPages(propertyId, token, startDate, endDate) {
   return ga4Report(propertyId, token, {
     dateRanges: [{ startDate, endDate }],
@@ -209,6 +233,54 @@ async function fetchCountries(propertyId, token, startDate, endDate) {
     metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'newUsers' }],
     orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
     limit: 30,
+  });
+}
+
+function filterSupportedDimensions(availableDimensions, dimensions) {
+  return dimensions.filter(name => availableDimensions.has(name)).map(name => ({ name }));
+}
+
+async function fetchUploadFailures(propertyId, token, startDate, endDate, availableDimensions) {
+  const dimensions = filterSupportedDimensions(availableDimensions, [
+    'country',
+    'deviceCategory',
+    'browser',
+    'customEvent:source',
+    'customEvent:file_extension',
+    'customEvent:reason',
+  ]);
+
+  return ga4Report(propertyId, token, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions,
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', stringFilter: { matchType: 'EXACT', value: 'genotype_file_upload_failed' } },
+    },
+    orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+    limit: 200,
+  });
+}
+
+async function fetchUploadSuccesses(propertyId, token, startDate, endDate, availableDimensions) {
+  const dimensions = filterSupportedDimensions(availableDimensions, [
+    'country',
+    'deviceCategory',
+    'browser',
+    'customEvent:source',
+    'customEvent:file_extension',
+    'customEvent:detected_format',
+  ]);
+
+  return ga4Report(propertyId, token, {
+    dateRanges: [{ startDate, endDate }],
+    dimensions,
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+    dimensionFilter: {
+      filter: { fieldName: 'eventName', stringFilter: { matchType: 'EXACT', value: 'genotype_file_loaded' } },
+    },
+    orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+    limit: 200,
   });
 }
 
@@ -293,7 +365,7 @@ async function fetchOnboardingPaths(propertyId, token, startDate, endDate) {
 async function main() {
   const envPath = join(__dirname, 'ga-performance.env');
   console.log(`Reading config: ${envPath}`);
-  const env = loadEnv(envPath);
+  const env = { ...loadEnv(envPath), ...process.env };
 
   const propertyId = env.GA4_PROPERTY_ID;
   if (!propertyId || propertyId === '123456789') {
@@ -312,20 +384,37 @@ async function main() {
 
   console.log(`Authenticating (${clientEmail})...`);
   const token = await getAccessToken(clientEmail, privateKey);
+  const metadata = await ga4Metadata(propertyId, token);
+  const availableDimensions = new Set((metadata.dimensions || []).map(d => d.apiName));
 
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const outDir = join('/tmp', 'ga-data', ts);
   mkdirSync(outDir, { recursive: true });
   console.log(`Output directory: ${outDir}`);
+  writeFileSync(
+    join(outDir, 'metadata.json'),
+    JSON.stringify({
+      propertyId,
+      dimensionCount: (metadata.dimensions || []).length,
+      metricCount: (metadata.metrics || []).length,
+      customEventDimensions: (metadata.dimensions || [])
+        .filter(d => d.apiName.startsWith('customEvent:'))
+        .map(d => d.apiName)
+        .sort(),
+    }, null, 2)
+  );
 
   const reports = [
     { name: 'overview',              label: 'overview metrics',            fn: fetchOverview },
     { name: 'events',                label: 'event counts',                fn: fetchEvents },
     { name: 'events_by_date',        label: 'events by date',              fn: fetchEventsByDate },
+    { name: 'events_by_country',     label: 'events by country',           fn: fetchEventsByCountry },
     { name: 'pages',                 label: 'page views',                  fn: fetchPages },
     { name: 'acquisition',           label: 'traffic acquisition',         fn: fetchAcquisition },
     { name: 'devices',               label: 'device breakdown',            fn: fetchDevices },
     { name: 'countries',             label: 'country breakdown',           fn: fetchCountries },
+    { name: 'upload_failures',       label: 'upload failure breakdown',    fn: (...args) => fetchUploadFailures(...args, availableDimensions) },
+    { name: 'upload_successes',      label: 'upload success breakdown',    fn: (...args) => fetchUploadSuccesses(...args, availableDimensions) },
     { name: 'onboarding_paths',      label: 'onboarding path breakdown',   fn: fetchOnboardingPaths },
     { name: 'onboarding_steps',      label: 'onboarding step breakdown',   fn: fetchOnboardingSteps },
     { name: 'paid_funnel',           label: 'paid traffic funnel',         fn: fetchPaidFunnel },
