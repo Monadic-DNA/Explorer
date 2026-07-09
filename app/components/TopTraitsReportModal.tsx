@@ -136,6 +136,13 @@ export default function TopTraitsReportModal({
 
   const handleClose = () => {
     if (phase === 'generating') return;
+    // A completed report exists only in memory, so confirm before discarding it.
+    if (phase === 'complete' && result) {
+      const confirmed = window.confirm(
+        'Close this report? It cannot be recovered. Use Copy or Print to save it first.'
+      );
+      if (!confirmed) return;
+    }
     setPhase('idle');
     setResult(null);
     setQuestions([]);

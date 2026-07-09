@@ -536,6 +536,13 @@ export default function OverviewReportModal({
   };
 
   const handleClose = () => {
+    // A completed report exists only in memory, so confirm before discarding it.
+    if (progress.phase === 'complete' && progress.finalReport) {
+      const confirmed = window.confirm(
+        'Close this report? It cannot be recovered. Use Copy to Clipboard or Print Report to save it first.'
+      );
+      if (!confirmed) return;
+    }
     // Reset state when closing modal to avoid showing stale data
     if (!isGenerating) {
       setProgress({
