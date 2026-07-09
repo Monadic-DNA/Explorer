@@ -10,7 +10,7 @@ type PremiumFeatureHeaderProps = {
   featureName: string;
   description: string;
   gateTitle?: string;       // overrides default "featureName is a premium tab" / "Premium subscription required"
-  gateDescription?: string; // overrides default "Try free for 7 days, then $4.99/month to access featureName."
+  gateDescription?: string; // overrides default "$4.99/month to access featureName."
 };
 
 export default function PremiumFeatureHeader({
@@ -78,10 +78,10 @@ export default function PremiumFeatureHeader({
           <div className="subscription-prompt-inline">
             <div className="subscription-message">
               <strong>{gateTitle ?? 'Premium subscription required'}</strong>
-              <span>{gateDescription ?? `Try free for 7 days, then $4.99/month to access ${featureName}.`}</span>
+              <span>{gateDescription ?? `$4.99/month to access ${featureName}.`}</span>
             </div>
             <Link href="/subscribe" className="subscribe-button">
-              Try free
+              Subscribe
             </Link>
           </div>
         ) : (

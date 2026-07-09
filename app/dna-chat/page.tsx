@@ -180,7 +180,7 @@ export default function DNAChatPage() {
           featureName="DNA Chat Research"
           description="Send and chat are free. The Research feature requires a subscription."
           gateTitle="Research requires a subscription"
-          gateDescription="Try free for 7 days, then $4.99/month to unlock the Research feature in DNA Chat."
+          gateDescription="$4.99/month to unlock the Research feature in DNA Chat."
         />
         <section className="premium-section premium-feature-section dna-chat-section">
           {(sampleLoad.status === "downloading" || sampleLoad.status === "loading") && (

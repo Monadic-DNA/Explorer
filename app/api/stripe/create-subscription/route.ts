@@ -101,7 +101,6 @@ export async function POST(request: NextRequest) {
           price: process.env.STRIPE_PRICE_ID,
         },
       ],
-      trial_period_days: 7,
       payment_behavior: 'default_incomplete',
       payment_settings: {
         save_default_payment_method: 'on_subscription',
@@ -111,8 +110,8 @@ export async function POST(request: NextRequest) {
       metadata: {
         walletAddress: walletAddress.toLowerCase(),
       },
-      // Always require payment method collection, even if first invoice is $0
-      // This ensures we can charge after promotional period ends
+      // Always require payment method collection, even if the first invoice is $0.
+      // This ensures future subscription renewals can be charged.
       collection_method: 'charge_automatically',
     };
 
@@ -158,8 +157,8 @@ export async function POST(request: NextRequest) {
 
     const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
 
-    // If there's no payment intent (e.g., $0 invoice due to 100% discount)
-    // We need to create a SetupIntent to collect payment method for future charges
+    // If there is no payment intent, for example a $0 invoice from a 100%
+    // discount, collect a payment method for future charges.
     if (!paymentIntent) {
       console.log(`[Stripe] No payment intent for $0 invoice - creating SetupIntent to collect payment method`);
 

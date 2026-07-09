@@ -431,7 +431,7 @@ export default function PaymentModal({ isOpen = true, onClose, onSuccess, displa
                 <div className="choice-icon">💳</div>
                 <div className="choice-details">
                   <div className="choice-title">Pay with Card</div>
-                  <div className="choice-description">7 days free, then $4.99/month (Stripe)</div>
+                  <div className="choice-description">$4.99/month, billed by Stripe</div>
                 </div>
               </button>
 

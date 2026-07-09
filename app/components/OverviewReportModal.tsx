@@ -592,7 +592,7 @@ export default function OverviewReportModal({
                 Overview Report requires a premium subscription or a one-time report run.
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Try free for 7 days, then $4.99/month, or run this report once for $4.99 from the Analyze page.
+                Subscribe for $4.99/month, or run this report once for $4.99 from the Analyze page.
               </p>
             </div>
           ) : progress.phase === 'idle' ? (
