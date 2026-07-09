@@ -17,17 +17,31 @@ import { hasValidPromoAccess } from "@/lib/promo-access";
 import GuidedTour from "../components/GuidedTour";
 import { overviewReportTour } from "../components/tours/tourContent";
 import { trackOverviewReportViewed } from "@/lib/analytics";
+import { PAID_REPORT_LABELS, PaidReportType } from "@/lib/report-access";
+
+type ReportAccessCounts = Record<PaidReportType, number>;
+
+const emptyReportAccess: ReportAccessCounts = {
+  healthspan: 0,
+  top_traits: 0,
+  overview: 0,
+};
 
 export default function OverviewReportPage() {
   const router = useRouter();
   const { savedResults } = useResults();
-  const { isAuthenticated, hasActiveSubscription, openAuthModal } = useAuth();
+  const { isAuthenticated, user, hasActiveSubscription, openAuthModal } = useAuth();
   const [showOverviewReportModal, setShowOverviewReportModal] = useState(false);
   const [showHealthReportModal, setShowHealthReportModal] = useState(false);
   const [showHealthspanReportModal, setShowHealthspanReportModal] = useState(false);
   const [showTopTraitsReportModal, setShowTopTraitsReportModal] = useState(false);
   const [hasPromoAccess, setHasPromoAccess] = useState(false);
+  const [reportAccess, setReportAccess] = useState<ReportAccessCounts>(emptyReportAccess);
+  const [checkingReportAccess, setCheckingReportAccess] = useState(false);
+  const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
+  const [purchasingReportType, setPurchasingReportType] = useState<PaidReportType | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
 
   useEffect(() => {
     const refreshPromoAccess = () => {
@@ -46,20 +60,115 @@ export default function OverviewReportPage() {
     });
   }, [savedResults.length]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const purchaseState = params.get('report_purchase');
+    const reportType = params.get('report_type');
+
+    if (purchaseState === 'success' && reportType && reportType in PAID_REPORT_LABELS) {
+      setPurchaseMessage(`${PAID_REPORT_LABELS[reportType as PaidReportType]} is unlocked for one run.`);
+    } else if (purchaseState === 'cancelled') {
+      setPurchaseMessage('Report payment was cancelled. No charge was made.');
+    }
+  }, []);
+
+  useEffect(() => {
+    const refreshReportAccess = async () => {
+      if (!walletAddress) {
+        setReportAccess(emptyReportAccess);
+        return;
+      }
+
+      setCheckingReportAccess(true);
+      try {
+        const response = await fetch('/api/report-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress, action: 'check' }),
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+          setReportAccess({
+            ...emptyReportAccess,
+            ...data.availableReports,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to check report access:', error);
+      } finally {
+        setCheckingReportAccess(false);
+      }
+    };
+
+    refreshReportAccess();
+  }, [walletAddress, purchaseMessage]);
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
   const hasResults = savedResults.length > 0;
 
-  const requirePremium = () => {
-    if (!hasPremiumAccess && !hasValidPromoAccess()) {
+  const hasReportAccess = (reportType: PaidReportType) =>
+    hasPremiumAccess || hasValidPromoAccess() || reportAccess[reportType] > 0;
+
+  const requireReportAccess = (reportType: PaidReportType) => {
+    if (!hasReportAccess(reportType)) {
       router.push('/subscribe');
       return false;
     }
     return true;
   };
 
+  const handleBuyReportRun = async (reportType: PaidReportType) => {
+    if (!isAuthenticated || !walletAddress) {
+      openAuthModal();
+      return;
+    }
+
+    setPurchasingReportType(reportType);
+    try {
+      const response = await fetch('/api/stripe/create-report-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, reportType }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.checkoutUrl) {
+        throw new Error(data.error || 'Could not start checkout');
+      }
+      window.location.href = data.checkoutUrl;
+    } catch (error) {
+      console.error('Failed to create report checkout:', error);
+      alert(error instanceof Error ? error.message : 'Could not start checkout');
+      setPurchasingReportType(null);
+    }
+  };
+
+  const consumeReportPass = async (reportType: PaidReportType) => {
+    if (hasPremiumAccess || hasValidPromoAccess()) return true;
+
+    if (!walletAddress || reportAccess[reportType] <= 0) {
+      return false;
+    }
+
+    const response = await fetch('/api/report-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletAddress, reportType, action: 'consume' }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Could not use report pass');
+    }
+
+    setReportAccess(prev => ({
+      ...prev,
+      [reportType]: Math.max(0, prev[reportType] - 1),
+    }));
+
+    return true;
+  };
+
   const handleGenerateReport = () => {
-    if (!hasResults || !requirePremium()) return;
+    if (!hasResults || !requireReportAccess('overview')) return;
     setShowOverviewReportModal(true);
   };
 
@@ -69,13 +178,48 @@ export default function OverviewReportPage() {
   };
 
   const handleGenerateHealthspanReport = () => {
-    if (!hasResults || !requirePremium()) return;
+    if (!hasResults || !requireReportAccess('healthspan')) return;
     setShowHealthspanReportModal(true);
   };
 
   const handleGenerateTopTraitsReport = () => {
-    if (!hasResults || !requirePremium()) return;
+    if (!hasResults || !requireReportAccess('top_traits')) return;
     setShowTopTraitsReportModal(true);
+  };
+
+  const renderPaidReportActions = (reportType: PaidReportType, onGenerate: () => void, generateLabel: string) => {
+    const hasPass = reportAccess[reportType] > 0;
+
+    return (
+      <div className="overview-report-actions">
+        <button
+          className="primary-button"
+          onClick={onGenerate}
+          disabled={!hasResults || checkingReportAccess}
+        >
+          {!hasResults
+            ? 'Load Results First'
+            : hasPremiumAccess || hasPass
+              ? generateLabel
+              : 'Subscribe to Generate'}
+        </button>
+        {!hasPremiumAccess && !hasPass && (
+          <button
+            className="secondary-button"
+            onClick={() => handleBuyReportRun(reportType)}
+            disabled={!hasResults || purchasingReportType !== null}
+            style={{ marginTop: '0.5rem' }}
+          >
+            {purchasingReportType === reportType ? 'Opening Checkout...' : 'Run Once for $4.99'}
+          </button>
+        )}
+        {!hasPremiumAccess && hasPass && (
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+            One paid run available
+          </p>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -84,14 +228,20 @@ export default function OverviewReportPage() {
       <main className="page">
         <PremiumFeatureHeader
           featureName="Analyze"
-          description="Health Insights is free. Healthspan, Top Traits, and Overview reports require a subscription."
+          description="Health Insights is free. Premium reports can be run once for $4.99 or unlocked with a subscription."
           gateTitle="Some reports require a subscription"
-          gateDescription="Try free for 7 days, then $4.99/month to access Healthspan, Top Traits, and Overview reports."
+          gateDescription="Try free for 7 days, then $4.99/month for unlimited premium reports, or run one report once for $4.99."
         />
         <div style={{ textAlign: "right", padding: "0 1rem" }}>
           <button className="tour-help-button" type="button" onClick={() => setTourOpen(true)} title="Show tour" aria-label="Show tour">?</button>
         </div>
         <PremiumPaywall>{null}</PremiumPaywall>
+
+        {purchaseMessage && (
+          <div className="subscribe-notice" style={{ margin: '0 1rem 1rem' }}>
+            {purchaseMessage}
+          </div>
+        )}
 
         <section className="premium-section premium-feature-section">
           <div className="premium-feature-intro">
@@ -147,15 +297,7 @@ export default function OverviewReportPage() {
                 Organizes your associations by healthspan domain: cardiovascular, metabolic, neurological, immune, musculoskeletal, and cancer susceptibility. Synthesizes patterns within and across domains.
               </p>
             </div>
-            <div className="overview-report-actions">
-              <button
-                className="primary-button"
-                onClick={handleGenerateHealthspanReport}
-                disabled={!hasResults}
-              >
-                {!hasResults ? "Load Results First" : "Generate Healthspan Report"}
-              </button>
-            </div>
+            {renderPaidReportActions('healthspan', handleGenerateHealthspanReport, 'Generate Healthspan Report')}
           </div>
 
           {/* Top Traits Report */}
@@ -173,15 +315,7 @@ export default function OverviewReportPage() {
                 Takes your 100 strongest genetic associations by effect size and synthesizes what they reveal about your biology. Good starting point if you have not added health history yet.
               </p>
             </div>
-            <div className="overview-report-actions">
-              <button
-                className="primary-button"
-                onClick={handleGenerateTopTraitsReport}
-                disabled={!hasResults}
-              >
-                {!hasResults ? "Load Results First" : "Generate Top Traits Report"}
-              </button>
-            </div>
+            {renderPaidReportActions('top_traits', handleGenerateTopTraitsReport, 'Generate Top Traits Report')}
           </div>
 
           {/* Comprehensive Overview Report (experimental, at bottom) */}
@@ -199,15 +333,7 @@ export default function OverviewReportPage() {
                 Analyzes all your saved genetic results across categories: health, lifestyle, appearance, personality, and more. Works best after running broad analysis. Currently under development.
               </p>
             </div>
-            <div className="overview-report-actions">
-              <button
-                className="primary-button"
-                onClick={handleGenerateReport}
-                disabled={!hasResults}
-              >
-                {!hasResults ? "Load Results First" : "Generate Overview Report"}
-              </button>
-            </div>
+            {renderPaidReportActions('overview', handleGenerateReport, 'Generate Overview Report')}
           </div>
         </section>
       </main>
@@ -215,6 +341,8 @@ export default function OverviewReportPage() {
       <OverviewReportModal
         isOpen={showOverviewReportModal}
         onClose={() => setShowOverviewReportModal(false)}
+        hasOneTimeAccess={reportAccess.overview > 0}
+        onConsumeOneTimeAccess={() => consumeReportPass('overview')}
       />
       <HealthReportModal
         isOpen={showHealthReportModal}
@@ -223,10 +351,14 @@ export default function OverviewReportPage() {
       <HealthspanReportModal
         isOpen={showHealthspanReportModal}
         onClose={() => setShowHealthspanReportModal(false)}
+        onConsumeOneTimeAccess={() => consumeReportPass('healthspan')}
+        hasPremiumAccess={hasPremiumAccess}
       />
       <TopTraitsReportModal
         isOpen={showTopTraitsReportModal}
         onClose={() => setShowTopTraitsReportModal(false)}
+        onConsumeOneTimeAccess={() => consumeReportPass('top_traits')}
+        hasPremiumAccess={hasPremiumAccess}
       />
       <GuidedTour tour={overviewReportTour} isOpen={tourOpen} onClose={() => setTourOpen(false)} />
     </div>

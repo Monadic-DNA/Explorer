@@ -14,9 +14,16 @@ type Phase = 'idle' | 'generating' | 'complete' | 'error';
 interface TopTraitsReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  hasPremiumAccess?: boolean;
+  onConsumeOneTimeAccess?: () => Promise<boolean>;
 }
 
-export default function TopTraitsReportModal({ isOpen, onClose }: TopTraitsReportModalProps) {
+export default function TopTraitsReportModal({
+  isOpen,
+  onClose,
+  hasPremiumAccess = false,
+  onConsumeOneTimeAccess,
+}: TopTraitsReportModalProps) {
   const router = useRouter();
   const { savedResults } = useResults();
   const { customization } = useCustomization();
@@ -45,6 +52,24 @@ export default function TopTraitsReportModal({ isOpen, onClose }: TopTraitsRepor
   const handleGenerate = async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
+
+    if (!hasPremiumAccess && onConsumeOneTimeAccess) {
+      try {
+        const consumed = await onConsumeOneTimeAccess();
+        if (!consumed) {
+          setError('No paid report run is available for this wallet.');
+          setPhase('error');
+          inFlightRef.current = false;
+          return;
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not use paid report run.');
+        setPhase('error');
+        inFlightRef.current = false;
+        return;
+      }
+    }
+
     setPhase('generating');
     setMessage('Selecting top 50 signals by effect size…');
     setProgress(10);

@@ -27,9 +27,16 @@ interface ProgressState {
 interface OverviewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  hasOneTimeAccess?: boolean;
+  onConsumeOneTimeAccess?: () => Promise<boolean>;
 }
 
-export default function OverviewReportModal({ isOpen, onClose }: OverviewReportModalProps) {
+export default function OverviewReportModal({
+  isOpen,
+  onClose,
+  hasOneTimeAccess = false,
+  onConsumeOneTimeAccess,
+}: OverviewReportModalProps) {
   const { savedResults } = useResults();
   const { customization } = useCustomization();
   const { hasActiveSubscription } = useAuth();
@@ -53,6 +60,31 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
       return;
     }
     generationInFlightRef.current = true;
+
+    const hasPromoAccess = hasValidPromoAccess();
+    if (!hasActiveSubscription && !hasPromoAccess && onConsumeOneTimeAccess) {
+      try {
+        const consumed = await onConsumeOneTimeAccess();
+        if (!consumed) {
+          setProgress(prev => ({
+            ...prev,
+            phase: 'error',
+            error: 'No paid report run is available for this wallet.',
+          }));
+          generationInFlightRef.current = false;
+          return;
+        }
+      } catch (error) {
+        setProgress(prev => ({
+          ...prev,
+          phase: 'error',
+          error: error instanceof Error ? error.message : 'Could not use paid report run.',
+        }));
+        generationInFlightRef.current = false;
+        return;
+      }
+    }
+
     setIsGenerating(true);
     const start = Date.now();
     setStartTime(start);
@@ -526,7 +558,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
 
   // Check subscription
   const hasPromoAccess = hasValidPromoAccess();
-  const isBlocked = !hasActiveSubscription && !hasPromoAccess;
+  const isBlocked = !hasActiveSubscription && !hasPromoAccess && !hasOneTimeAccess;
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -560,10 +592,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             }}>
               <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>🔒 Premium Feature</h3>
               <p style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                Overview Report requires an active premium subscription.
+                Overview Report requires a premium subscription or a one-time report run.
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Try free for 7 days, then $4.99/month to unlock comprehensive analysis of all your genetic results.
+                Try free for 7 days, then $4.99/month, or run this report once for $4.99 from the Analyze page.
               </p>
             </div>
           ) : progress.phase === 'idle' ? (
