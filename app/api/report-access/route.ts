@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import Stripe from 'stripe';
 import { isPaidReportType, PAID_REPORT_TYPES, PaidReportType } from '@/lib/report-access';
+import { verifyWalletAuth } from '@/lib/dynamic-auth';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
   apiVersion: '2025-02-24.acacia',
@@ -14,6 +16,14 @@ function validateWalletAddress(walletAddress: unknown): string | null {
 
 function stripeSearchValue(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function isReportPayment(payment: Stripe.PaymentIntent, walletAddress: string) {
+  return (
+    payment.status === 'succeeded' &&
+    payment.metadata.purpose === 'report_one_time' &&
+    payment.metadata.walletAddress === walletAddress
+  );
 }
 
 async function findUnusedReportPayments(walletAddress: string, reportType?: PaidReportType) {
@@ -35,9 +45,83 @@ async function findUnusedReportPayments(walletAddress: string, reportType?: Paid
   return result.data.filter(payment => !payment.metadata.consumedAt);
 }
 
+// Stripe search is eventually consistent and can lag behind a checkout that
+// just completed. When the client passes the checkout session id from the
+// success redirect, resolve the payment intent directly so the new pass is
+// visible immediately.
+async function findPaymentFromCheckoutSession(sessionId: string, walletAddress: string) {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['payment_intent'],
+    });
+
+    if (session.payment_status !== 'paid') return null;
+
+    const payment = session.payment_intent;
+    if (!payment || typeof payment === 'string') return null;
+    if (!isReportPayment(payment, walletAddress)) return null;
+    if (payment.metadata.consumedAt) return null;
+
+    return payment;
+  } catch (error) {
+    console.error('Failed to resolve checkout session:', error);
+    return null;
+  }
+}
+
+async function collectUnusedPayments(
+  walletAddress: string,
+  sessionId: string | undefined,
+  reportType?: PaidReportType
+) {
+  const payments = await findUnusedReportPayments(walletAddress, reportType);
+
+  if (typeof sessionId === 'string' && sessionId.startsWith('cs_')) {
+    const sessionPayment = await findPaymentFromCheckoutSession(sessionId, walletAddress);
+    if (
+      sessionPayment &&
+      (!reportType || sessionPayment.metadata.reportType === reportType) &&
+      !payments.some(payment => payment.id === sessionPayment.id)
+    ) {
+      payments.push(sessionPayment);
+    }
+  }
+
+  return payments;
+}
+
+// Consumes one pass with an optimistic concurrency guard. Stripe metadata
+// updates are last-writer-wins, so after stamping the payment intent we read
+// it back and only treat the consumption as ours when our token survived.
+async function consumeOnePayment(payments: Stripe.PaymentIntent[]) {
+  const candidates = [...payments].sort((a, b) => a.created - b.created);
+
+  for (const candidate of candidates) {
+    const fresh = await stripe.paymentIntents.retrieve(candidate.id);
+    if (fresh.metadata.consumedAt) continue;
+
+    const consumeToken = randomUUID();
+    await stripe.paymentIntents.update(candidate.id, {
+      metadata: {
+        ...fresh.metadata,
+        consumedAt: new Date().toISOString(),
+        consumeToken,
+      },
+    });
+
+    const verified = await stripe.paymentIntents.retrieve(candidate.id);
+    if (verified.metadata.consumeToken === consumeToken) {
+      return candidate.id;
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { walletAddress, reportType, action = 'check' } = await request.json();
+    const { walletAddress, reportType, action = 'check', sessionId, paymentIntentId } =
+      await request.json();
     const normalizedWallet = validateWalletAddress(walletAddress);
 
     if (!normalizedWallet) {
@@ -49,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'check') {
-      const payments = await findUnusedReportPayments(normalizedWallet);
+      const payments = await collectUnusedPayments(normalizedWallet, sessionId);
       const availableReports = Object.fromEntries(
         PAID_REPORT_TYPES.map(type => [
           type,
@@ -63,32 +147,58 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Consuming and releasing passes mutate paid state, so they require proof
+    // that the caller owns the wallet.
+    if (action === 'consume' || action === 'release') {
+      const auth = await verifyWalletAuth(request.headers.get('authorization'), normalizedWallet);
+      if (!auth.ok) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
+      }
+    }
+
     if (action === 'consume') {
       if (!isPaidReportType(reportType)) {
         return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
       }
 
-      const payments = await findUnusedReportPayments(normalizedWallet, reportType);
-      const paymentToConsume = payments.sort((a, b) => a.created - b.created)[0];
+      const payments = await collectUnusedPayments(normalizedWallet, sessionId, reportType);
+      const consumedPaymentIntentId = await consumeOnePayment(payments);
 
-      if (!paymentToConsume) {
+      if (!consumedPaymentIntentId) {
         return NextResponse.json(
           { success: false, error: 'No unused report pass found' },
           { status: 402 }
         );
       }
 
-      await stripe.paymentIntents.update(paymentToConsume.id, {
-        metadata: {
-          ...paymentToConsume.metadata,
-          consumedAt: new Date().toISOString(),
-        },
-      });
-
       return NextResponse.json({
         success: true,
-        consumedPaymentIntentId: paymentToConsume.id,
+        consumedPaymentIntentId,
       });
+    }
+
+    // Returns a pass to the wallet when report generation failed after the
+    // pass was consumed.
+    if (action === 'release') {
+      if (typeof paymentIntentId !== 'string' || !paymentIntentId.startsWith('pi_')) {
+        return NextResponse.json({ error: 'Invalid payment intent id' }, { status: 400 });
+      }
+
+      const payment = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (!isReportPayment(payment, normalizedWallet)) {
+        return NextResponse.json({ error: 'Payment not found for this wallet' }, { status: 404 });
+      }
+
+      if (payment.metadata.consumedAt) {
+        await stripe.paymentIntents.update(payment.id, {
+          metadata: {
+            consumedAt: '',
+            consumeToken: '',
+          },
+        });
+      }
+
+      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

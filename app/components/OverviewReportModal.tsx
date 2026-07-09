@@ -3,11 +3,9 @@
 import { useRef, useState } from "react";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
-import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { trackOverviewReportGenerated } from "@/lib/analytics";
-import { hasValidPromoAccess } from "@/lib/promo-access";
 
 type GenerationPhase = 'idle' | 'map' | 'reduce' | 'complete' | 'error';
 
@@ -27,19 +25,22 @@ interface ProgressState {
 interface OverviewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  hasPremiumAccess?: boolean;
   hasOneTimeAccess?: boolean;
   onConsumeOneTimeAccess?: () => Promise<boolean>;
+  onReleaseOneTimeAccess?: () => Promise<void>;
 }
 
 export default function OverviewReportModal({
   isOpen,
   onClose,
+  hasPremiumAccess = false,
   hasOneTimeAccess = false,
   onConsumeOneTimeAccess,
+  onReleaseOneTimeAccess,
 }: OverviewReportModalProps) {
   const { savedResults } = useResults();
   const { customization } = useCustomization();
-  const { hasActiveSubscription } = useAuth();
 
   const [isGenerating, setIsGenerating] = useState(false);
   const generationInFlightRef = useRef(false);
@@ -61,8 +62,16 @@ export default function OverviewReportModal({
     }
     generationInFlightRef.current = true;
 
-    const hasPromoAccess = hasValidPromoAccess();
-    if (!hasActiveSubscription && !hasPromoAccess && onConsumeOneTimeAccess) {
+    let consumedPass = false;
+    // Return the pass so a failed generation does not burn a paid run.
+    const releaseConsumedPass = () => {
+      if (consumedPass && onReleaseOneTimeAccess) {
+        consumedPass = false;
+        onReleaseOneTimeAccess().catch(() => {});
+      }
+    };
+
+    if (!hasPremiumAccess && onConsumeOneTimeAccess) {
       try {
         const consumed = await onConsumeOneTimeAccess();
         if (!consumed) {
@@ -83,6 +92,7 @@ export default function OverviewReportModal({
         generationInFlightRef.current = false;
         return;
       }
+      consumedPass = true;
     }
 
     setIsGenerating(true);
@@ -136,6 +146,7 @@ export default function OverviewReportModal({
             clearInterval(timerInterval);
             generationInFlightRef.current = false;
             setIsGenerating(false);
+            releaseConsumedPass();
           }
         }
       );
@@ -151,6 +162,7 @@ export default function OverviewReportModal({
       }));
       generationInFlightRef.current = false;
       setIsGenerating(false);
+      releaseConsumedPass();
     }
   };
 
@@ -557,8 +569,7 @@ export default function OverviewReportModal({
   if (!isOpen) return null;
 
   // Check subscription
-  const hasPromoAccess = hasValidPromoAccess();
-  const isBlocked = !hasActiveSubscription && !hasPromoAccess && !hasOneTimeAccess;
+  const isBlocked = !hasPremiumAccess && !hasOneTimeAccess;
 
   return (
     <div className="modal-overlay" onClick={handleClose}>

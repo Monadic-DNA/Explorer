@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
@@ -12,6 +12,7 @@ import HealthspanReportModal from "../components/HealthspanReportModal";
 import TopTraitsReportModal from "../components/TopTraitsReportModal";
 import { OverviewReportIcon } from "../components/Icons";
 import { useAuth } from "../components/AuthProvider";
+import { getAuthToken } from "@dynamic-labs/sdk-react-core";
 import { useResults } from "../components/ResultsContext";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 import GuidedTour from "../components/GuidedTour";
@@ -39,7 +40,9 @@ export default function OverviewReportPage() {
   const [reportAccess, setReportAccess] = useState<ReportAccessCounts>(emptyReportAccess);
   const [checkingReportAccess, setCheckingReportAccess] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
   const [purchasingReportType, setPurchasingReportType] = useState<PaidReportType | null>(null);
+  const consumedPassRef = useRef<Partial<Record<PaidReportType, string>>>({});
   const [tourOpen, setTourOpen] = useState(false);
   const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
 
@@ -64,13 +67,22 @@ export default function OverviewReportPage() {
     const params = new URLSearchParams(window.location.search);
     const purchaseState = params.get('report_purchase');
     const reportType = params.get('report_type');
+    const sessionId = params.get('session_id');
+
+    if (!purchaseState) return;
 
     if (purchaseState === 'success' && reportType && reportType in PAID_REPORT_LABELS) {
       setPurchaseMessage(`${PAID_REPORT_LABELS[reportType as PaidReportType]} is unlocked for one run.`);
+      if (sessionId) {
+        setCheckoutSessionId(sessionId);
+      }
     } else if (purchaseState === 'cancelled') {
       setPurchaseMessage('Report payment was cancelled. No charge was made.');
     }
-  }, []);
+
+    // Remove the purchase params so a refresh does not replay the banner.
+    router.replace(window.location.pathname, { scroll: false });
+  }, [router]);
 
   useEffect(() => {
     const refreshReportAccess = async () => {
@@ -84,7 +96,11 @@ export default function OverviewReportPage() {
         const response = await fetch('/api/report-access', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress, action: 'check' }),
+          body: JSON.stringify({
+            walletAddress,
+            action: 'check',
+            sessionId: checkoutSessionId || undefined,
+          }),
         });
         const data = await response.json();
         if (response.ok && data.success) {
@@ -101,7 +117,7 @@ export default function OverviewReportPage() {
     };
 
     refreshReportAccess();
-  }, [walletAddress, purchaseMessage]);
+  }, [walletAddress, purchaseMessage, checkoutSessionId]);
 
   const hasPremiumAccess = hasActiveSubscription || hasPromoAccess;
   const hasResults = savedResults.length > 0;
@@ -149,22 +165,65 @@ export default function OverviewReportPage() {
       return false;
     }
 
+    const authToken = getAuthToken();
+    if (!authToken) {
+      throw new Error('Please sign in again to use your report pass.');
+    }
+
     const response = await fetch('/api/report-access', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ walletAddress, reportType, action: 'consume' }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        walletAddress,
+        reportType,
+        action: 'consume',
+        sessionId: checkoutSessionId || undefined,
+      }),
     });
     const data = await response.json();
     if (!response.ok || !data.success) {
       throw new Error(data.error || 'Could not use report pass');
     }
 
+    consumedPassRef.current[reportType] = data.consumedPaymentIntentId;
     setReportAccess(prev => ({
       ...prev,
       [reportType]: Math.max(0, prev[reportType] - 1),
     }));
 
     return true;
+  };
+
+  const releaseReportPass = async (reportType: PaidReportType) => {
+    const paymentIntentId = consumedPassRef.current[reportType];
+    if (!paymentIntentId || !walletAddress) return;
+
+    try {
+      const authToken = getAuthToken();
+      if (!authToken) return;
+
+      const response = await fetch('/api/report-access', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ walletAddress, paymentIntentId, action: 'release' }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        delete consumedPassRef.current[reportType];
+        setReportAccess(prev => ({
+          ...prev,
+          [reportType]: prev[reportType] + 1,
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to release report pass:', error);
+    }
   };
 
   const handleGenerateReport = () => {
@@ -195,7 +254,7 @@ export default function OverviewReportPage() {
         <button
           className="primary-button"
           onClick={onGenerate}
-          disabled={!hasResults || checkingReportAccess}
+          disabled={!hasResults || (!hasPremiumAccess && checkingReportAccess)}
         >
           {!hasResults
             ? 'Load Results First'
@@ -341,8 +400,10 @@ export default function OverviewReportPage() {
       <OverviewReportModal
         isOpen={showOverviewReportModal}
         onClose={() => setShowOverviewReportModal(false)}
+        hasPremiumAccess={hasPremiumAccess}
         hasOneTimeAccess={reportAccess.overview > 0}
         onConsumeOneTimeAccess={() => consumeReportPass('overview')}
+        onReleaseOneTimeAccess={() => releaseReportPass('overview')}
       />
       <HealthReportModal
         isOpen={showHealthReportModal}
@@ -351,14 +412,16 @@ export default function OverviewReportPage() {
       <HealthspanReportModal
         isOpen={showHealthspanReportModal}
         onClose={() => setShowHealthspanReportModal(false)}
-        onConsumeOneTimeAccess={() => consumeReportPass('healthspan')}
         hasPremiumAccess={hasPremiumAccess}
+        onConsumeOneTimeAccess={() => consumeReportPass('healthspan')}
+        onReleaseOneTimeAccess={() => releaseReportPass('healthspan')}
       />
       <TopTraitsReportModal
         isOpen={showTopTraitsReportModal}
         onClose={() => setShowTopTraitsReportModal(false)}
-        onConsumeOneTimeAccess={() => consumeReportPass('top_traits')}
         hasPremiumAccess={hasPremiumAccess}
+        onConsumeOneTimeAccess={() => consumeReportPass('top_traits')}
+        onReleaseOneTimeAccess={() => releaseReportPass('top_traits')}
       />
       <GuidedTour tour={overviewReportTour} isOpen={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
