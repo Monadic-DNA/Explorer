@@ -120,7 +120,7 @@ async function consumeOnePayment(payments: Stripe.PaymentIntent[]) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { walletAddress, reportType, action = 'check', sessionId, paymentIntentId } =
+    const { walletAddress, reportType, action = 'check', sessionId } =
       await request.json();
     const normalizedWallet = validateWalletAddress(walletAddress);
 
@@ -147,9 +147,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Consuming and releasing passes mutate paid state, so they require proof
-    // that the caller owns the wallet.
-    if (action === 'consume' || action === 'release') {
+    // Consuming passes mutates paid state, so it requires proof that the
+    // caller owns the wallet.
+    if (action === 'consume') {
       const auth = await verifyWalletAuth(request.headers.get('authorization'), normalizedWallet);
       if (!auth.ok) {
         return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
@@ -175,30 +175,6 @@ export async function POST(request: NextRequest) {
         success: true,
         consumedPaymentIntentId,
       });
-    }
-
-    // Returns a pass to the wallet when report generation failed after the
-    // pass was consumed.
-    if (action === 'release') {
-      if (typeof paymentIntentId !== 'string' || !paymentIntentId.startsWith('pi_')) {
-        return NextResponse.json({ error: 'Invalid payment intent id' }, { status: 400 });
-      }
-
-      const payment = await stripe.paymentIntents.retrieve(paymentIntentId);
-      if (!isReportPayment(payment, normalizedWallet)) {
-        return NextResponse.json({ error: 'Payment not found for this wallet' }, { status: 404 });
-      }
-
-      if (payment.metadata.consumedAt) {
-        await stripe.paymentIntents.update(payment.id, {
-          metadata: {
-            consumedAt: '',
-            consumeToken: '',
-          },
-        });
-      }
-
-      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

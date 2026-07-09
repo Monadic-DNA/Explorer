@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
@@ -42,7 +42,6 @@ export default function OverviewReportPage() {
   const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null);
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
   const [purchasingReportType, setPurchasingReportType] = useState<PaidReportType | null>(null);
-  const consumedPassRef = useRef<Partial<Record<PaidReportType, string>>>({});
   const [tourOpen, setTourOpen] = useState(false);
   const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
 
@@ -188,42 +187,12 @@ export default function OverviewReportPage() {
       throw new Error(data.error || 'Could not use report pass');
     }
 
-    consumedPassRef.current[reportType] = data.consumedPaymentIntentId;
     setReportAccess(prev => ({
       ...prev,
       [reportType]: Math.max(0, prev[reportType] - 1),
     }));
 
     return true;
-  };
-
-  const releaseReportPass = async (reportType: PaidReportType) => {
-    const paymentIntentId = consumedPassRef.current[reportType];
-    if (!paymentIntentId || !walletAddress) return;
-
-    try {
-      const authToken = getAuthToken();
-      if (!authToken) return;
-
-      const response = await fetch('/api/report-access', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ walletAddress, paymentIntentId, action: 'release' }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        delete consumedPassRef.current[reportType];
-        setReportAccess(prev => ({
-          ...prev,
-          [reportType]: prev[reportType] + 1,
-        }));
-      }
-    } catch (error) {
-      console.error('Failed to release report pass:', error);
-    }
   };
 
   const handleGenerateReport = () => {
@@ -403,7 +372,6 @@ export default function OverviewReportPage() {
         hasPremiumAccess={hasPremiumAccess}
         hasOneTimeAccess={reportAccess.overview > 0}
         onConsumeOneTimeAccess={() => consumeReportPass('overview')}
-        onReleaseOneTimeAccess={() => releaseReportPass('overview')}
       />
       <HealthReportModal
         isOpen={showHealthReportModal}
@@ -414,14 +382,12 @@ export default function OverviewReportPage() {
         onClose={() => setShowHealthspanReportModal(false)}
         hasPremiumAccess={hasPremiumAccess}
         onConsumeOneTimeAccess={() => consumeReportPass('healthspan')}
-        onReleaseOneTimeAccess={() => releaseReportPass('healthspan')}
       />
       <TopTraitsReportModal
         isOpen={showTopTraitsReportModal}
         onClose={() => setShowTopTraitsReportModal(false)}
         hasPremiumAccess={hasPremiumAccess}
         onConsumeOneTimeAccess={() => consumeReportPass('top_traits')}
-        onReleaseOneTimeAccess={() => releaseReportPass('top_traits')}
       />
       <GuidedTour tour={overviewReportTour} isOpen={tourOpen} onClose={() => setTourOpen(false)} />
     </div>

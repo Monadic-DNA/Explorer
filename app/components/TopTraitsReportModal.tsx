@@ -16,7 +16,6 @@ interface TopTraitsReportModalProps {
   onClose: () => void;
   hasPremiumAccess?: boolean;
   onConsumeOneTimeAccess?: () => Promise<boolean>;
-  onReleaseOneTimeAccess?: () => Promise<void>;
 }
 
 export default function TopTraitsReportModal({
@@ -24,7 +23,6 @@ export default function TopTraitsReportModal({
   onClose,
   hasPremiumAccess = false,
   onConsumeOneTimeAccess,
-  onReleaseOneTimeAccess,
 }: TopTraitsReportModalProps) {
   const router = useRouter();
   const { savedResults } = useResults();
@@ -55,7 +53,6 @@ export default function TopTraitsReportModal({
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
-    let consumedPass = false;
     if (!hasPremiumAccess && onConsumeOneTimeAccess) {
       try {
         const consumed = await onConsumeOneTimeAccess();
@@ -71,7 +68,6 @@ export default function TopTraitsReportModal({
         inFlightRef.current = false;
         return;
       }
-      consumedPass = true;
     }
 
     setPhase('generating');
@@ -92,10 +88,6 @@ export default function TopTraitsReportModal({
       setPhase('complete');
       trackTopTraitsReportGenerated(res.selected.length);
     } catch (err) {
-      // Return the pass so a failed generation does not burn a paid run.
-      if (consumedPass && onReleaseOneTimeAccess) {
-        onReleaseOneTimeAccess().catch(() => {});
-      }
       const msg = err instanceof Error ? err.message : 'Generation failed.';
       setError(msg.includes('429') ? 'nilAI is rate-limited. The service retried automatically but is still overloaded. Wait 30-60 seconds and try again.' : msg);
       setPhase('error');

@@ -28,7 +28,6 @@ interface OverviewReportModalProps {
   hasPremiumAccess?: boolean;
   hasOneTimeAccess?: boolean;
   onConsumeOneTimeAccess?: () => Promise<boolean>;
-  onReleaseOneTimeAccess?: () => Promise<void>;
 }
 
 export default function OverviewReportModal({
@@ -37,7 +36,6 @@ export default function OverviewReportModal({
   hasPremiumAccess = false,
   hasOneTimeAccess = false,
   onConsumeOneTimeAccess,
-  onReleaseOneTimeAccess,
 }: OverviewReportModalProps) {
   const { savedResults } = useResults();
   const { customization } = useCustomization();
@@ -62,15 +60,6 @@ export default function OverviewReportModal({
     }
     generationInFlightRef.current = true;
 
-    let consumedPass = false;
-    // Return the pass so a failed generation does not burn a paid run.
-    const releaseConsumedPass = () => {
-      if (consumedPass && onReleaseOneTimeAccess) {
-        consumedPass = false;
-        onReleaseOneTimeAccess().catch(() => {});
-      }
-    };
-
     if (!hasPremiumAccess && onConsumeOneTimeAccess) {
       try {
         const consumed = await onConsumeOneTimeAccess();
@@ -92,7 +81,6 @@ export default function OverviewReportModal({
         generationInFlightRef.current = false;
         return;
       }
-      consumedPass = true;
     }
 
     setIsGenerating(true);
@@ -146,7 +134,6 @@ export default function OverviewReportModal({
             clearInterval(timerInterval);
             generationInFlightRef.current = false;
             setIsGenerating(false);
-            releaseConsumedPass();
           }
         }
       );
@@ -162,7 +149,6 @@ export default function OverviewReportModal({
       }));
       generationInFlightRef.current = false;
       setIsGenerating(false);
-      releaseConsumedPass();
     }
   };
 

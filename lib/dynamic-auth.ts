@@ -23,6 +23,36 @@ export interface WalletAuthResult {
   status?: number;
 }
 
+function credentialOwnsWallet(credential: any, normalizedWallet: string) {
+  return (
+    typeof credential?.address === 'string' &&
+    credential.address.toLowerCase() === normalizedWallet
+  );
+}
+
+function payloadOwnsWallet(payload: any, normalizedWallet: string) {
+  const credentialLists = [
+    payload.verifiedCredentials,
+    payload.verified_credentials,
+    payload.blockchainAccounts,
+    payload.blockchain_accounts,
+  ];
+
+  if (credentialOwnsWallet(payload.verifiedAccount, normalizedWallet)) {
+    return true;
+  }
+
+  if (credentialOwnsWallet(payload.verified_account, normalizedWallet)) {
+    return true;
+  }
+
+  return credentialLists.some(
+    credentials =>
+      Array.isArray(credentials) &&
+      credentials.some((credential: any) => credentialOwnsWallet(credential, normalizedWallet))
+  );
+}
+
 /**
  * Verifies that the request carries a valid Dynamic auth token whose
  * verified credentials include the given wallet address.
@@ -47,15 +77,8 @@ export async function verifyWalletAuth(
   try {
     const { payload } = await jwtVerify(token, getJwks(environmentId));
 
-    const credentials = (payload as any).verified_credentials;
     const normalizedWallet = walletAddress.toLowerCase();
-    const ownsWallet =
-      Array.isArray(credentials) &&
-      credentials.some(
-        (credential: any) =>
-          typeof credential?.address === 'string' &&
-          credential.address.toLowerCase() === normalizedWallet
-      );
+    const ownsWallet = payloadOwnsWallet(payload, normalizedWallet);
 
     if (!ownsWallet) {
       return { ok: false, error: 'Wallet does not belong to the authenticated user', status: 403 };
