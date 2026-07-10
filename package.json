@@ -4,10 +4,10 @@
   "description": "Match your DNA data against an open ended catalogue of DNA traits",
   "type": "module",
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .js,.jsx,.ts,.tsx --ignore-path .gitignore"
+    "lint": "eslint ."
   },
   "keywords": [],
   "author": "Monadic DNA / Recherché Inc",
@@ -16,9 +16,7 @@
     "@dynamic-labs/ethereum": "^4.48.2",
     "@dynamic-labs/ethereum-aa": "^4.48.2",
     "@dynamic-labs/sdk-react-core": "^4.48.2",
-    "@nillion/nilai-ts": "^0.3.0",
-    "@nillion/nuc": "^2.0.0",
-    "@nillion/secretvaults": "^2.0.0",
+    "@nillion/nilai-ts": "^0.3.1",
     "@stripe/react-stripe-js": "^6.0.0",
     "@stripe/stripe-js": "^9.0.0",
     "@types/crypto-js": "^4.2.2",
@@ -30,7 +28,7 @@
     "crypto-js": "^4.2.0",
     "ethers": "^6.13.4",
     "jose": "^6.2.3",
-    "next": "^16.2.1",
+    "next": "^16.2.10",
     "openai": "^6.7.0",
     "pako": "^2.1.0",
     "path-browserify": "^1.0.1",
@@ -50,10 +48,8 @@
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",
     "@types/sql.js": "^1.4.9",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^15.5.4",
-    "ignore-loader": "^0.1.2",
-    "node-loader": "^2.1.0",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.2.10",
     "typescript": "^5.9.2"
   },
   "packageManager": "yarn@4.9.1+sha512.f95ce356460e05be48d66401c1ae64ef84d163dd689964962c6888a9810865e39097a5e9de748876c2e0bf89b232d583c33982773e9903ae7a76257270986538"
