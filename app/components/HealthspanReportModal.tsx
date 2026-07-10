@@ -15,9 +15,16 @@ type Phase = 'idle' | 'generating' | 'complete' | 'error';
 interface HealthspanReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  hasPremiumAccess?: boolean;
+  onConsumeOneTimeAccess?: () => Promise<boolean>;
 }
 
-export default function HealthspanReportModal({ isOpen, onClose }: HealthspanReportModalProps) {
+export default function HealthspanReportModal({
+  isOpen,
+  onClose,
+  hasPremiumAccess = false,
+  onConsumeOneTimeAccess,
+}: HealthspanReportModalProps) {
   const router = useRouter();
   const { savedResults } = useResults();
   const { customization } = useCustomization();
@@ -46,6 +53,24 @@ export default function HealthspanReportModal({ isOpen, onClose }: HealthspanRep
   const handleGenerate = async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
+
+    if (!hasPremiumAccess && onConsumeOneTimeAccess) {
+      try {
+        const consumed = await onConsumeOneTimeAccess();
+        if (!consumed) {
+          setError('No paid report run is available for this wallet.');
+          setPhase('error');
+          inFlightRef.current = false;
+          return;
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not use paid report run.');
+        setPhase('error');
+        inFlightRef.current = false;
+        return;
+      }
+    }
+
     setPhase('generating');
     setMessage('Organizing results by healthspan domain…');
     setProgress(10);
@@ -113,6 +138,13 @@ export default function HealthspanReportModal({ isOpen, onClose }: HealthspanRep
 
   const handleClose = () => {
     if (phase === 'generating') return;
+    // A completed report exists only in memory, so confirm before discarding it.
+    if (phase === 'complete' && result) {
+      const confirmed = window.confirm(
+        'Close this report? It cannot be recovered. Use Copy or Print to save it first.'
+      );
+      if (!confirmed) return;
+    }
     setPhase('idle');
     setResult(null);
     setQuestions([]);

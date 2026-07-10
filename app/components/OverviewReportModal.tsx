@@ -3,11 +3,9 @@
 import { useRef, useState } from "react";
 import { useResults } from "./ResultsContext";
 import { useCustomization } from "./CustomizationContext";
-import { useAuth } from "./AuthProvider";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { trackOverviewReportGenerated } from "@/lib/analytics";
-import { hasValidPromoAccess } from "@/lib/promo-access";
 
 type GenerationPhase = 'idle' | 'map' | 'reduce' | 'complete' | 'error';
 
@@ -27,12 +25,20 @@ interface ProgressState {
 interface OverviewReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  hasPremiumAccess?: boolean;
+  hasOneTimeAccess?: boolean;
+  onConsumeOneTimeAccess?: () => Promise<boolean>;
 }
 
-export default function OverviewReportModal({ isOpen, onClose }: OverviewReportModalProps) {
+export default function OverviewReportModal({
+  isOpen,
+  onClose,
+  hasPremiumAccess = false,
+  hasOneTimeAccess = false,
+  onConsumeOneTimeAccess,
+}: OverviewReportModalProps) {
   const { savedResults } = useResults();
   const { customization } = useCustomization();
-  const { hasActiveSubscription } = useAuth();
 
   const [isGenerating, setIsGenerating] = useState(false);
   const generationInFlightRef = useRef(false);
@@ -53,6 +59,30 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
       return;
     }
     generationInFlightRef.current = true;
+
+    if (!hasPremiumAccess && onConsumeOneTimeAccess) {
+      try {
+        const consumed = await onConsumeOneTimeAccess();
+        if (!consumed) {
+          setProgress(prev => ({
+            ...prev,
+            phase: 'error',
+            error: 'No paid report run is available for this wallet.',
+          }));
+          generationInFlightRef.current = false;
+          return;
+        }
+      } catch (error) {
+        setProgress(prev => ({
+          ...prev,
+          phase: 'error',
+          error: error instanceof Error ? error.message : 'Could not use paid report run.',
+        }));
+        generationInFlightRef.current = false;
+        return;
+      }
+    }
+
     setIsGenerating(true);
     const start = Date.now();
     setStartTime(start);
@@ -506,6 +536,13 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   };
 
   const handleClose = () => {
+    // A completed report exists only in memory, so confirm before discarding it.
+    if (progress.phase === 'complete' && progress.finalReport) {
+      const confirmed = window.confirm(
+        'Close this report? It cannot be recovered. Use Copy to Clipboard or Print Report to save it first.'
+      );
+      if (!confirmed) return;
+    }
     // Reset state when closing modal to avoid showing stale data
     if (!isGenerating) {
       setProgress({
@@ -525,8 +562,7 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
   if (!isOpen) return null;
 
   // Check subscription
-  const hasPromoAccess = hasValidPromoAccess();
-  const isBlocked = !hasActiveSubscription && !hasPromoAccess;
+  const isBlocked = !hasPremiumAccess && !hasOneTimeAccess;
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -560,10 +596,10 @@ export default function OverviewReportModal({ isOpen, onClose }: OverviewReportM
             }}>
               <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>🔒 Premium Feature</h3>
               <p style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
-                Overview Report requires an active premium subscription.
+                Overview Report requires a premium subscription or a one-time report run.
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Try free for 7 days, then $4.99/month to unlock comprehensive analysis of all your genetic results.
+                Subscribe for $4.99/month, or run this report once for $4.99 from the Analyze page.
               </p>
             </div>
           ) : progress.phase === 'idle' ? (
