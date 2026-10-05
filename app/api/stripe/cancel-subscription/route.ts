@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 export async function POST(request: NextRequest) {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         cancelledSubscriptions.push(subscription.id);
         console.log(`[Stripe] Scheduled cancellation: ${subscription.id} for wallet ${walletAddress}`, {
           cancel_at_period_end: updated.cancel_at_period_end,
-          current_period_end: new Date(updated.current_period_end * 1000).toISOString(),
+          current_period_end: new Date(updated.items.data[0].current_period_end * 1000).toISOString(),
         });
       }
 

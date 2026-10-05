@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 async function getOrCreateCustomer(walletAddress: string) {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Create Stripe Checkout Session for subscription
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      allowed_payment_method_types: ['card'],
       mode: 'subscription', // Recurring subscription
       customer: customer.id,
       line_items: [

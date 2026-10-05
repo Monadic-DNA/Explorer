@@ -8,7 +8,7 @@ import Stripe from 'stripe';
 import { checkSubscription as checkBlockchainSubscription, SubscriptionStatus, PaymentRecord } from './subscription-indexer';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 const MONTHLY_PRICE = 4.99; // USD
@@ -83,7 +83,9 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
 
     // Find the subscription with the latest expiry (use trial_end for trialing subs)
     const subExpiry = (sub: Stripe.Subscription) =>
-      sub.status === 'trialing' && sub.trial_end ? sub.trial_end : sub.current_period_end;
+      sub.status === 'trialing' && sub.trial_end
+        ? sub.trial_end
+        : Math.max(...sub.items.data.map((item) => item.current_period_end));
 
     const latestSubscription = allSubscriptions.reduce((latest, sub) => {
       return subExpiry(sub) > subExpiry(latest) ? sub : latest;

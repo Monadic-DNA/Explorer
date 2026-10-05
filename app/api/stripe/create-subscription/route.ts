@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 export async function POST(request: NextRequest) {
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
         save_default_payment_method: 'on_subscription',
         payment_method_types: ['card'],
       },
-      expand: ['latest_invoice.payment_intent'],
+      expand: ['latest_invoice.confirmation_secret', 'latest_invoice.discounts'],
       metadata: {
         walletAddress: walletAddress.toLowerCase(),
       },
@@ -140,7 +140,10 @@ export async function POST(request: NextRequest) {
 
     // Get discount information if available
     let discountInfo = null;
-    if (invoice.discount || (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0)) {
+    const invoiceDiscount = invoice.discounts?.find(
+      (d): d is Stripe.Discount => typeof d !== 'string' && !d.deleted
+    );
+    if (invoiceDiscount || (invoice.total_discount_amounts && invoice.total_discount_amounts.length > 0)) {
       const discountAmount = invoice.total_discount_amounts?.[0]?.amount || 0;
       const originalAmount = invoice.subtotal || 0;
       const finalAmount = invoice.amount_due || 0;
@@ -149,22 +152,22 @@ export async function POST(request: NextRequest) {
         originalAmount: (originalAmount / 100).toFixed(2), // Convert cents to dollars
         discountAmount: (discountAmount / 100).toFixed(2),
         finalAmount: (finalAmount / 100).toFixed(2),
-        promotionCode: invoice.discount?.promotion_code || null,
+        promotionCode: invoiceDiscount?.promotion_code || null,
       };
 
       console.log(`[Stripe] Discount applied:`, discountInfo);
     }
 
-    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent | null;
+    const confirmationSecret = invoice.confirmation_secret?.client_secret;
 
-    // If there is no payment intent, for example a $0 invoice from a 100%
+    // If there is no confirmation secret, for example a $0 invoice from a 100%
     // discount, collect a payment method for future charges.
-    if (!paymentIntent) {
-      console.log(`[Stripe] No payment intent for $0 invoice - creating SetupIntent to collect payment method`);
+    if (!confirmationSecret) {
+      console.log(`[Stripe] No payment required for $0 invoice - creating SetupIntent to collect payment method`);
 
       const setupIntent = await stripe.setupIntents.create({
         customer: customer.id,
-        payment_method_types: ['card'],
+        allowed_payment_method_types: ['card'],
         metadata: {
           subscription_id: subscription.id,
           wallet_address: walletAddress.toLowerCase(),
@@ -183,20 +186,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (!paymentIntent.client_secret) {
-      console.error(`[Stripe] Payment intent exists but has no client_secret:`, paymentIntent.id);
-      return NextResponse.json(
-        { error: 'Failed to get payment client secret' },
-        { status: 500 }
-      );
-    }
-
-    console.log(`[Stripe] Payment intent: ${paymentIntent.id}, Status: ${paymentIntent.status}`);
-
     return NextResponse.json({
       success: true,
       subscriptionId: subscription.id,
-      clientSecret: paymentIntent.client_secret,
+      clientSecret: confirmationSecret,
       isSetupIntent: false,
       discount: discountInfo,
     });

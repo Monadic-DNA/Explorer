@@ -1,5 +1,5 @@
 // IndexedDB manager for GWAS Catalog local storage
-import pako from 'pako';
+import * as pako from 'pako';
 
 const DB_NAME = 'gwas-catalog';
 const DB_VERSION = 1;
