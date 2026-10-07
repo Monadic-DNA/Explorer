@@ -14,10 +14,11 @@
 // Import will fail during build/SSR, so we lazy load it
 let pipeline: any = null;
 let env: any = null;
+let device: 'cuda' | 'cpu' = 'cpu';
 
 async function loadTransformers() {
   if (!pipeline) {
-    const transformers = await import('@xenova/transformers');
+    const transformers = await import('@huggingface/transformers');
     pipeline = transformers.pipeline;
     env = transformers.env;
 
@@ -27,10 +28,10 @@ async function loadTransformers() {
 
     if (useCuda) {
       console.log('[Embedding] Attempting to use GPU (CUDA) for inference...');
-      env.backends.onnx.executionProviders = ['cuda', 'cpu'];
+      device = 'cuda';
     } else {
       console.log('[Embedding] Using CPU for inference');
-      env.backends.onnx.executionProviders = ['cpu'];
+      device = 'cpu';
     }
 
     // Configure cache directory
@@ -73,20 +74,27 @@ export class EmbeddingService {
       try {
         const { pipeline: pipelineFn } = await loadTransformers();
 
-        this.model = await pipelineFn(
-          'feature-extraction',
-          this.MODEL_NAME,
-          {
-            quantized: true, // Use quantized model (137 MB vs 550 MB)
-            progress_callback: (progress: any) => {
-              if (progress.status === 'downloading' && progress.progress) {
-                console.log(
-                  `[Embedding] Downloading: ${progress.file} (${progress.progress.toFixed(1)}%)`
-                );
-              }
-            },
-          }
-        );
+        const pipelineOptions = (selectedDevice: 'cuda' | 'cpu') => ({
+          device: selectedDevice,
+          dtype: 'q8', // Use quantized model (137 MB vs 550 MB)
+          progress_callback: (progress: any) => {
+            if (progress.status === 'progress' && progress.progress) {
+              console.log(
+                `[Embedding] Downloading: ${progress.file} (${progress.progress.toFixed(1)}%)`
+              );
+            }
+          },
+        });
+
+        try {
+          this.model = await pipelineFn('feature-extraction', this.MODEL_NAME, pipelineOptions(device));
+        } catch (error) {
+          if (device !== 'cuda') throw error;
+          // Fall back to CPU when CUDA is unavailable
+          console.warn('[Embedding] CUDA unavailable, falling back to CPU:', error);
+          device = 'cpu';
+          this.model = await pipelineFn('feature-extraction', this.MODEL_NAME, pipelineOptions(device));
+        }
 
         const elapsed = Date.now() - start;
         console.log(`[Embedding] Model loaded in ${elapsed}ms`);

@@ -5,7 +5,7 @@ import { isPaidReportType, PAID_REPORT_TYPES, PaidReportType } from '@/lib/repor
 import { verifyWalletAuth } from '@/lib/dynamic-auth';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 function validateWalletAddress(walletAddress: unknown): string | null {

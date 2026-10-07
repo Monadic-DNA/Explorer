@@ -122,7 +122,7 @@ export default function PremiumFeatureHeader({
                         <span>{subscriptionData?.daysRemaining} days remaining in current cycle</span>
                       )}
                       {subscriptionData?.expiresAt && (
-                        <span className="expires-date">Renews {new Date(subscriptionData.expiresAt).toLocaleDateString()}</span>
+                        <span className="expires-date">{subscriptionData.willRenew ? 'Renews' : 'Ends'} {new Date(subscriptionData.expiresAt).toLocaleDateString()}</span>
                       )}
                       {hasPromoAccess && (
                         <span>Promo access enabled</span>

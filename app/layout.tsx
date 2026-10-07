@@ -63,6 +63,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         {/* Theme Script - Must run before any rendering to prevent flash */}
+        {/* Kept as a raw inline script: next/script's beforeInteractive queues it until Next's
+            runtime loads, which is too late to prevent the flash. React logs a dev-only warning. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `

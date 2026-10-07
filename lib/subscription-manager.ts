@@ -8,7 +8,7 @@ import Stripe from 'stripe';
 import { checkSubscription as checkBlockchainSubscription, SubscriptionStatus, PaymentRecord } from './subscription-indexer';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 const MONTHLY_PRICE = 4.99; // USD
@@ -49,11 +49,22 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
 
     for (const customer of customers.data) {
       const [active, trialing] = await Promise.all([
-        stripe.subscriptions.list({ customer: customer.id, status: 'active', limit: 100 }),
+        stripe.subscriptions.list({ customer: customer.id, status: 'active', limit: 100, expand: ['data.latest_invoice'] }),
         stripe.subscriptions.list({ customer: customer.id, status: 'trialing', limit: 100 }),
       ]);
 
-      allSubscriptions.push(...active.data);
+      // A 100%-off promo makes the first invoice $0, which Stripe marks paid and activates
+      // immediately. Only count those once a card is saved for renewals.
+      for (const sub of active.data) {
+        const latestInvoice = sub.latest_invoice as Stripe.Invoice | null;
+        const paidNothing = latestInvoice?.amount_paid === 0;
+        const hasPaymentMethod = !!(sub.default_payment_method || customer.invoice_settings?.default_payment_method);
+        if (paidNothing && !hasPaymentMethod) {
+          console.log(`[Stripe Manager] Skipping $0 subscription ${sub.id} — no payment method attached`);
+        } else {
+          allSubscriptions.push(sub);
+        }
+      }
 
       // Only count trialing subscriptions that have a confirmed payment method attached.
       // Without a payment method the user abandoned the form before submitting card details,
@@ -83,7 +94,9 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
 
     // Find the subscription with the latest expiry (use trial_end for trialing subs)
     const subExpiry = (sub: Stripe.Subscription) =>
-      sub.status === 'trialing' && sub.trial_end ? sub.trial_end : sub.current_period_end;
+      sub.status === 'trialing' && sub.trial_end
+        ? sub.trial_end
+        : Math.max(...sub.items.data.map((item) => item.current_period_end));
 
     const latestSubscription = allSubscriptions.reduce((latest, sub) => {
       return subExpiry(sub) > subExpiry(latest) ? sub : latest;
@@ -130,6 +143,7 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
       totalDaysPurchased,
       totalPaid,
       payments: [paymentRecord],
+      willRenew: !latestSubscription.cancel_at_period_end && !latestSubscription.cancel_at,
     };
 
     console.log('[Stripe Manager] Returning subscription result:', {
@@ -250,6 +264,7 @@ export async function checkCombinedSubscription(walletAddress: string): Promise<
       totalDaysPurchased: blockchainSub.totalDaysPurchased + stripeSub.totalDaysPurchased,
       totalPaid: blockchainSub.totalPaid + stripeSub.totalPaid,
       payments: allPayments,
+      willRenew: activeSubscription.willRenew ?? false,
     };
 
     console.log('[Combined Check] User has active subscription:', {

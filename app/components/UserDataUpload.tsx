@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, createContext, useContext, useCallback, useEffect } from "react";
-import pako from "pako";
+import * as pako from "pako";
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
 import {

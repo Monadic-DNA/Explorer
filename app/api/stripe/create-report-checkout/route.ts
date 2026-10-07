@@ -7,7 +7,7 @@ import {
 } from '@/lib/report-access';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
-  apiVersion: '2025-02-24.acacia',
+  apiVersion: '2026-09-30.endive',
 });
 
 async function getOrCreateCustomer(walletAddress: string) {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     };
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+      allowed_payment_method_types: ['card'],
       mode: 'payment',
       customer: customer.id,
       line_items: [
