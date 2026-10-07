@@ -17,6 +17,7 @@ export interface SubscriptionStatus {
   totalDaysPurchased: number;
   totalPaid: number; // Total USD paid
   payments: PaymentRecord[];
+  willRenew?: boolean; // True when a Stripe subscription will renew at expiresAt
 }
 
 export interface PaymentRecord {

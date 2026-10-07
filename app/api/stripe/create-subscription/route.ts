@@ -40,15 +40,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create or retrieve customer
-    // Note: Stripe API doesn't support filtering customers by metadata in list()
-    // We need to search by email or create a new customer each time
-    // For this use case, we'll create a new customer per subscription
-    const customer = await stripe.customers.create({
+    // Reuse the wallet's existing customer so each visit to the form does not create a new one
+    const normalizedWallet = walletAddress.toLowerCase();
+    const existingCustomers = await stripe.customers.search({
+      query: `metadata['walletAddress']:'${normalizedWallet}'`,
+      limit: 1,
+    });
+    const customer = existingCustomers.data[0] ?? await stripe.customers.create({
       metadata: {
-        walletAddress: walletAddress.toLowerCase(),
+        walletAddress: normalizedWallet,
       },
     });
+
+    // Cancel abandoned attempts from earlier visits before starting a new one
+    const incompleteSubscriptions = await stripe.subscriptions.list({
+      customer: customer.id,
+      status: 'incomplete',
+      limit: 100,
+    });
+    for (const incomplete of incompleteSubscriptions.data) {
+      await stripe.subscriptions.cancel(incomplete.id);
+      console.log(`[Stripe] Cancelled abandoned incomplete subscription ${incomplete.id}`);
+    }
 
     // Validate promotion code if provided
     let promotion_code_id = undefined;

@@ -707,9 +707,17 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
       });
   }, [clientSecret, isInitializing, walletAddress]);
 
+  // initializePayment changes identity whenever its state changes, so guard the initial
+  // load to run once per wallet. Otherwise applying a promo code re-runs this effect and
+  // replaces the promo request with a no-promo one.
+  const initialLoadWalletRef = React.useRef<string | null>(null);
   React.useEffect(() => {
+    if (initialLoadWalletRef.current === walletAddress) {
+      return;
+    }
+    initialLoadWalletRef.current = walletAddress;
     initializePayment('');
-  }, [initializePayment]);
+  }, [initializePayment, walletAddress]);
 
   const handleApplyPromo = (code: string) => {
     trackStripePromoCodeApplied();

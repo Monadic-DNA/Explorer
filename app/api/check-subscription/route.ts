@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
         totalDaysPurchased: subscription.totalDaysPurchased,
         totalPaid: subscription.totalPaid,
         paymentCount: subscription.payments.length,
+        willRenew: subscription.willRenew ?? false,
       },
     });
   } catch (error) {

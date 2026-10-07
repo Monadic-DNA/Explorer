@@ -13,6 +13,7 @@ interface SubscriptionData {
   totalDaysPurchased: number;
   totalPaid: number;
   paymentCount: number;
+  willRenew?: boolean;
 }
 
 interface AuthContextType {
@@ -158,7 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const refreshSubscription = async (skipRetries = false) => {
+  // Memoized so effects that depend on it (like the purchase confirmation page) do not re-run on every render
+  const refreshSubscription = useCallback(async (skipRetries = false) => {
     const walletAddress = user?.verifiedCredentials?.find((c: any) => c.address)?.address;
     if (walletAddress) {
       // Clear any cached subscription data first
@@ -185,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('[AuthProvider] Retries skipped (manual refresh)');
       }
     }
-  };
+  }, [user, checkSubscription]);
 
   // Initialize Dynamic and trigger subscription check
   const initializeDynamic = useCallback(() => {

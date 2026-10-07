@@ -100,7 +100,9 @@ function SubscribeContent() {
             <p>
               Research in DNA Chat and all premium reports are unlocked.
               {subscriptionData?.expiresAt
-                ? ` Your current billing period renews ${new Date(subscriptionData.expiresAt).toLocaleDateString()}.`
+                ? subscriptionData.willRenew
+                  ? ` Your current billing period renews ${new Date(subscriptionData.expiresAt).toLocaleDateString()}.`
+                  : ` Your access ends ${new Date(subscriptionData.expiresAt).toLocaleDateString()}.`
                 : ""}
             </p>
             <div className="subscribe-actions">

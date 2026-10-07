@@ -49,11 +49,22 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
 
     for (const customer of customers.data) {
       const [active, trialing] = await Promise.all([
-        stripe.subscriptions.list({ customer: customer.id, status: 'active', limit: 100 }),
+        stripe.subscriptions.list({ customer: customer.id, status: 'active', limit: 100, expand: ['data.latest_invoice'] }),
         stripe.subscriptions.list({ customer: customer.id, status: 'trialing', limit: 100 }),
       ]);
 
-      allSubscriptions.push(...active.data);
+      // A 100%-off promo makes the first invoice $0, which Stripe marks paid and activates
+      // immediately. Only count those once a card is saved for renewals.
+      for (const sub of active.data) {
+        const latestInvoice = sub.latest_invoice as Stripe.Invoice | null;
+        const paidNothing = latestInvoice?.amount_paid === 0;
+        const hasPaymentMethod = !!(sub.default_payment_method || customer.invoice_settings?.default_payment_method);
+        if (paidNothing && !hasPaymentMethod) {
+          console.log(`[Stripe Manager] Skipping $0 subscription ${sub.id} — no payment method attached`);
+        } else {
+          allSubscriptions.push(sub);
+        }
+      }
 
       // Only count trialing subscriptions that have a confirmed payment method attached.
       // Without a payment method the user abandoned the form before submitting card details,
@@ -132,6 +143,7 @@ export async function checkStripeSubscription(walletAddress: string): Promise<Su
       totalDaysPurchased,
       totalPaid,
       payments: [paymentRecord],
+      willRenew: !latestSubscription.cancel_at_period_end && !latestSubscription.cancel_at,
     };
 
     console.log('[Stripe Manager] Returning subscription result:', {
@@ -252,6 +264,7 @@ export async function checkCombinedSubscription(walletAddress: string): Promise<
       totalDaysPurchased: blockchainSub.totalDaysPurchased + stripeSub.totalDaysPurchased,
       totalPaid: blockchainSub.totalPaid + stripeSub.totalPaid,
       payments: allPayments,
+      willRenew: activeSubscription.willRenew ?? false,
     };
 
     console.log('[Combined Check] User has active subscription:', {

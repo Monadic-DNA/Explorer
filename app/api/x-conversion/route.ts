@@ -24,10 +24,8 @@ export async function POST(request: NextRequest) {
 
     if (!pixelId || !accessToken) {
       console.warn('[X Conversion] X API not configured');
-      return NextResponse.json(
-        { error: 'X Conversions API not configured' },
-        { status: 500 }
-      );
+      // Tracking is optional, so an unconfigured environment is not an error
+      return NextResponse.json({ success: false, skipped: 'X Conversions API not configured' });
     }
 
     // Extract match keys from request
@@ -90,9 +88,11 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[X Conversion] API error:', response.status, errorText);
+      // 502 because the ad platform rejected the event; passing its status through
+      // made auth failures upstream look like auth failures on this endpoint
       return NextResponse.json(
-        { error: 'Failed to send conversion event' },
-        { status: response.status }
+        { error: 'Failed to send conversion event', upstreamStatus: response.status },
+        { status: 502 }
       );
     }
 
