@@ -12,10 +12,13 @@ export type EmbeddingKey = {
 
 let SQL: SqlJsStatic | null = null;
 
+// Keep in sync with the installed sql.js version so the JS and wasm files match
+const SQL_JS_VERSION = '1.14.2';
+
 async function initSQL() {
   if (!SQL) {
     SQL = await initSqlJs({
-      locateFile: file => `https://sql.js.org/dist/${file}`
+      locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@${SQL_JS_VERSION}/dist/${file}`
     });
   }
   return SQL;

@@ -2,7 +2,6 @@
 
 import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
-import { ZeroDevSmartWalletConnectors } from '@dynamic-labs/ethereum-aa';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { trackSignInStarted, trackUserLoggedIn, trackUserLoggedOut } from '@/lib/analytics';
 import { hasValidPromoAccess } from '@/lib/promo-access';
@@ -302,7 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <DynamicContextProvider
       settings={{
         environmentId: environmentId,
-        walletConnectors: [EthereumWalletConnectors, ZeroDevSmartWalletConnectors],
+        walletConnectors: [EthereumWalletConnectors],
         events: {
           onLogout: () => {
             trackUserLoggedOut();

@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@dynamic-labs/ethereum": "^5.9.4",
-    "@dynamic-labs/ethereum-aa": "^5.9.4",
     "@dynamic-labs/sdk-react-core": "^5.9.4",
     "@huggingface/transformers": "^4.3.0",
     "@nillion/nilai-ts": "^0.3.1",
