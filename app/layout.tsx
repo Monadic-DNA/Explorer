@@ -6,6 +6,8 @@ import { GenotypeProvider } from "./components/UserDataUpload";
 import { ResultsProvider } from "./components/ResultsContext";
 import { CustomizationProvider } from "./components/CustomizationContext";
 import MobileCompatibilityNotice from "./components/MobileCompatibilityNotice";
+import { VaultProvider } from "./components/VaultContext";
+import VaultUnlockModal from "./components/VaultUnlockModal";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -116,14 +118,17 @@ export default function RootLayout({
       </head>
       <body>
         <AuthProvider>
-          <GenotypeProvider>
-            <ResultsProvider>
-              <CustomizationProvider>
-                <MobileCompatibilityNotice />
-                {children}
-              </CustomizationProvider>
-            </ResultsProvider>
-          </GenotypeProvider>
+          <VaultProvider>
+            <GenotypeProvider>
+              <ResultsProvider>
+                <CustomizationProvider>
+                  <MobileCompatibilityNotice />
+                  <VaultUnlockModal />
+                  {children}
+                </CustomizationProvider>
+              </ResultsProvider>
+            </GenotypeProvider>
+          </VaultProvider>
         </AuthProvider>
       </body>
     </html>

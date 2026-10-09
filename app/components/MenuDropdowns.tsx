@@ -10,12 +10,16 @@ export function MyDataDropdown({
   isUploaded,
   genotypeData,
   UserDataUploadComponent,
+  hasSavedData,
+  onDeleteSavedData,
 }: {
   isOpen: boolean;
   onClose: () => void;
   isUploaded: boolean;
   genotypeData: { size: number } | null;
   UserDataUploadComponent: React.ComponentType;
+  hasSavedData: boolean;
+  onDeleteSavedData: () => void;
 }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +54,21 @@ export function MyDataDropdown({
           <UserDataUploadComponent />
         </div>
 
+        {hasSavedData && (
+          <div className="dropdown-actions">
+            <button
+              className="control-button clear"
+              onClick={() => {
+                onDeleteSavedData();
+                onClose();
+              }}
+              title="Delete the encrypted data saved in this browser"
+            >
+              <TrashIcon size={14} /> Delete Saved Data on This Device
+            </button>
+          </div>
+        )}
+
         {!isUploaded && (
           <div className="data-info-section">
             <div className="info-block">
@@ -59,7 +78,7 @@ export function MyDataDropdown({
 
             <div className="info-block">
               <h4>🔒 Privacy & Security</h4>
-              <p>Your DNA file never leaves your device. All processing happens locally in your browser. We never store or transmit your genetic data.</p>
+              <p>Your DNA file never leaves your device. All processing happens locally in your browser. We never store or transmit your genetic data. If you click Save, an encrypted copy is kept in this browser and only your passphrase can open it.</p>
             </div>
 
             <div className="info-block">
@@ -195,6 +214,7 @@ export function ResultsDropdown({
             <p><strong>Load:</strong> Import previously exported results from a TSV file</p>
             <p><strong>Export:</strong> Save your results to a TSV file for backup or sharing</p>
             <p><strong>Clear:</strong> Remove all cached results from your browser</p>
+            <p><strong>Save:</strong> Use the Save button in the menu bar to keep your DNA data and results in this browser, encrypted with your passphrase</p>
           </div>
 
           <div className="info-block">

@@ -3,10 +3,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from "react";
 import { SavedResult, SavedSession, ResultsManager } from "@/lib/results-manager";
 import { resultsDB } from "@/lib/results-database";
-import {
-  isDevModeEnabled,
-  selectAndSaveResultsFile,
-} from "@/lib/dev-mode";
 import { trackResultsFileLoaded, trackResultsFileSaved } from "@/lib/analytics";
 
 type ResultsContextType = {
@@ -18,6 +14,7 @@ type ResultsContextType = {
   clearResults: () => Promise<void>;
   saveToFile: (genotypeSize?: number, genotypeHash?: string) => void;
   loadFromFile: (currentFileHash?: string | null) => Promise<void>;
+  restoreResults: (results: SavedResult[]) => Promise<void>;
   hasResult: (studyId: number) => boolean;
   getResult: (studyId: number) => SavedResult | undefined;
   getResultByGwasId: (gwasId: string) => SavedResult | undefined;
@@ -49,7 +46,8 @@ function clearResultsSessionFlag() {
 }
 
 export function ResultsProvider({ children }: { children: ReactNode }) {
-  // SECURITY: Results stored in memory only (in SQL.js in-memory database), cleared on session end
+  // SECURITY: Results stored in memory (SQL.js in-memory database), cleared on session end.
+  // The only persisted copy is the encrypted on-device vault, written when the user clicks Save.
   const [savedResults, setSavedResults] = useState<SavedResult[]>([]);
   const [resultsVersion, setResultsVersion] = useState(0);
   const [onResultsLoaded, setOnResultsLoaded] = useState<(() => void) | undefined>();
@@ -69,8 +67,6 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
     setSavedResults(results);
     setResultsVersion(v => v + 1); // Increment version for efficient change detection
   };
-
-  // No localStorage loading - data is memory-only
 
   const addResult = async (result: SavedResult) => {
     await resultsDB.insertResult(result);
@@ -104,23 +100,22 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       results: savedResults
     };
 
-    // Dev mode: Use File System Access API to save and remember the file
-    if (isDevModeEnabled()) {
-      console.log('[Dev Mode] Using File System Access API to save results...');
-      const file = await selectAndSaveResultsFile();
-      if (file) {
-        console.log('[Dev Mode] ✓ Results file handle saved for auto-load');
-        // Still use the regular save method as well
-        ResultsManager.saveResultsToFile(session);
-        return;
-      }
-    }
-
-    // Regular save
     ResultsManager.saveResultsToFile(session);
 
     // Track results file save
     trackResultsFileSaved(savedResults.length);
+  };
+
+  // Replaces in-memory results, used by file load and by the on-device vault
+  const restoreResults = async (results: SavedResult[]) => {
+    await resultsDB.clear();
+    await resultsDB.insertResultsBatch(results);
+    if (results.length > 0) markResultsSessionStarted();
+    await syncFromDatabase();
+
+    if (onResultsLoaded) {
+      onResultsLoaded();
+    }
   };
 
   const loadFromFile = async (currentFileHash?: string | null) => {
@@ -140,21 +135,10 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Load into SQL database
-      await resultsDB.clear();
-      await resultsDB.insertResultsBatch(session.results);
-      if (session.results.length > 0) markResultsSessionStarted();
-      await syncFromDatabase();
-
-      // SECURITY: No longer saving to localStorage
+      await restoreResults(session.results);
 
       // Track results file load
       trackResultsFileLoaded(session.results.length);
-
-      // Call the callback if it exists
-      if (onResultsLoaded) {
-        onResultsLoaded();
-      }
     } catch (error) {
       console.error('Failed to load results:', error);
       throw error;
@@ -187,6 +171,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       clearResults,
       saveToFile,
       loadFromFile,
+      restoreResults,
       hasResult,
       getResult,
       getResultByGwasId,

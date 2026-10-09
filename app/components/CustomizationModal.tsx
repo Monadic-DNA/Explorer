@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useCustomization, UserCustomization } from "./CustomizationContext";
+import { MIN_PASSPHRASE_LENGTH } from "./VaultContext";
 import { trackPersonalizationUpdated } from "@/lib/analytics";
 
 type CustomizationModalProps = {
@@ -11,7 +12,7 @@ type CustomizationModalProps = {
 };
 
 export default function CustomizationModal({ isOpen, onClose }: CustomizationModalProps) {
-  const { customization, status, saveCustomization, unlockCustomization, lockCustomization, clearCustomization } = useCustomization();
+  const { customization, status, needsPassword, vaultExists, saveCustomization, unlockCustomization, lockCustomization, clearCustomization } = useCustomization();
 
   const [isUnlockMode, setIsUnlockMode] = useState(false);
   const [password, setPassword] = useState('');
@@ -95,7 +96,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
       setPassword('');
       onClose(); // Close modal immediately after successful unlock
     } else {
-      setError('Incorrect password');
+      setError('Incorrect passphrase');
     }
   };
 
@@ -103,18 +104,18 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
     e.preventDefault();
     setError(null);
 
-    // Validate password for new customization
-    if (status === 'not-set' || status === 'unlocked') {
+    // A passphrase is only needed when the vault is locked or does not exist yet
+    if (needsPassword) {
       if (!password) {
-        setError('Password is required');
+        setError('Passphrase is required');
         return;
       }
-      if (password.length < 6) {
-        setError('Password must be at least 6 characters');
+      if (!vaultExists && password.length < MIN_PASSPHRASE_LENGTH) {
+        setError(`Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters`);
         return;
       }
-      if (password !== confirmPassword) {
-        setError('Passwords do not match');
+      if (!vaultExists && password !== confirmPassword) {
+        setError('Passphrases do not match');
         return;
       }
     }
@@ -137,7 +138,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         diet: diet as any,
       };
 
-      await saveCustomization(data, password);
+      await saveCustomization(data, needsPassword ? password : undefined);
 
       // Track personalization update
       trackPersonalizationUpdated();
@@ -172,9 +173,9 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
     onClose();
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (confirm('Are you sure you want to delete all customization data? This cannot be undone.')) {
-      clearCustomization();
+      await clearCustomization();
       onClose();
     }
   };
@@ -193,20 +194,20 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
           <div className="customization-info">
             <p>
               Provide personal information to help the LLM give more relevant interpretations.
-              Your data is encrypted with your password and stored only in your browser.
+              Your data is encrypted with your passphrase and stored only in this browser. The same passphrase protects any DNA data you save on this device.
             </p>
           </div>
 
           {isUnlockMode ? (
             <form onSubmit={handleUnlock}>
               <div className="form-group">
-                <label htmlFor="unlock-password">Enter Password to Unlock</label>
+                <label htmlFor="unlock-password">Enter Passphrase to Unlock</label>
                 <input
                   type="password"
                   id="unlock-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder="Enter your passphrase"
                   autoFocus
                 />
               </div>
@@ -394,30 +395,36 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                 </select>
               </div>
 
-              <div className="form-group password-section">
-                <label htmlFor="password">
-                  {status === 'unlocked' ? 'Current Password' : 'Create Password'}
-                  <span className="field-hint">Minimum 6 characters - you'll need this to access your data</span>
-                </label>
-                <input
-                  type="password"
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  required
-                />
-              </div>
+              {needsPassword && (
+                <div className="form-group password-section">
+                  <label htmlFor="password">
+                    {vaultExists ? 'Saved Data Passphrase' : 'Create Passphrase'}
+                    <span className="field-hint">
+                      {vaultExists
+                        ? 'Enter the passphrase you use for saved data on this device'
+                        : `Minimum ${MIN_PASSPHRASE_LENGTH} characters. It cannot be recovered if you forget it.`}
+                    </span>
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter passphrase"
+                    required
+                  />
+                </div>
+              )}
 
-              {(status === 'not-set' || password) && (
+              {needsPassword && !vaultExists && (
                 <div className="form-group">
-                  <label htmlFor="confirm-password">Confirm Password</label>
+                  <label htmlFor="confirm-password">Confirm Passphrase</label>
                   <input
                     type="password"
                     id="confirm-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter password"
+                    placeholder="Re-enter passphrase"
                     required
                   />
                 </div>
@@ -441,10 +448,10 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                     Cancel
                   </button>
                 )}
-                <button type="submit" className="disclaimer-button primary" disabled={isSaving || !password}>
+                <button type="submit" className="disclaimer-button primary" disabled={isSaving || (needsPassword && !password)}>
                   {isSaving ? 'Saving...' : 'Save & Encrypt'}
                 </button>
-                <button type="button" className="disclaimer-button primary" onClick={handleSaveAndClose} disabled={isSaving || !password}>
+                <button type="button" className="disclaimer-button primary" onClick={handleSaveAndClose} disabled={isSaving || (needsPassword && !password)}>
                   Save & Close
                 </button>
               </div>

@@ -20,10 +20,17 @@ We do not:
 
 ### 2.1 Genetic Data
 - Processed **locally** in your browser or **temporarily in memory** for variant matching.
-- Automatically deleted when the session ends.
+- Automatically deleted when the session ends, unless you choose to save it on your device as described below.
 - Never logged, stored, or backed up on our servers.
 
-Analysis results (containing specific matched SNPs and calculated risk scores, not your full genetic file) are kept **in memory only** during your active session and are **not** persisted to browser local storage, cookies, or any other storage mechanism. Results are automatically erased when you close your browser tab or navigate away from the application.
+By default, analysis results (containing specific matched SNPs and calculated risk scores, not your full genetic file) are kept **in memory only** during your active session and are erased when you close your browser tab or navigate away from the application.
+
+### 2.2 Optional Saving on Your Device
+If you click **Save**, your parsed genetic data and analysis results are encrypted in your browser with a passphrase you choose (AES-256-GCM, with the key derived from your passphrase using PBKDF2) and stored in your browser's local storage (IndexedDB) on that device only. Personalization details you enter are stored the same way, under the same passphrase.
+- The encrypted data never leaves your device and is never sent to our servers.
+- Your passphrase is never stored or transmitted. We cannot recover it or your saved data if you forget it.
+- You can delete saved data at any time from the My Data menu or when prompted for your passphrase. Clearing your browser's site data also deletes it.
+- Anyone who knows your passphrase and can use your browser can open the saved data, so avoid saving on shared computers.
 
 If you wish to preserve your results for future reference, you may manually export them as a JSON file to your local device. Exported files are stored entirely under your control, and you are responsible for their secure handling. We recommend:
 - Storing exported files on encrypted storage
@@ -32,7 +39,7 @@ If you wish to preserve your results for future reference, you may manually expo
 
 We do **not** retain, sell, or share genetic data with any party.
 
-### 2.2 Analytics Data
+### 2.3 Analytics Data
 We use **Google Analytics** to understand overall usage patterns and improve performance.  
 Analytics data includes:
 - Browser and OS type
@@ -50,7 +57,7 @@ You can opt out anytime using browser settings or the [Google Analytics Opt-Out 
 
 We do not combine analytics data with uploaded genetic data.
 
-### 2.3 No Personal or Contact Information
+### 2.4 No Personal or Contact Information
 We do not collect names, emails, phone numbers, or any persistent identifiers.  
 We cannot send individualized messages or alerts.
 
@@ -87,8 +94,8 @@ We configure it to minimize data collection and prevent identification.
 
 ## 5. Data Retention
 
-- Genetic data and analysis results are stored in memory only and automatically deleted at session end.
-- No genetic data or analysis results are persisted to browser storage, databases, or file systems.
+- Genetic data and analysis results are stored in memory only and automatically deleted at session end, unless you choose to save them on your device (Section 2.2).
+- Saved data is kept encrypted in your browser until you delete it. No genetic data or analysis results are stored in our databases or file systems.
 - Manually exported result files are stored entirely on your local device under your control; we have no access to or responsibility for these files.
 - Analytics data is retained only in aggregate form by Google Analytics under their standard data retention limits (typically 2–14 months).
 - No backups or logs containing genetic data are maintained.
