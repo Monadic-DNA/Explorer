@@ -5,6 +5,7 @@ import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { trackSignInStarted, trackUserLoggedIn, trackUserLoggedOut } from '@/lib/analytics';
 import { hasValidPromoAccess } from '@/lib/promo-access';
+import { ReplyCorpBridge } from './ReplyCorpConnect';
 
 interface SubscriptionData {
   isActive: boolean;
@@ -292,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           openAuthModal: () => {},
         }}
       >
+        <ReplyCorpBridge walletAddress={user?.verifiedCredentials?.find((c: any) => c.address)?.address ?? null} />
         {children}
       </AuthContext.Provider>
     );
