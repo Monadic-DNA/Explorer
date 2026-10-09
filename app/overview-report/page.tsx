@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import MenuBar from "../components/MenuBar";
 import Footer from "../components/Footer";
@@ -13,6 +13,7 @@ import TopTraitsReportModal from "../components/TopTraitsReportModal";
 import { OverviewReportIcon } from "../components/Icons";
 import { useAuth } from "../components/AuthProvider";
 import { getAuthToken } from "@dynamic-labs/sdk-react-core";
+import { ReplyCorpConnectOffer, reportReplyCorpPurchase } from "../components/ReplyCorpConnect";
 import { useResults } from "../components/ResultsContext";
 import { hasValidPromoAccess } from "@/lib/promo-access";
 import GuidedTour from "../components/GuidedTour";
@@ -82,6 +83,13 @@ export default function OverviewReportPage() {
     // Remove the purchase params so a refresh does not replay the banner.
     router.replace(window.location.pathname, { scroll: false });
   }, [router]);
+
+  const reportedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!checkoutSessionId || !walletAddress || reportedSessionRef.current === checkoutSessionId) return;
+    reportedSessionRef.current = checkoutSessionId;
+    reportReplyCorpPurchase(walletAddress, { checkoutSessionId });
+  }, [checkoutSessionId, walletAddress]);
 
   useEffect(() => {
     const refreshReportAccess = async () => {
@@ -309,6 +317,8 @@ export default function OverviewReportPage() {
               </button>
             </div>
           </div>
+
+          {!hasPremiumAccess && <ReplyCorpConnectOffer />}
 
           {/* Healthspan Report */}
           <div className="overview-report-panel" style={{ marginTop: '1rem' }}>

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getOrCreateWalletCustomer } from '@/lib/stripe-customers';
+import { getXConnectCouponId, hasConnectedX, METADATA_SUBSCRIPTION_DISCOUNT_USED } from '@/lib/replycorp';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
   apiVersion: '2026-09-30.endive',
@@ -42,15 +44,7 @@ export async function POST(request: NextRequest) {
 
     // Reuse the wallet's existing customer so each visit to the form does not create a new one
     const normalizedWallet = walletAddress.toLowerCase();
-    const existingCustomers = await stripe.customers.search({
-      query: `metadata['walletAddress']:'${normalizedWallet}'`,
-      limit: 1,
-    });
-    const customer = existingCustomers.data[0] ?? await stripe.customers.create({
-      metadata: {
-        walletAddress: normalizedWallet,
-      },
-    });
+    const customer = await getOrCreateWalletCustomer(stripe, normalizedWallet);
 
     // Cancel abandoned attempts from earlier visits before starting a new one
     const incompleteSubscriptions = await stripe.subscriptions.list({
@@ -135,6 +129,14 @@ export async function POST(request: NextRequest) {
       console.log(`[Stripe] Adding promotion code ${promotion_code_id} to subscription via discounts array`);
     }
 
+    // Users who connected X get 10% off their first month, unless they entered a promo code
+    let xConnectDiscount = false;
+    if (!promotion_code_id && hasConnectedX(customer) && !customer.metadata?.[METADATA_SUBSCRIPTION_DISCOUNT_USED]) {
+      subscriptionParams.discounts = [{ coupon: await getXConnectCouponId(stripe) }];
+      xConnectDiscount = true;
+      console.log(`[Stripe] Applying X connect discount to subscription for ${normalizedWallet}`);
+    }
+
     const subscription = await stripe.subscriptions.create(subscriptionParams);
 
     console.log(`[Stripe] Created subscription: ${subscription.id} for wallet ${walletAddress}`);
@@ -166,6 +168,7 @@ export async function POST(request: NextRequest) {
         discountAmount: (discountAmount / 100).toFixed(2),
         finalAmount: (finalAmount / 100).toFixed(2),
         promotionCode: invoiceDiscount?.promotion_code || null,
+        xConnectDiscount,
       };
 
       console.log(`[Stripe] Discount applied:`, discountInfo);

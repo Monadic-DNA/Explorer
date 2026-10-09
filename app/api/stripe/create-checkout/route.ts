@@ -1,26 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getOrCreateWalletCustomer } from '@/lib/stripe-customers';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
   apiVersion: '2026-09-30.endive',
 });
 
-async function getOrCreateCustomer(walletAddress: string) {
-  const normalizedWallet = walletAddress.toLowerCase();
-  const existingCustomers = await stripe.customers.search({
-    query: `metadata['walletAddress']:'${normalizedWallet}'`,
-    limit: 1,
-  });
-
-  if (existingCustomers.data[0]) {
-    return existingCustomers.data[0];
-  }
-
-  return stripe.customers.create({
-    metadata: {
-      walletAddress: normalizedWallet,
-    },
-  });
+function getOrCreateCustomer(walletAddress: string) {
+  return getOrCreateWalletCustomer(stripe, walletAddress);
 }
 
 export async function POST(request: NextRequest) {

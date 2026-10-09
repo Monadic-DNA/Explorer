@@ -1,31 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getOrCreateWalletCustomer } from '@/lib/stripe-customers';
 import {
   isPaidReportType,
   ONE_TIME_REPORT_PRICE_CENTS,
   PAID_REPORT_LABELS,
 } from '@/lib/report-access';
+import { getXConnectCouponId, hasConnectedX, METADATA_REPORT_DISCOUNT_USED } from '@/lib/replycorp';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
   apiVersion: '2026-09-30.endive',
 });
 
-async function getOrCreateCustomer(walletAddress: string) {
-  const normalizedWallet = walletAddress.toLowerCase();
-  const existingCustomers = await stripe.customers.search({
-    query: `metadata['walletAddress']:'${normalizedWallet}'`,
-    limit: 1,
-  });
-
-  if (existingCustomers.data[0]) {
-    return existingCustomers.data[0];
-  }
-
-  return stripe.customers.create({
-    metadata: {
-      walletAddress: normalizedWallet,
-    },
-  });
+function getOrCreateCustomer(walletAddress: string) {
+  return getOrCreateWalletCustomer(stripe, walletAddress);
 }
 
 export async function POST(request: NextRequest) {
@@ -66,7 +54,11 @@ export async function POST(request: NextRequest) {
       purpose: 'report_one_time',
     };
 
+    // Users who connected X get 10% off their first one-time report
+    const xConnectDiscount = hasConnectedX(customer) && !customer.metadata?.[METADATA_REPORT_DISCOUNT_USED];
+
     const session = await stripe.checkout.sessions.create({
+      ...(xConnectDiscount && { discounts: [{ coupon: await getXConnectCouponId(stripe) }] }),
       allowed_payment_method_types: ['card'],
       mode: 'payment',
       customer: customer.id,

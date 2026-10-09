@@ -5,6 +5,7 @@ import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { parseUnits, encodeFunctionData, createPublicClient, http, formatUnits } from 'viem';
 import { mainnet, sepolia } from 'viem/chains';
 import StripeSubscriptionForm from './StripeSubscriptionForm';
+import { ReplyCorpConnectOffer } from './ReplyCorpConnect';
 import {
   trackCheckoutFailed,
   trackCheckoutStarted,
@@ -416,6 +417,8 @@ export default function PaymentModal({ isOpen = true, onClose, onSuccess, displa
           <div className="payment-step">
             <h3>How would you like to subscribe?</h3>
             <p className="step-description">Choose a payment method</p>
+
+            <ReplyCorpConnectOffer />
 
             {error && (
               <div className="error-message">

@@ -9,6 +9,7 @@ import {
   trackCheckoutSubmitted,
   trackStripePromoCodeApplied,
 } from '@/lib/analytics';
+import { reportReplyCorpPurchase } from './ReplyCorpConnect';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -29,6 +30,7 @@ interface DiscountInfo {
   discountAmount: string;
   finalAmount: string;
   promotionCode: string | null;
+  xConnectDiscount?: boolean;
 }
 
 interface SubscriptionFormProps {
@@ -191,11 +193,13 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
           </div>
         </div>
 
-        {couponCode && discount && (
+        {discount && (couponCode || discount.xConnectDiscount) && (
           <div className="promo-applied">
             <div className="promo-header">
               <span className="promo-icon">🎉</span>
-              <span className="promo-text">Promo code "{couponCode}" applied!</span>
+              <span className="promo-text">
+                {couponCode ? `Promo code "${couponCode}" applied!` : '10% off your first month for connecting X'}
+              </span>
             </div>
             <div className="promo-details">
               <div className="promo-row">
@@ -211,7 +215,7 @@ function SubscriptionForm({ clientSecret, walletAddress, couponCode, discount, i
               </div>
             </div>
             <div className="promo-note">
-              Then $4.99/month after the promotional period
+              Then $4.99/month after {couponCode ? 'the promotional period' : 'the first month'}
             </div>
           </div>
         )}
@@ -719,6 +723,13 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
     initializePayment('');
   }, [initializePayment, walletAddress]);
 
+  const handleSuccess = () => {
+    if (subscriptionId) {
+      reportReplyCorpPurchase(walletAddress, { subscriptionId });
+    }
+    onSuccess();
+  };
+
   const handleApplyPromo = (code: string) => {
     trackStripePromoCodeApplied();
     initializePayment(code);
@@ -848,7 +859,7 @@ export default function StripeSubscriptionForm({ walletAddress, onSuccess, onCan
           isSetupIntent={isSetupIntent}
           subscriptionId={subscriptionId}
           customerId={customerId}
-          onSuccess={onSuccess}
+          onSuccess={handleSuccess}
           onCancel={onCancel}
           onApplyPromo={handleApplyPromo}
         />
