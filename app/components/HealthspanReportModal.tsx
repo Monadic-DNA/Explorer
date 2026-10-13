@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import { DOMAIN_LABELS } from "@/lib/healthspan-report-service";
 import type { HealthspanReportResult } from "@/lib/healthspan-report-service";
 import { trackHealthspanReportGenerated, trackReportOpenedInChat } from "@/lib/analytics";
+import { setPendingReport } from "@/lib/report-handoff";
 
 type Phase = 'idle' | 'generating' | 'complete' | 'error';
 
@@ -132,7 +133,7 @@ export default function HealthspanReportModal({
   const handleOpenInChat = (question?: string) => {
     if (!result?.report) return;
     trackReportOpenedInChat('healthspan', !!question);
-    localStorage.setItem('health_report_context', result.report);
+    setPendingReport(result.report);
     router.push(question ? `/dna-chat?q=${encodeURIComponent(question)}` : '/dna-chat');
   };
 

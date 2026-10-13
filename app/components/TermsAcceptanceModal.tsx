@@ -37,9 +37,9 @@ export default function TermsAcceptanceModal({ isOpen, onAccept }: TermsAcceptan
               <ul>
                 <li><strong>Educational & Research Use Only:</strong> This tool is for educational and research purposes, not medical advice or diagnosis.</li>
                 <li><strong>Privacy First:</strong> Your genetic data is processed entirely in your browser and never sent to our servers.</li>
-                <li><strong>No Data Storage:</strong> We do not store your raw genetic data. Results you save are stored locally in your browser only.</li>
+                <li><strong>No Data Storage:</strong> We do not store your genetic data or results on our servers. If you click Save, they are encrypted with your passphrase and kept in this browser only.</li>
                 <li><strong>Age Requirement:</strong> You must be 18 years or older to use this service.</li>
-                <li><strong>Third-Party Services:</strong> Optional LLM analysis uses Nillion's privacy-preserving technology. We use Google Analytics for anonymized usage statistics.</li>
+                <li><strong>Third-Party Services:</strong> Optional LLM analysis uses Nillion's privacy-preserving technology by default. We use Google Analytics and advertising measurement from Google, Reddit, and X. They never receive your genetic data.</li>
               </ul>
             </div>
 

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         try {
           return await embeddingService.embed(text);
         } catch (error) {
-          console.error(`[Embeddings API] Failed to generate embedding for: "${text}"`, error);
+          console.error(`[Embeddings API] Failed to generate embedding`, error);
           return null;
         }
       })

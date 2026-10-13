@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { TopTraitsReportResult } from "@/lib/top-traits-report-service";
 import { trackTopTraitsReportGenerated, trackReportOpenedInChat } from "@/lib/analytics";
+import { setPendingReport } from "@/lib/report-handoff";
 
 type Phase = 'idle' | 'generating' | 'complete' | 'error';
 
@@ -130,7 +131,7 @@ export default function TopTraitsReportModal({
   const handleOpenInChat = (question?: string) => {
     if (!result?.report) return;
     trackReportOpenedInChat('top_traits', !!question);
-    localStorage.setItem('health_report_context', result.report);
+    setPendingReport(result.report);
     router.push(question ? `/dna-chat?q=${encodeURIComponent(question)}` : '/dna-chat');
   };
 

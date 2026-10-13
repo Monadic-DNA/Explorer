@@ -147,7 +147,7 @@ export class EmbeddingService {
 
       const elapsed = Date.now() - start;
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[Embedding] Generated in ${elapsed}ms for: "${query}"`);
+        console.log(`[Embedding] Generated in ${elapsed}ms`);
       }
 
       // Store in in-memory cache (LRU)

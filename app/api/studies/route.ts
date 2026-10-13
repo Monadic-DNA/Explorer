@@ -411,7 +411,7 @@ export async function GET(request: NextRequest) {
   if (search && useSemanticSearch) {
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`[Semantic Search] Embedding query: "${search}"`);
+        console.log(`[Semantic Search] Embedding query (${search.length} chars)`);
       }
       queryEmbedding = await embeddingService.embed(search);
       useSemanticQuery = true;

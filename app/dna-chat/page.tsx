@@ -10,6 +10,7 @@ import { dnaChatTour } from "../components/tours/tourContent";
 import { useResults } from "../components/ResultsContext";
 import { ResultsManager } from "@/lib/results-manager";
 import { trackDNAChatViewed, trackDNAChatSampleDataLoaded, trackDNAChatSampleDataFailed } from "@/lib/analytics";
+import { takePendingReport } from "@/lib/report-handoff";
 
 const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
 
@@ -49,8 +50,9 @@ export default function DNAChatPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const q = new URLSearchParams(window.location.search).get("q");
-    const storedReport = localStorage.getItem('health_report_context');
-    if (storedReport) localStorage.removeItem('health_report_context');
+    const storedReport = takePendingReport();
+    // Clear any report left in localStorage by older versions
+    localStorage.removeItem('health_report_context');
     if (q && storedReport) {
       setInitialChatInput(
         `I just generated a report from my genetic data. Here it is:\n\n${storedReport}\n\n${decodeURIComponent(q)}`
