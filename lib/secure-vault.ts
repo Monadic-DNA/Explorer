@@ -19,6 +19,7 @@ export type VaultSection = "genotype" | "results" | "personalization";
 
 export type VaultHeader = {
   version: 1;
+  id: string; // Random per vault, so writes can detect a vault deleted or recreated elsewhere
   salt: Uint8Array;
   iterations: number;
   verifier: EncryptedBytes;
@@ -70,6 +71,7 @@ export async function createVault(passphrase: string): Promise<{ key: CryptoKey;
   const verifier = await encryptBytes(key, new TextEncoder().encode(VERIFIER_TEXT));
   const header: VaultHeader = {
     version: 1,
+    id: crypto.randomUUID(),
     salt,
     iterations: VAULT_PBKDF2_ITERATIONS,
     verifier,
@@ -96,44 +98,72 @@ export async function unlockVault(header: VaultHeader, passphrase: string): Prom
   }
 }
 
-// Writes one section and its header entry in a single transaction.
-export async function writeVaultSection(
-  key: CryptoKey,
-  header: VaultHeader,
-  section: VaultSection,
-  data: Uint8Array
+export class VaultChangedError extends Error {
+  constructor() {
+    super("Saved data was deleted or replaced in another tab");
+  }
+}
+
+// Writes and removes sections atomically. Everything is encrypted first, then one
+// transaction re-reads the current header, checks it is the same vault, merges the
+// section dates, and writes all records. A failure (e.g. quota) leaves the vault unchanged.
+export async function writeVaultSections(
+  key: CryptoKey | null,
+  vaultId: string,
+  changes: Partial<Record<VaultSection, Uint8Array | null>>
 ): Promise<VaultHeader> {
-  const encrypted = await encryptBytes(key, data);
-  const updated: VaultHeader = {
-    ...header,
-    sections: { ...header.sections, [section]: new Date().toISOString() },
-  };
+  const encrypted: Partial<Record<VaultSection, EncryptedBytes>> = {};
+  for (const [section, data] of Object.entries(changes) as [VaultSection, Uint8Array | null][]) {
+    if (!data) continue;
+    if (!key) throw new Error("Saved data is locked");
+    encrypted[section] = await encryptBytes(key, data);
+  }
 
-  await withStore("readwrite", (store) => {
-    store.put(encrypted, section);
-    store.put(updated, HEADER_KEY);
-  });
+  const db = await openDB();
+  try {
+    return await new Promise<VaultHeader>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      let updated: VaultHeader | null = null;
+      let failure: unknown = null;
 
-  return updated;
+      const headerRequest = store.get(HEADER_KEY);
+      headerRequest.onsuccess = () => {
+        const current = headerRequest.result as VaultHeader | undefined;
+        if (!current || current.id !== vaultId) {
+          failure = new VaultChangedError();
+          tx.abort();
+          return;
+        }
+
+        const now = new Date().toISOString();
+        const sections = { ...current.sections };
+        for (const [section, data] of Object.entries(changes) as [VaultSection, Uint8Array | null][]) {
+          if (data) {
+            store.put(encrypted[section], section);
+            sections[section] = now;
+          } else {
+            store.delete(section);
+            delete sections[section];
+          }
+        }
+        updated = { ...current, sections };
+        store.put(updated, HEADER_KEY);
+      };
+
+      tx.oncomplete = () => resolve(updated!);
+      tx.onerror = () => reject(failure ?? tx.error);
+      tx.onabort = () => reject(failure ?? tx.error);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export async function readVaultSection(key: CryptoKey, section: VaultSection): Promise<Uint8Array | null> {
   const encrypted = await withStore<EncryptedBytes>("readonly", (store) => store.get(section));
   if (!encrypted) return null;
   return decryptBytes(key, encrypted);
-}
-
-export async function removeVaultSection(header: VaultHeader, section: VaultSection): Promise<VaultHeader> {
-  const sections = { ...header.sections };
-  delete sections[section];
-  const updated: VaultHeader = { ...header, sections };
-
-  await withStore("readwrite", (store) => {
-    store.delete(section);
-    store.put(updated, HEADER_KEY);
-  });
-
-  return updated;
 }
 
 export function deleteVault(): Promise<void> {

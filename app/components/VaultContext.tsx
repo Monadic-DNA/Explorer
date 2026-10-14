@@ -9,9 +9,9 @@ import {
   deleteVault,
   getVaultHeader,
   readVaultSection,
-  removeVaultSection,
   unlockVault,
-  writeVaultSection,
+  VaultChangedError,
+  writeVaultSections,
 } from "@/lib/secure-vault";
 
 // Removed dev mode kept a plaintext passphrase in this database. Delete it from existing browsers.
@@ -32,6 +32,8 @@ type VaultContextType = {
   unlock: (passphrase: string) => Promise<boolean>;
   lock: () => void;
   deleteAll: () => Promise<void>;
+  // Writes (data) or removes (null) sections in one atomic transaction
+  saveSections: (changes: Partial<Record<VaultSection, Uint8Array | null>>) => Promise<void>;
   saveSection: (section: VaultSection, data: Uint8Array) => Promise<void>;
   loadSection: (section: VaultSection) => Promise<Uint8Array | null>;
   removeSection: (section: VaultSection) => Promise<void>;
@@ -89,12 +91,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (!legacy || !headerRef.current) return false;
     try {
       const decrypted = await decryptData(legacy, passphrase);
-      const updated = await writeVaultSection(
-        key,
-        headerRef.current,
-        "personalization",
-        new TextEncoder().encode(decrypted)
-      );
+      const updated = await writeVaultSections(key, headerRef.current.id, {
+        personalization: new TextEncoder().encode(decrypted),
+      });
       updateHeader(updated);
       localStorage.removeItem(LEGACY_PERSONALIZATION_KEY);
       setHasLegacyPersonalization(false);
@@ -164,12 +163,25 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     setStatus("none");
   };
 
-  const saveSection = async (section: VaultSection, data: Uint8Array) => {
-    if (!keyRef.current || !headerRef.current) {
+  const saveSections = async (changes: Partial<Record<VaultSection, Uint8Array | null>>) => {
+    if (!headerRef.current) {
       throw new Error("Saved data is locked");
     }
-    updateHeader(await writeVaultSection(keyRef.current, headerRef.current, section, data));
+    try {
+      updateHeader(await writeVaultSections(keyRef.current, headerRef.current.id, changes));
+    } catch (error) {
+      if (error instanceof VaultChangedError) {
+        // Our key belongs to a vault that no longer exists, so drop it and re-read the header
+        keyRef.current = null;
+        const current = await getVaultHeader();
+        updateHeader(current);
+        setStatus(current ? "locked" : "none");
+      }
+      throw error;
+    }
   };
+
+  const saveSection = (section: VaultSection, data: Uint8Array) => saveSections({ [section]: data });
 
   const loadSection = useCallback(async (section: VaultSection) => {
     if (!keyRef.current || !headerRef.current?.sections[section]) return null;
@@ -178,7 +190,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const removeSection = async (section: VaultSection) => {
     if (!headerRef.current?.sections[section]) return;
-    updateHeader(await removeVaultSection(headerRef.current, section));
+    await saveSections({ [section]: null });
   };
 
   return (
@@ -191,6 +203,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         unlock,
         lock,
         deleteAll,
+        saveSections,
         saveSection,
         loadSection,
         removeSection,

@@ -32,22 +32,16 @@ export default function SaveToDeviceButton() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [vault.header, isDirty]);
 
-  // Saving with nothing in memory for a section removes that section from the vault
+  // Genotype and results are written together so a failed save cannot pair one person's
+  // DNA with another's results. A section with nothing in memory is removed.
   const saveAll = async () => {
     setSaveState("saving");
     try {
       const snapshot = getGenotypeSnapshot();
-      if (snapshot) {
-        await vault.saveSection("genotype", serializeGenotype(snapshot));
-      } else {
-        await vault.removeSection("genotype");
-      }
-
-      if (savedResults.length > 0) {
-        await vault.saveSection("results", serializeResults(savedResults));
-      } else {
-        await vault.removeSection("results");
-      }
+      await vault.saveSections({
+        genotype: snapshot ? serializeGenotype(snapshot) : null,
+        results: savedResults.length > 0 ? serializeResults(savedResults) : null,
+      });
 
       vault.setSavedFingerprint(fingerprint);
       setSaveState("saved");
