@@ -25,12 +25,12 @@ export default function VaultUnlockModal() {
     if (isUploaded || savedResults.length > 0) return;
 
     const restore = async () => {
-      const genotypeBytes = await vault.loadSection("genotype");
-      const snapshot = genotypeBytes ? deserializeGenotype(genotypeBytes) : null;
+      // Read both from one snapshot so a save in another tab cannot mix them
+      const saved = await vault.loadSections(["genotype", "results"]);
+      const snapshot = saved.genotype ? deserializeGenotype(saved.genotype) : null;
       if (snapshot) restoreGenotype(snapshot);
 
-      const resultsBytes = await vault.loadSection("results");
-      const results = resultsBytes ? deserializeResults(resultsBytes) : [];
+      const results = saved.results ? deserializeResults(saved.results) : [];
       if (results.length > 0) await restoreResults(results);
 
       vault.setSavedFingerprint(dataFingerprint(snapshot?.fileHash ?? null, results));
