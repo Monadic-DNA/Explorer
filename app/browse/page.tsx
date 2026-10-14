@@ -18,7 +18,6 @@ import { exploreTour } from "../components/tours/tourContent";
 import BrowseHeatmap from "../components/BrowseHeatmap";
 import { hasMatchingSNPs } from "@/lib/snp-utils";
 import { analyzeStudyClientSide } from "@/lib/risk-calculator";
-import { isDevModeEnabled } from "@/lib/dev-mode";
 import { hasValidPromoAccess, clearPromoAccess } from "@/lib/promo-access";
 import {
   trackSearch,

@@ -4,6 +4,7 @@ import { useState, useRef, createContext, useContext, useCallback, useEffect } f
 import * as pako from "pako";
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
+import { GenotypeSnapshot } from "@/lib/vault-snapshots";
 import {
   trackFileCleared,
   trackGenotypeParseStarted,
@@ -14,10 +15,6 @@ import {
   trackProviderGuideClicked,
   trackUploadPickerOpened,
 } from "@/lib/analytics";
-import {
-  isDevModeEnabled,
-  selectAndSaveGenotypeFile,
-} from "@/lib/dev-mode";
 
 type GenotypeContextType = {
   genotypeData: Map<string, string> | null;
@@ -32,6 +29,8 @@ type GenotypeContextType = {
   originalFileSize: number | null;
   detectedFormat: string | null;
   fileExtension: string | null;
+  getGenotypeSnapshot: () => GenotypeSnapshot | null;
+  restoreGenotype: (snapshot: GenotypeSnapshot) => void;
 };
 
 const GenotypeContext = createContext<GenotypeContextType | null>(null);
@@ -96,6 +95,19 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
   const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
   const [storedFileExtension, setStoredFileExtension] = useState<string | null>(null);
 
+  const applyGenotype = (snapshot: GenotypeSnapshot) => {
+    setGenotypeData(snapshot.data);
+    setFileHash(snapshot.fileHash);
+    setOriginalFileName(snapshot.originalFileName);
+    setOriginalFileSize(snapshot.originalFileSize);
+    setDetectedFormat(snapshot.detectedFormat);
+    setStoredFileExtension(snapshot.fileExtension);
+
+    if (onDataLoadedRef.current) {
+      onDataLoadedRef.current();
+    }
+  };
+
   const uploadGenotype = async (file: File, source: string = 'unknown') => {
     const dotIdx = file.name.lastIndexOf('.');
     const fileExtension = dotIdx !== -1 ? file.name.slice(dotIdx + 1).toLowerCase() : '';
@@ -135,16 +147,14 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       trackGenotypeParseSucceeded(source, parseResult.detectedFormat, genotypeMap.size);
       trackGenotypeFileLoaded(file.size, genotypeMap.size, source, parseResult.detectedFormat, fileExtension);
 
-      setGenotypeData(genotypeMap);
-      setFileHash(hash);
-      setOriginalFileName(file.name);
-      setOriginalFileSize(file.size);
-      setDetectedFormat(parseResult.detectedFormat || null);
-      setStoredFileExtension(fileExtension || null);
-
-      if (onDataLoadedRef.current) {
-        onDataLoadedRef.current();
-      }
+      applyGenotype({
+        data: genotypeMap,
+        fileHash: hash,
+        originalFileName: file.name,
+        originalFileSize: file.size,
+        detectedFormat: parseResult.detectedFormat || null,
+        fileExtension: fileExtension || null,
+      });
       return true;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed';
@@ -168,6 +178,18 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
     trackFileCleared();
   };
 
+  const getGenotypeSnapshot = (): GenotypeSnapshot | null => {
+    if (!genotypeData) return null;
+    return {
+      data: genotypeData,
+      fileHash,
+      originalFileName,
+      originalFileSize,
+      detectedFormat,
+      fileExtension: storedFileExtension,
+    };
+  };
+
   const setOnDataLoadedCallback = useCallback((cb: (() => void) | null) => {
     // Store the callback in a ref to avoid render-phase state updates
     onDataLoadedRef.current = cb;
@@ -187,6 +209,8 @@ export function GenotypeProvider({ children }: { children: React.ReactNode }) {
       originalFileSize,
       detectedFormat,
       fileExtension: storedFileExtension,
+      getGenotypeSnapshot,
+      restoreGenotype: applyGenotype,
     }}>
       {children}
     </GenotypeContext.Provider>
@@ -245,23 +269,6 @@ export default function UserDataUpload() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Dev mode: Try to use File System Access API to save handle for future auto-load
-    if (isDevModeEnabled()) {
-      try {
-        const devFile = await selectAndSaveGenotypeFile();
-        if (devFile) {
-          await uploadGenotype(devFile, 'menu_upload');
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-          return;
-        }
-      } catch {
-        console.log('[Dev Mode] Failed to use File System Access API, falling back to regular upload');
-      }
-    }
-
-    // Regular upload
     await uploadGenotype(file, 'menu_upload');
 
     // Reset file input

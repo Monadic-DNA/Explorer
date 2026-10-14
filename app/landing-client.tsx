@@ -22,7 +22,6 @@ import {
 } from "@/lib/analytics";
 
 const SAMPLE_RESULTS_FILE_NAME = "monadic_dna_explorer_results_2026-05-19.tsv";
-const SAMPLE_CUSTOMIZATION_PASSWORD = "sample-data";
 
 const SAMPLE_CUSTOMIZATION: UserCustomization = {
   ethnicities: ["European"],
@@ -83,7 +82,7 @@ export default function LandingClient() {
   const router = useRouter();
   const { error, isUploaded, genotypeData, originalFileName, originalFileSize, detectedFormat } = useGenotype();
   const { addResultsBatch, clearResults, savedResults, hasResult } = useResults();
-  const { saveCustomization, status: customizationStatus } = useCustomization();
+  const { setSessionCustomization, status: customizationStatus } = useCustomization();
   const [sampleStatus, setSampleStatus] = useState<SampleLoadStatus>("idle");
   const [sampleError, setSampleError] = useState<string | null>(null);
   const [sampleBytes, setSampleBytes] = useState(0);
@@ -189,7 +188,7 @@ export default function LandingClient() {
       await addResultsBatch(session.results);
 
       if (customizationStatus === "not-set") {
-        await saveCustomization(SAMPLE_CUSTOMIZATION, SAMPLE_CUSTOMIZATION_PASSWORD);
+        setSessionCustomization(SAMPLE_CUSTOMIZATION);
       }
 
       trackSampleDataLoaded('home', downloaded, session.results.length);

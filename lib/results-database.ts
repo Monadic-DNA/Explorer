@@ -73,8 +73,17 @@ async function fetchEmbeddingsFromDB(keys: EmbeddingKey[]): Promise<Map<string, 
 export class ResultsDatabase {
   private db: Database | null = null;
   private sqlJs: SqlJsStatic | null = null;
+  private initPromise: Promise<void> | null = null;
 
-  async initialize(): Promise<void> {
+  // Concurrent callers share one initialization so a late init cannot replace a populated DB
+  initialize(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this.createDatabase();
+    }
+    return this.initPromise;
+  }
+
+  private async createDatabase(): Promise<void> {
     this.sqlJs = await initSQL();
     this.db = new this.sqlJs.Database();
 

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[Similar Studies API] Finding ${limit} studies similar to: "${query}"`);
+    console.log(`[Similar Studies API] Finding ${limit} similar studies`);
     const startTime = Date.now();
 
     // Generate embedding for query

@@ -450,7 +450,7 @@ export default function ExplorePage() {
                   <span className="explore-next-steps-eyebrow">Private session cleared</span>
                   <h2>Your previous results were kept in memory and cleared by the page reload.</h2>
                   <p>
-                    This protects your DNA data from being stored automatically. Reload a saved results file, or go back to the home page and run the quick preview again.
+                    This protects your DNA data from being stored automatically. Reload a saved results file, or go back to the home page and run the quick preview again. Next time, use the Save button to keep an encrypted copy on this device.
                   </p>
                   {loadResultsError && <p className="explore-session-recovery-error">{loadResultsError}</p>}
                 </div>

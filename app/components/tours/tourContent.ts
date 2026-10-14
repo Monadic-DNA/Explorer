@@ -134,6 +134,13 @@ export const menuBarTour: TourContent = {
       placement: "bottom",
     },
     {
+      name: "save",
+      title: "Save",
+      body: "Keep your DNA data and results in this browser so you can pick up where you left off. Everything is encrypted with a passphrase you choose and stays on this device.",
+      selector: '[data-tour="save-button"]',
+      placement: "bottom",
+    },
+    {
       name: "run_all",
       title: "Run All",
       body: "Analyze your DNA against every matching study in the GWAS Catalog in one go. The results feed DNA Chat and the Overview Report.",

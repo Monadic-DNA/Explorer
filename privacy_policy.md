@@ -1,6 +1,6 @@
 # Monadic DNA Explorer - Privacy Policy
-**Effective Date:** October 9, 2025 
-**Version:** 1.1
+**Effective Date:** October 13, 2026 
+**Version:** 2.0
 
 ---
 
@@ -10,60 +10,80 @@ Monadic DNA Explorer is operated by **Recherché Inc.** (“we,” “us,” or 
 We are committed to protecting your privacy and limiting data collection to the minimum necessary to operate this research tool.
 
 We do not:
-- Store user-uploaded genetic data,
-- Maintain user accounts or identifiers, or
-- Contact users directly.
+- Store your genetic data or analysis results on our servers,
+- Sell, rent, or share your genetic data with anyone, or
+- Use your genetic data for marketing, profiling, or research.
+
+You can use most of the Service without signing in. Signing in is only needed for paid features, as described in Section 2.4.
 
 ---
 
 ## 2. Data We Process
 
 ### 2.1 Genetic Data
-- Processed **locally** in your browser or **temporarily in memory** for variant matching.
-- Automatically deleted when the session ends.
-- Never logged, stored, or backed up on our servers.
+- Your genotype file is read and processed **locally** in your browser. The file itself is never uploaded to our servers.
+- By default, your genetic data and analysis results (matched SNPs and calculated risk scores) are kept **in memory only** and are erased when you close your browser tab or reload the page.
+- Your genetic data is never logged, stored, or backed up on our servers.
 
-Analysis results (containing specific matched SNPs and calculated risk scores, not your full genetic file) are kept **in memory only** during your active session and are **not** persisted to browser local storage, cookies, or any other storage mechanism. Results are automatically erased when you close your browser tab or navigate away from the application.
+### 2.2 Optional Saving on Your Device
+If you click **Save**, your parsed genetic data and analysis results are encrypted in your browser with a passphrase you choose (AES-256-GCM, with the key derived from your passphrase using PBKDF2) and stored in your browser's storage (IndexedDB) on that device only. Personalization details you enter (Section 2.3) are stored the same way, under the same passphrase.
+- The encrypted data never leaves your device and is never sent to our servers.
+- Your passphrase is never stored or transmitted. We cannot recover it or your saved data if you forget it.
+- You can delete saved data at any time from the My Data menu or when prompted for your passphrase. Clearing your browser's site data also deletes it.
+- Anyone who knows your passphrase and can use your browser can open the saved data, so avoid saving on shared computers.
 
-If you wish to preserve your results for future reference, you may manually export them as a JSON file to your local device. Exported files are stored entirely under your control, and you are responsible for their secure handling. We recommend:
+You may also export your results to a file on your device. Exported files are not encrypted. They are stored entirely under your control, and you are responsible for their secure handling. We recommend:
 - Storing exported files on encrypted storage
 - Deleting exported files when no longer needed
 - Avoiding upload to cloud services or unsecured locations
 
-We do **not** retain, sell, or share genetic data with any party.
+### 2.3 Personalization Data
+You may optionally enter details such as age, sex at birth, ancestry, health conditions, family history, medications, smoking, alcohol use, and diet to make AI interpretations more relevant. This information is stored only on your device, encrypted as described in Section 2.2. When you use AI features, it is included in the request sent to the AI provider you select (Section 4.1).
 
-### 2.2 Analytics Data
-We use **Google Analytics** to understand overall usage patterns and improve performance.  
-Analytics data includes:
+### 2.4 Account and Payment Data
+Signing in is optional and is only required for paid features.
+- **Sign-in:** Sign-in is provided by **Dynamic** (dynamic.xyz). Depending on the method you choose, Dynamic processes your email address or crypto wallet address. We use your wallet address to identify your purchases.
+- **Card payments:** Card payments are processed by **Stripe**. We never see or store your full card details. We store your wallet address in your Stripe customer record so we can confirm your subscription or report purchases.
+- **Stablecoin payments:** Stablecoin payments are made on public blockchains. Transactions on a public blockchain, including your wallet address and payment amount, are visible to anyone and cannot be deleted. We check payment status using a blockchain data provider (Alchemy).
+- **X account connection (optional):** If you connect your X (Twitter) account through **ReplyCorp** to receive a discount, we store your X user ID and handle in your Stripe customer record and in your browser. When you make a purchase, we report the purchase and its amount to ReplyCorp so it can reward the X users whose posts referred you.
+
+None of this account or payment data is combined with your genetic data.
+
+### 2.5 Search and Chat Text
+- Text you type into study search is sent to our server to find matching studies. Search text and its computed embedding may be cached in our database to speed up later searches. The cache is not linked to you or your account.
+- When you use DNA Chat, your question is also sent to our server to find relevant studies. Your genetic data and results are not sent to our server.
+- Search and question text is not written to our server logs.
+
+### 2.6 Analytics and Advertising Data
+We use **Google Analytics** to understand overall usage patterns and improve the Service. Analytics data includes:
 - Browser and OS type
 - Device category
-- Approximate location (city-level, anonymized)
-- Session duration and page interactions
+- Approximate location (city-level)
+- Pages visited and feature usage, such as when a file is uploaded or a report is generated, with counts but never your genotype, matched variants, or results
 
-Google Analytics is configured with:
-- **IP anonymization enabled**
-- **No advertising or remarketing**
-- **No cross-site tracking**
-- **Short retention window** (as configured in GA4)
+We also use advertising measurement tools to understand which of our ads lead people to the Service:
+- **Google Ads** conversion tracking
+- The **Reddit** and **X (Twitter)** advertising pixels, along with their server-side conversion APIs. These receive page visits and events such as sign-ups and purchases, along with your IP address and browser user agent, which those platforms use to match events to ad clicks.
 
-You can opt out anytime using browser settings or the [Google Analytics Opt-Out Add-on](https://tools.google.com/dlpage/gaoptout).
+Google Analytics is configured with IP anonymization. You can limit analytics and advertising tracking using your browser's privacy settings, a content blocker, or the [Google Analytics Opt-Out Add-on](https://tools.google.com/dlpage/gaoptout).
 
-We do not combine analytics data with uploaded genetic data.
+We never send genetic data, analysis results, or personalization data to analytics or advertising providers.
 
-### 2.3 No Personal or Contact Information
-We do not collect names, emails, phone numbers, or any persistent identifiers.  
-We cannot send individualized messages or alerts.
+### 2.7 Data Stored in Your Browser
+Besides the optional encrypted vault (Section 2.2), the Service stores some non-genetic data in your browser's local storage: your theme and AI provider settings, onboarding and terms acceptance flags, a cache of the public GWAS Catalog, promo and subscription status, and, if you connected X, your X user ID and handle. If you enter an API key for an AI provider, it is also stored in your browser.
+
 
 ---
 
 ## 3. Purpose of Data Processing
 
-We use transient and anonymized data only to:
+We use the data described above only to:
 - Operate and improve the Service,
-- Match variants with published research, and
-- Measure performance in aggregate.
+- Match your variants with published research,
+- Process payments and confirm access to paid features,
+- Measure usage and the effectiveness of our advertising in aggregate.
 
-We do **not** use your data for:
+We do **not** use your genetic data for:
 - Marketing or profiling,
 - External research, or
 - Commercial resale.
@@ -72,36 +92,45 @@ We do **not** use your data for:
 
 ## 4. Third-Party Services
 
-### 4.1 Nillion nilAI
-When you use the optional “Private AI Analysis” feature:
-- Your encrypted data is processed by Nillion’s infrastructure inside **Trusted Execution Environments (TEEs)**.
-- Recherché Inc. never accesses plaintext data and receives no retained output.
+### 4.1 AI Providers
+AI features (study interpretation, DNA Chat, and reports) send the relevant analysis results, your question, and any personalization details to the AI provider you select:
+- **Nillion nilAI (default):** Requests are processed inside **Trusted Execution Environments (TEEs)**. Recherché Inc. never accesses the plaintext content and receives no retained output.
+- **Ollama:** Requests are sent to the Ollama server address you configure. If that server is not on your own device, its operator can see the content.
+- **Hugging Face:** Requests are sent to Hugging Face using your own API key and are handled under Hugging Face's terms and privacy policy. They are not processed in a TEE.
 
-We are **not responsible** for data handling, breaches, or malfeasance within Nillion’s systems.
+We are **not responsible** for data handling, breaches, or malfeasance within AI providers' systems.
 
-### 4.2 Google Analytics
-Google Analytics operates under Google’s [Privacy Policy](https://policies.google.com/privacy).  
-We configure it to minimize data collection and prevent identification.
+### 4.2 Other Services
+- **Dynamic** provides sign-in. See Dynamic's privacy policy.
+- **Stripe** processes card payments. See [Stripe's Privacy Policy](https://stripe.com/privacy).
+- **Alchemy** provides blockchain data for checking stablecoin payments.
+- **ReplyCorp** receives purchase information if you connect your X account (Section 2.4).
+- **Google Analytics and Google Ads** operate under Google's [Privacy Policy](https://policies.google.com/privacy).
+- **Reddit** and **X** advertising tools operate under those companies' privacy policies.
+- **Europe PMC** is queried for public study abstracts. These requests contain only public study identifiers.
 
 ---
 
 ## 5. Data Retention
 
-- Genetic data and analysis results are stored in memory only and automatically deleted at session end.
-- No genetic data or analysis results are persisted to browser storage, databases, or file systems.
-- Manually exported result files are stored entirely on your local device under your control; we have no access to or responsibility for these files.
-- Analytics data is retained only in aggregate form by Google Analytics under their standard data retention limits (typically 2–14 months).
-- No backups or logs containing genetic data are maintained.
+- Genetic data and analysis results are kept in memory and deleted when you close your tab, unless you choose to save them on your device (Section 2.2).
+- Saved data stays encrypted in your browser until you delete it or clear your browser's site data.
+- No genetic data or analysis results are stored in our databases, logs, or backups.
+- Exported files are stored entirely on your device under your control; we have no access to or responsibility for them.
+- Account and payment records are kept by Dynamic and Stripe for as long as needed to provide paid features and meet legal and tax obligations. Blockchain transactions are permanent.
+- Cached search text is kept until it is removed during routine cache cleanup.
+- Analytics data is retained by Google Analytics under its configured retention limits (typically 2 to 14 months). Advertising platforms retain data under their own policies.
 
 ---
 
 ## 6. Cookies and Tracking
 
-We use only:
-- Essential session cookies for app functionality.
-- Analytics cookies for aggregated usage statistics (anonymized).
+We use:
+- Essential cookies and browser storage for app functionality and sign-in.
+- Analytics cookies for usage statistics.
+- Advertising pixels and cookies from Google, Reddit, and X to measure ad performance.
 
-You may disable cookies in your browser settings; core functionality will remain available.
+You may disable cookies or block trackers in your browser settings. Core features remain available, although sign-in and payments may require cookies.
 
 ---
 
@@ -109,20 +138,20 @@ You may disable cookies in your browser settings; core functionality will remain
 
 We implement industry-standard security practices, including:
 - All communications use **TLS (HTTPS)**.
-- Computation is done **in-memory**, not in databases.
+- Genetic analysis runs in your browser, and saved data is encrypted on your device with a key only your passphrase can produce.
 - Regular code reviews and dependency scanning for vulnerabilities.
 - Minimal data collection to reduce exposure.
 
 However, no system is perfectly secure.
-We are **not liable** for third-party incidents (e.g., Nillion, Google Analytics, or hosting provider breaches).
+We are **not liable** for third-party incidents (e.g., AI providers, sign-in or payment providers, analytics providers, or hosting provider breaches).
 
 ---
 
 ## 8. Breach Notification and User Communication
 
-Because we do not collect user contact information or identifiers, we cannot send individualized breach notices, policy updates, or identity verification requests.
+We do not keep contact details in our own systems, so we generally cannot send individualized breach notices, policy updates, or identity verification requests.
 
-However, in the event of a security incident that may affect user data, we commit to making **reasonable efforts** to notify users through:
+In the event of a security incident that may affect user data, we commit to making **reasonable efforts** to notify users through:
 - **Prominent in-app banner** displayed on the application homepage
 - **Public announcement** on our official social media channels (Twitter/X, LinkedIn)
 - **Notice posted** in our public GitHub repository
@@ -143,7 +172,7 @@ If future aggregated research use is proposed, we will implement **explicit opt-
 
 ## 10. International Processing
 
-Temporary data processing occurs in the **United States**.  
+Our servers are located in the **United States**. Third-party providers described in Section 4 may process data in other countries.  
 By using the Service, you consent to such processing under U.S. law.
 
 ---
@@ -159,7 +188,7 @@ We do not knowingly process data from minors.
 
 We may update this policy periodically.  
 All changes will be posted publicly with a new **Effective Date**.  
-Because we have no contact information, we cannot send direct notices.  
+Because we do not keep contact details, we cannot send direct notices.  
 Continued use constitutes acceptance of updated terms.
 
 ---
@@ -171,14 +200,15 @@ Attn: Legal Department
 456 Johnson Ave, Unit 216
 Brooklyn, NY 11237
 
-Email: info@recherche.tech
+Email: support@monadicdna.com
 
 ---
 
 ## 14. Acknowledgment
 
 By using Monadic DNA Explorer, you acknowledge that:
-- Your uploaded data is processed only temporarily and then erased.
-- We collect minimal, anonymized analytics data for performance measurement.
-- We cannot contact you individually.
-- We are not responsible for third-party systems such as Nillion or Google Analytics.
+- Your genetic data is processed in your browser and is not stored on our servers.
+- If you choose to save data on your device, you are responsible for your passphrase and your device's security.
+- We collect usage analytics and advertising measurement data, but never your genetic data or results.
+- Paid features involve sign-in and payment providers who process your account and payment data.
+- We are not responsible for third-party systems such as AI providers, Dynamic, Stripe, Google, Reddit, or X.

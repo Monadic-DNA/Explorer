@@ -28,7 +28,7 @@ export class EmbeddingCache {
     // Try memory cache first (fastest: <1ms)
     const memHit = this.memCache.get(normalized);
     if (memHit) {
-      console.log(`[Cache] Memory hit: "${query}"`);
+      console.log(`[Cache] Memory hit`);
       return memHit;
     }
 
@@ -43,7 +43,7 @@ export class EmbeddingCache {
       if (result?.embedding) {
         // Parse vector string to array
         const embedding = this.parseEmbedding(result.embedding);
-        console.log(`[Cache] DB hit (PostgreSQL): "${query}"`);
+        console.log(`[Cache] DB hit (PostgreSQL)`);
 
         // Promote to memory cache
         this.addToMemCache(normalized, embedding);
@@ -58,7 +58,7 @@ export class EmbeddingCache {
       // Fall through to miss
     }
 
-    console.log(`[Cache] Miss: "${query}"`);
+    console.log(`[Cache] Miss`);
     return null;
   }
 
@@ -84,7 +84,7 @@ export class EmbeddingCache {
         [normalized, JSON.stringify(embedding), JSON.stringify(embedding)]
       );
 
-      console.log(`[Cache] Stored: "${query}"`);
+      console.log(`[Cache] Stored`);
     } catch (error) {
       console.error(`[Cache] Failed to store in DB:`, error);
       // Continue anyway - memory cache is still populated

@@ -8,6 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { SelectedResult } from "@/lib/health-report-service";
 import { trackHealthReportGenerated, trackReportOpenedInChat } from "@/lib/analytics";
+import { setPendingReport } from "@/lib/report-handoff";
 
 type Phase = 'idle' | 'generating' | 'complete' | 'error';
 
@@ -110,7 +111,7 @@ export default function HealthReportModal({ isOpen, onClose }: HealthReportModal
   const handleOpenInChat = (question?: string) => {
     if (!report) return;
     trackReportOpenedInChat('health_insights', !!question);
-    localStorage.setItem('health_report_context', report);
+    setPendingReport(report);
     router.push(question ? `/dna-chat?q=${encodeURIComponent(question)}` : '/dna-chat');
   };
 

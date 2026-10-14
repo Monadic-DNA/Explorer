@@ -16,6 +16,8 @@ import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
 import NillionModal from "./NillionModal";
 import DisclaimerModal from "./DisclaimerModal";
 import RunAllModal from "./RunAllModal";
+import SaveToDeviceButton from "./SaveToDeviceButton";
+import { useVault } from "./VaultContext";
 import {
   trackGetStartedClicked,
   trackRunAllCompleted,
@@ -44,6 +46,7 @@ export default function MenuBar() {
   const { isUploaded, genotypeData, fileHash } = useGenotype();
   const { savedResults, saveToFile, loadFromFile, clearResults, addResultsBatch, hasResult } = useResults();
   const { status: customizationStatus } = useCustomization();
+  const vault = useVault();
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [showCustomizationModal, setShowCustomizationModal] = useState(false);
   const [showLLMConfigModal, setShowLLMConfigModal] = useState(false);
@@ -363,6 +366,12 @@ export default function MenuBar() {
         isUploaded={isUploaded}
         genotypeData={genotypeData}
         UserDataUploadComponent={UserDataUpload}
+        hasSavedData={!!vault.header || vault.hasLegacyPersonalization}
+        onDeleteSavedData={async () => {
+          if (confirm("Delete all data saved on this device, including personalization? Data loaded right now stays until you close the tab.")) {
+            await vault.deleteAll();
+          }
+        }}
       />
       <ResultsDropdown
         isOpen={showResultsDropdown}
@@ -493,6 +502,8 @@ export default function MenuBar() {
               )}
             </button>
           )}
+
+          {showAdvancedControls && <SaveToDeviceButton />}
 
           {showRunAllControl && (
             <button

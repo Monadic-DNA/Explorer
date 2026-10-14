@@ -1,8 +1,7 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { encryptData, decryptData, EncryptedData } from "@/lib/encryption-utils";
-import { isDevModeEnabled, getPersonalizationPassword, savePersonalizationPassword } from "@/lib/dev-mode";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import { useVault, LEGACY_PERSONALIZATION_KEY } from "./VaultContext";
 
 export interface UserCustomization {
   ethnicities: string[];
@@ -22,131 +21,93 @@ type CustomizationStatus = 'not-set' | 'locked' | 'unlocked';
 type CustomizationContextType = {
   customization: UserCustomization | null;
   status: CustomizationStatus;
-  saveCustomization: (data: UserCustomization, password: string) => Promise<void>;
+  // True when saving needs a passphrase because the vault is locked or does not exist yet
+  needsPassword: boolean;
+  vaultExists: boolean;
+  saveCustomization: (data: UserCustomization, password?: string) => Promise<void>;
   unlockCustomization: (password: string) => Promise<boolean>;
   lockCustomization: () => void;
-  clearCustomization: () => void;
+  clearCustomization: () => Promise<void>;
+  // Memory-only personalization, used for sample data so no vault is created
+  setSessionCustomization: (data: UserCustomization) => void;
 };
 
 const CustomizationContext = createContext<CustomizationContextType | null>(null);
 
-const STORAGE_KEY = 'user_customization_encrypted';
-
-const defaultCustomization: UserCustomization = {
-  ethnicities: [],
-  countriesOfOrigin: [],
-  genderAtBirth: '',
-  age: null,
-  personalConditions: [],
-  familyConditions: [],
-  smokingHistory: '',
-  alcoholUse: '',
-  medications: [],
-  diet: '',
-};
-
 export function CustomizationProvider({ children }: { children: ReactNode }) {
+  const vault = useVault();
   const [customization, setCustomization] = useState<UserCustomization | null>(null);
-  const [status, setStatus] = useState<CustomizationStatus>('not-set');
-  const [devModeAutoUnlockAttempted, setDevModeAutoUnlockAttempted] = useState(false);
+  // Whether the current customization came from (or was written to) the vault
+  const persistedRef = useRef(false);
 
+  const hasSavedPersonalization = !!vault.header?.sections.personalization || vault.hasLegacyPersonalization;
+
+  // Load personalization from the vault once it is unlocked
   useEffect(() => {
-    // Check if encrypted data exists in localStorage
-    if (typeof window !== 'undefined') {
-      const encrypted = localStorage.getItem(STORAGE_KEY);
-      if (encrypted) {
-        setStatus('locked');
-      } else {
-        setStatus('not-set');
+    if (vault.status !== 'unlocked') {
+      if (persistedRef.current) {
+        persistedRef.current = false;
+        setCustomization(null);
       }
+      return;
     }
-  }, []);
+    if (persistedRef.current || !vault.header?.sections.personalization) return;
 
-  // Dev mode: Auto-unlock personalization on mount
-  useEffect(() => {
-    if (devModeAutoUnlockAttempted || status !== 'locked') return;
+    vault.loadSection('personalization')
+      .then((bytes) => {
+        if (!bytes) return;
+        persistedRef.current = true;
+        setCustomization(JSON.parse(new TextDecoder().decode(bytes)));
+      })
+      .catch((error) => console.error('[Personalization] Failed to load from vault:', error));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault.status, vault.header?.sections.personalization]);
 
-    const autoUnlock = async () => {
-      if (!isDevModeEnabled()) {
-        setDevModeAutoUnlockAttempted(true);
-        return;
+  let status: CustomizationStatus = 'not-set';
+  if (customization) {
+    status = 'unlocked';
+  } else if (vault.status === 'locked' && hasSavedPersonalization) {
+    status = 'locked';
+  }
+
+  const saveCustomization = async (data: UserCustomization, password?: string) => {
+    if (vault.status !== 'unlocked') {
+      if (!password) {
+        throw new Error('Password is required');
       }
-
-      console.log('[Dev Mode] 🚀 Attempting to auto-unlock personalization...');
-
-      try {
-        const savedPassword = await getPersonalizationPassword();
-        if (savedPassword) {
-          const success = await unlockCustomization(savedPassword);
-          if (success) {
-            console.log('[Dev Mode] ✓ Personalization auto-unlocked successfully');
-          } else {
-            console.log('[Dev Mode] Failed to unlock - password may have changed');
-          }
-        } else {
-          console.log('[Dev Mode] No saved password found. Unlock once to enable auto-unlock.');
+      if (vault.status === 'locked') {
+        if (!(await vault.unlock(password))) {
+          throw new Error('Incorrect password');
         }
-      } catch (error) {
-        console.error('[Dev Mode] Failed to auto-unlock personalization:', error);
-      } finally {
-        setDevModeAutoUnlockAttempted(true);
+      } else {
+        await vault.create(password);
       }
-    };
-
-    autoUnlock();
-  }, [status, devModeAutoUnlockAttempted]);
-
-  const saveCustomization = async (data: UserCustomization, password: string) => {
-    if (!password || password.length < 6) {
-      throw new Error('Password must be at least 6 characters');
     }
 
-    const encrypted = await encryptData(JSON.stringify(data), password);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(encrypted));
-
+    await vault.saveSection('personalization', new TextEncoder().encode(JSON.stringify(data)));
+    persistedRef.current = true;
     setCustomization(data);
-    setStatus('unlocked');
-
-    // Dev mode: Save password for auto-unlock
-    if (isDevModeEnabled()) {
-      await savePersonalizationPassword(password);
-    }
   };
 
-  const unlockCustomization = async (password: string): Promise<boolean> => {
-    const encryptedStr = localStorage.getItem(STORAGE_KEY);
-    if (!encryptedStr) {
-      return false;
-    }
+  const unlockCustomization = (password: string) => vault.unlock(password);
 
-    try {
-      const encrypted: EncryptedData = JSON.parse(encryptedStr);
-      const decrypted = await decryptData(encrypted, password);
-      const data: UserCustomization = JSON.parse(decrypted);
-
-      setCustomization(data);
-      setStatus('unlocked');
-
-      // Dev mode: Save password for auto-unlock
-      if (isDevModeEnabled()) {
-        await savePersonalizationPassword(password);
-      }
-
-      return true;
-    } catch (error) {
-      return false;
-    }
-  };
-
+  // Locking forgets the vault key, which also locks saved DNA data until the next unlock
   const lockCustomization = () => {
+    persistedRef.current = false;
     setCustomization(null);
-    setStatus('locked');
+    vault.lock();
   };
 
-  const clearCustomization = () => {
-    localStorage.removeItem(STORAGE_KEY);
+  const clearCustomization = async () => {
+    localStorage.removeItem(LEGACY_PERSONALIZATION_KEY);
+    await vault.removeSection('personalization');
+    persistedRef.current = false;
     setCustomization(null);
-    setStatus('not-set');
+  };
+
+  const setSessionCustomization = (data: UserCustomization) => {
+    persistedRef.current = false;
+    setCustomization(data);
   };
 
   return (
@@ -154,10 +115,13 @@ export function CustomizationProvider({ children }: { children: ReactNode }) {
       value={{
         customization,
         status,
+        needsPassword: vault.status !== 'unlocked',
+        vaultExists: !!vault.header || vault.hasLegacyPersonalization,
         saveCustomization,
         unlockCustomization,
         lockCustomization,
         clearCustomization,
+        setSessionCustomization,
       }}
     >
       {children}
