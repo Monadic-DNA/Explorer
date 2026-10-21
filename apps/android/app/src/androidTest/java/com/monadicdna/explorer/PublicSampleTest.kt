@@ -11,6 +11,8 @@ import android.graphics.Bitmap
 import java.io.File
 import androidx.activity.compose.setContent
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
+import org.json.JSONArray
 import androidx.test.platform.app.InstrumentationRegistry
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.MockResponse
@@ -30,12 +32,28 @@ class PublicSampleTest {
         assumeTrue("Run python scripts/prepare-public-sample.py first",assets.list("public-sample")?.contains("23andme-public.txt")==true)
         fun text(name:String)=assets.open("public-sample/$name").bufferedReader().use{it.readText()}
         val expected=JSONObject(text("expected.json"))
-        val studies=text("studies.json")
+        // Amplify the pinned catalog to cross page boundaries and exercise all
+        // three concurrent requests; every expected biological result stays unchanged.
+        val sourceStudies=JSONArray(text("studies.json")).objects()
+        val sourceResults=expected.getJSONArray("results").objects()
+        val studies=JSONArray();val wantedResults=JSONArray()
+        repeat(11){copy->
+            sourceStudies.forEach{studies.put(JSONObject(it.toString()).put("id",it.getInt("id")+copy*10000000))}
+            sourceResults.forEach{wantedResults.put(JSONObject(it.toString()).put("studyId",it.getInt("studyId")+copy*10000000))}
+        }
+        expected.put("matches",wantedResults.length()).put("results",wantedResults)
+        val active=AtomicInteger();val peak=AtomicInteger()
         val server=MockWebServer()
         server.dispatcher=object:Dispatcher(){
             override fun dispatch(request:RecordedRequest):MockResponse {
-                val rows=if(request.requestUrl?.queryParameter("offset")=="0")studies else "[]"
-                return MockResponse().setHeader("Content-Type","application/json").setBody("{\"data\":$rows}")
+                val current=active.incrementAndGet();peak.updateAndGet{maxOf(it,current)}
+                try {
+                    Thread.sleep(200) // Deterministic network latency, not a performance threshold.
+                    val offset=request.requestUrl?.queryParameter("offset")?.toIntOrNull()?:0
+                    val limit=request.requestUrl?.queryParameter("limit")?.toIntOrNull()?:1000
+                    val rows=JSONArray();for(index in offset until minOf(offset+limit,studies.length()))rows.put(studies.getJSONObject(index))
+                    return MockResponse().setHeader("Content-Type","application/json").setBody("{\"data\":$rows}")
+                } finally {active.decrementAndGet()}
             }
         }
         server.start()
@@ -64,6 +82,8 @@ class PublicSampleTest {
                 assertNull(model.error)
                 val wanted=expected.getJSONArray("results").objects().associateBy{it.getInt("studyId")}
                 assertEquals(wanted.size,model.results.size)
+                assertTrue("Catalog requests should overlap",peak.get()>=2)
+                assertTrue("Catalog prefetch must stay bounded",peak.get()<=3)
                 for(actual in model.results){
                     val row=wanted.getValue(actual.getInt("studyId"))
                     for(key in listOf("matchedSnp","userGenotype","effectType","riskLevel"))assertEquals("$key for study ${row.getInt("studyId")}",row.getString(key),actual.getString(key))
@@ -75,6 +95,7 @@ class PublicSampleTest {
             val bitmap=ui.onRoot().captureToImage().asAndroidBitmap()
             File(ui.activity.filesDir,"public-sample-results.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
             ui.runOnUiThread { model.clear() }
+            ui.waitUntil(30000){!model.dataUnlocked && !model.locking}
         } finally { server.shutdown() }
     }
 }

@@ -95,7 +95,10 @@ fn recovery_key(password: &str, salt: &[u8]) -> Result<Zeroizing<[u8;32]>,String
     if password.len()<12 || password.len()>1024 || salt.len()!=16 {return Err("Use a recovery passphrase of at least 12 characters".into());}
     let params=Params::new(65536,3,1,Some(32)).map_err(|_|"Invalid key derivation")?;
     let mut key=Zeroizing::new([0u8;32]);
-    Argon2::new(Algorithm::Argon2id,Version::V0x13,params).hash_password_into(password.as_bytes(),salt,&mut *key).map_err(|_|"Key derivation failed")?;
+    // Argon2's allocation convenience method does not wipe its memory matrix.
+    // Own and zeroize the entire 64 MiB workspace as well as the resulting key.
+    let mut memory=Zeroizing::new(vec![argon2::Block::default();params.block_count()]);
+    Argon2::new(Algorithm::Argon2id,Version::V0x13,params).hash_password_into_with_memory(password.as_bytes(),salt,&mut *key,&mut *memory).map_err(|_|"Key derivation failed")?;
     Ok(key)
 }
 pub fn dispatch(op: &str, input: &Value) -> Result<Value,String> {

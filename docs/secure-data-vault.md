@@ -15,7 +15,7 @@ Removing a passcode, losing a device key or reinstalling can make the local copy
 
 ## Recovery and cross-platform transfer
 
-Portable v2 archives contain encrypted data and the DEK encrypted under a recovery passphrase using Argon2id (64 MiB, 3 passes, one lane), a fresh 16-byte salt, and AES-256-GCM. Use a long, unique passphrase (minimum 12 characters); store it in a password manager. There is no server password reset for encrypted data. The server could attempt offline guesses, so account 2FA does not replace a strong recovery passphrase.
+Portable v2 archives contain encrypted data and the DEK encrypted under a recovery passphrase using Argon2id (64 MiB, 3 passes, one lane), a fresh 16-byte salt, and AES-256-GCM. The derived key and full Argon2 memory workspace are explicitly zeroized after use. Use a long, unique passphrase (minimum 12 characters); store it in a password manager. There is no server password reset for encrypted data. The server could attempt offline guesses, so account 2FA does not replace a strong recovery passphrase.
 
 Web, Android and iOS use the same Rust format and can import/export v2 DNA, results and customization. Legacy v1 PBKDF2 portable files remain readable. Web imports initially restore memory; existing browser save controls persist those sections in the encrypted IndexedDB vault. Web vault protection is passphrase/WebCrypto based and does not promise Secure Enclave protection. **Automatic cloud sync is currently implemented in the native apps; Web interoperability uses encrypted portable files.**
 
