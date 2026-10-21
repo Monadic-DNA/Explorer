@@ -58,6 +58,7 @@ jobs:
         run: |
           npm run core:test
           npm test
+          npm run test:run-all
 
       - name: Run linter
         run: npm run lint

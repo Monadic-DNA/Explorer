@@ -21,7 +21,8 @@
     "test:billing": "tsx --test tests/store-billing*.test.ts",
     "billing:migrate": "node scripts/migrate-mobile-billing.mjs",
     "vault:migrate": "node scripts/migrate-vault-sync.mjs",
-    "test:vault-sync": "tsx --test tests/vault-sync.test.ts"
+    "test:vault-sync": "tsx --test tests/vault-sync.test.ts",
+    "test:run-all": "tsx --test tests/run-all.test.ts"
   },
   "keywords": [],
   "author": "Monadic DNA / Recherch\u00e9 Inc",
