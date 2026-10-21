@@ -115,6 +115,7 @@ import UIKit
         if syncTask != nil {syncAgain=true;return}
         syncTask=Task {
             defer{syncing=false;syncTask=nil}
+            guard let config=await dataVault.configuration(),config["enabled"] as? Bool==true else{return}
             do {while busy {try await Task.sleep(nanoseconds:100_000_000)};try await Task.sleep(nanoseconds:1_000_000_000)} catch{return}
             syncing=true
             do{repeat{syncAgain=false;try await syncOnce()}while syncAgain}

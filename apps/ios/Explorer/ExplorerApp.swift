@@ -29,12 +29,13 @@ struct ExplorerView: View {
     @State private var vaultPassword=""
     func startImport(_ kind:String){importKind=kind;importing=true}
     func export(_ name:String,_ text:String){exportName=name;exportDocument=TextExport(text);exporting=true}
-    var body: some View {
-        VStack(spacing:0){
-            HStack { Text(store.storageMessage).font(.caption); Spacer();
+    private var storageStatus:some View { HStack { Text(store.storageMessage).font(.caption); Spacer();
                 if store.dataUnlocked { Button("Lock data",action:store.lockData).disabled(store.busy) }
                 else { Button("Unlock data",action:store.unlockSavedData).disabled(store.busy) }
-            }.padding(.horizontal).padding(.vertical,8)
+            }.padding(.horizontal).padding(.vertical,8) }
+    var body: some View {
+        VStack(spacing:0){
+            storageStatus
             if store.busy{HStack{ProgressView();Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();Button("Cancel",action:store.cancel)}.padding()}
             TabView(selection:$selectedTab){
                 NavigationStack{HomeView(importDNA:{startImport("dna")},browse:{selectedTab=1})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
@@ -202,8 +203,7 @@ struct VaultView:View{
     @State private var confirmDelete=false
     @State private var confirmRestore=false
     @State private var confirmCloudDelete=false
-    var body:some View{Form{
-        VaultArt(name:"vault").listRowBackground(Color.clear)
+    private var localData:some View {
         Section("On-device genetic data"){
             Text("DNA, results and customization are saved automatically in an encrypted vault after device authentication. Locking clears your decrypted session.")
             Text(store.storageMessage)
@@ -211,6 +211,8 @@ struct VaultView:View{
             Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(!store.acceptedDisclaimer||store.busy)
             Button(store.dataUnlocked ? "Lock saved data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
+    }
+    private var recovery:some View {
         Section("Encrypted recovery and transfer"){
             Text("Use a unique recovery passphrase of at least 12 characters. Keep it somewhere safe: we cannot recover it. Device keys stay on their original devices.")
             SecureField("Recovery passphrase",text:$password).textContentType(.password)
@@ -220,6 +222,8 @@ struct VaultView:View{
             Button("Import portable vault (replaces device data)",action:importVault).disabled(password.isEmpty||store.busy)
             Button("Migrate previous saved vault"){let p=password;password="";store.unlockVault(p)}.disabled(password.isEmpty||store.busy)
         }
+    }
+    private var synchronization:some View {
         Section("Optional encrypted multi-device sync"){
             Text("Sign in to the same Explorer account on each device. Only encrypted data and a passphrase-protected data key are uploaded. Concurrent edits require a choice before replacing data.")
             Button("Enable encrypted sync"){let p=password;password="";store.enableSync(p)}.disabled(password.count<12||store.busy||store.wallet.isEmpty)
@@ -228,6 +232,12 @@ struct VaultView:View{
             Button("Disable sync on this device",action:store.disableSync).disabled(!store.dataUnlocked||store.busy)
             Button("Delete encrypted cloud copy",role:.destructive){confirmCloudDelete=true}.disabled(!store.dataUnlocked||store.busy||store.wallet.isEmpty)
         }
+    }
+    var body:some View{Form{
+        VaultArt(name:"vault").listRowBackground(Color.clear)
+        localData
+        recovery
+        synchronization
         Button("Delete local vault",role:.destructive){confirmDelete=true}.disabled(store.busy)
     }.vaultScreen().navigationTitle("Private vault")
     .confirmationDialog("Delete this device's vault and clear memory? Cloud data is retained.",isPresented:$confirmDelete){Button("Delete",role:.destructive,action:store.deleteVault)}

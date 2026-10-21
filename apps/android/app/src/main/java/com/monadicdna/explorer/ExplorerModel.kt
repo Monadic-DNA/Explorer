@@ -134,6 +134,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         if(!dataUnlocked || locking)return
         if(syncJob?.isActive==true){syncAgain=true;return}
         syncJob=viewModelScope.launch {
+            if(dataVault.syncConfiguration()?.optBoolean("enabled")!=true)return@launch
             while(busy)delay(100)
             delay(1000)
             syncing=true
