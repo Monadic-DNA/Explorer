@@ -34,8 +34,9 @@ import UIKit
     @Published var shareResultsWithLLM=false
     private var authSession:ASWebAuthenticationSession?
     private var task:Task<Void,Never>?
+    let billing = StoreBilling()
     private(set) var session:Int
-    override init(){session=(try? Core.call("session_create") as? Int) ?? 0;super.init()}
+    override init(){session=(try? Core.call("session_create") as? Int) ?? 0;super.init();billing.attach(self);Task { try? await billing.recover() }}
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
         guard !busy else{return}
@@ -172,24 +173,17 @@ import UIKit
     }}
     func signOut() throws {for key in ["auth-token","wallet","pending-auth"]{try DeviceStore.put(key,"")};wallet="";subscription=nil}
     func refreshSubscription(){work("Refreshing subscription"){guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in first")};self.subscription=try await self.api("/api/check-subscription",["walletAddress":self.wallet])}}
-    func checkout(){work("Opening card checkout"){
-        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in first")}
-        let response=try await self.api("/api/stripe/create-checkout",["walletAddress":self.wallet])
-        guard let value=response["url"] as? String,let url=URL(string:value),url.scheme=="https" else{throw Core.Failure(message:"Invalid checkout URL")}
-        await UIApplication.shared.open(url)
-    }}
-    func applyPromo(_ code:String) throws {let response=try Core.object("promo",code);guard response["valid"] as? Bool == true else{throw Core.Failure(message:response["message"] as? String ?? "Invalid promo")};try DeviceStore.put("promo",code);status=response["message"] as? String ?? ""}
     private func requireAccess(_ kind:String) async throws {
-        var access=try Core.object("feature_access",["kind":kind,"promo":DeviceStore.get("promo")])
+        var access=try Core.object("feature_access",["kind":kind])
         if access["allowed"] as? Bool == true{return}
-        guard !wallet.isEmpty else{throw Core.Failure(message:"Sign in or apply a premium promo code in Account first")}
+        guard !wallet.isEmpty else{throw Core.Failure(message:"Sign in to your Explorer account first")}
         subscription=try await api("/api/check-subscription",["walletAddress":wallet])
         let active=(subscription?["subscription"] as? [String:Any])?["isActive"] as? Bool ?? false
-        access=try Core.object("feature_access",["kind":kind,"promo":DeviceStore.get("promo"),"activeSubscription":active])
+        access=try Core.object("feature_access",["kind":kind,"activeSubscription":active])
         if access["allowed"] as? Bool == true{return}
-        guard let type=access["reportType"] as? String else{throw Core.Failure(message:"An active subscription or premium promo is required for chat")}
+        guard let type=access["reportType"] as? String else{throw Core.Failure(message:"An active subscription is required for chat")}
         let passes=try await api("/api/report-access",["walletAddress":wallet])
-        guard ((passes["availableReports"] as? [String:Any])?[type] as? Int ?? 0)>0 else{throw Core.Failure(message:"Subscribe or buy a \(kind) report pass on the website, then try again")}
+        guard ((passes["availableReports"] as? [String:Any])?[type] as? Int ?? 0)>0 else{throw Core.Failure(message:"Purchase a subscription or report pass in Account, then try again")}
         _=try await api("/api/report-access",["walletAddress":wallet,"reportType":type,"action":"consume"])
     }
     private func complete(_ messages:[[String:Any]]) async throws -> String {

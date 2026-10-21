@@ -36,6 +36,7 @@ class MainActivity: ComponentActivity() {
         intent?.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth)
         setContent { VaultTheme { ExplorerApp(model) } }
     }
+    override fun onResume() { super.onResume(); if(model.wallet.isNotBlank()) model.billing.restore() }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent);setIntent(intent);intent.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth) }
 }
 
@@ -199,16 +200,35 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 }}
 
 @Composable private fun AccountScreen(model: ExplorerModel){
-    val context=LocalContext.current;var promo by remember{mutableStateOf("")}
-    ScreenColumn{Text("Account and premium",style=MaterialTheme.typography.headlineMedium);Text(model.wallet.ifBlank{"Not signed in"})
+    val context=LocalContext.current
+    val billing=model.billing
+    LaunchedEffect(Unit) { billing.load() }
+    ScreenColumn{
+        Text("Account and premium",style=MaterialTheme.typography.headlineMedium)
+        Text(model.wallet.ifBlank{"Not signed in"})
         Button(onClick={model.run("Opening secure sign-in"){openBrowser(context,model.beginAuth())}},enabled=!model.busy){Text("Sign in with Dynamic")}
-        OutlinedButton(onClick=model::refreshSubscription,enabled=!model.busy&&model.wallet.isNotBlank()){Text("Refresh subscription and blockchain payments")}
-        model.subscription?.let{Text(it.toString(2))}
-        Button(onClick={model.run("Opening card checkout"){openBrowser(context,model.checkout())}},enabled=!model.busy&&model.wallet.isNotBlank()){Text("Subscribe with card")}
-        TextButton(onClick={openBrowser(context,model.backend.trimEnd('/')+"/subscribe")}){Text("Manage subscription or pay with a connected wallet")}
-        OutlinedTextField(value=promo,onValueChange={promo=it},label={Text("Promo code")})
-        OutlinedButton(onClick={model.run("Checking promo"){model.applyPromo(promo)}}){Text("Apply code")}
+        OutlinedButton(onClick=model::refreshSubscription,enabled=!model.busy&&model.wallet.isNotBlank()){Text("Refresh access")}
+        model.subscription?.optJSONObject("subscription")?.let { Text(if(it.optBoolean("isActive")) "Premium access is active" else "No active subscription") }
+        Text("Google Play purchases",style=MaterialTheme.typography.titleLarge)
+        Text("Sign in to associate purchases with your Explorer account. Prices and payment confirmation are provided by Google Play.")
+        billing.products.forEach { product ->
+            Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text(product.name,style=MaterialTheme.typography.titleMedium)
+                Text(product.description)
+                val price=billing.price(product)
+                Button(onClick={billing.purchase(context as android.app.Activity,product)},enabled=!billing.busy&&model.wallet.isNotBlank()&&price!=null) {
+                    Text(if(product.productType==com.android.billingclient.api.BillingClient.ProductType.SUBS) "Subscribe — $price / month" else "Buy — $price")
+                }
+            } }
+        }
+        OutlinedButton(onClick=billing::load,enabled=!billing.busy){Text("Reload products")}
+        OutlinedButton(onClick=billing::restore,enabled=!billing.busy&&model.wallet.isNotBlank()){Text("Restore purchases")}
+        TextButton(onClick={openBrowser(context,"https://play.google.com/store/account/subscriptions?package=com.monadicdna.explorer")}){Text("Manage Google Play subscriptions")}
+        if(billing.busy) CircularProgressIndicator()
+        if(billing.message.isNotBlank()) Text(billing.message)
+        Text("The monthly subscription renews automatically unless cancelled in Google Play. One-time report purchases each provide one report run.",style=MaterialTheme.typography.bodySmall)
+        Text("Stablecoin payments",style=MaterialTheme.typography.titleLarge)
+        Text("Stablecoin payments are available only on Web. They are not available in the Android app.")
         TextButton(onClick=model::signOut){Text("Sign out")}
-        Text("Payment providers and wallet authorization open in your system browser. No server API keys are embedded in this app.",style=MaterialTheme.typography.bodySmall)
     }
 }

@@ -25,6 +25,7 @@ android {
     }
 }
 dependencies {
+    implementation("com.android.billingclient:billing-ktx:8.0.0")
     val composeBom = platform("androidx.compose:compose-bom:2025.04.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)

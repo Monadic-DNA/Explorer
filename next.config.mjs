@@ -9,6 +9,7 @@ const libsodiumCommonJs =
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingIncludes: { "/api/**": ["./certs/apple/*.cer"] },
   compress: true, // Enable gzip compression for API responses
   typescript: {
     ignoreBuildErrors: false, // Keep type checking

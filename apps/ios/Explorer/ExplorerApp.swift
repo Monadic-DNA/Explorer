@@ -39,7 +39,7 @@ struct ExplorerView: View {
                     NavigationLink("Reports"){ReportsView(export:export)}
                     NavigationLink("On-device vault"){VaultView(password:$vaultPassword,importDNA:{startImport("dna")},importVault:{startImport("vault")},export:export)}
                     NavigationLink("Connection and provider settings"){SettingsView()}
-                    NavigationLink("Account and premium"){AccountView()}
+                    NavigationLink("Account and premium"){AccountView(billing:store.billing)}
                     Section("Supported DNA exports"){Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, Monadic DNA and compatible raw files. Gzip archives are supported.")}
                 }.vaultScreen().navigationTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
             }
@@ -240,23 +240,46 @@ struct SettingsView:View{
     }.vaultScreen().navigationTitle("Settings")}
 }
 
-struct AccountView:View{
-    @EnvironmentObject var store:ExplorerStore
-    @State private var promo=""
-    var body:some View{Form{
-        Section("Account"){
-            Text(store.wallet.isEmpty ? "Not signed in":store.wallet).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption)).textSelection(.enabled)
-            Button("Sign in with Dynamic"){do{try store.beginAuth()}catch{store.error=error.localizedDescription}}
-            Button("Refresh subscription and blockchain payments",action:store.refreshSubscription).disabled(store.wallet.isEmpty||store.busy)
-            if let status=store.subscription,let data=try? JSONSerialization.data(withJSONObject:status,options:[.prettyPrinted,.sortedKeys]){Text(String(decoding:data,as:UTF8.self)).font(.caption.monospaced())}
-            Button("Subscribe with card",action:store.checkout).disabled(store.wallet.isEmpty||store.busy)
-            if let url=URL(string:store.backend.trimmingCharacters(in:CharacterSet(charactersIn:"/"))+"/subscribe"){Link("Manage subscription or pay with connected wallet",destination:url)}
-            Button("Sign out"){do{try store.signOut()}catch{store.error=error.localizedDescription}}
+struct AccountView: View {
+    @EnvironmentObject var store: ExplorerStore
+    @ObservedObject var billing: StoreBilling
+    var body: some View {
+        Form {
+            Section("Account") {
+                Text(store.wallet.isEmpty ? "Not signed in" : store.wallet).font(.caption).textSelection(.enabled)
+                Button("Sign in with Dynamic") { do { try store.beginAuth() } catch { store.error = error.localizedDescription } }
+                Button("Refresh access", action:store.refreshSubscription).disabled(store.wallet.isEmpty || store.busy)
+                if let subscription = store.subscription?["subscription"] as? [String:Any] {
+                    Text(subscription["isActive"] as? Bool == true ? "Premium access is active" : "No active subscription")
+                }
+            }
+            Section("App Store purchases") {
+                Text("Sign in to associate purchases with your Explorer account. Prices and payment confirmation are provided by the App Store.")
+                ForEach(billing.products) { product in
+                    VStack(alignment:.leading, spacing:8) {
+                        Text(product.displayName).font(.headline)
+                        Text(product.description).font(.subheadline)
+                        Button(product.type == .autoRenewable ? "Subscribe — \(product.displayPrice) / month" : "Buy — \(product.displayPrice)") {
+                            Task { await billing.purchase(product) }
+                        }.disabled(billing.loading || store.wallet.isEmpty)
+                    }
+                }
+                Button("Reload products") { Task { await billing.load() } }.disabled(billing.loading)
+                Button("Restore purchases") { Task { await billing.restore() } }.disabled(billing.loading || store.wallet.isEmpty)
+                Button("Manage Apple subscriptions") { Task { await billing.manage() } }
+                if !billing.message.isEmpty { Text(billing.message).font(.footnote) }
+                if billing.loading { ProgressView() }
+                Text("The monthly subscription renews automatically unless cancelled in your App Store subscription settings. One-time report purchases each provide one report run.").font(.footnote)
+                Link("Privacy policy", destination:URL(string:"https://github.com/Monadic-DNA/Explorer/blob/main/privacy_policy.md")!)
+                Link("Terms of use", destination:URL(string:"https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+            }
+            Section("Stablecoin payments") {
+                Text("Stablecoin payments are available only on Web. They are not available in the iOS app.")
+            }
+            Button("Sign out") { do { try store.signOut() } catch { store.error = error.localizedDescription } }
         }
-        Section("Promo"){
-            TextField("Promo code",text:$promo)
-            Button("Apply code"){do{try store.applyPromo(promo)}catch{store.error=error.localizedDescription}}
-        }
-        Text("Provider checkout and wallet authorization use the system browser. Server API keys are never embedded in this application.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))
-    }.vaultScreen().navigationTitle("Account and premium")}
+        .vaultScreen().navigationTitle("Account and premium")
+        .task { billing.attach(store); await billing.load(); try? await billing.recover() }
+        .onChange(of:store.wallet) { _, _ in Task { try? await billing.recover() } }
+    }
 }

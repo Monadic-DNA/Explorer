@@ -102,7 +102,7 @@ export default function OverviewReportPage() {
       try {
         const response = await fetch('/api/report-access', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization:`Bearer ${getAuthToken()}` } : {}) },
           body: JSON.stringify({
             walletAddress,
             action: 'check',

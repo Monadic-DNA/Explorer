@@ -26,6 +26,7 @@ pub(crate) fn array(v: &Value) -> &[Value] {
 
 pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
     match operation {
+        "billing_catalog" => serde_json::from_str(include_str!("../../../shared/billing-catalog.json")).map_err(|e| e.to_string()),
         "version" => Ok(json!({"protocol":1,"core":env!("CARGO_PKG_VERSION")})),
         "parse_genotype" => Ok(genotype::parse(
             text(&input, "content"),

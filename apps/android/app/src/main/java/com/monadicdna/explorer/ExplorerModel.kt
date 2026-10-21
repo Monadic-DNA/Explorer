@@ -177,21 +177,21 @@ class ExplorerModel(app: Application) : AndroidViewModel(app) {
         store.put("auth-token",auth.getString("token"));wallet=auth.getString("walletAddress");store.put("wallet",wallet);store.remove("pending-auth")
         subscription=api("/api/check-subscription",json("walletAddress" to wallet))
     }
+    val billing = PlayBilling(app, viewModelScope, { wallet }, { path, body -> api(path,body) }, ::refreshSubscription)
+    override fun onCleared() { billing.close(); Core.call("session_close",json("session" to session)); super.onCleared() }
     fun signOut(){store.remove("auth-token");store.remove("wallet");store.remove("pending-auth");wallet="";subscription=null}
     fun refreshSubscription() = run("Checking subscription") { require(wallet.isNotBlank()){ "Sign in first" };subscription=api("/api/check-subscription",json("walletAddress" to wallet)) }
-    suspend fun checkout(): String { require(wallet.isNotBlank()){ "Sign in first" };return api("/api/stripe/create-checkout",json("walletAddress" to wallet)).getString("url") }
-    fun applyPromo(code: String) { val response=Core.obj("promo",code);require(response.getBoolean("valid")){response.getString("message")};store.put("promo",code);status=response.getString("message") }
     private suspend fun requireAccess(kind: String) {
-        var access=Core.obj("feature_access",json("kind" to kind,"promo" to store.get("promo")))
+        var access=Core.obj("feature_access",json("kind" to kind))
         if(access.getBoolean("allowed"))return
-        require(wallet.isNotBlank()){ "Sign in or apply a premium promo code in Account first." }
+        require(wallet.isNotBlank()){ "Sign in to your Explorer account first." }
         subscription=api("/api/check-subscription",json("walletAddress" to wallet))
-        access=Core.obj("feature_access",json("kind" to kind,"promo" to store.get("promo"),"activeSubscription" to subscription?.optJSONObject("subscription")?.optBoolean("isActive")))
+        access=Core.obj("feature_access",json("kind" to kind,"activeSubscription" to subscription?.optJSONObject("subscription")?.optBoolean("isActive")))
         if(access.getBoolean("allowed"))return
-        require(!access.isNull("reportType")){ "An active subscription or premium promo is required for chat." }
+        require(!access.isNull("reportType")){ "An active subscription is required for chat." }
         val type=access.getString("reportType")
         val passes=api("/api/report-access",json("walletAddress" to wallet))
-        require(passes.getJSONObject("availableReports").optInt(type)>0){ "Subscribe or buy a $kind report pass on the website, then try again." }
+        require(passes.getJSONObject("availableReports").optInt(type)>0){ "Purchase a subscription or report pass in Account, then try again." }
         api("/api/report-access",json("walletAddress" to wallet,"reportType" to type,"action" to "consume"))
     }
     private fun llmConfig()=json("provider" to provider,"model" to model,"huggingfaceApiKey" to apiKey,"ollamaAddress" to ollamaAddress,"ollamaPort" to (ollamaPort.toIntOrNull()?:11434))
@@ -254,5 +254,5 @@ class ExplorerModel(app: Application) : AndroidViewModel(app) {
         val reduce=Core.call("render_prompt",json("name" to "generateReducePrompt","values" to json("groupSummaries" to JSONArray(summaries),"userContext" to userContext))) as String
         report=complete(JSONArray().put(json("role" to "user","content" to reduce)))
     }
-    override fun onCleared(){Core.call("session_close",json("session" to session));super.onCleared()}
+
 }
