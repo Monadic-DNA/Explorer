@@ -446,3 +446,5 @@ See [LICENSE](LICENSE) for full dual license details and [LICENSE-COMMERCIAL.md]
 Cerezo M, Sollis E, Ji Y, Lewis E, Abid A, Bircan KO, Hall P, Hayhurst J, John S, Mosaku A, Ramachandran S, Foreman A, Ibrahim A, McLaughlin J, Pendlington Z, Stefancsik R, Lambert SA, McMahon A, Morales J, Keane T, Inouye M, Parkinson H, Harris LW.
 doi.org/10.1093/nar/gkae1070
 Nucleic Acids Research, Volume 53, Issue D1, 6 January 2025, Pages D998–D1005
+
+See [secure persistence, recovery and encrypted sync](docs/secure-data-vault.md) for device key protection, cross-platform transfers and backend setup.

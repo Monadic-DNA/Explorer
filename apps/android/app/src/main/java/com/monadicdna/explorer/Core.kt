@@ -11,6 +11,14 @@ object Core {
         check(response.getBoolean("ok")) { response.optString("error","File import failed") }
         return response.getJSONObject("value")
     }
+    fun persistSession(session:Long,key:ByteArray,id:String,revision:Long,nonce:ByteArray,customization:String):JSONObject {
+        val response=JSONObject(com.monadicdna.explorer.core.persistSession(session.toULong(),key,id,revision.toULong(),nonce,customization))
+        check(response.getBoolean("ok")){response.optString("error","Unable to encrypt data")};return response.getJSONObject("value")
+    }
+    fun restorePersisted(session:Long,key:ByteArray,encrypted:String):JSONObject {
+        val response=JSONObject(com.monadicdna.explorer.core.restorePersistedSession(session.toULong(),key,encrypted))
+        check(response.getBoolean("ok")){response.optString("error","Unable to restore data")};return response.getJSONObject("value")
+    }
     fun call(operation: String, input: Any? = null): Any? {
         val request = JSONObject().put("version", 1).put("operation", operation).put("input", input ?: JSONObject.NULL)
         val response = JSONObject(coreCall(request.toString()))

@@ -1,7 +1,7 @@
 import { openBrowser } from "./public-sample-browser.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { pbkdf2Sync, createDecipheriv } from "node:crypto";
+import { openPortableVault } from "../vault-format.mjs";
 const root = new URL("../../.test-data/public-sample/", import.meta.url)
   .pathname;
 const origin = process.env.EXPLORER_TEST_URL || "http://127.0.0.1:3000";
@@ -143,26 +143,7 @@ try {
   const sealed = JSON.parse(
     readFileSync(root + "web-portable-vault.json", "utf8"),
   );
-  const key = pbkdf2Sync(
-    password,
-    Buffer.from(sealed.salt, "base64"),
-    sealed.iterations,
-    32,
-    "sha256",
-  );
-  const encrypted = Buffer.from(sealed.ciphertext, "base64");
-  const cipher = createDecipheriv(
-    "aes-256-gcm",
-    key,
-    Buffer.from(sealed.iv, "base64"),
-  );
-  cipher.setAuthTag(encrypted.subarray(-16));
-  const snapshot = JSON.parse(
-    Buffer.concat([
-      cipher.update(encrypted.subarray(0, -16)),
-      cipher.final(),
-    ]).toString("utf8"),
-  );
+  const snapshot = openPortableVault(sealed,password);
   assert.equal(
     Object.keys(snapshot.genotypes).length,
     expected.parsedVariants,

@@ -9,6 +9,19 @@ enum Core {
         guard let metadata=envelope["value"] as? [String:Any] else{throw Failure(message:"Invalid import metadata")}
         return metadata
     }
+    static func sealSession(_ session:Int,_ key:Data,_ id:String,_ revision:Int,_ nonce:Data,_ customization:[String:Any]) throws -> [String:Any] {
+        let encoded=String(decoding:try JSONSerialization.data(withJSONObject:customization),as:UTF8.self)
+        let response=persistSession(session:UInt64(session),key:key,vaultId:id,revision:UInt64(revision),nonce:nonce,customization:encoded)
+        return try persistenceResponse(response)
+    }
+    static func restorePersisted(_ session:Int,_ key:Data,_ envelope:[String:Any]) throws {
+        let encoded=String(decoding:try JSONSerialization.data(withJSONObject:envelope),as:UTF8.self)
+        _=try persistenceResponse(restorePersistedSession(session:UInt64(session),key:key,encrypted:encoded))
+    }
+    private static func persistenceResponse(_ response:String) throws -> [String:Any] {
+        guard let object=try JSONSerialization.jsonObject(with:Data(response.utf8)) as? [String:Any],object["ok"] as? Bool==true,let value=object["value"] as? [String:Any] else {throw Failure(message:"Unable to authenticate saved data")}
+        return value
+    }
     static func call(_ operation: String, _ input: Any = NSNull()) throws -> Any {
         let data = try JSONSerialization.data(withJSONObject: ["version":1,"operation":operation,"input":input], options: [.sortedKeys])
         let response = coreCall(request: String(decoding:data,as:UTF8.self))

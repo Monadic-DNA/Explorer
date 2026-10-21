@@ -1,6 +1,7 @@
 //! Portable client domain logic. No HTTP, filesystem, UI, or OS key storage.
 //! All platforms use the same versioned JSON protocol over WASM or UniFFI.
 mod crypto;
+mod vault;
 mod files;
 mod genotype;
 mod llm;
@@ -26,6 +27,7 @@ pub(crate) fn array(v: &Value) -> &[Value] {
 
 pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
     match operation {
+        op if op.starts_with("vault_") => vault::dispatch(op, &input),
         "billing_catalog" => serde_json::from_str(include_str!("../../../shared/billing-catalog.json")).map_err(|e| e.to_string()),
         "version" => Ok(json!({"protocol":1,"core":env!("CARGO_PKG_VERSION")})),
         "parse_genotype" => Ok(genotype::parse(
@@ -127,6 +129,20 @@ pub fn import_genotype(session: u64, bytes: Vec<u8>, file_name: String) -> Strin
             json!({"session":session,"content":content,"fileName":file_name}),
         )
     }))
+}
+
+/// Keys use native byte buffers; the large plaintext genotype snapshot never crosses the FFI boundary.
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn persist_session(session: u64, key: Vec<u8>, vault_id: String, revision: u64, nonce: Vec<u8>, customization: String) -> String {
+    let key = zeroize::Zeroizing::new(key);
+    envelope(session::persist(session,&key,&vault_id,revision,&nonce,&customization))
+}
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn restore_persisted_session(session: u64, key: Vec<u8>, encrypted: String) -> String {
+    let key = zeroize::Zeroizing::new(key);
+    envelope(serde_json::from_str::<Value>(&encrypted).map_err(|_|"Invalid vault".to_string())
+        .and_then(|encrypted| vault::open(&encrypted,&key))
+        .and_then(|snapshot| session::dispatch("session_restore",json!({"session":session,"snapshot":snapshot}))))
 }
 
 // Import-free WASM ABI: synchronous on browsers, Node SSR and web workers.

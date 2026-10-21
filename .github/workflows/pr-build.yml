@@ -44,9 +44,12 @@ jobs:
         run: |
           node scripts/migrate-mobile-billing.mjs
           npm run test:billing
+          npm run vault:migrate
+          npm run test:vault-sync
         env:
           POSTGRES_DB: postgresql://explorer:billing-test-only@127.0.0.1:5432/billing_test
           BILLING_DB_TEST: 'true'
+          VAULT_DB_TEST: 'true'
 
       - name: Install shared core toolchain
         run: rustup show active-toolchain

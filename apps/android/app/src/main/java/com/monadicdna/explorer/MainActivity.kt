@@ -3,7 +3,7 @@ package com.monadicdna.explorer
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
@@ -29,13 +29,19 @@ import androidx.lifecycle.ViewModelProvider
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
-class MainActivity: ComponentActivity() {
+class MainActivity: FragmentActivity() {
+    private lateinit var deviceAuthentication:DeviceAuthentication
     private val model by lazy { ViewModelProvider(this)[ExplorerModel::class.java] }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        deviceAuthentication=DeviceAuthentication(this)
+        val weak=java.lang.ref.WeakReference(deviceAuthentication)
+        model.authenticate={requireNotNull(weak.get()){ "Open the app to unlock saved data." }.authenticate()}
         intent?.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth)
         setContent { VaultTheme { ExplorerApp(model) } }
     }
+    override fun onStop() { super.onStop(); if(!deviceAuthentication.active && !isChangingConfigurations) model.backgroundLock() }
     override fun onResume() { super.onResume(); if(model.wallet.isNotBlank()) model.billing.restore() }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent);setIntent(intent);intent.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth) }
 }
@@ -71,9 +77,14 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { listOf("Home","Browse","Results","Chat","More").forEachIndexed{index,name->NavigationBarItem(selected=tab==name,onClick={tab=name},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.Default.Search;2->Icons.AutoMirrored.Filled.List;3->Icons.AutoMirrored.Filled.Chat;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
+            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween){
+                Text(model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+                if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}
+                else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock data")}
+            }
             if(model.busy){LinearProgressIndicator(Modifier.fillMaxWidth());Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween){Text(model.status,Modifier.weight(1f));TextButton(onClick=model::cancel){Text("Cancel")}}}
             model.error?.let{message->Card(Modifier.padding(12.dp)){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
-            when(tab){
+            if(model.locking){Text("Your data is protected",Modifier.padding(24.dp))} else when(tab){
                 "Home"->ScreenColumn{
                     VaultHero()
                     Button(onClick={tab="Vault"}){Text("Import your DNA")}
@@ -154,26 +165,37 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 }
 @Composable private fun ReportScreen(model: ExplorerModel,export: ()->Unit){ScreenColumn{VaultArt(R.drawable.vault_discover);Text("Genetic research reports",style=MaterialTheme.typography.headlineMedium);Consent(model);listOf("Overview","Health","Healthspan","Top traits").forEach{kind->OutlinedButton(onClick={model.generateReport(kind)},enabled=!model.busy&&model.results.isNotEmpty()){Text("Generate $kind")}};if(model.report.isNotEmpty()){Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);Text(model.report);Button(onClick=export){Text("Export report")};model.reportQuestions.forEach{question->OutlinedButton(onClick={model.sendChat(question)},enabled=!model.busy){Text(question)}}}}}
 
-@Composable private fun VaultScreen(model: ExplorerModel,importDNA: ()->Unit,export: (String,String)->Unit){
-    var password by remember{mutableStateOf("")};var confirmDelete by remember{mutableStateOf(false)}
+@Composable private fun VaultScreen(model:ExplorerModel,importDNA:()->Unit,export:(String,String)->Unit){
+    var password by remember{mutableStateOf("")};var confirm by remember{mutableStateOf("")}
     val context=LocalContext.current
-    val importVault=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)model.run("Reading encrypted vault"){
-        val sealed=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){readDocument(context,uri).toString(Charsets.UTF_8)}
-        val pass=password;password="";model.openVaultData(pass,sealed)
+    val importBackup=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)model.run("Restoring encrypted backup"){
+        val bytes=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){readDocument(context,uri)}
+        val pass=password;password="";model.openVaultData(pass,bytes.toString(Charsets.UTF_8))
     }}
     ScreenColumn{
         VaultArt(R.drawable.vault_vault)
-        Text("Private on-device vault",style=MaterialTheme.typography.headlineMedium)
-        Text("${model.metadata.optInt("count")} variants • ${model.results.size} results. DNA is held in memory until you explicitly save an encrypted vault.")
+        Text("Private on-device data",style=MaterialTheme.typography.headlineMedium)
+        Text("DNA, results and customization save automatically while unlocked. Unlock with your device authentication. Locking clears decrypted data from this app's memory.")
+        Text(model.storageMessage)
         Row{Checkbox(checked=model.acceptedDisclaimer,onCheckedChange={model.acceptedDisclaimer=it});Text("I understand this is educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)}
-        Button(onClick=importDNA,enabled=model.acceptedDisclaimer&&!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
-        OutlinedTextField(value=password,onValueChange={password=it},label={Text("Vault passphrase")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
-        Row{Button(onClick={val p=password;password="";model.saveVault(p)},enabled=!model.busy&&password.length>=8){Text("Save")};Spacer(Modifier.width(10.dp));OutlinedButton(onClick={val p=password;password="";model.openVault(p)},enabled=!model.busy&&password.isNotEmpty()){Text("Unlock")};TextButton(onClick=model::clear){Text("Lock")}}
-        OutlinedButton(onClick={val p=password;password="";model.run("Encrypting portable backup"){val data=model.sealedVault(p);export("monadic-vault.json",data)}},enabled=!model.busy&&password.length>=8){Text("Export encrypted portable vault")}
-        OutlinedButton(onClick={importVault.launch(arrayOf("application/json","text/*","application/octet-stream"))},enabled=!model.busy&&password.isNotEmpty()){Text("Import portable vault using this passphrase")}
-        TextButton(onClick={confirmDelete=true}){Text("Delete local vault and clear memory")}
+        Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=model.acceptedDisclaimer&&!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
+        if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
+        else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock and clear decrypted data")}
+        Text("Recovery and encrypted sync",style=MaterialTheme.typography.titleLarge)
+        Text("Use a long, unique recovery passphrase (at least 12 characters). It protects exported backups and lets your other devices unlock encrypted cloud data. Keep it safe; we cannot recover it for you.")
+        OutlinedTextField(value=password,onValueChange={password=it},label={Text("Recovery passphrase")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
+        OutlinedButton(onClick={val pass=password;password="";model.run("Exporting encrypted backup"){export("monadic-vault.json",model.sealedVault(pass))}},enabled=!model.busy&&model.dataUnlocked&&password.length>=12){Text("Export encrypted backup")}
+        OutlinedButton(onClick={importBackup.launch(arrayOf("application/json","text/*","application/octet-stream"))},enabled=!model.busy&&password.isNotEmpty()){Text("Restore encrypted backup (replaces device data)")}
+        OutlinedButton(onClick={val pass=password;password="";model.enableSync(pass)},enabled=!model.busy&&model.dataUnlocked&&model.wallet.isNotBlank()&&password.length>=12){Text("Enable encrypted sync")}
+        OutlinedButton(onClick=model::syncNow,enabled=!model.busy&&model.dataUnlocked&&model.wallet.isNotBlank()){Text("Sync now")}
+        OutlinedButton(onClick={confirm="cloudRestore"},enabled=!model.busy&&model.wallet.isNotBlank()&&password.isNotEmpty()){Text("Restore cloud copy (replaces device data)")}
+        TextButton(onClick=model::disableSync,enabled=model.dataUnlocked && !model.syncing && !model.locking&&!model.busy){Text("Disable sync on this device")}
+        TextButton(onClick={confirm="cloudDelete"},enabled=model.dataUnlocked && !model.syncing && !model.locking&&!model.busy&&model.wallet.isNotBlank()){Text("Delete cloud copy")}
+        Text("Sync is optional and requires sign-in. Only encrypted data is uploaded. Hardware keys stay on each device; the recovery passphrase is never sent to the server.",style=MaterialTheme.typography.bodySmall)
+        TextButton(onClick={confirm="localDelete"},enabled=!model.busy){Text("Delete data from this device")}
+        if(java.io.File(context.filesDir,"vault.json").exists())OutlinedButton(onClick={val pass=password;password="";model.openVault(pass)},enabled=password.isNotEmpty()&&!model.busy){Text("Migrate previous saved vault")}
     }
-    if(confirmDelete)AlertDialog(onDismissRequest={confirmDelete=false},title={Text("Delete this device's vault?")},text={Text("This deletes the encrypted local copy and clears in-memory data. Exported backups are unaffected.")},confirmButton={TextButton(onClick={model.deleteVault();confirmDelete=false}){Text("Delete")}},dismissButton={TextButton(onClick={confirmDelete=false}){Text("Cancel")}})
+    if(confirm.isNotEmpty())AlertDialog(onDismissRequest={confirm=""},title={Text(if(confirm=="cloudRestore")"Replace device data?" else "Delete encrypted data?")},text={Text(when(confirm){"cloudRestore"->"The cloud copy will replace DNA, results and customization on this device. Export a backup first if you want to retain local changes.";"cloudDelete"->"Delete the account's encrypted cloud copy. Other devices retain their local copies.";else->"Delete this device's encrypted data and its device wrapping key. Cloud copies and exported backups remain."})},confirmButton={TextButton(onClick={val action=confirm;confirm="";when(action){"cloudRestore"->{val pass=password;password="";model.restoreCloud(pass)};"cloudDelete"->model.deleteCloud();else->model.deleteVault()}}){Text("Confirm")}},dismissButton={TextButton(onClick={confirm=""}){Text("Cancel")}})
 }
 
 @Composable private fun SettingsScreen(model: ExplorerModel){ScreenColumn{
@@ -186,16 +208,17 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     if(model.provider=="ollama"){OutlinedTextField(value=model.ollamaAddress,onValueChange={model.ollamaAddress=it},label={Text("Ollama hostname")});OutlinedTextField(value=model.ollamaPort,onValueChange={model.ollamaPort=it},label={Text("Ollama port")})}
     if(model.provider=="nilai")Text("Leave the key blank to use one-use backend delegation. Prompts go directly from this device to nilAI; only your public key visits the backend.",style=MaterialTheme.typography.bodySmall)
     Text("Optional personalization",style=MaterialTheme.typography.titleLarge)
+    if(!model.dataUnlocked) {Text("Unlock saved data to view or edit customization.");OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock customization")}}
     model.profileSchema.forEach { field ->
         val key=field.getString("key")
         if(field.getString("type")=="select") {
             Text(field.getString("label"))
             Row(Modifier.horizontalScroll(rememberScrollState())) { field.getJSONArray("options").objects().forEach { option ->
-                FilterChip(selected=model.profileFields[key]==option.getString("value"),onClick={model.profileFields[key]=option.getString("value")},label={Text(option.getString("label"))})
+                FilterChip(enabled=model.dataUnlocked && !model.syncing && !model.locking,selected=model.profileFields[key]==option.getString("value"),onClick={model.profileFields[key]=option.getString("value")},label={Text(option.getString("label"))})
             } }
-        } else OutlinedTextField(value=model.profileFields[key].orEmpty(),onValueChange={model.profileFields[key]=it},label={Text(field.getString("label"))},modifier=Modifier.fillMaxWidth())
+        } else OutlinedTextField(value=model.profileFields[key].orEmpty(),onValueChange={model.profileFields[key]=it},enabled=model.dataUnlocked && !model.syncing && !model.locking,label={Text(field.getString("label"))},modifier=Modifier.fillMaxWidth())
     }
-    OutlinedTextField(value=model.profile,onValueChange={model.profile=it},label={Text("Optional personalization context")},modifier=Modifier.fillMaxWidth())
+    OutlinedTextField(value=model.profile,onValueChange={model.profile=it},enabled=model.dataUnlocked && !model.syncing && !model.locking,label={Text("Optional personalization context")},modifier=Modifier.fillMaxWidth())
     Button(onClick={model.run("Saving settings"){model.settingsSaved()}},enabled=!model.busy){Text("Save securely")}
 }}
 

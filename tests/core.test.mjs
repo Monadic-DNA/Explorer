@@ -145,3 +145,28 @@ test('large native imports keep only compact genotype state and enforce strict R
     assert.deepEqual(coreCall('session_analyze',{session,strict:true,studies:[study]}),[]);
   } finally{coreCall('session_close',{session});}
 });
+
+test('v2 recovery interoperates with independent Argon2id/AES-GCM decoder and authenticates all data', async () => {
+  const {openPortableVault}=await import('./vault-format.mjs');
+  const key=randomBytes(32).toString('base64'),vaultId='8492f2d1-a425-4a33-8f44-ea25fe126f06',password='unique test recovery passphrase';
+  const snapshot={version:1,genotypes:{rs1:'AG'},results:[],metadata:{fileName:'private.txt',count:1},customization:{fields:{age:'42',ethnicities:'South Asian'},context:'private context'}};
+  const envelope=coreCall('vault_seal',{snapshot:JSON.stringify(snapshot),key,vaultId,revision:7,nonce:randomBytes(12).toString('base64')});
+  const wrappedKey=coreCall('vault_wrap_key',{key,vaultId,password,salt:randomBytes(16).toString('base64'),nonce:randomBytes(12).toString('base64')});
+  const archive={version:2,envelope,wrappedKey};archive.mac=coreCall('vault_record_mac',{key,record:archive});
+  assert.deepEqual(openPortableVault(archive,password),snapshot);
+  assert.equal(coreCall('vault_unwrap_key',{wrappedKey,password}),key);
+  assert.deepEqual(JSON.parse(coreCall('vault_open',{envelope,key})),snapshot);
+  assert.throws(()=>coreCall('vault_unwrap_key',{wrappedKey,password:'wrong test password'}));
+  assert.throws(()=>coreCall('vault_unwrap_key',{wrappedKey:{...wrappedKey,vaultId:'11111111-1111-1111-1111-111111111111'},password}));
+  assert.throws(()=>coreCall('vault_open',{envelope:{...envelope,revision:8},key}));
+  assert.throws(()=>coreCall('vault_open',{envelope:{...envelope,genotypeDigest:'0'.repeat(64)},key}));
+  assert.throws(()=>coreCall('vault_open',{envelope:{...envelope,genotype:{...envelope.genotype,nonce:randomBytes(12).toString('base64')}},key}));
+  assert.throws(()=>coreCall('vault_record_verify',{key,record:{...archive,wrappedKey:{...wrappedKey,salt:randomBytes(16).toString('base64')}}}));
+  assert.throws(()=>coreCall('vault_open',{envelope,key:randomBytes(32).toString('base64')}));
+  const session=coreCall('session_create');
+  try {
+    coreCall('session_restore',{session,snapshot:coreCall('vault_open',{envelope,key})});
+    assert.deepEqual(coreCall('session_customization',{session}),snapshot.customization);
+    assert.equal(coreCall('session_metadata',{session}).count,1);
+  } finally{coreCall('session_close',{session});}
+});

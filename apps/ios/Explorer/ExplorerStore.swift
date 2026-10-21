@@ -10,8 +10,8 @@ import UIKit
     @Published var apiKey=DeviceStore.get("api-key-"+(DeviceStore.get("provider").isEmpty ? "nilai":DeviceStore.get("provider")))
     @Published var ollamaAddress=DeviceStore.get("ollama-address").isEmpty ? "localhost" : DeviceStore.get("ollama-address")
     @Published var ollamaPort=DeviceStore.get("ollama-port").isEmpty ? "11434" : DeviceStore.get("ollama-port")
-    @Published var profile=DeviceStore.get("profile")
-    @Published var profileFields:[String:String]=(try? JSONDecoder().decode([String:String].self,from:Data(DeviceStore.get("profile-fields").utf8))) ?? [:]
+    @Published var profile="" {didSet{customizationChanged()}}
+    @Published var profileFields:[String:String]=[:] {didSet{customizationChanged()}}
     var profileSchema:[ProfileField] {
         guard let fields=try? Core.call("profile_schema"),let data=try? JSONSerialization.data(withJSONObject:fields) else{return []}
         return (try? JSONDecoder().decode([ProfileField].self,from:data)) ?? []
@@ -36,12 +36,149 @@ import UIKit
     private var task:Task<Void,Never>?
     let billing = StoreBilling()
     private(set) var session:Int
-    override init(){session=(try? Core.call("session_create") as? Int) ?? 0;super.init();billing.attach(self);Task { try? await billing.recover() }}
+    let dataVault:SecureDataVault
+    @Published private(set) var dataUnlocked=false
+    @Published private(set) var storageMessage="Your saved data is locked."
+    @Published private(set) var syncing=false
+    private var dataDirty=false
+    private var dataVersion=0
+    private var lastCustomization=Data()
+    private var restoring=false
+    @Published private(set) var locking=false
+    private var autosave:Task<Void,Never>?
+    private var lockTask:Task<Void,Never>?
+    private var syncTask:Task<Void,Never>?
+    private var syncAgain=false
+    init(dataVault:SecureDataVault){
+        self.dataVault=dataVault;session=(try? Core.call("session_create") as? Int) ?? 0
+        super.init();billing.attach(self);Task {try? await billing.recover()}
+    }
+    override convenience init(){self.init(dataVault:SecureDataVault())}
+    private func customization()->[String:Any]{["fields":profileFields,"context":profile]}
+    private func customizationChanged(){if dataUnlocked && !restoring {markDataChanged()}}
+    private func restoreCustomization(_ value:[String:Any]) {
+        restoring=true
+        profile=value["context"] as? String ?? "";profileFields=value["fields"] as? [String:String] ?? [:]
+        lastCustomization=(try? JSONSerialization.data(withJSONObject:customization(),options:.sortedKeys)) ?? Data()
+        restoring=false
+    }
+    func unlockData() async throws {
+        if let lockTask {await lockTask.value}
+        if dataUnlocked{return}
+        let existed=await dataVault.exists
+        restoreCustomization(try await dataVault.unlock(session))
+        metadata=try Core.object("session_metadata",["session":session]);try refreshResults()
+        dataUnlocked=true;storageMessage="Saved on device • \(await dataVault.protection)"
+        if !existed {
+            let fields=(try? JSONSerialization.jsonObject(with:Data(DeviceStore.get("profile-fields").utf8))) as? [String:Any] ?? [:]
+            restoreCustomization(["fields":fields,"context":DeviceStore.get("profile")])
+            dataDirty=true;try await flushData();try DeviceStore.put("profile","");try DeviceStore.put("profile-fields","")
+        }
+        queueSync()
+    }
+    func unlockSavedData(){work("Unlocking saved data"){try await self.unlockData()}}
+    private func markDataChanged(){
+        dataDirty=true;dataVersion+=1;storageMessage="Saving securely…"
+        autosave?.cancel()
+        autosave=Task {
+            do {try await Task.sleep(nanoseconds:500_000_000);try Task.checkCancellation();try await flushData()}
+            catch is CancellationError {} catch {if dataUnlocked{storageMessage="Changes not saved. Please retry.";self.error=error.localizedDescription}}
+        }
+    }
+    func flushData() async throws {
+        guard dataUnlocked && dataDirty else{return}
+        let version=dataVersion;let custom=customization()
+        try await dataVault.save(session,custom)
+        lastCustomization=try JSONSerialization.data(withJSONObject:custom,options:.sortedKeys)
+        if version==dataVersion{dataDirty=false}
+        storageMessage=dataDirty ? "Saving securely…" : "Saved on device • \(await dataVault.protection)"
+        queueSync()
+    }
+    private func wipeMemory(){
+        _=try? Core.call("session_close",["session":session]);session=(try? Core.call("session_create") as? Int) ?? 0
+        dataUnlocked=false;dataDirty=false;metadata=[:];results=[];messages=[];report="";reportQuestions=[];selectedStudy=nil
+        restoreCustomization(["fields":[:],"context":""])
+    }
+    func lockData(){
+        guard !locking else{return};locking=true
+        let running=task;let pendingSave=autosave;let pendingSync=syncTask
+        lockTask=Task {
+            running?.cancel();await running?.value;pendingSave?.cancel();await pendingSave?.value;pendingSync?.cancel();await pendingSync?.value
+            do{try await flushData()}catch{self.error="Latest changes could not be saved. The previous encrypted copy is intact."}
+            await dataVault.lock();wipeMemory();storageMessage="Your saved data is locked.";locking=false
+        }
+    }
+    func backgroundLock(){if dataUnlocked{lockData()}}
+    private func queueSync(){
+        guard dataUnlocked && !locking else{return}
+        if syncing{syncAgain=true;return}
+        if syncTask != nil {syncAgain=true;return}
+        syncTask=Task {
+            defer{syncing=false;syncTask=nil}
+            do {while busy {try await Task.sleep(nanoseconds:100_000_000)};try await Task.sleep(nanoseconds:1_000_000_000)} catch{return}
+            syncing=true
+            do{repeat{syncAgain=false;try await syncOnce()}while syncAgain}
+            catch is CancellationError {} catch{storageMessage="Saved on device. Sync needs attention.";self.error=error.localizedDescription}
+        }
+    }
+    private func syncOnce() async throws {
+        guard let config=await dataVault.configuration(),config["enabled"] as? Bool==true else{return}
+        guard !wallet.isEmpty,wallet.lowercased()==config["wallet"] as? String else{throw Core.Failure(message:"Sign in to the account used to enable sync")}
+        let observedVersion=dataVersion
+        let response=try await api("/api/vault-sync",["walletAddress":wallet,"action":"read","knownRevision":config["revision"] ?? 0,"knownGenotype":await dataVault.genotypeDigest() ?? ""])
+        let revision=response["revision"] as? Int ?? 0;let base=config["revision"] as? Int ?? 0
+        guard let latest=await dataVault.configuration(),latest["enabled"] as? Bool==true,latest["wallet"] as? String==config["wallet"] as? String else{return}
+        if revision==base {
+            if config["dirty"] as? Bool==true {
+                var archive=try await dataVault.archive();var envelope=archive["envelope"] as! [String:Any]
+                let uploaded=envelope["revision"] as! Int
+                if envelope["genotypeDigest"] as? String==response["genotypeDigest"] as? String {envelope.removeValue(forKey:"genotype");archive["envelope"]=envelope}
+                let result=try await api("/api/vault-sync",["walletAddress":wallet,"action":"write","baseRevision":base,"archive":archive])
+                try await dataVault.synced(result["revision"] as! Int,uploaded)
+            }
+        } else {
+            if let cloud=response["archive"] as? [String:Any] {
+                let local=try await dataVault.archive()
+                if cloud["mac"] as? String==local["mac"] as? String {
+                    try await dataVault.synced(revision,(local["envelope"] as! [String:Any])["revision"] as! Int);return
+                }
+            }
+            guard !dataDirty,observedVersion==dataVersion,!busy,latest["dirty"] as? Bool != true else{throw Core.Failure(message:"Another device has changes. Restore the cloud copy to replace device data, or export a backup before resolving this conflict.")}
+            guard let archive=response["archive"] as? [String:Any] else{throw Core.Failure(message:"The cloud copy was removed. Disable sync or set it up again explicitly.")}
+            restoreCustomization(try await dataVault.acceptCloud(session,archive,revision))
+            metadata=try Core.object("session_metadata",["session":session]);try refreshResults()
+        }
+        storageMessage="Saved on device and encrypted sync is up to date."
+    }
+    func syncNow(){work("Syncing encrypted data"){try await self.unlockData();try await self.flushData();self.queueSync()}}
+    func enableSync(_ password:String){work("Setting up encrypted sync"){
+        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in before enabling sync")}
+        try await self.unlockData();try await self.flushData();try await self.dataVault.enableSync(self.wallet,password);self.queueSync()
+    }}
+    func disableSync(){work("Disabling sync on this device"){try await self.dataVault.disableSync();self.storageMessage="Saved on device. Sync is disabled on this device."}}
+    func restoreCloud(_ password:String){work("Restoring encrypted cloud data"){
+        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in to restore cloud data")}
+        let response=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"read"])
+        guard let archive=response["archive"] as? [String:Any],let revision=response["revision"] as? Int else{throw Core.Failure(message:"No encrypted cloud copy exists for this account")}
+        self.restoreCustomization(try await self.dataVault.restore(self.session,archive,password,allowOlder:true))
+        self.dataUnlocked=true;self.dataDirty=false;self.metadata=try Core.object("session_metadata",["session":self.session]);try self.refreshResults()
+        try await self.dataVault.enableExistingSync(self.wallet,revision);self.storageMessage="Restored encrypted cloud data and enabled sync."
+    }}
+    func deleteCloud(){work("Deleting cloud copy"){
+        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in first")}
+        let response=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"read"])
+        _=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"delete","baseRevision":response["revision"] ?? 0])
+        try await self.dataVault.disableSync();self.storageMessage="Cloud copy deleted. The encrypted device copy is retained."
+    }}
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
-        guard !busy else{return}
+        guard !busy && !syncing && !locking else{return}
         busy=true;status=label;error=nil
-        task=Task { defer{busy=false};do{try await operation();status="Complete"}catch is CancellationError{status="Cancelled"}catch{self.error=error.localizedDescription} }
+        task=Task {
+            defer{busy=false}
+            do{try await operation();status="Complete"}catch is CancellationError{status="Cancelled"}catch{self.error=error.localizedDescription}
+            do{try await flushData()}catch{storageMessage="Changes not saved. Please retry.";self.error=error.localizedDescription}
+        }
     }
     func cancel(){task?.cancel()}
     func origin() throws -> String {
@@ -69,8 +206,8 @@ import UIKit
     func saveSettings() throws {
         _=try origin()
         _=try profileData()
-        try DeviceStore.put("profile-fields",String(decoding:try JSONSerialization.data(withJSONObject:profileFields),as:UTF8.self))
-        for (key,value) in [("backend",backend),("provider",provider),("model",model),("api-key-"+provider,apiKey),("ollama-address",ollamaAddress),("ollama-port",ollamaPort),("profile",profile)]{try DeviceStore.put(key,value)}
+        if dataUnlocked{markDataChanged()}
+        for (key,value) in [("backend",backend),("provider",provider),("model",model),("api-key-"+provider,apiKey),("ollama-address",ollamaAddress),("ollama-port",ollamaPort)]{try DeviceStore.put(key,value)}
     }
     func selectProvider(_ next:String){do{try DeviceStore.put("api-key-"+provider,apiKey);provider=next;apiKey=DeviceStore.get("api-key-"+next)}catch{self.error="Unable to switch secure provider settings"}}
     func browse(_ query:String,_ trait:String,semantic:Bool,offset:Int=0){work("Loading studies"){
@@ -86,6 +223,7 @@ import UIKit
     }
     func importDNA(_ url:URL){work("Importing DNA on device"){
         guard self.acceptedDisclaimer else{throw Core.Failure(message:"Accept the educational-use disclaimer first")}
+        try await self.unlockData();self.markDataChanged()
         let data=try self.readFile(url);let session=self.session;let name=url.lastPathComponent
         let metadata=try await Task.detached{try Core.importFile(session,data,name)}.value
         try Task.checkCancellation();self.metadata=metadata
@@ -93,13 +231,15 @@ import UIKit
     }}
     func refreshResults() throws{results=try Core.array("session_results",["session":session]).map(Record.init)}
     func analyze(_ record:Record){work("Matching DNA on device"){
-        guard self.variantCount>0 else{throw Core.Failure(message:"Import your DNA first")}
+        guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
+        self.markDataChanged()
         let session=self.session;let input:[String:Any]=["session":session,"studies":[record.raw],"now":ISO8601DateFormatter().string(from:Date())]
         _=try await Task.detached{try Core.call("session_analyze",input)}.value
         try self.refreshResults()
     }}
     func runAll(){work("Analyzing catalog on device"){
-        guard self.variantCount>0 else{throw Core.Failure(message:"Import your DNA first")}
+        guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
+        self.markDataChanged()
         var offset=0
         while true{
             try Task.checkCancellation()
@@ -112,35 +252,38 @@ import UIKit
         }
         try self.refreshResults()
     }}
-    func clear(){task?.cancel();_ = try? Core.call("session_close",["session":session]);session=(try? Core.call("session_create") as? Int) ?? 0;metadata=[:];results=[];messages=[];report="";reportQuestions=[]}
+    func clear(){lockData()}
     func exportResults() throws -> String{try Core.string("session_export",["session":session])}
     func importResults(_ url:URL){work("Importing results"){
+        try await self.unlockData();self.markDataChanged()
         let data=try self.readFile(url)
         _=try Core.call("session_import_results",["session":self.session,"content":String(decoding:data,as:UTF8.self),"fileName":url.lastPathComponent,"now":ISO8601DateFormatter().string(from:Date())]);try self.refreshResults()
     }}
     private var vaultURL:URL { FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("monadic-vault.json") }
     func encryptedVault(_ password:String) async throws -> String {
-        guard password.count>=8 else{throw Core.Failure(message:"Use a passphrase with at least eight characters")}
-        let snapshot=try Core.string("session_snapshot",["session":session]);let salt=try DeviceStore.entropy(16);let iv=try DeviceStore.entropy(12)
-        let encrypted=try await Task.detached{try Core.object("seal",["plaintext":snapshot,"password":password,"salt":salt,"iv":iv,"iterations":600000])}.value
-        try Task.checkCancellation()
-        return String(decoding:try JSONSerialization.data(withJSONObject:encrypted),as:UTF8.self)
+        try await unlockData();try await flushData()
+        return String(decoding:try JSONSerialization.data(withJSONObject:await dataVault.backup(password)),as:UTF8.self)
     }
-    func saveVault(_ password:String){work("Encrypting vault"){
-        let encrypted=try await self.encryptedVault(password);let url=self.vaultURL
-        try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true)
-        try Data(encrypted.utf8).write(to:url,options:[.atomic,.completeFileProtection])
-        var file=url;var resources=URLResourceValues();resources.isExcludedFromBackup=true;try file.setResourceValues(resources)
-    }}
-    func unlockVault(_ password:String,file:URL?=nil){work("Unlocking vault"){
+    func saveVault(_ password:String){work("Saving data securely"){try await self.unlockData();self.dataDirty=true;try await self.flushData()}}
+    func unlockVault(_ password:String,file:URL?=nil){work("Restoring encrypted data"){
         let data=try file.map(self.readFile) ?? Data(contentsOf:self.vaultURL)
         guard var encrypted=try JSONSerialization.jsonObject(with:data) as? [String:Any] else{throw Core.Failure(message:"Invalid encrypted vault")}
-        encrypted["password"]=password;let session=self.session
-        let metadata=try await Task.detached{let snapshot=try Core.string("open",encrypted);return try Core.object("session_restore",["session":session,"snapshot":snapshot])}.value
-        try Task.checkCancellation();self.metadata=metadata
-        try self.refreshResults()
+        if encrypted["version"] as? Int==2 {
+            self.restoreCustomization(try await self.dataVault.restore(self.session,encrypted,password))
+            self.dataUnlocked=true;self.dataDirty=false
+        } else {
+            try await self.unlockData();encrypted["password"]=password
+            let snapshot=try Core.string("open",encrypted);_=try Core.call("session_restore",["session":self.session,"snapshot":snapshot]);self.markDataChanged();try await self.flushData()
+        }
+        self.metadata=try Core.object("session_metadata",["session":self.session]);try self.refreshResults()
+        self.storageMessage="Saved on device • \(await self.dataVault.protection)"
     }}
-    func deleteVault() throws {if FileManager.default.fileExists(atPath:vaultURL.path){try FileManager.default.removeItem(at:vaultURL)};clear()}
+    func deleteVault(){work("Deleting saved data"){
+        self.autosave?.cancel();await self.autosave?.value;self.syncTask?.cancel();await self.syncTask?.value
+        try await self.dataVault.delete()
+        if FileManager.default.fileExists(atPath:self.vaultURL.path){try FileManager.default.removeItem(at:self.vaultURL)}
+        self.dataDirty=false;self.wipeMemory();self.storageMessage="Local saved data deleted."
+    }}
     func beginAuth() throws {
         let pair=try Core.object("auth_keypair",["entropy":DeviceStore.entropy(32)])
         let state=try DeviceStore.entropy(32).replacingOccurrences(of:"+",with:"-").replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:"=",with:"")

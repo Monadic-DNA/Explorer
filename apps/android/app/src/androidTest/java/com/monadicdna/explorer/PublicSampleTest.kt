@@ -9,7 +9,8 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.graphics.asAndroidBitmap
 import android.graphics.Bitmap
 import java.io.File
-import androidx.lifecycle.ViewModelProvider
+import androidx.activity.compose.setContent
+import java.util.UUID
 import androidx.test.platform.app.InstrumentationRegistry
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.MockResponse
@@ -42,7 +43,9 @@ class PublicSampleTest {
         lateinit var model:ExplorerModel
         try {
             ui.runOnUiThread {
-                model=ViewModelProvider(ui.activity)[ExplorerModel::class.java]
+                model=ExplorerModel(ui.activity.application,SecureDataVault(ui.activity,TestVaultProtector(),File(ui.activity.cacheDir,"public-sample-${UUID.randomUUID()}")))
+                model.authenticate={}
+                ui.activity.setContent { VaultTheme { ExplorerApp(model) } }
                 model.backend=endpoint
                 model.acceptedDisclaimer=true
             }

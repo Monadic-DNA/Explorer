@@ -3,8 +3,11 @@ import UniformTypeIdentifiers
 
 @main struct ExplorerApp: App {
     @StateObject private var store=ExplorerStore()
+    @Environment(\.scenePhase) private var scenePhase
     init() { VaultStyle.configure() }
-    var body: some Scene { WindowGroup { ExplorerView().font(VaultStyle.body()).tint(VaultStyle.ink).preferredColorScheme(.light).environmentObject(store).onOpenURL{store.receiveAuth($0)} } }
+    var body: some Scene { WindowGroup { ExplorerView().font(VaultStyle.body()).tint(VaultStyle.ink).preferredColorScheme(.light).environmentObject(store).onOpenURL{store.receiveAuth($0)}
+        .overlay { if scenePhase != .active || store.locking { ZStack { Color("vault_offTone").ignoresSafeArea(); Label("Your data is protected",systemImage:"lock.shield").font(.headline) } } }
+        .onChange(of:scenePhase) { _, phase in if phase == .background { store.backgroundLock() } } } }
 }
 
 struct TextExport: FileDocument {
@@ -28,6 +31,10 @@ struct ExplorerView: View {
     func export(_ name:String,_ text:String){exportName=name;exportDocument=TextExport(text);exporting=true}
     var body: some View {
         VStack(spacing:0){
+            HStack { Text(store.storageMessage).font(.caption); Spacer();
+                if store.dataUnlocked { Button("Lock data",action:store.lockData).disabled(store.busy) }
+                else { Button("Unlock data",action:store.unlockSavedData).disabled(store.busy) }
+            }.padding(.horizontal).padding(.vertical,8)
             if store.busy{HStack{ProgressView();Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();Button("Cancel",action:store.cancel)}.padding()}
             TabView(selection:$selectedTab){
                 NavigationStack{HomeView(importDNA:{startImport("dna")},browse:{selectedTab=1})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
@@ -193,25 +200,40 @@ struct VaultView:View{
     var importVault:()->Void
     var export:(String,String)->Void
     @State private var confirmDelete=false
+    @State private var confirmRestore=false
+    @State private var confirmCloudDelete=false
     var body:some View{Form{
         VaultArt(name:"vault").listRowBackground(Color.clear)
         Section("On-device genetic data"){
-            Text("\(store.variantCount) variants • \(store.results.count) results. Genetic data stays in memory until you explicitly save an encrypted vault.")
+            Text("DNA, results and customization are saved automatically in an encrypted vault after device authentication. Locking clears your decrypted session.")
+            Text(store.storageMessage)
             Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
             Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(!store.acceptedDisclaimer||store.busy)
+            Button(store.dataUnlocked ? "Lock saved data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
-        Section("Encrypted vault"){
-            SecureField("Vault passphrase",text:$password).textContentType(.password)
-            Button("Save encrypted vault"){let p=password;password="";store.saveVault(p)}.disabled(password.count<8||store.busy)
-            Button("Unlock saved vault"){let p=password;password="";store.unlockVault(p)}.disabled(password.isEmpty||store.busy)
-            Button("Lock and clear memory",action:store.clear)
+        Section("Encrypted recovery and transfer"){
+            Text("Use a unique recovery passphrase of at least 12 characters. Keep it somewhere safe: we cannot recover it. Device keys stay on their original devices.")
+            SecureField("Recovery passphrase",text:$password).textContentType(.password)
             Button("Export encrypted portable vault"){
                 let p=password;password="";store.work("Encrypting portable vault"){export("monadic-vault.json",try await store.encryptedVault(p))}
-            }.disabled(password.count<8||store.busy)
-            Button("Import portable vault using this passphrase",action:importVault).disabled(password.isEmpty||store.busy)
-            Button("Delete local vault",role:.destructive){confirmDelete=true}
+            }.disabled(password.count<12||store.busy)
+            Button("Import portable vault (replaces device data)",action:importVault).disabled(password.isEmpty||store.busy)
+            Button("Migrate previous saved vault"){let p=password;password="";store.unlockVault(p)}.disabled(password.isEmpty||store.busy)
         }
-    }.vaultScreen().navigationTitle("Private vault").confirmationDialog("Delete this device's vault and clear memory?",isPresented:$confirmDelete){Button("Delete",role:.destructive){do{try store.deleteVault()}catch{store.error=error.localizedDescription}}}}
+        Section("Optional encrypted multi-device sync"){
+            Text("Sign in to the same Explorer account on each device. Only encrypted data and a passphrase-protected data key are uploaded. Concurrent edits require a choice before replacing data.")
+            Button("Enable encrypted sync"){let p=password;password="";store.enableSync(p)}.disabled(password.count<12||store.busy||store.wallet.isEmpty)
+            Button("Sync now",action:store.syncNow).disabled(store.busy||store.syncing)
+            Button("Restore cloud copy (replaces device data)"){confirmRestore=true}.disabled(password.isEmpty||store.busy||store.wallet.isEmpty)
+            Button("Disable sync on this device",action:store.disableSync).disabled(!store.dataUnlocked||store.busy)
+            Button("Delete encrypted cloud copy",role:.destructive){confirmCloudDelete=true}.disabled(!store.dataUnlocked||store.busy||store.wallet.isEmpty)
+        }
+        Button("Delete local vault",role:.destructive){confirmDelete=true}.disabled(store.busy)
+    }.vaultScreen().navigationTitle("Private vault")
+    .confirmationDialog("Delete this device's vault and clear memory? Cloud data is retained.",isPresented:$confirmDelete){Button("Delete",role:.destructive,action:store.deleteVault)}
+    .confirmationDialog("Replace device data with the cloud copy? Export a backup first to retain local changes.",isPresented:$confirmRestore){Button("Replace device data",role:.destructive){let p=password;password="";store.restoreCloud(p)}}
+    .confirmationDialog("Delete the cloud copy? Other devices will need to set up sync again.",isPresented:$confirmCloudDelete){Button("Delete cloud copy",role:.destructive,action:store.deleteCloud)}
+    }
 }
 
 struct SettingsView:View{
@@ -219,7 +241,7 @@ struct SettingsView:View{
     var body:some View{Form{
         Section("Research and account backend"){
             TextField("HTTPS origin",text:$store.backend).keyboardType(.URL).autocorrectionDisabled().textInputAutocapitalization(.never)
-            Text("Your raw DNA remains on this device. The backend provides the public research catalog and account services.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))
+            Text("DNA is processed on device. Optional sync uploads only encrypted vault data. The backend also provides research and account services.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))
         }
         Section("LLM provider"){
             Picker("Provider",selection:Binding(get:{store.provider},set:{store.selectProvider($0)})){Text("HuggingFace").tag("huggingface");Text("Ollama").tag("ollama");Text("nilAI").tag("nilai")}
@@ -229,12 +251,14 @@ struct SettingsView:View{
             if store.provider=="nilai"{Text("Leave the key blank for one-use backend delegation. Prompts go directly to nilAI; only your public key visits the backend.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))}
         }
         Section("Optional personalization"){
+            if !store.dataUnlocked { Button("Unlock customization",action:store.unlockSavedData) }
             ForEach(store.profileSchema){field in
                 let value=Binding<String>(get:{store.profileFields[field.key] ?? ""},set:{store.profileFields[field.key]=$0})
-                if let options=field.options{Picker(field.label,selection:value){ForEach(options){Text($0.label).tag($0.value)}}}
-                else{TextField(field.label,text:value,axis:.vertical)}
+                if let options=field.options{Picker(field.label,selection:value){ForEach(options){Text($0.label).tag($0.value)}}.disabled(!store.dataUnlocked || store.syncing || store.locking)}
+                else{TextField(field.label,text:value,axis:.vertical).disabled(!store.dataUnlocked || store.syncing || store.locking)}
             }
-            TextField("Additional context for reports",text:$store.profile,axis:.vertical)
+            TextField("Additional context for reports",text:$store.profile,axis:.vertical).disabled(!store.dataUnlocked || store.syncing || store.locking)
+            Text("Customization is saved automatically in the encrypted data vault.").font(.footnote)
         }
         Button("Save securely in Keychain"){do{try store.saveSettings()}catch{store.error=error.localizedDescription}}
     }.vaultScreen().navigationTitle("Settings")}
