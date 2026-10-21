@@ -17,6 +17,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
       - run: python3 scripts/prepare-public-sample.py
       - run: node scripts/build-native.mjs android arm64-v8a
@@ -51,4 +53,10 @@ jobs:
         shell: bash
         run: |
           simulator_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for devices in d["devices"].values() for v in devices if v["name"].startswith("iPhone")))')
-          xcodebuild -project apps/ios/Explorer.xcodeproj -scheme Explorer -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath apps/ios/build test CODE_SIGNING_ALLOWED=NO
+          xcodebuild -resultBundlePath apps/ios/ExplorerTests.xcresult -project apps/ios/Explorer.xcodeproj -scheme Explorer -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath apps/ios/build test CODE_SIGNING_ALLOWED=NO
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: explorer-ios-test-results
+          path: apps/ios/ExplorerTests.xcresult

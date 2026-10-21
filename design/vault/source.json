@@ -1,0 +1,46 @@
+{
+  "repository": "https://github.com/Monadic-DNA/Vault",
+  "revision": "58c9f56f8be5b091dddd002d0e422d2a96f3a931",
+  "assets": {
+    "art/brand-mark.svg": {
+      "path": "Assets.xcassets/images/logo.imageset/logo 2.svg",
+      "sha256": "8e8cdda3a51e26b4d659f0ba7b38248be8b6e6d9ba43e8d24b4fc7fa2add627c"
+    },
+    "art/wordmark.svg": {
+      "path": "Assets.xcassets/images/header-text.imageset/headerText.svg",
+      "sha256": "bb2446dce2afcc1ab7c533192a4cc9d3b3dcb31c48a2451b18f913e73935f15a"
+    },
+    "art/vault.svg": {
+      "path": "Assets.xcassets/images/vault.imageset/vault.svg",
+      "sha256": "30a185292e7c58d2feac0f7e264ef6806b2a43c83a2e899e641fe450beffb0cd"
+    },
+    "art/discover.svg": {
+      "path": "Assets.xcassets/images/DiscoverCards.imageset/cards.svg",
+      "sha256": "3a821820a198ef03bf532b21b1ec116692a0c5b678666cd345103947913e4c07"
+    },
+    "art/star.svg": {
+      "path": "Assets.xcassets/images/star.imageset/star.svg",
+      "sha256": "eaaea8fbd5da9439e6948b9162d1d3cde1712cd2ccac38a4e0be9828349b4fbe"
+    },
+    "fonts/SpaceGrotesk-Light.ttf": {
+      "path": "Fonts/Space_Grotesk/static/SpaceGrotesk-Light.ttf",
+      "sha256": "4ea1b1687f9c1994228e842ef35941c72f125e97da80dacdcbecd9184d0ae185"
+    },
+    "fonts/SpaceGrotesk-Regular.ttf": {
+      "path": "Fonts/Space_Grotesk/static/SpaceGrotesk-Regular.ttf",
+      "sha256": "637578d47b0e70e02b3eb5056847dd9add17bd683234d28f5d11a6cf66ff2725"
+    },
+    "fonts/SpaceGrotesk-Bold.ttf": {
+      "path": "Fonts/Space_Grotesk/static/SpaceGrotesk-Bold.ttf",
+      "sha256": "8fb63865c6afd083723dc1775548306b7751f20397bebcb79646032c598c81b9"
+    },
+    "fonts/EBGaramond-Medium.ttf": {
+      "path": "Fonts/EB_Garamond/static/EBGaramond-Medium.ttf",
+      "sha256": "4500a8d0526f64a9128c007122f2a0532184157122cdc2e650b12ef1d192a4e9"
+    },
+    "app-icon.png": {
+      "path": "Assets.xcassets/AppIcon.appiconset/AppIcon-1024px.png",
+      "sha256": "b4667d40bae61305a258b1a6280468d4aaa6e5df40416fcc516906ca426bc348"
+    }
+  }
+}

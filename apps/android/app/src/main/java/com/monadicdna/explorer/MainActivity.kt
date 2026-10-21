@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -33,7 +34,7 @@ class MainActivity: ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         intent?.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth)
-        setContent { MaterialTheme { ExplorerApp(model) } }
+        setContent { VaultTheme { ExplorerApp(model) } }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent);setIntent(intent);intent.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth) }
 }
@@ -65,16 +66,15 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     }}
     fun exportText(name: String, content: String){exportContent=content;export.launch(name)}
     Scaffold(
-        topBar={TopAppBar(title={Text("Monadic DNA Explorer")},actions={TextButton(onClick={tab="Vault"}){Text(if(model.metadata.optInt("count")>0)"DNA loaded" else "Import DNA")}})},
-        bottomBar={NavigationBar { listOf("Home","Browse","Results","Chat","More").forEachIndexed{index,name->NavigationBarItem(selected=tab==name,onClick={tab=name},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.Default.Search;2->Icons.AutoMirrored.Filled.List;3->Icons.AutoMirrored.Filled.Chat;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
+        topBar={TopAppBar(title={Text("Explorer",style=MaterialTheme.typography.titleLarge)},actions={TextButton(onClick={tab="Vault"}){Text(if(model.metadata.optInt("count")>0)"DNA loaded" else "Import DNA")}})},
+        bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { listOf("Home","Browse","Results","Chat","More").forEachIndexed{index,name->NavigationBarItem(selected=tab==name,onClick={tab=name},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.Default.Search;2->Icons.AutoMirrored.Filled.List;3->Icons.AutoMirrored.Filled.Chat;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
             if(model.busy){LinearProgressIndicator(Modifier.fillMaxWidth());Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween){Text(model.status,Modifier.weight(1f));TextButton(onClick=model::cancel){Text("Cancel")}}}
             model.error?.let{message->Card(Modifier.padding(12.dp)){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
             when(tab){
                 "Home"->ScreenColumn{
-                    Text("Your DNA. Your discoveries.",style=MaterialTheme.typography.headlineLarge)
-                    Text("Explore genetic research, match your variants on device, and understand associations with private provider-based analysis.")
+                    VaultHero()
                     Button(onClick={tab="Vault"}){Text("Import your DNA")}
                     OutlinedButton(onClick={tab="Browse";model.browse("","",true)}){Text("Browse studies")}
                     Text("${model.metadata.optInt("count")} variants • ${model.results.size} saved study matches")
@@ -92,7 +92,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 "Vault"->VaultScreen(model,{importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}){name,content->exportText(name,content)}
                 "Settings"->SettingsScreen(model)
                 "Account"->AccountScreen(model)
-                "More"->ScreenColumn{listOf("Reports","Vault","Settings","Account").forEach{name->OutlinedButton(onClick={tab=name},modifier=Modifier.fillMaxWidth()){Text(name)}};Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.")}
+                "More"->ScreenColumn{VaultArt(R.drawable.vault_vault);Text("Entirely in your hands.",style=MaterialTheme.typography.headlineMedium);listOf("Reports","Vault","Settings","Account").forEach{name->OutlinedButton(onClick={tab=name},modifier=Modifier.fillMaxWidth()){Text(name)}};Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.")}
             }
         }
     }
@@ -127,7 +127,8 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 
 @Composable private fun ResultCard(result: JSONObject){
     val evidence=remember(result.toString()){Core.obj("evidence",result)}
-    Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(5.dp)){Text(result.optString("traitName"),fontWeight=FontWeight.Bold);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${result.optString("effectType","OR")} ${result.optDouble("riskScore")}");Text(result.optString("riskLevel"));Text(evidence.getString("label"),style=MaterialTheme.typography.labelSmall)}}
+    val palette=remember(result.toString()){vaultCardPalette(Core.obj("preview_category",result).getString("id"))}
+    Card(Modifier.fillMaxWidth(),shape=androidx.compose.foundation.shape.RoundedCornerShape(40.dp),colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)){Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${result.optString("effectType","OR")} ${result.optDouble("riskScore")}");Text(result.optString("riskLevel"));Text(evidence.getString("label"),style=MaterialTheme.typography.labelSmall)}}
 }
 
 @Composable private fun ResultsScreen(model: ExplorerModel,export: (String,String)->Unit,importResults: ()->Unit){
@@ -150,7 +151,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         Button(onClick={model.sendChat(message);message=""},enabled=!model.busy&&message.isNotBlank()){Text("Send")}
     }
 }
-@Composable private fun ReportScreen(model: ExplorerModel,export: ()->Unit){ScreenColumn{Text("Genetic research reports",style=MaterialTheme.typography.headlineMedium);Consent(model);listOf("Overview","Health","Healthspan","Top traits").forEach{kind->OutlinedButton(onClick={model.generateReport(kind)},enabled=!model.busy&&model.results.isNotEmpty()){Text("Generate $kind")}};if(model.report.isNotEmpty()){Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);Text(model.report);Button(onClick=export){Text("Export report")};model.reportQuestions.forEach{question->OutlinedButton(onClick={model.sendChat(question)},enabled=!model.busy){Text(question)}}}}}
+@Composable private fun ReportScreen(model: ExplorerModel,export: ()->Unit){ScreenColumn{VaultArt(R.drawable.vault_discover);Text("Genetic research reports",style=MaterialTheme.typography.headlineMedium);Consent(model);listOf("Overview","Health","Healthspan","Top traits").forEach{kind->OutlinedButton(onClick={model.generateReport(kind)},enabled=!model.busy&&model.results.isNotEmpty()){Text("Generate $kind")}};if(model.report.isNotEmpty()){Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);Text(model.report);Button(onClick=export){Text("Export report")};model.reportQuestions.forEach{question->OutlinedButton(onClick={model.sendChat(question)},enabled=!model.busy){Text(question)}}}}}
 
 @Composable private fun VaultScreen(model: ExplorerModel,importDNA: ()->Unit,export: (String,String)->Unit){
     var password by remember{mutableStateOf("")};var confirmDelete by remember{mutableStateOf(false)}
@@ -160,6 +161,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         val pass=password;password="";model.openVaultData(pass,sealed)
     }}
     ScreenColumn{
+        VaultArt(R.drawable.vault_vault)
         Text("Private on-device vault",style=MaterialTheme.typography.headlineMedium)
         Text("${model.metadata.optInt("count")} variants • ${model.results.size} results. DNA is held in memory until you explicitly save an encrypted vault.")
         Row{Checkbox(checked=model.acceptedDisclaimer,onCheckedChange={model.acceptedDisclaimer=it});Text("I understand this is educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)}
