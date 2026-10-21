@@ -76,7 +76,7 @@ xcodebuild -project apps/ios/Explorer.xcodeproj -scheme Explorer \
 
 For a device: `node scripts/build-native.mjs ios device`, open the generated project, set your development team and signing, and run. Rust libraries are linked by platform and architecture. Generate both simulator architectures if building a universal simulator destination. `CARGO_TARGET_DIR` overrides are supported by Android and WASM generation; iOS project linkage expects the default repository `target/` directory.
 
-The macOS CI job builds Rust, generates the project, selects an available iPhone simulator, and runs XCTest. iOS compilation and simulator tests cannot run in the Linux cloud workspace; CI/macOS validation is required before treating that app as verified.
+The macOS CI job builds Rust, generates the project, selects an available iPhone simulator, and runs XCTest. iOS compilation and simulator tests run on macOS rather than this Linux workspace. The app build and all five XCTest tests passed in [CI run 39608592827](https://github.com/Monadic-DNA/Explorer/actions/runs/39608592827).
 
 ## Privacy, interoperability, and deployment
 

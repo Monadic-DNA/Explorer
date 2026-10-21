@@ -116,7 +116,7 @@ struct ResultView:View{
     var body:some View {
         VStack(alignment: .leading, spacing: 10) {
             Image("vault_star").resizable().scaledToFit().frame(width:28,height:28).accessibilityHidden(true)
-            Text(record.text("traitName")).font(VaultStyle.cardTitle)
+            Text(record.text("traitName")).font(VaultStyle.cardTitle).fixedSize(horizontal:false, vertical:true)
             Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType","OR")) \(record.number("riskScore"),specifier:"%.3f")")
             Text(record.text("riskLevel"))
             Text(evidence).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))

@@ -58,8 +58,8 @@ struct VaultHero: View {
             Image("vault_brand_mark").resizable().scaledToFit().frame(height: 64).frame(maxWidth: .infinity).accessibilityHidden(true)
             Image("vault_wordmark").resizable().scaledToFit().frame(height: 36).frame(maxWidth: .infinity).accessibilityLabel("Monadic DNA")
             Text("EXPLORER").font(.custom("SpaceGrotesk-Regular", size: 12, relativeTo: .caption)).tracking(4).frame(maxWidth: .infinity)
-            Text("Your DNA. Your discoveries.").font(VaultStyle.heading())
-            Text("Explore genetic research while your DNA remains private, protected, and in your hands.").font(VaultStyle.body())
+            Text("Your DNA. Your discoveries.").font(VaultStyle.heading()).fixedSize(horizontal:false, vertical:true)
+            Text("Explore genetic research while your DNA remains private, protected, and in your hands.").font(VaultStyle.body()).fixedSize(horizontal:false, vertical:true)
         }
         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(.white).background(VaultStyle.ink, in: RoundedRectangle(cornerRadius: 32))

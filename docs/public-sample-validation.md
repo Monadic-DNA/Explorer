@@ -27,7 +27,7 @@ Expected and verified web/native binding results: **142 matched study records**.
 | Android native binding | Kotlin/JNA calling the actual Rust library with the full file, all 1,000 studies, and TSV round-trip | Passed: identical counts and all 142 results |
 | Android app | Instrumented Compose test: app import method, Results navigation, Run all button, HTTP fixture transport, visible results, all scores, TSV round-trip | Passed on Android 8/API 26 emulator: 929,696 variants, all 142 corrected results agree; two UI tests passed |
 | iOS Rust target | `cargo check --features ffi --target aarch64-apple-ios` | Passed |
-| iOS app | Full-file Swift binding test and app file-import/published-result test | Prepared; not executed because this workspace is Linux and has no Xcode/iOS Simulator |
+| iOS app | Full-file Swift binding test and app file-import/published-result test | Passed on macOS CI / iOS Simulator ([run](https://github.com/Monadic-DNA/Explorer/actions/runs/39608592827)) |
 
 The browser test seeds the real IndexedDB catalog with the frozen study snapshot. It blocks optional external account/analytics/provider traffic, while loading the SQL.js dependency through the configured proxy with TLS verification. It therefore does not verify login, purchases, or LLM reports. The Android UI test uses MockWebServer to deliver the same frozen snapshot through the application's real HTTP code. The local backend's corresponding 1,000-record Run All API response was also checked separately.
 

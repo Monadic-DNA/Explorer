@@ -20,4 +20,8 @@ Android debug assembly, Kotlin/JNI unit tests and lint passed. Both API 26 emula
 | --- | --- |
 | ![Vault-branded Android home](native-visuals/android-home.png) | ![Pastel Android result cards](native-visuals/android-results.png) |
 
-The iOS simulator build and all five XCTest tests passed in [CI run 39608592827](https://github.com/Monadic-DNA/Explorer/actions/runs/39608592827). The iOS `VaultDesignTests` verify that the actual app bundle contains all four fonts and five illustrations, and render the home panel and a result card with SwiftUI. CI exports the retained XCTest image attachments as `explorer-ios-visual-snapshots`, alongside the complete `explorer-ios-test-results` bundle. The iOS job also runs the existing native binding and public DNA sample tests.
+The iOS simulator build and all five XCTest tests passed in [CI run 39608592827](https://github.com/Monadic-DNA/Explorer/actions/runs/39608592827). The native result-card rendering was also inspected:
+
+![Vault-styled iOS research result](native-visuals/ios-result.png)
+
+The iOS `VaultDesignTests` verify that the actual app bundle contains all four fonts and five illustrations, and render the home panel and a result card with SwiftUI. CI exports the retained XCTest image attachments as `explorer-ios-visual-snapshots`, alongside the complete `explorer-ios-test-results` bundle. The iOS job also runs the existing native binding and public DNA sample tests.
