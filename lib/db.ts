@@ -5,55 +5,13 @@ import path from "path";
 let pgPool: Pool | null = null;
 
 function getSSLConfig(connectionString: string) {
-  // Local connections don't need SSL
-  if (connectionString.includes('localhost') || connectionString.includes('127.0.0.1')) {
-    return false;
-  }
-
-  // SECURITY LIMITATION: DigitalOcean uses self-signed project CAs
-  // Node.js TLS rejects these even when the CA cert is provided explicitly
-  // See: https://www.digitalocean.com/community/questions/postgresql-on-app-platform-self-signed-certificate-in-certificate-chain-issue
-  //
-  // We provide the CA cert to validate against the specific DigitalOcean server,
-  // but must set rejectUnauthorized: false to accept the self-signed CA.
-  //
-  // This is MORE SECURE than the original code because:
-  // 1. We don't set NODE_TLS_REJECT_UNAUTHORIZED='0' (which affects ALL HTTPS globally)
-  // 2. We still verify against the specific CA cert (prevents completely random MITM)
-  // 3. The SSL config is scoped to just this Pool connection
-  //
-  // RESIDUAL RISK: An attacker with the DigitalOcean CA private key could MITM the DB connection
-
-  // DigitalOcean automatically injects DATABASE_CA_CERT when deployed to App Platform
-  if (process.env.DATABASE_CA_CERT) {
-    return {
-      ca: process.env.DATABASE_CA_CERT,
-      rejectUnauthorized: false, // Required for self-signed CAs
-    };
-  }
-
-  // Fallback: Check if CA certificate file exists (for local development)
+  const hostname = new URL(connectionString).hostname;
+  if (['localhost','127.0.0.1','[::1]'].includes(hostname)) return false;
+  // Managed database connections must validate the server certificate, including custom project CAs.
+  if (process.env.DATABASE_CA_CERT) return { ca:process.env.DATABASE_CA_CERT, rejectUnauthorized:true };
   const caCertPath = path.join(process.cwd(), 'certs', 'ca-certificate.crt');
-  if (fs.existsSync(caCertPath)) {
-    return {
-      ca: fs.readFileSync(caCertPath).toString(),
-      rejectUnauthorized: false, // Required for self-signed CAs
-    };
-  }
-
-  // For DigitalOcean without CA cert
-  if (connectionString.includes('digitalocean.com') || connectionString.includes('.db.ondigitalocean.com') || connectionString.includes('ondigitalocean.com')) {
-    console.warn('DigitalOcean connection detected but no CA cert found.');
-    console.warn('Set DATABASE_CA_CERT environment variable or add ca-certificate.crt to certs/ directory.');
-    return {
-      rejectUnauthorized: false,
-    };
-  }
-
-  // Default: use system CAs with full validation
-  return {
-    rejectUnauthorized: true,
-  };
+  if (fs.existsSync(caCertPath)) return { ca:fs.readFileSync(caCertPath).toString(), rejectUnauthorized:true };
+  return { rejectUnauthorized:true };
 }
 
 export function getDb(): Pool {

@@ -539,6 +539,9 @@ export async function GET(request: NextRequest) {
     ? `,\n       (1 - (se.embedding <=> ${`'${JSON.stringify(queryEmbedding)}'::vector`})) as similarity`
     : '';
 
+  // Concurrent Run All page requests must select stable, disjoint catalog ranges.
+  if(fetchAll && isRunAllQuery)orderByClause="ORDER BY gc.id";
+
   const baseQuery = `SELECT ${idSelection},
        gc.study_accession,
        gc.study,
@@ -922,6 +925,13 @@ export async function GET(request: NextRequest) {
       snps: s.snps,
       strongest_snp_risk_allele: s.strongest_snp_risk_allele,
       or_or_beta: s.or_or_beta,
+      // CI text encodes beta direction/type; omitting it misclassifies beta as OR.
+      ci_text: s.ci_text,
+      p_value: s.p_value,
+      pvalue_mlog: s.pvalue_mlog,
+      mapped_gene: s.mapped_gene,
+      initial_sample_size: s.initial_sample_size,
+      replication_sample_size: s.replication_sample_size,
     }));
 
     return NextResponse.json({

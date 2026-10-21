@@ -220,7 +220,7 @@ export default function ConversionOnboarding({
   mode = "guided",
 }: ConversionOnboardingProps) {
   const { genotypeData, isUploaded, isLoading, error, originalFileName, uploadGenotype } = useGenotype();
-  const { addResultsBatch, savedResults, getTopResultsByRelevance } = useResults();
+  const { addResultsBatch, savedResults, getTopResultsByRelevance, hasResult } = useResults();
 
   const [mounted, setMounted] = useState(false);
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("intro");
@@ -508,7 +508,7 @@ RESPONSE STRUCTURE:
       const results = await runAllAnalysisOnboarding(
         genotypeData,
         (progress) => setRunAllProgress(progress),
-        (studyId) => savedResults.some((result) => result.studyId === studyId)
+        hasResult
       );
 
       await addResultsBatch(results);
@@ -541,7 +541,7 @@ RESPONSE STRUCTURE:
         message,
       }));
     }
-  }, [addResultsBatch, genotypeData, savedResults]);
+  }, [addResultsBatch, genotypeData, savedResults, hasResult]);
 
   useEffect(() => {
     if (!isOpen || currentStep !== "run_all" || !genotypeData || genotypeData.size === 0 || analysisStartedRef.current) {

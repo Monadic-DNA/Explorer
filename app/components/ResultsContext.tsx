@@ -145,16 +145,9 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Optimized O(1) lookups using SQL indexes
-  const hasResult = (studyId: number) => {
-    // Use synchronous check from state for performance
-    return savedResults.some(r => r.studyId === studyId);
-  };
-
-  const getResult = (studyId: number) => {
-    // Use synchronous lookup from state for performance
-    return savedResults.find(r => r.studyId === studyId);
-  };
+  const resultIndex=useMemo(()=>new Map(savedResults.map(result=>[result.studyId,result])),[savedResults]);
+  const hasResult=(studyId:number)=>resultIndex.has(studyId);
+  const getResult=(studyId:number)=>resultIndex.get(studyId);
 
   const getResultByGwasId = (gwasId: string) => {
     // Use synchronous lookup from state for performance

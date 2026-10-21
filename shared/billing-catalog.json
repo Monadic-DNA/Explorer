@@ -1,0 +1,6 @@
+[
+  {"id":"explorer_premium_monthly","kind":"subscription","title":"Explorer Premium","description":"Monthly access to premium reports and DNA chat."},
+  {"id":"explorer_report_overview","kind":"consumable","reportType":"overview","title":"Overview report","description":"One comprehensive overview report run."},
+  {"id":"explorer_report_healthspan","kind":"consumable","reportType":"healthspan","title":"Healthspan report","description":"One healthspan report run."},
+  {"id":"explorer_report_top_traits","kind":"consumable","reportType":"top_traits","title":"Top traits report","description":"One top traits report run."}
+]

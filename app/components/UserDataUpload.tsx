@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, createContext, useContext, useCallback, useEffect } from "react";
-import * as pako from "pako";
+import { coreCall } from "@/lib/core";
 import { GenotypeData, detectAndParseGenotypeFile, validateFileSize, validateFileFormat } from "@/lib/genotype-parser";
 import { calculateFileHash } from "@/lib/file-hash";
 import { GenotypeSnapshot } from "@/lib/vault-snapshots";
@@ -37,51 +37,17 @@ const GenotypeContext = createContext<GenotypeContextType | null>(null);
 
 const MAX_TEXT_FILE_SIZE_MB = 100;
 const MAX_GZIP_FILE_SIZE_MB = 150;
-const MAX_DECOMPRESSED_FILE_SIZE_MB = 250;
 
 function getUploadSizeLimitMB(file: File, fileExtension: string): number {
   return fileExtension === "gz" ? MAX_GZIP_FILE_SIZE_MB : MAX_TEXT_FILE_SIZE_MB;
 }
 
-function trimTrailingGarbageFromGzip(bytes: Uint8Array): Uint8Array {
-  const minimumGzipSize = 18;
-  const maxTrimBytes = Math.min(16 * 1024, bytes.length - minimumGzipSize);
-
-  for (let trimBytes = 1; trimBytes <= maxTrimBytes; trimBytes += 1) {
-    const trimmed = bytes.subarray(0, bytes.length - trimBytes);
-    try {
-      pako.ungzip(trimmed);
-      return trimmed;
-    } catch {
-      continue;
-    }
-  }
-
-  return bytes;
-}
-
-function readTextFromFile(file: File, fileExtension: string): Promise<string> {
-  if (fileExtension !== "gz") {
-    return file.text();
-  }
-
-  return file.arrayBuffer().then((buffer) => {
-    const compressed = new Uint8Array(buffer);
-
-    let decompressed: Uint8Array;
-    try {
-      decompressed = pako.ungzip(compressed);
-    } catch {
-      const trimmed = trimTrailingGarbageFromGzip(compressed);
-      decompressed = pako.ungzip(trimmed);
-    }
-
-    if (decompressed.byteLength > MAX_DECOMPRESSED_FILE_SIZE_MB * 1024 * 1024) {
-      throw new Error(`Expanded file is too large. Maximum decompressed size is ${MAX_DECOMPRESSED_FILE_SIZE_MB}MB.`);
-    }
-
-    return new TextDecoder().decode(decompressed);
-  });
+async function readTextFromFile(file: File, fileExtension: string): Promise<string> {
+  if (fileExtension !== "gz") return file.text();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.length; i += 32768) chunks.push(String.fromCharCode(...bytes.subarray(i, i + 32768)));
+  return coreCall("decode_file", { bytes: btoa(chunks.join("")) });
 }
 
 export function GenotypeProvider({ children }: { children: React.ReactNode }) {

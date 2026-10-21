@@ -1,0 +1,286 @@
+{
+  "previewCategories": [
+    {
+      "id": "body_composition",
+      "label": "body composition",
+      "keywords": [
+        "body mass",
+        "bmi",
+        "weight",
+        "obesity",
+        "height",
+        "adiposity",
+        "waist",
+        "lean mass",
+        "fat mass"
+      ]
+    },
+    {
+      "id": "cardiometabolic",
+      "label": "cardiometabolic traits",
+      "keywords": [
+        "cholesterol",
+        "lipid",
+        "triglyceride",
+        "glucose",
+        "insulin",
+        "diabetes",
+        "blood pressure",
+        "coronary",
+        "heart"
+      ]
+    },
+    {
+      "id": "immune",
+      "label": "immune and inflammation",
+      "keywords": [
+        "immune",
+        "inflammatory",
+        "asthma",
+        "allergy",
+        "eczema",
+        "psoriasis",
+        "arthritis",
+        "celiac",
+        "crohn",
+        "colitis"
+      ]
+    },
+    {
+      "id": "brain_behavior",
+      "label": "brain and behavior",
+      "keywords": [
+        "cognitive",
+        "intelligence",
+        "education",
+        "neuroticism",
+        "depression",
+        "anxiety",
+        "adhd",
+        "risk taking",
+        "alcohol",
+        "smoking"
+      ]
+    },
+    {
+      "id": "sleep_energy",
+      "label": "sleep and energy",
+      "keywords": [
+        "sleep",
+        "chronotype",
+        "morning",
+        "insomnia",
+        "fatigue",
+        "caffeine",
+        "restless"
+      ]
+    },
+    {
+      "id": "reproductive",
+      "label": "hormonal and reproductive traits",
+      "keywords": [
+        "endometriosis",
+        "menopause",
+        "menarche",
+        "testosterone",
+        "estrogen",
+        "fertility",
+        "reproductive",
+        "puberty"
+      ]
+    },
+    {
+      "id": "appearance",
+      "label": "visible traits",
+      "keywords": [
+        "hair",
+        "skin",
+        "eye color",
+        "freckle",
+        "baldness",
+        "pigmentation",
+        "facial",
+        "tooth"
+      ]
+    },
+    {
+      "id": "medication",
+      "label": "medication response",
+      "keywords": [
+        "drug",
+        "medication",
+        "statin",
+        "warfarin",
+        "metformin",
+        "response",
+        "adverse",
+        "pharmacogen"
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "id": "cardiovascular",
+      "label": "Cardiovascular",
+      "keywords": [
+        "coronary",
+        "cardiac",
+        "heart",
+        "atrial",
+        "arrhythmia",
+        "myocardial",
+        "arterial",
+        "vascular",
+        "hypertension",
+        "cholesterol",
+        "triglyceride",
+        "lipoprotein",
+        "stroke",
+        "fibrillation",
+        "thrombosis",
+        "aortic",
+        "ischemic",
+        "angina",
+        "systolic",
+        "diastolic"
+      ]
+    },
+    {
+      "id": "metabolic",
+      "label": "Metabolic & Endocrine",
+      "keywords": [
+        "diabetes",
+        "insulin",
+        "glucose",
+        "obesity",
+        "bmi",
+        "metabolic",
+        "adipose",
+        "adiposity",
+        "glycemic",
+        "thyroid",
+        "hypothyroid",
+        "hyperthyroid",
+        "testosterone",
+        "estrogen",
+        "waist",
+        "leptin",
+        "ghrelin"
+      ]
+    },
+    {
+      "id": "neurological",
+      "label": "Neurological & Cognitive",
+      "keywords": [
+        "alzheimer",
+        "dementia",
+        "parkinson",
+        "cognitive",
+        "intelligence",
+        "brain",
+        "neurological",
+        "epilepsy",
+        "depression",
+        "anxiety",
+        "psychiatric",
+        "schizophrenia",
+        "bipolar",
+        "autism",
+        "adhd",
+        "sleep",
+        "insomnia",
+        "migraine",
+        "neurodegenerative",
+        "memory",
+        "educational",
+        "dopamine",
+        "serotonin"
+      ]
+    },
+    {
+      "id": "immune",
+      "label": "Immune & Inflammatory",
+      "keywords": [
+        "autoimmune",
+        "inflammatory",
+        "inflammation",
+        "immune",
+        "rheumatoid",
+        "lupus",
+        "crohn",
+        "colitis",
+        "psoriasis",
+        "celiac",
+        "allergy",
+        "asthma",
+        "cytokine",
+        "interferon",
+        "ibd",
+        "eczema",
+        "sarcoidosis",
+        "vasculitis",
+        "pemphigoid"
+      ]
+    },
+    {
+      "id": "musculoskeletal",
+      "label": "Musculoskeletal",
+      "keywords": [
+        "bone",
+        "osteoporosis",
+        "fracture",
+        "arthritis",
+        "osteoarthritis",
+        "muscle",
+        "tendon",
+        "joint",
+        "spine",
+        "lumbar",
+        "hip",
+        "knee",
+        "density",
+        "scoliosis",
+        "gout"
+      ]
+    },
+    {
+      "id": "cancer",
+      "label": "Cancer Susceptibility",
+      "keywords": [
+        "cancer",
+        "carcinoma",
+        "tumor",
+        "melanoma",
+        "leukemia",
+        "lymphoma",
+        "glioma",
+        "adenocarcinoma",
+        "malignant",
+        "neoplasm",
+        "prostate",
+        "breast",
+        "colorectal",
+        "ovarian",
+        "cervical",
+        "basal",
+        "squamous"
+      ]
+    }
+  ],
+  "healthinstructionWithHistory": "\nThe user already knows they have these conditions. Do NOT simply report \"you have variants for X and you reported X.\" That adds no value.\n\nInstead, write a report that tells them something genuinely new. Structure it as follows:\n\n**1. Genetic mechanisms underlying your conditions**\nExplain WHY the user has certain conditions at a biological pathway level. What mechanism do the variants operate through? How do multiple variants converge on the same pathway? Be specific: not \"increases inflammation\" but which cells, which signaling molecules, which process.\n\n**2. What your genome protects you from**\nUse the protective signals section. Identify any large protective effects, especially those that counterbalance elevated risks in the same pathway or protect against conditions that run in the family. These are often the most surprising and useful findings.\n\n**3. Signals outside your known health history**\nFrom the strongest overall signals, identify anything that points to conditions or traits NOT mentioned in the user's health history. These are genuinely novel; flag them clearly as \"you may not have known this.\"\n\n**4. Most notable findings** (4-5 bullets)\nThe most surprising, largest-effect, or cross-cutting discoveries. Prioritize findings that the user could not have known just from their symptoms.\n\n**5. What to investigate further**\n3-4 specific research threads the user could pursue to understand their genetic dynamics better. Frame these as topics to read about or questions to explore, not clinical actions. Focus on: specific genes that appeared repeatedly and have well-studied literature, pathway connections worth understanding, or cross-trait mechanisms that link seemingly unrelated findings.\n\n**6. Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the signal patterns in these results, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like genuine insights, not generic disclaimers. Reference specific genes or findings from this report.\n\nLanguage rules (strictly enforced):\n- These are population-level GWAS associations, not individual predictions. Write accordingly: \"population studies associate this variant with X\", \"carriers of this allele show\", \"this signal is consistent with\"; never \"your genome does X\" or \"this drives your Y\".\n- For mechanisms: describe what the gene/pathway does in the population literature, not what it is doing in this person's body. \"BTBD9 is associated with dopamine regulation in RLS cohorts\" not \"your BTBD9 variants are disrupting your dopamine signaling.\"\n- For protective signals: \"population studies find this allele associated with lower rates of X\" not \"your genome protects you from X.\"\n- Include rsIDs when mentioning specific variants (e.g., \"rs429358, an APOE variant\"). Where the user's genotype is informative (heterozygous vs homozygous), note it: \"carrying one copy of the risk allele\" vs \"homozygous for the risk allele.\"\n- Flag any OR > 5x as \"large effect, likely a specialized or rare-variant study; treat as uncertain.\" Do not anchor conclusions on it.\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n- Distinguish between well-replicated signals (strong p-value label, named gene) and single suggestive hits.\n- 700-900 words total",
+  "healthinstructionWithoutHistory": "\nWrite a report organized by GENETIC MECHANISM (4-5 mechanisms). For each:\n- Name specific variants and explain effect sizes in plain, concrete terms\n- Identify what biological process is involved at a molecular level\n- Flag any OR > 5x as a large effect likely from a specialized study\n\nThen add:\n**Protective signals**: Associations where the allele is linked to lower rates in population studies. Use hedged language.\n**Most notable findings**: 4-5 bullets of the most striking discoveries.\n**What to investigate further**: 3-4 research threads the user could explore. Specific genes, pathways, or cross-trait connections with well-studied literature.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the signal patterns in these results, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. Reference specific genes or findings from this report.\n\nLanguage rules (strictly enforced):\n- These are population-level statistics. Write \"population studies associate this variant with X\", never \"your genome does X\" or deterministic personal claims.\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n\n800-1000 words.",
+  "healthTemplate": "You are a genetic counselor writing a personalized health insights report. Your goal is to surface insights the user does not already know from their symptoms alone.\n{userCtx}\n{conditionSection}\n{sections}\n\nDATA FORMAT: Trait | Effect size (↑ elevated / ↓ protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence | [matched condition]\n{instruction}\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a specific follow-up question about a gene, SNP, or mechanism from this report]\n- [a question about a cross-trait pattern or surprising finding]\n- [a question about a protective signal or novel finding outside the health history]\n- [a question about what the user's specific genotype means for one of the key findings]\n- [a question about a research thread worth exploring]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them.",
+  "healthspanhealthHistoryNoteWithHistory": "Use the health history to anchor the report: note where genetic signals reinforce known conditions, where they diverge, and which findings the user is unlikely to have encountered from their symptoms alone.",
+  "healthspanhealthHistoryNoteWithoutHistory": "No health history provided. Focus on the strongest and most surprising signals.",
+  "healthspanHistoryLine": "Connect explicitly to the user's health history when relevant",
+  "healthspanNoHistoryLine": "Focus on what is most surprising or actionable from a healthspan perspective",
+  "healthspanTemplate": "You are writing a personalized genetic healthspan report. The reader is not a scientist but is curious and health-conscious. Write the way a knowledgeable friend who happens to be a geneticist would explain this: clear, specific, and honest about uncertainty. These are population-level statistics; use \"population studies associate\" / \"carriers show\" throughout, never deterministic claims.\n{userCtx}\n{healthHistorySection}\nDATA FORMAT: Trait | Effect size (↑ elevated / ↓ protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence\n\n{domainSections}\n\n{healthHistoryNote}\n\nStructure the report as follows. Do NOT use the domain names as section headers:\n\n**Your aging profile** (write this first)\n2-3 sentences. What are the 1-2 most important things to understand about this person's genetic aging biology? Be direct and specific. This is the executive summary a non-scientist will actually remember.\n\n**Key findings** (3-4 findings, each as a named header + 2-3 paragraphs)\nChoose the 3-4 most important and interesting genetic themes across ALL domains combined. These should be the signals that matter most for long-term healthspan — the things a person would actually want to know and think about. Each finding should:\n- Have a short, plain-English header (e.g., \"Metabolic-cardiovascular tension\", \"Cognitive aging and APOE\", \"Immune system tuning\")\n- Open with a one-sentence plain statement of what the finding is\n- Explain the biology in 2 paragraphs: what the gene or pathway does, what the signal pattern suggests, and why it matters for aging\n- {historyLine}\n- Skip pseudogenes (LINC, LOC, MIR) entirely\n\n**Other signals worth noting** (1 short paragraph)\nBriefly mention 2-3 additional signals from domains not covered in Key findings. One sentence each. This gives breadth without diluting the main findings.\n\n**What to understand about your aging biology**\n4 genes, each with a 1-sentence hook explaining WHY it matters for how the body ages, not just what trait it is associated with. Write these for someone who will go and search for more.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the patterns across these healthspan signals, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the findings. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like insights, not disclaimers. Reference specific genes or findings from this report.\n\nStyle rules:\n- No domain-name headers in the body of the report.\n- The \"Key findings\" headers should describe the biological theme, not the domain (e.g., \"The metabolic-inflammatory axis\" not \"Cardiovascular\").\n- Write for someone who wants to understand their biology, not catalog it.\n- When citing a specific variant, include the rsID where available (e.g., \"rs429358, an APOE variant\"). Where the genotype is informative, note it: \"heterozygous for the risk allele\" vs \"homozygous.\"\n- Population-level language; never \"your genome does X.\"\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n- 800-1000 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a specific question about a key finding, gene, or SNP from this report]\n- [a question about how two signals or domains connect]\n- [a question about what a specific genotype or protective signal means]\n- [a question about the biology behind a surprising or cross-domain finding]\n- [a question about a gene worth researching further]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them.",
+  "topTraitsTemplate": "You are writing a personalized genetics report. These are the 50 strongest genetic signals by effect size across all results.\n{userCtx}\n\nDATA FORMAT: Trait | Effect size (↑ elevated / ↓ protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence\n\n{sections}\n\nYour job is to build a hypothesis about this person's biological character from their strongest signals. Not a gene-by-gene tour; a portrait. What kind of metabolism, immune system, and brain does population-level data suggest this profile is associated with? What is the most interesting or unexpected thing about this combination of signals?\n\nStructure:\n**Biological portrait** (3-4 sentences)\nOpen with a direct hypothesis: what does this combination of strong signals most plausibly suggest about how this person's body works? Be specific and opinionated, and frame it as a hypothesis drawn from population statistics, not a fact. Mention the 1-2 most important signals by name.\n\n**Key themes** (3-4 themes, each as a short header + 2 paragraphs)\nChoose the 3-4 most important biological stories in these results. Each theme should:\n- Start with a one-sentence hypothesis about what the signals in this theme collectively suggest about this person's biology\n- Second paragraph: what do the specific genes/SNPs do, and why do they cluster; what does this combination mean together\n- Include specific rsIDs and genotypes where informative\n- Mention both elevated and protective signals within the theme where they interact\n- Skip pseudogenes (LINC, LOC, MIR)\n\n**What stands out** (1 paragraph)\nThe most surprising, counterintuitive, or medically interesting finding in these results: something the person is unlikely to have noticed on their own. Explain why it matters.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the patterns in these signals, write 4 specific, testable hypotheses about this person's biology or lived experience. Each should be a concrete statement about something that may be true about them — how they feel, how their body tends to work, what they may notice about themselves — grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like insights, not disclaimers.\n\nStyle rules:\n- Write for someone who wants to understand their own biology, not a textbook\n- Population-level language throughout: \"population studies associate\", \"carriers tend to show\", never \"your genome does X\"\n- Be specific: name the genes, cite rsIDs, note genotypes where the user's specific variant is informative\n- Do not recommend clinical tests, doctors, or lifestyle changes\n- 700-900 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a question about the most prominent gene or pathway from this report]\n- [a question about how two of the top signals relate to each other]\n- [a question about one of the protective signals or a surprising finding]\n- [a question about what a specific genotype means for one of the key themes]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them.",
+  "generateMapPrompt": "Here are genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. This is the map phase.\n  Please analyze health, lifestyle, appearance, personality, rare disease and fun facts for the reduce phase.\n  Fun facts should actually be fun and not serious medical stuff.\n  Do not include tutorial, recommendations, next steps. The output is not meant for the user. Rather, the next reduce phase will be handled by an LLM.\n  Remember to base relevance regardless of risk level, i.e. include increased, decreased or neutral entries, so the user gets a holistic picture.\n  Output text with no tables or any fancy formatting.\n  CRITICAL: Do not comment on SNPs and genes I do not have. Stick to the results and do not speculate about the effect of any SNPs or genes. \n  Back up each assertion with a specific reference to SNPs actually present in the dataset. \n\nUSER:{userContext}\n\nBATCH: {groupNumber} of {totalGroups} ({resultsInGroup} variants)\n\nDATA FORMAT (one variant per line):\nFormat: Trait Name|Risk Score|Risk Level|Effect Type|SNP|Gene\n\nWhere:\n  - Trait Name: Full name of the genetic trait/condition\n  - Risk Score: Numerical risk score (actual OR value or beta coefficient)\n  - Risk Level: i=increased, d=decreased, n=neutral\n  - Effect Type: OR (odds ratio) or beta (beta coefficient)\n  - SNP: The specific genetic variant (rs number)\n  - Gene: The associated gene name\n\nIMPORTANT: Effect Type tells you how to interpret Risk Score:\n  - OR: Odds ratio (1.0 = neutral, >1.0 = increased risk, <1.0 = protective)\n       Example: 1.12 = 12% increased risk, 0.85 = 15% decreased risk\n  - beta: Beta coefficient (context-dependent, sign indicates direction)\n\nExamples:\n  Cortical surface area|1.15|i|OR|rs12345678|NFILZ\n  Type 2 diabetes|0.85|d|OR|rs7903146|TCF7L2\n  Body mass index|0.05|i|beta|rs9939609|FTO\n\nDATA:\n\n{compactResults}\n",
+  "generateReducePrompt": "Here are batched analyses of genetic traits from GWAS Catalog matched by the Monadic DNA Explorer tool. I am {userContext}\n\nPlease summarize and produce a report (health, diet, lifestyle, appearance, personality, fun facts, rare disease) suitable for personal genomics users. \n\nFun facts should actually be fun and not serious medical stuff. \n\nMinimize specific medical recommendation or testing recommendations as we do not want to flood the medical system with unnecessary costs. \n\nOutput text with no tables or any fancy formatting. Section headings are ok. \n\nCRITICAL: Do not comment on SNPs and genes I do not have.  Stick to the results and do not speculate about the effect of any SNPs or genes.\n\n{summariesText}",
+  "systemPrompts": {
+    "health": "You are a genetic epidemiologist writing an educational report about population-level GWAS associations. These data are statistical patterns from large cohorts; they are not individual predictions or diagnoses. Maintain appropriate epistemic humility throughout: write \"population studies associate this variant with X\" or \"carriers of this allele show Y in cohort data\", never \"your genome does X\" or \"this is driving your condition.\" Do not convert population odds ratios into statements about what is happening in this individual's body. Do not use LaTeX or math notation. Do not recommend clinical tests, doctors, or healthcare appointments. Do not repeat what the user told you about their own health history as if it is a novel finding.",
+    "healthspan": "You are a science writer with deep genetics knowledge. Write engagingly for a reader who understands GWAS but wants insight, not inventory. Use population-level language (\"population studies associate\", \"carriers show\") but keep it fluid, not bureaucratic. Never add a disclaimer paragraph at the top; focus entirely on what is scientifically interesting. Do not recommend clinical tests, doctors, or healthcare appointments.",
+    "toptraits": "You are a science writer with deep genetics knowledge. Write engagingly for a reader who understands GWAS but wants insight, not inventory. Use population-level language (\"population studies associate\", \"carriers show\") but keep it fluid. Never add a disclaimer paragraph at the top. Do not recommend clinical tests, doctors, or healthcare appointments."
+  }
+}

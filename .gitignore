@@ -41,3 +41,25 @@ yarn-error.log*
 /CLAUDE.md
 /scripts/ga-performance.env
 /.junie/
+
+# Shared Rust and generated native bindings
+/target/
+/lib/generated/
+/apps/android/.gradle/
+/apps/android/local.properties
+/apps/android/**/build/
+/apps/android/app/src/main/jniLibs/
+/apps/android/app/src/main/java/com/monadicdna/explorer/core/
+/apps/ios/Generated/
+/apps/ios/build/
+/apps/ios/*.xcodeproj/
+/apps/ios/*.xcworkspace/
+/.test-data/
+/apps/ios/TestData/
+/apps/android/app/src/androidTest/assets/public-sample/
+
+# Kotlin compiler workspace cache
+apps/android/.kotlin/
+
+apps/ios/*.xcresult/
+apps/ios/test-attachments/

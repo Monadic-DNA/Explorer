@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import Stripe from 'stripe';
 import { isPaidReportType, PAID_REPORT_TYPES, PaidReportType } from '@/lib/report-access';
 import { verifyWalletAuth } from '@/lib/dynamic-auth';
+import { mobileBillingEnabled, mobileEntitlements, consumeMobileReport } from '@/lib/store-billing/ledger';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
   apiVersion: '2026-09-30.endive',
@@ -128,16 +129,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid wallet address format' }, { status: 400 });
     }
 
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json({ error: 'Stripe is not configured' }, { status: 500 });
+    const includeMobile = mobileBillingEnabled() && !!request.headers.get('authorization');
+    if (includeMobile || action === 'consume') {
+      const auth = await verifyWalletAuth(request.headers.get('authorization'), normalizedWallet);
+      if (!auth.ok) return NextResponse.json({ error:auth.error }, { status:auth.status || 401 });
+    }
+    const mobile = includeMobile ? await mobileEntitlements(normalizedWallet) : null;
+    if (!process.env.STRIPE_SECRET_KEY && !includeMobile) {
+      return NextResponse.json({ error:'Payments are not configured' }, { status:503 });
     }
 
     if (action === 'check') {
-      const payments = await collectUnusedPayments(normalizedWallet, sessionId);
+      const payments = process.env.STRIPE_SECRET_KEY ? await collectUnusedPayments(normalizedWallet, sessionId) : [];
       const availableReports = Object.fromEntries(
         PAID_REPORT_TYPES.map(type => [
           type,
-          payments.filter(payment => payment.metadata.reportType === type).length,
+          payments.filter(payment => payment.metadata.reportType === type).length + (mobile?.availableReports[type] || 0),
         ])
       );
 
@@ -147,21 +154,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Consuming passes mutates paid state, so it requires proof that the
-    // caller owns the wallet.
-    if (action === 'consume') {
-      const auth = await verifyWalletAuth(request.headers.get('authorization'), normalizedWallet);
-      if (!auth.ok) {
-        return NextResponse.json({ error: auth.error }, { status: auth.status || 401 });
-      }
-    }
-
     if (action === 'consume') {
       if (!isPaidReportType(reportType)) {
         return NextResponse.json({ error: 'Invalid report type' }, { status: 400 });
       }
 
-      const payments = await collectUnusedPayments(normalizedWallet, sessionId, reportType);
+      if (includeMobile && await consumeMobileReport(normalizedWallet, reportType)) {
+        return NextResponse.json({ success:true, source:'mobile_store' });
+      }
+      const payments = process.env.STRIPE_SECRET_KEY ? await collectUnusedPayments(normalizedWallet, sessionId, reportType) : [];
       const consumedPaymentIntentId = await consumeOnePayment(payments);
 
       if (!consumedPaymentIntentId) {

@@ -1,0 +1,5 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="100dp" android:height="100dp" android:viewportWidth="100" android:viewportHeight="100">
+    <path android:fillColor="#FFFFFF" android:pathData="M0,0H100V100H0Z"/>
+    <!-- Same helix geometry as public/icon.svg. -->
+    <path android:strokeColor="#2563EB" android:strokeWidth="4" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M20,10Q35,30 20,50Q5,70 20,90M80,10Q65,30 80,50Q95,70 80,90M20,15H80M27,25H73M23,35H77M20,50H80M23,65H77M27,75H73M20,85H80"/>
+</vector>

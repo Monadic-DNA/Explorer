@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useVault, LEGACY_PERSONALIZATION_KEY } from "./VaultContext";
 
 export interface UserCustomization {
+  additionalContext?: string;
   ethnicities: string[];
   countriesOfOrigin: string[];
   genderAtBirth: string;

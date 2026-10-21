@@ -1,6 +1,6 @@
 "use client";
 
-import { DynamicContextProvider, DynamicWidget, useDynamicContext } from '@dynamic-labs/sdk-react-core';
+import { DynamicContextProvider, DynamicWidget, useDynamicContext, getAuthToken } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { trackSignInStarted, trackUserLoggedIn, trackUserLoggedOut } from '@/lib/analytics';
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Query API directly - no caching
       const response = await fetch('/api/check-subscription', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(getAuthToken() ? { Authorization:`Bearer ${getAuthToken()}` } : {}) },
         body: JSON.stringify({ walletAddress }),
       });
 

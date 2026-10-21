@@ -1,0 +1,7 @@
+[bindings.kotlin]
+package_name = "com.monadicdna.explorer.core"
+cdylib_name = "explorer_core"
+
+[bindings.swift]
+module_name = "ExplorerCore"
+ffi_module_name = "ExplorerCoreFFI"
