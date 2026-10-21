@@ -62,3 +62,4 @@ yarn-error.log*
 apps/android/.kotlin/
 
 apps/ios/*.xcresult/
+apps/ios/test-attachments/
