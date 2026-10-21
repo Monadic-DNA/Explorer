@@ -177,10 +177,19 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         require(wallet.isNotBlank()){ "Sign in before enabling sync." };unlockData();flushData();dataVault.enableSync(wallet,password);queueSync()
     }
     fun disableSync()=run("Disabling sync on this device"){dataVault.disableSync();storageMessage="Saved on device. Sync is disabled on this device."}
+    private suspend fun prepareRecovery() {
+        if(!dataUnlocked)return
+        locking=true
+        try {
+            autosave?.cancelAndJoin();syncJob?.cancelAndJoin();flushData()
+            dataVault.lock();wipeMemory()
+        } finally {locking=false}
+    }
     fun restoreCloud(password:String)=run("Restoring encrypted cloud data"){
         require(wallet.isNotBlank()){ "Sign in to restore cloud data." }
         val remote=api("/api/vault-sync",json("walletAddress" to wallet,"action" to "read"))
         require(!remote.isNull("archive")){"No encrypted cloud copy exists for this account."}
+        prepareRecovery()
         val custom=dataVault.restore(session,remote.getJSONObject("archive"),password,{requireNotNull(authenticate).invoke()},true)
         restoreCustomization(custom);dataUnlocked=true;dataDirty=false;metadata=Core.obj("session_metadata",json("session" to session));refreshResults()
         dataVault.enableExistingSync(wallet,remote.getLong("revision"));storageMessage="Restored encrypted cloud data and enabled sync."
@@ -310,6 +319,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val legacy=imported ?: getApplication<Application>().openFileInput("vault.json").bufferedReader().use{it.readText()}
         val archive=JSONObject(legacy)
         if(archive.optInt("version")==2) {
+            prepareRecovery()
             val custom=dataVault.restore(session,archive,password,{requireNotNull(authenticate).invoke()})
             restoreCustomization(custom);dataUnlocked=true;dataDirty=false
         } else {

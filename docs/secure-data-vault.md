@@ -1,6 +1,6 @@
 # Secure data persistence and encrypted sync
 
-Android and iOS automatically persist imported genotype data, saved study results and profile customization in an atomic, authenticated encrypted file. Unlock requires device authentication and a device passcode. Lock/background clears the decrypted Rust session, profile and visible results; Android blocks screenshots, and iOS covers the app while inactive. Save failures are displayed. Customization saves after a short debounce; terminating an app before a pending save completes can lose the latest edit.
+Android and iOS automatically persist imported genotype data, saved study results and profile customization in an atomic, authenticated encrypted file. Unlock requires device authentication and a device passcode. Recovery first locks the previous decrypted session before requesting new device authentication. System authentication does not exempt an already-unlocked Android session from background locking. Lock/background clears the decrypted Rust session, profile and visible results; Android blocks screenshots, and iOS covers the app while inactive. Save failures are displayed. Customization saves after a short debounce; terminating an app before a pending save completes can lose the latest edit.
 
 ## Keys and device storage
 

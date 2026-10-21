@@ -41,7 +41,7 @@ class MainActivity: FragmentActivity() {
         intent?.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth)
         setContent { VaultTheme { ExplorerApp(model) } }
     }
-    override fun onStop() { super.onStop(); if(!deviceAuthentication.active && !isChangingConfigurations) model.backgroundLock() }
+    override fun onStop() { super.onStop(); if(!isChangingConfigurations) model.backgroundLock() }
     override fun onResume() { super.onResume(); if(model.wallet.isNotBlank()) model.billing.restore() }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent);setIntent(intent);intent.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth) }
 }

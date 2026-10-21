@@ -158,10 +158,17 @@ import UIKit
         try await self.unlockData();try await self.flushData();try await self.dataVault.enableSync(self.wallet,password);self.queueSync()
     }}
     func disableSync(){work("Disabling sync on this device"){try await self.dataVault.disableSync();self.storageMessage="Saved on device. Sync is disabled on this device."}}
+    private func prepareRecovery() async throws {
+        guard dataUnlocked else{return}
+        locking=true;defer{locking=false}
+        autosave?.cancel();await autosave?.value;syncTask?.cancel();await syncTask?.value
+        try await flushData();await dataVault.lock();wipeMemory()
+    }
     func restoreCloud(_ password:String){work("Restoring encrypted cloud data"){
         guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in to restore cloud data")}
         let response=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"read"])
         guard let archive=response["archive"] as? [String:Any],let revision=response["revision"] as? Int else{throw Core.Failure(message:"No encrypted cloud copy exists for this account")}
+        try await self.prepareRecovery()
         self.restoreCustomization(try await self.dataVault.restore(self.session,archive,password,allowOlder:true))
         self.dataUnlocked=true;self.dataDirty=false;self.metadata=try Core.object("session_metadata",["session":self.session]);try self.refreshResults()
         try await self.dataVault.enableExistingSync(self.wallet,revision);self.storageMessage="Restored encrypted cloud data and enabled sync."
@@ -292,6 +299,7 @@ import UIKit
         let data=try file.map(self.readFile) ?? Data(contentsOf:self.vaultURL)
         guard var encrypted=try JSONSerialization.jsonObject(with:data) as? [String:Any] else{throw Core.Failure(message:"Invalid encrypted vault")}
         if encrypted["version"] as? Int==2 {
+            try await self.prepareRecovery()
             self.restoreCustomization(try await self.dataVault.restore(self.session,encrypted,password))
             self.dataUnlocked=true;self.dataDirty=false
         } else {
