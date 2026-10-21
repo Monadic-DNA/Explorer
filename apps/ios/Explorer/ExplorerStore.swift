@@ -160,9 +160,8 @@ import UIKit
     func disableSync(){work("Disabling sync on this device"){try await self.dataVault.disableSync();self.storageMessage="Saved on device. Sync is disabled on this device."}}
     private func prepareRecovery() async throws {
         guard dataUnlocked else{return}
-        locking=true;defer{locking=false}
         autosave?.cancel();await autosave?.value;syncTask?.cancel();await syncTask?.value
-        try await flushData();await dataVault.lock();wipeMemory()
+        try await flushData();await dataVault.lock();wipeMemory();try Task.checkCancellation()
     }
     func restoreCloud(_ password:String){work("Restoring encrypted cloud data"){
         guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in to restore cloud data")}

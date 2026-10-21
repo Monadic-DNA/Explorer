@@ -179,11 +179,9 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun disableSync()=run("Disabling sync on this device"){dataVault.disableSync();storageMessage="Saved on device. Sync is disabled on this device."}
     private suspend fun prepareRecovery() {
         if(!dataUnlocked)return
-        locking=true
-        try {
-            autosave?.cancelAndJoin();syncJob?.cancelAndJoin();flushData()
-            dataVault.lock();wipeMemory()
-        } finally {locking=false}
+        autosave?.cancelAndJoin();syncJob?.cancelAndJoin();flushData()
+        dataVault.lock();wipeMemory()
+        currentCoroutineContext().ensureActive()
     }
     fun restoreCloud(password:String)=run("Restoring encrypted cloud data"){
         require(wallet.isNotBlank()){ "Sign in to restore cloud data." }
