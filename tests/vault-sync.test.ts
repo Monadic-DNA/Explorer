@@ -36,3 +36,17 @@ test('encrypted sync CAS, account isolation, delta uploads and deletion races',{
     assert.equal((await readSyncedVault(wallet)).archive,null);
   } finally{await getDb().query('DELETE FROM encrypted_user_vaults WHERE wallet=ANY($1::text[])',[[wallet,other]]);await getDb().end();}
 });
+
+test('sync endpoint rejects disabled service, unauthenticated access, malformed bodies and oversized requests',async()=>{
+  const {POST}=await import('../app/api/vault-sync/route');
+  const previous=process.env.VAULT_SYNC_ENABLED;
+  const request=(body:unknown,headers:Record<string,string>={})=>new Request('http://localhost/api/vault-sync',{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'application/json',...headers}});
+  try {
+    delete process.env.VAULT_SYNC_ENABLED;
+    assert.equal((await POST(request({walletAddress:'0x'+'a'.repeat(40),action:'read'}))).status,503);
+    process.env.VAULT_SYNC_ENABLED='true';
+    assert.equal((await POST(request({walletAddress:'0x'+'a'.repeat(40),action:'read'}))).status,401);
+    assert.equal((await POST(request(null))).status,400);
+    assert.equal((await POST(request({}, {'Content-Length':String(41*1024*1024)}))).status,413);
+  } finally{if(previous===undefined)delete process.env.VAULT_SYNC_ENABLED;else process.env.VAULT_SYNC_ENABLED=previous;}
+});

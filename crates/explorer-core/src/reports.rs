@@ -115,6 +115,7 @@ pub fn context(v: &Value) -> String {
             parts.push(format!("{label}: {s}"));
         }
     }
+    if !text(v,"additionalContext").is_empty() {parts.push(format!("Additional context: {}",text(v,"additionalContext")));}
     if parts.is_empty() {
         String::new()
     } else {

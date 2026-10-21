@@ -58,7 +58,7 @@ export default function PortableVaultPage() {
       const snapshot = JSON.parse(plaintext) as PortableSnapshot;
       genotype.restoreGenotype({ data: new Map(Object.entries(snapshot.genotypes)), fileHash: snapshot.metadata.fileHash || null, originalFileName: snapshot.metadata.fileName || null, originalFileSize: null, detectedFormat: snapshot.metadata.detectedFormat || null, fileExtension: snapshot.metadata.fileName?.split('.').pop() || null });
       await results.restoreResults(snapshot.results);
-      if(snapshot.customization) personalization.setSessionCustomization({...coreCall<UserCustomization>('parse_profile',snapshot.customization.fields),additionalContext:snapshot.customization.context});
+      personalization.setSessionCustomization({...coreCall<UserCustomization>('parse_profile',snapshot.customization?.fields || {}),additionalContext:snapshot.customization?.context || ''});
       setPassword(''); setMessage(`Restored ${Object.keys(snapshot.genotypes).length.toLocaleString()} variants and ${snapshot.results.length.toLocaleString()} results into memory.`);
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Import failed.'); }
     finally { if (session !== undefined) coreCall('session_close', { session }); setBusy(false); if (file.current) file.current.value = ''; }

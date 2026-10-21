@@ -103,7 +103,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     private fun markDataChanged() {
         dataDirty=true;dataVersion++;storageMessage="Saving securely…"
         autosave?.cancel()
-        autosave=viewModelScope.launch{delay(500);try{flushData()}catch(e:Exception){if(dataUnlocked)storageMessage="Changes not saved. ${e.message ?: "Please retry."}"}}
+        autosave=viewModelScope.launch{delay(500);while(busy)delay(100);try{flushData()}catch(e:Exception){if(dataUnlocked)storageMessage="Changes not saved. ${e.message ?: "Please retry."}"}}
     }
     suspend fun flushData() {
         if(!dataUnlocked || !dataDirty)return
@@ -145,17 +145,18 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val config=dataVault.syncConfiguration() ?: return
         if(!config.optBoolean("enabled"))return
         require(wallet.isNotBlank() && wallet.equals(config.optString("wallet"),true)){"Sign in to the account used to enable sync."}
+        val syncWallet=wallet
         val observedVersion=dataVersion
-        val remote=api("/api/vault-sync",json("walletAddress" to wallet,"action" to "read","knownRevision" to config.optLong("revision"),"knownGenotype" to dataVault.genotypeDigest()))
+        val remote=api("/api/vault-sync",json("walletAddress" to syncWallet,"action" to "read","knownRevision" to config.optLong("revision"),"knownGenotype" to dataVault.genotypeDigest()))
         val revision=remote.getLong("revision");val base=config.optLong("revision")
         val latest=dataVault.syncConfiguration() ?: return
-        if(!latest.optBoolean("enabled") || latest.optString("wallet")!=config.optString("wallet"))return
+        if(!wallet.equals(syncWallet,true) || !latest.optBoolean("enabled") || latest.optString("wallet")!=config.optString("wallet"))return
         if(revision==base) {
             if(config.optBoolean("dirty")) {
                 val archive=dataVault.archive()
                 val uploaded=archive.getJSONObject("envelope").getLong("revision")
                 if(archive.getJSONObject("envelope").optString("genotypeDigest")==remote.optString("genotypeDigest")) archive.getJSONObject("envelope").remove("genotype")
-                val response=api("/api/vault-sync",json("walletAddress" to wallet,"action" to "write","baseRevision" to base,"archive" to archive))
+                val response=api("/api/vault-sync",json("walletAddress" to syncWallet,"action" to "write","baseRevision" to base,"archive" to archive))
                 dataVault.synced(response.getLong("revision"),uploaded)
             }
         } else {
@@ -193,7 +194,8 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
 
 
     fun run(label: String, block: suspend () -> Unit) {
-        if (busy || syncing || locking) return
+        if (busy) return
+        if(syncing){error="Encrypted sync is in progress. Please retry in a moment.";return}
         task = viewModelScope.launch {
             busy=true; status=label; error=null
             try { block(); status="Complete" }
@@ -257,14 +259,14 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         unlockData();markDataChanged()
         val importSession=session
         metadata=withContext(Dispatchers.Default) { Core.importGenotype(importSession,bytes,name) }
-        results=emptyList()
+        results=emptyList();markDataChanged()
     }
     suspend fun refreshResults() { results=withContext(Dispatchers.Default) { Core.arr("session_results",json("session" to session)).objects() } }
     fun analyze(study: JSONObject) = run("Analyzing on device") {
         require(dataUnlocked && metadata.optInt("count")>0) { "Unlock or import your DNA first." }
         markDataChanged()
         withContext(Dispatchers.Default) { Core.arr("session_analyze",json("session" to session,"studies" to JSONArray().put(study),"now" to Instant.now().toString())) }
-        refreshResults()
+        markDataChanged();refreshResults()
         if(results.none { it.optInt("studyId")==study.optInt("id") }) status="No matching called risk variant in this study"
     }
     fun runAll() = run("Analyzing catalog on device") {
@@ -277,7 +279,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             val batch=page.getJSONArray("data")
             if(batch.length()==0)break
             withContext(Dispatchers.Default){ Core.call("session_analyze",json("session" to session,"studies" to batch,"strict" to true,"now" to Instant.now().toString())) }
-            offset+=1000;status="Analyzed up to $offset catalog records"
+            markDataChanged();offset+=1000;status="Analyzed up to $offset catalog records"
             if(batch.length()<1000)break
         }
         refreshResults()
@@ -286,7 +288,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun clear(){lockData()}
     fun exportResults(): String = Core.call("session_export",json("session" to session)) as String
     fun importResults(content: String, name: String) = run("Importing results") { importResultsData(content, name) }
-    suspend fun importResultsData(content: String, name: String) { unlockData();markDataChanged();withContext(Dispatchers.Default){Core.call("session_import_results",json("session" to session,"content" to content,"fileName" to name,"now" to Instant.now().toString()))};refreshResults() }
+    suspend fun importResultsData(content: String, name: String) { unlockData();markDataChanged();withContext(Dispatchers.Default){Core.call("session_import_results",json("session" to session,"content" to content,"fileName" to name,"now" to Instant.now().toString()))};markDataChanged();refreshResults() }
     suspend fun sealedVault(password:String):String {unlockData();flushData();return dataVault.backup(password)}
     fun saveVault(password:String)=run("Saving data securely"){unlockData();dataDirty=true;flushData()}
     fun openVault(password:String,imported:String?=null)=run("Unlocking saved data"){openVaultData(password,imported)}

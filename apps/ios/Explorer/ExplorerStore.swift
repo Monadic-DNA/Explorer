@@ -81,7 +81,7 @@ import UIKit
         dataDirty=true;dataVersion+=1;storageMessage="Saving securely…"
         autosave?.cancel()
         autosave=Task {
-            do {try await Task.sleep(nanoseconds:500_000_000);try Task.checkCancellation();try await flushData()}
+            do {try await Task.sleep(nanoseconds:500_000_000);while busy {try await Task.sleep(nanoseconds:100_000_000)};try Task.checkCancellation();try await flushData()}
             catch is CancellationError {} catch {if dataUnlocked{storageMessage="Changes not saved. Please retry.";self.error=error.localizedDescription}}
         }
     }
@@ -124,16 +124,17 @@ import UIKit
     private func syncOnce() async throws {
         guard let config=await dataVault.configuration(),config["enabled"] as? Bool==true else{return}
         guard !wallet.isEmpty,wallet.lowercased()==config["wallet"] as? String else{throw Core.Failure(message:"Sign in to the account used to enable sync")}
+        let syncWallet=wallet
         let observedVersion=dataVersion
-        let response=try await api("/api/vault-sync",["walletAddress":wallet,"action":"read","knownRevision":config["revision"] ?? 0,"knownGenotype":await dataVault.genotypeDigest() ?? ""])
+        let response=try await api("/api/vault-sync",["walletAddress":syncWallet,"action":"read","knownRevision":config["revision"] ?? 0,"knownGenotype":await dataVault.genotypeDigest() ?? ""])
         let revision=response["revision"] as? Int ?? 0;let base=config["revision"] as? Int ?? 0
-        guard let latest=await dataVault.configuration(),latest["enabled"] as? Bool==true,latest["wallet"] as? String==config["wallet"] as? String else{return}
+        guard wallet.lowercased()==syncWallet.lowercased(),let latest=await dataVault.configuration(),latest["enabled"] as? Bool==true,latest["wallet"] as? String==config["wallet"] as? String else{return}
         if revision==base {
             if config["dirty"] as? Bool==true {
                 var archive=try await dataVault.archive();var envelope=archive["envelope"] as! [String:Any]
                 let uploaded=envelope["revision"] as! Int
                 if envelope["genotypeDigest"] as? String==response["genotypeDigest"] as? String {envelope.removeValue(forKey:"genotype");archive["envelope"]=envelope}
-                let result=try await api("/api/vault-sync",["walletAddress":wallet,"action":"write","baseRevision":base,"archive":archive])
+                let result=try await api("/api/vault-sync",["walletAddress":syncWallet,"action":"write","baseRevision":base,"archive":archive])
                 try await dataVault.synced(result["revision"] as! Int,uploaded)
             }
         } else {
@@ -172,7 +173,8 @@ import UIKit
     }}
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
-        guard !busy && !syncing && !locking else{return}
+        guard !busy else{return}
+        guard !syncing else{error="Encrypted sync is in progress. Please retry in a moment.";return}
         busy=true;status=label;error=nil
         task=Task {
             defer{busy=false}
@@ -227,7 +229,7 @@ import UIKit
         let data=try self.readFile(url);let session=self.session;let name=url.lastPathComponent
         let metadata=try await Task.detached{try Core.importFile(session,data,name)}.value
         try Task.checkCancellation();self.metadata=metadata
-        self.results=[]
+        self.results=[];self.markDataChanged()
     }}
     func refreshResults() throws{results=try Core.array("session_results",["session":session]).map(Record.init)}
     func analyze(_ record:Record){work("Matching DNA on device"){
@@ -235,7 +237,7 @@ import UIKit
         self.markDataChanged()
         let session=self.session;let input:[String:Any]=["session":session,"studies":[record.raw],"now":ISO8601DateFormatter().string(from:Date())]
         _=try await Task.detached{try Core.call("session_analyze",input)}.value
-        try self.refreshResults()
+        self.markDataChanged();try self.refreshResults()
     }}
     func runAll(){work("Analyzing catalog on device"){
         guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
@@ -247,7 +249,7 @@ import UIKit
             let rows=page["data"] as? [[String:Any]] ?? [];if rows.isEmpty{break}
             let input:[String:Any]=["session":self.session,"studies":rows,"strict":true,"now":ISO8601DateFormatter().string(from:Date())]
             _=try await Task.detached{try Core.call("session_analyze",input)}.value
-            offset+=1000;self.status="Analyzed up to \(offset) catalog records"
+            self.markDataChanged();offset+=1000;self.status="Analyzed up to \(offset) catalog records"
             if rows.count<1000{break}
         }
         try self.refreshResults()

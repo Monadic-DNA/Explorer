@@ -51,11 +51,15 @@ fn open_raw(envelope: &Value, key: &[u8]) -> Result<String,String> {
     if plain.len()>MAX {return Err("Expanded vault exceeds supported size".into());}
     String::from_utf8(plain.to_vec()).map_err(|_|"Invalid vault encoding".into())
 }
-pub fn genotype_key(key:&[u8])->Result<Zeroizing<Vec<u8>>,String> {
+fn domain_key(key:&[u8],domain:&[u8])->Result<Zeroizing<Vec<u8>>,String> {
+    if key.len()!=32 {return Err("Invalid data key length".into());}
     use hmac::{Hmac,Mac};
     let mut derived=<Hmac<sha2::Sha256> as Mac>::new_from_slice(key).map_err(|_|"Invalid data key")?;
-    derived.update(b"monadic-dna/explorer/genotype-key/v2");
+    derived.update(domain);
     Ok(Zeroizing::new(derived.finalize().into_bytes().to_vec()))
+}
+pub fn genotype_key(key:&[u8])->Result<Zeroizing<Vec<u8>>,String> {
+    domain_key(key,b"monadic-dna/explorer/genotype-key/v2")
 }
 pub fn digest(value:&Value)->String {
     use sha2::Digest;
@@ -69,11 +73,13 @@ pub fn seal_state(mut snapshot:Value,genotype:Value,key:&[u8],id:&str,revision:u
     snapshot.as_object_mut().ok_or("Invalid vault snapshot")?.remove("genotypes");
     let hash=digest(&genotype);snapshot["genotypeDigest"]=hash.clone().into();
     let plaintext=Zeroizing::new(snapshot.to_string());
-    let mut encrypted=seal(&plaintext,key,id,revision,iv)?;
+    let state_key=domain_key(key,b"monadic-dna/explorer/state-key/v2")?;
+    let mut encrypted=seal(&plaintext,&state_key,id,revision,iv)?;
     encrypted["genotype"]=genotype;encrypted["genotypeDigest"]=hash.into();Ok(encrypted)
 }
 pub fn open(envelope:&Value,key:&[u8])->Result<String,String> {
-    let plain=Zeroizing::new(open_raw(envelope,key)?);
+    let state_key=domain_key(key,b"monadic-dna/explorer/state-key/v2")?;
+    let plain=Zeroizing::new(open_raw(envelope,&state_key)?);
     let mut snapshot:Value=serde_json::from_str(&plain).map_err(|_|"Invalid vault snapshot")?;
     if let Some(genotype)=envelope.get("genotype") {
         let hash=digest(genotype);
@@ -100,7 +106,8 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value,String> {
             let mut record=input["record"].as_object().cloned().ok_or("Invalid vault record")?;
             let expected=record.remove("mac");
             let canonical=serde_json::to_vec(&record).map_err(|_|"Invalid vault record")?;
-            let mut mac=<Hmac<sha2::Sha256> as Mac>::new_from_slice(&key).map_err(|_|"Invalid key")?;
+            let authentication_key=domain_key(&key,b"monadic-dna/explorer/record-mac-key/v2")?;
+            let mut mac=<Hmac<sha2::Sha256> as Mac>::new_from_slice(&authentication_key).map_err(|_|"Invalid key")?;
             mac.update(b"monadic-dna/explorer/local-record/v2|");mac.update(&canonical);
             if op=="vault_record_verify" {
                 let expected=STANDARD.decode(expected.as_ref().and_then(Value::as_str).unwrap_or("")).map_err(|_|"Invalid vault record")?;

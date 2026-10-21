@@ -55,6 +55,11 @@ class SecureDataVaultTest {
             try{recovered.restore(t,backup,"incorrect recovery password",{})}catch(_:Exception){failed=true}
             assertTrue(failed);assertFalse(recovered.exists)
             assertEquals("43",recovered.restore(t,backup,"unique recovery passphrase",{}).getJSONObject("fields").getString("age"))
+            recovered.save(t,json("fields" to json("age" to "44"),"context" to "remote update"))
+            assertEquals("44",restarted.acceptCloud(s,recovered.archive(),2).getJSONObject("fields").getString("age"))
+            recovered.save(t,json("fields" to json("age" to "45"),"context" to "remote update"))
+            val delta=recovered.archive();delta.getJSONObject("envelope").remove("genotype")
+            assertEquals("45",restarted.acceptCloud(s,delta,3).getJSONObject("fields").getString("age"))
             restarted.lock()
             val changed=JSONObject(raw);changed.getJSONObject("sync").put("revision",999)
             File(dir,"vault-v2.json").writeText(changed.toString())

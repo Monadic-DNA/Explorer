@@ -43,6 +43,14 @@ final class SecureDataVaultTests:XCTestCase {
         let absent=await vault.exists;XCTAssertFalse(absent)
         let restored=try await vault.restore(t,backup,"unique recovery passphrase")
         XCTAssertEqual((restored["fields"] as? [String:String])?["age"],"43")
+        try await vault.save(t,["fields":["age":"44"],"context":"remote update"])
+        let remote=try await restarted.acceptCloud(s,try await vault.archive(),2)
+        XCTAssertEqual((remote["fields"] as? [String:String])?["age"],"44")
+        try await vault.save(t,["fields":["age":"45"],"context":"remote update"])
+        var delta=try await vault.archive(),deltaEnvelope=delta["envelope"] as! [String:Any]
+        deltaEnvelope.removeValue(forKey:"genotype");delta["envelope"]=deltaEnvelope
+        let updated=try await restarted.acceptCloud(s,delta,3)
+        XCTAssertEqual((updated["fields"] as? [String:String])?["age"],"45")
         await restarted.lock()
         var changed=try JSONSerialization.jsonObject(with:Data(raw.utf8)) as! [String:Any]
         changed["sync"]=["enabled":true,"revision":999]

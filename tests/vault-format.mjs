@@ -12,10 +12,11 @@ export function openPortableVault(archive,password) {
     return Buffer.concat([cipher.update(bytes.subarray(0,-16)),cipher.final()]);
   }
   const key=decrypt(w,kek,`monadic-dna/explorer/key/v2|${w.vaultId}`);
-  const actual=createHmac('sha256',key).update('monadic-dna/explorer/local-record/v2|').update(JSON.stringify(canonical({...rest,envelope:e,wrappedKey:w}))).digest('base64');
+  const derivedKey=label=>createHmac('sha256',key).update(`monadic-dna/explorer/${label}/v2`).digest();
+  const actual=createHmac('sha256',derivedKey('record-mac-key')).update('monadic-dna/explorer/local-record/v2|').update(JSON.stringify(canonical({...rest,envelope:e,wrappedKey:w}))).digest('base64');
   assert.equal(actual,mac,'Portable archive MAC');
   const read=(value,key)=>JSON.parse(gunzipSync(decrypt(value,key,`monadic-dna/explorer/data/v2|${value.vaultId}|${value.revision}|gzip`)));
-  const state=read(e,key),derived=createHmac('sha256',key).update('monadic-dna/explorer/genotype-key/v2').digest();
+  const state=read(e,derivedKey('state-key')),derived=derivedKey('genotype-key');
   const digest=createHash('sha256').update(JSON.stringify(canonical(e.genotype))).digest('hex');
   assert.equal(state.genotypeDigest,digest);assert.equal(e.genotypeDigest,digest);
   delete state.genotypeDigest;

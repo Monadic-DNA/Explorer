@@ -163,6 +163,7 @@ actor SecureDataVault {
     func acceptCloud(_ session:Int,_ archive:[String:Any],_ revision:Int) throws -> [String:Any] {
         var archive=archive
         guard let key,var current=record,let old=current["envelope"] as? [String:Any],var envelope=archive["envelope"] as? [String:Any],old["vaultId"] as? String==envelope["vaultId"] as? String else {throw Core.Failure(message:"This cloud vault needs its recovery passphrase on this device")}
+        guard (envelope["revision"] as? Int ?? 0)>=(old["revision"] as? Int ?? 0) else{throw Core.Failure(message:"The cloud copy is older than this device. Restore it explicitly only if you intend to replace newer data.")}
         if envelope["genotype"]==nil,envelope["genotypeDigest"] as? String==old["genotypeDigest"] as? String {envelope["genotype"]=old["genotype"];archive["envelope"]=envelope}
         let temporary=try Core.call("session_create") as! Int
         defer{_ = try? Core.call("session_close",["session":temporary])}

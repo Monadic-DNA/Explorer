@@ -164,6 +164,7 @@ class SecureDataVault(
         val current=JSONObject(requireNotNull(record).toString());val envelope=archive.getJSONObject("envelope")
         if(!envelope.has("genotype") && envelope.optString("genotypeDigest")==current.getJSONObject("envelope").optString("genotypeDigest"))envelope.put("genotype",current.getJSONObject("envelope").getJSONObject("genotype"))
         check(envelope.getString("vaultId")==current.getJSONObject("envelope").getString("vaultId")){"This cloud vault needs its recovery passphrase on this device."}
+        check(envelope.getLong("revision")>=current.getJSONObject("envelope").getLong("revision")){"The cloud copy is older than this device. Restore it explicitly only if you intend to replace newer data."}
         val temporary=(Core.call("session_create") as Number).toLong()
         try {
             Core.call("vault_record_verify",json("key" to encode(requireNotNull(key)),"record" to archive))

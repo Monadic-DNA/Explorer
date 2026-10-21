@@ -170,3 +170,7 @@ test('v2 recovery interoperates with independent Argon2id/AES-GCM decoder and au
     assert.equal(coreCall('session_metadata',{session}).count,1);
   } finally{coreCall('session_close',{session});}
 });
+
+test('cross-platform customization preserves additional report context',()=>{
+  assert.match(coreCall('user_context',{additionalContext:'custom recovery context'}),/Additional context: custom recovery context/);
+});

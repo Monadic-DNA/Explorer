@@ -32,6 +32,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
   const [alcoholUse, setAlcoholUse] = useState('');
   const [medications, setMedications] = useState('');
   const [diet, setDiet] = useState('');
+  const [additionalContext, setAdditionalContext] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -64,6 +65,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         setAlcoholUse(customization.alcoholUse || '');
         setMedications((customization.medications || []).join(', '));
         setDiet(customization.diet || '');
+        setAdditionalContext(customization.additionalContext || '');
       } else {
         setIsUnlockMode(false);
         // Reset form for new customization
@@ -78,6 +80,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         setAlcoholUse('');
         setMedications('');
         setDiet('');
+        setAdditionalContext('');
       }
     }
   }, [isOpen, status, customization]);
@@ -136,6 +139,7 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
         alcoholUse: alcoholUse as any,
         medications: medications.split(',').map(s => s.trim()).filter(Boolean),
         diet: diet as any,
+        additionalContext,
       };
 
       await saveCustomization(data, needsPassword ? password : undefined);
@@ -395,6 +399,10 @@ export default function CustomizationModal({ isOpen, onClose }: CustomizationMod
                 </select>
               </div>
 
+              <div className="form-group">
+                <label htmlFor="additional-context">Additional context for reports</label>
+                <textarea id="additional-context" value={additionalContext} maxLength={100000} onChange={event=>setAdditionalContext(event.target.value)} />
+              </div>
               {needsPassword && (
                 <div className="form-group password-section">
                   <label htmlFor="password">

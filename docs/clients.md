@@ -80,9 +80,11 @@ The macOS CI job builds Rust, generates the project, selects an available iPhone
 
 ## Privacy, interoperability, and deployment
 
-DNA stays in memory until a user explicitly saves an encrypted vault. Mobile vaults use the shared PBKDF2-SHA256/AES-256-GCM format with 600,000 iterations and a user passphrase; keys and nonces come from the OS random source. Android settings and tokens use Android Keystore encryption; iOS uses device-only Keychain entries. Local vaults are excluded from platform backups. Lock closes the Rust session and clears visible results/chat/report state. Exported files are controlled by the user's selected file destination.
+Native genotype data, saved study results and customization automatically persist in an authenticated encrypted vault. iOS uses a user-presence-protected Secure Enclave wrapping key; Android uses an authenticated Keystore key, preferring StrongBox. Device keys are non-exportable and do not sync. Encrypted native data files are excluded from platform backups. Lock clears the decrypted session and visible results/chat/report state.
 
-`/portable-vault` on the web imports/exports the same encrypted snapshot as mobile. It imports into the active in-memory session; saving the existing browser vault is a separate action. Existing web encrypted genotype files remain compatible with the Rust decryptor. Portable vaults contain DNA and results, not provider credentials or account tokens.
+Opt-in native sync stores ciphertext with account-bound compare-and-swap revisions. Recovery uses a separate Argon2id-protected data key; each device wraps it using its own device key. `/portable-vault` on Web imports/exports the same v2 encrypted snapshot, including customization; Web imports restore memory and browser saving remains a separate action. Legacy v1 files remain readable. Portable/synced data excludes provider credentials and account tokens. Automatic cloud sync on Web is not yet implemented.
+
+See [secure persistence, recovery and encrypted sync](secure-data-vault.md) for the key hierarchy, deployment migration/feature flag, conflict handling, hardware limitations and physical-device verification requirements.
 
 Sign-in uses a fresh X25519 key and random state, expires after five minutes, encrypts the JWT to the initiating device, and returns through `monadicexplorer://auth`. Register the web origin with your Dynamic environment. Native account requests carry the existing bearer token. Changing the backend should be done only to a server you trust with your account token.
 

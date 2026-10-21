@@ -1,6 +1,6 @@
 # Monadic DNA Explorer - Privacy Policy
-**Effective Date:** October 13, 2026 
-**Version:** 2.0
+**Effective Date:** October 21, 2026
+**Version:** 3.0
 
 ---
 
@@ -10,27 +10,29 @@ Monadic DNA Explorer is operated by **Recherché Inc.** (“we,” “us,” or 
 We are committed to protecting your privacy and limiting data collection to the minimum necessary to operate this research tool.
 
 We do not:
-- Store your genetic data or analysis results on our servers,
+- Store plaintext genetic data, analysis results or customization on our servers (optional sync stores encrypted copies),
 - Sell, rent, or share your genetic data with anyone, or
 - Use your genetic data for marketing, profiling, or research.
 
-You can use most of the Service without signing in. Signing in is only needed for paid features, as described in Section 2.4.
+You can use most of the Service without signing in. Signing in is needed for paid features and optional encrypted multi-device sync, as described below.
 
 ---
 
 ## 2. Data We Process
 
 ### 2.1 Genetic Data
-- Your genotype file is read and processed **locally** in your browser. The file itself is never uploaded to our servers.
-- By default, your genetic data and analysis results (matched SNPs and calculated risk scores) are kept **in memory only** and are erased when you close your browser tab or reload the page.
-- Your genetic data is never logged, stored, or backed up on our servers.
+- Your genotype file is read and processed **locally** in your browser or native app. Raw files are not uploaded to our servers.
+- Web keeps imported DNA/results in memory unless you choose to save them. Android and iOS save genotype data, study matches and customization automatically in an encrypted on-device vault after device authentication.
+- Optional native sync uploads encrypted vault data only. We do not receive its decryption key, recovery passphrase or plaintext genetic data.
 
-### 2.2 Optional Saving on Your Device
-If you click **Save**, your parsed genetic data and analysis results are encrypted in your browser with a passphrase you choose (AES-256-GCM, with the key derived from your passphrase using PBKDF2) and stored in your browser's storage (IndexedDB) on that device only. Personalization details you enter (Section 2.3) are stored the same way, under the same passphrase.
-- The encrypted data never leaves your device and is never sent to our servers.
-- Your passphrase is never stored or transmitted. We cannot recover it or your saved data if you forget it.
-- You can delete saved data at any time from the My Data menu or when prompted for your passphrase. Clearing your browser's site data also deletes it.
-- Anyone who knows your passphrase and can use your browser can open the saved data, so avoid saving on shared computers.
+### 2.2 Saving, Recovery and Optional Encrypted Sync
+Web's **Save** controls encrypt data using AES-256-GCM and a PBKDF2-derived passphrase key in IndexedDB. Native apps encrypt data using a random data key wrapped by a device-authenticated Secure Enclave key on iOS or Android Keystore key (StrongBox preferred) on Android. Android hardware backing depends on the device. Local native data is excluded from operating-system backups. Device wrapping keys never sync.
+
+Portable v2 backups and native encrypted sync protect the shared data key with a separate recovery passphrase using Argon2id (64 MiB, three passes). Another device recovers the data key using that passphrase and protects it using its own device key. We cannot recover a forgotten recovery passphrase or replace a lost hardware key. Use a long, unique passphrase and keep a safe recovery backup.
+
+Sync is **opt-in** and requires account sign-in. Our database stores encrypted DNA/results/customization, an encrypted recovery key, and metadata including your wallet address, vault identity, revision, size and update time. This metadata links your account to a ciphertext archive. We cannot read its encrypted contents. Conflicting device edits require explicit resolution; data is not automatically merged. Automatic cloud sync is currently available on native apps; Web can exchange encrypted portable files.
+
+You can lock or delete local data independently of cloud data. Use **Delete encrypted cloud copy** in the native vault controls to delete the live cloud copy. Other device copies and exported files remain until separately deleted. Disabled sync does not delete cloud data. Server backups may retain encrypted copies under the hosting operator's backup retention policy; this feature does not provide immediate cryptographic revocation of previously authorized devices or backups.
 
 You may also export your results to a file on your device. Exported files are not encrypted. They are stored entirely under your control, and you are responsible for their secure handling. We recommend:
 - Storing exported files on encrypted storage
@@ -38,16 +40,16 @@ You may also export your results to a file on your device. Exported files are no
 - Avoiding upload to cloud services or unsecured locations
 
 ### 2.3 Personalization Data
-You may optionally enter details such as age, sex at birth, ancestry, health conditions, family history, medications, smoking, alcohol use, and diet to make AI interpretations more relevant. This information is stored only on your device, encrypted as described in Section 2.2. When you use AI features, it is included in the request sent to the AI provider you select (Section 4.1).
+You may optionally enter details such as age, sex at birth, ancestry, health conditions, family history, medications, smoking, alcohol use, and diet to make AI interpretations more relevant. This information is encrypted on your device and, if you enable sync, included in the encrypted cloud archive described in Section 2.2. When you use AI features, it is included in the request sent to the AI provider you select (Section 4.1).
 
 ### 2.4 Account and Payment Data
-Signing in is optional and is only required for paid features.
+Signing in is optional and required for paid features or encrypted multi-device sync.
 - **Sign-in:** Sign-in is provided by **Dynamic** (dynamic.xyz). Depending on the method you choose, Dynamic processes your email address or crypto wallet address. We use your wallet address to identify your purchases.
 - **Card payments:** Card payments are processed by **Stripe**. We never see or store your full card details. We store your wallet address in your Stripe customer record so we can confirm your subscription or report purchases.
 - **Stablecoin payments:** Stablecoin payments are made on public blockchains. Transactions on a public blockchain, including your wallet address and payment amount, are visible to anyone and cannot be deleted. We check payment status using a blockchain data provider (Alchemy).
 - **X account connection (optional):** If you connect your X (Twitter) account through **ReplyCorp** to receive a discount, we store your X user ID and handle in your Stripe customer record and in your browser. When you make a purchase, we report the purchase and its amount to ReplyCorp so it can reward the X users whose posts referred you.
 
-None of this account or payment data is combined with your genetic data.
+Payment records do not contain plaintext genetic data. Optional encrypted sync associates a ciphertext archive with your account.
 
 ### 2.5 Search and Chat Text
 - Text you type into study search is sent to our server to find matching studies. Search text and its computed embedding may be cached in our database to speed up later searches. The cache is not linked to you or your account.
@@ -113,9 +115,9 @@ We are **not responsible** for data handling, breaches, or malfeasance within AI
 
 ## 5. Data Retention
 
-- Genetic data and analysis results are kept in memory and deleted when you close your tab, unless you choose to save them on your device (Section 2.2).
+- Web data stays in memory unless saved. Native genotype data, study results and customization persist encrypted until deleted (Section 2.2).
 - Saved data stays encrypted in your browser until you delete it or clear your browser's site data.
-- No genetic data or analysis results are stored in our databases, logs, or backups.
+- Optional cloud copies remain encrypted in the database until you delete them; hosting backups may retain ciphertext under their configured retention. Plaintext genetic data and results are not logged or stored in our databases.
 - Exported files are stored entirely on your device under your control; we have no access to or responsibility for them.
 - Account and payment records are kept by Dynamic and Stripe for as long as needed to provide paid features and meet legal and tax obligations. Blockchain transactions are permanent.
 - Cached search text is kept until it is removed during routine cache cleanup.
@@ -138,7 +140,7 @@ You may disable cookies or block trackers in your browser settings. Core feature
 
 We implement industry-standard security practices, including:
 - All communications use **TLS (HTTPS)**.
-- Genetic analysis runs in your browser, and saved data is encrypted on your device with a key only your passphrase can produce.
+- Genetic analysis runs locally. Saved data is encrypted using browser passphrase protection or native device key protection; recovery/sync uses a separate recovery passphrase.
 - Regular code reviews and dependency scanning for vulnerabilities.
 - Minimal data collection to reduce exposure.
 
@@ -207,7 +209,7 @@ Email: support@monadicdna.com
 ## 14. Acknowledgment
 
 By using Monadic DNA Explorer, you acknowledge that:
-- Your genetic data is processed in your browser and is not stored on our servers.
+- Genetic data is processed locally. Optional native sync stores an encrypted copy, never its plaintext or decryption key.
 - If you choose to save data on your device, you are responsible for your passphrase and your device's security.
 - We collect usage analytics and advertising measurement data, but never your genetic data or results.
 - Paid features involve sign-in and payment providers who process your account and payment data.
