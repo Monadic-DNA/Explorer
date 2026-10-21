@@ -174,3 +174,22 @@ test('v2 recovery interoperates with independent Argon2id/AES-GCM decoder and au
 test('cross-platform customization preserves additional report context',()=>{
   assert.match(coreCall('user_context',{additionalContext:'custom recovery context'}),/Additional context: custom recovery context/);
 });
+
+test('batch Run All matches session results exactly and keeps order and overwrite semantics',()=>{
+  const genotypes={rs1:'AG',rs2:'CC',rs3:'--'};
+  const template={study_accession:'GCST1',snps:'rs1',strongest_snp_risk_allele:'rs1-A',or_or_beta:'0.25',ci_text:'unit decrease',study:'Batch study',disease_trait:'Test trait'};
+  const studies=Array.from({length:1200},(_,i)=>({...template,id:i+1,...(i%3===0?{snps:'rs2',strongest_snp_risk_allele:'rs2-A'}:{})}));
+  studies.push({...template,id:1,study:'Latest duplicate'}, {...template,id:2001,or_or_beta:''},{...template,id:2002,snps:'rs3',strongest_snp_risk_allele:'rs3-A'});
+  const now='2026-10-21T00:00:00Z',session=coreCall('session_create');
+  try {
+    coreCall('session_restore',{session,snapshot:JSON.stringify({version:1,genotypes,results:[],metadata:{count:3}})});
+    const expected=coreCall('analyze_studies',{genotypes,studies,strict:true,now});
+    assert.deepEqual(coreCall('session_analyze',{session,studies,strict:true,now}),expected);
+    assert.equal(coreCall('session_analyze_count',{session,studies,strict:true,now}),expected.length);
+    const stored=coreCall('session_results',{session});
+    assert.equal(stored.length,new Set(expected.map(row=>row.studyId)).size);
+    assert.equal(stored.find(row=>row.studyId===1).studyTitle,'Latest duplicate');
+    assert.deepEqual(stored.map(row=>row.studyId),[...new Set(expected.map(row=>row.studyId))]);
+    assert.ok(expected.every(row=>row.riskScore===-0.25));
+  }finally{coreCall('session_close',{session});}
+});

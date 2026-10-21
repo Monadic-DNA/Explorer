@@ -396,19 +396,12 @@ export class GWASDatabase {
           ? IDBKeyRange.lowerBound(lastKey, true) // exclusive
           : undefined;
 
-        const request = store.openCursor(range);
-
-        const results: GWASStudy[] = [];
-
-        request.onsuccess = (event) => {
-          const cursor = (event.target as IDBRequest).result;
-          if (cursor && results.length < batchSize) {
-            results.push(cursor.value);
-            lastKey = cursor.key as number;
-            cursor.continue();
-          } else {
-            resolve(results);
-          }
+        // One request per batch instead of one JS/browser round trip per row.
+        const request = store.getAll(range,batchSize);
+        request.onsuccess=()=>{
+          const results=request.result as GWASStudy[];
+          if(results.length)lastKey=results[results.length-1].id;
+          resolve(results);
         };
 
         request.onerror = () => reject(request.error);

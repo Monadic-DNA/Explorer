@@ -539,6 +539,9 @@ export async function GET(request: NextRequest) {
     ? `,\n       (1 - (se.embedding <=> ${`'${JSON.stringify(queryEmbedding)}'::vector`})) as similarity`
     : '';
 
+  // Concurrent Run All page requests must select stable, disjoint catalog ranges.
+  if(fetchAll && isRunAllQuery)orderByClause="ORDER BY gc.id";
+
   const baseQuery = `SELECT ${idSelection},
        gc.study_accession,
        gc.study,

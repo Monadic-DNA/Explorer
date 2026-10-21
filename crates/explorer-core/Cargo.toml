@@ -27,3 +27,6 @@ zeroize = { version = "1", features = ["derive"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 uniffi = { version = "0.29", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon = "1.11"

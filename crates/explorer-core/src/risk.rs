@@ -2,6 +2,11 @@ use crate::text;
 use serde_json::{json, Value};
 
 pub fn float(s: &str) -> Option<f64> {
+    // The catalog overwhelmingly contains plain numbers. Avoid regex capture/cache
+    // contention across CPU workers; retain the parseFloat-compatible prefix fallback.
+    let trimmed=s.trim();let bytes=trimmed.as_bytes();
+    let numeric_start=bytes.first().is_some_and(|c|c.is_ascii_digit() || *c==b'.' || ((*c==b'+' || *c==b'-') && bytes.get(1).is_some_and(|b|b.is_ascii_digit() || *b==b'.')));
+    if numeric_start {if let Ok(value)=trimmed.parse::<f64>(){return Some(value)}}
     static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let re = RE.get_or_init(|| {
         regex::Regex::new(r"^[\s]*([+-]?(?:Infinity|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?))")
@@ -112,4 +117,13 @@ pub fn analyze(input: &Value) -> Value {
         }
     }
     result
+}
+
+#[cfg(test)]
+mod numeric_tests {
+    #[test]
+    fn numeric_fast_path_preserves_javascript_prefix_parsing() {
+        for (text,expected) in [("  +1.25  ",Some(1.25)),("-2.5e-2",Some(-0.025)),(".5",Some(0.5)),("1.25 units",Some(1.25)),("0x10",Some(0.0)),("1e+",Some(1.0)),("NaN",None),("inf",None),("-.5",Some(-0.5))] {assert_eq!(super::float(text),expected,"{text}");}
+        assert_eq!(super::float("Infinity"),Some(f64::INFINITY));
+    }
 }

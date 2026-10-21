@@ -90,3 +90,15 @@ fn native_binary_import_shares_text_and_gzip_semantics() {
     );
     dispatch("session_close", json!({"session":session})).unwrap();
 }
+
+#[test]
+fn parallel_run_all_is_identical_to_serial_and_stably_ordered() {
+    let studies:Vec<Value>=(0..12000).map(|i|json!({"id":i,"snps":"rs1","strongest_snp_risk_allele":"rs1-A","or_or_beta":"0.25","ci_text":if i%2==0{"unit decrease"}else{"unit increase"},"study":"Parity study","disease_trait":"Parity trait"})).collect();
+    let input=json!({"genotypes":{"rs1":"AG"},"studies":studies,"strict":true,"now":"2026-10-21T00:00:00Z"});
+    let mut serial=input.clone();serial["parallel"]=json!(false);
+    let expected=dispatch("analyze_studies",serial).unwrap();
+    let parallel=dispatch("analyze_studies",input).unwrap();
+    assert_eq!(parallel,expected);
+    assert_eq!(parallel.as_array().unwrap().len(),12000);
+    for (i,row) in parallel.as_array().unwrap().iter().enumerate(){assert_eq!(row["studyId"],i);}
+}

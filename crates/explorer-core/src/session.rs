@@ -1,12 +1,13 @@
-use crate::{array, genotype, results, risk, text};
+use crate::{array, genotype, results, text};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     sync::{Mutex, OnceLock},
 };
 struct Session {
-    genotypes: serde_json::Map<String, Value>,
+    genotypes: HashMap<String, Value>,
     results: Vec<Value>,
+    result_positions:HashMap<String,usize>,
     metadata: Value,
     customization: Value,
     sealed_genotype: Option<(String,Value)>,
@@ -25,6 +26,7 @@ impl Drop for Session {
     fn drop(&mut self) {
         use zeroize::Zeroize;
         for (mut key,mut value) in std::mem::take(&mut self.genotypes) {key.zeroize();wipe_value(&mut value)}
+        for (mut id,_) in std::mem::take(&mut self.result_positions){id.zeroize();}
         self.results.iter_mut().for_each(wipe_value);wipe_value(&mut self.metadata);wipe_value(&mut self.customization);
     }
 }
@@ -33,6 +35,7 @@ impl Default for Session {
         Self {
             genotypes: Default::default(),
             results: Vec::new(),
+            result_positions:HashMap::new(),
             metadata: json!({"count":0}),
             customization: json!({"fields":{},"context":""}),
             sealed_genotype:None,
@@ -65,32 +68,26 @@ pub fn dispatch(op: &str, input: Value) -> Result<Value, String> {
             let decoded=if input.get("bytes").is_some(){Some(crate::files::decode(&input)?)}else{None};
             let content=decoded.as_deref().unwrap_or_else(||text(&input,"content"));let mut parsed=genotype::parse_mode(content,text(&input,"format"),true);
             if parsed["success"]!=true{return Err(text(&parsed,"error").into())}
-            let genotypes=parsed["genotypes"].take().as_object().cloned().ok_or("Invalid parsed genotypes")?;
-            session.genotypes=genotypes;session.results.clear();session.sealed_genotype=None;
+            let Value::Object(genotypes)=parsed["genotypes"].take() else{return Err("Invalid parsed genotypes".into())};
+            let genotypes=genotypes.into_iter().collect();
+            session.genotypes=genotypes;session.results.clear();session.result_positions.clear();session.sealed_genotype=None;
             session.metadata=json!({"count":session.genotypes.len(),"detectedFormat":parsed["detectedFormat"],"fileHash":crate::crypto::file_hash(content),"fileName":text(&input,"fileName")});Ok(session.metadata.clone())
         },
         "session_metadata"=>Ok(session.metadata.clone()),
-        "session_analyze"=>{
-            let mut analyzed=Vec::new();
-            for study in array(&input["studies"]){
-                let effect=risk::effect(text(study,"or_or_beta"),text(study,"ci_text"));
-                let mut matches=serde_json::Map::new();for id in risk::variants(text(study,"snps")){if let Some(gt)=session.genotypes.get(&id){matches.insert(id,gt.clone());}}
-                if input["strict"]==true{
-                    let parts=text(study,"strongest_snp_risk_allele").split('-').collect::<Vec<_>>();
-                    let Some(base)=parts.get(1).filter(|s|!s.is_empty())else{continue};
-                    let Some(gt)=session.genotypes.get(parts[0]).and_then(Value::as_str)else{continue};
-                    if gt.len()!=2||!gt.chars().all(|c|"ACGT".contains(c))||!gt.contains(*base){continue}
-                    matches.retain(|key,_|key==parts[0]);
-                }
-                let analysis=risk::analyze(&json!({"genotypes":matches,"snps":study["snps"],"riskAllele":study["strongest_snp_risk_allele"],"effectSize":effect["effectSize"],"effectType":effect["effectType"],"confidenceInterval":study["ci_text"],"gwasId":study["study_accession"]}));
-                if analysis["hasMatch"]!=true{continue}let saved=results::saved(study,&analysis,text(&input,"now"));
-                if let Some(old)=session.results.iter_mut().find(|r|r["studyId"]==saved["studyId"]){*old=saved.clone()}else{session.results.push(saved.clone())}
-                analyzed.push(saved);
-            }Ok(json!(analyzed))
+        "session_analyze"|"session_analyze_count"=>{
+            let analyzed=crate::analysis::run(array(&input["studies"]),crate::analysis::Genotypes::Session(&session.genotypes),input["strict"]==true,text(&input,"now"),input["parallel"]!=false);
+            // Update existing matches in linear time, keeping stable insertion order and
+            // the prior last-write-wins behavior for repeated study IDs.
+            for saved in &analyzed {
+                let id=saved["studyId"].to_string();
+                if let Some(&index)=session.result_positions.get(&id){session.results[index]=saved.clone();}
+                else{session.result_positions.insert(id,session.results.len());session.results.push(saved.clone());}
+            }
+            if op=="session_analyze_count"{Ok(json!(analyzed.len()))}else{Ok(json!(analyzed))}
         },
         "session_results"=>Ok(json!(session.results)),
         "session_export"=>Ok(json!(results::export(&session.results))),
-        "session_import_results"=>{let value=results::import(&input)?;session.results=array(&value["results"]).to_vec();Ok(json!(session.results.len()))},
+        "session_import_results"=>{let value=results::import(&input)?;session.results=array(&value["results"]).to_vec();session.result_positions=result_positions(&session.results);Ok(json!(session.results.len()))},
         "session_persist"=>{
             let customization:Value=serde_json::from_str(text(&input,"customization")).map_err(|_|"Invalid customization")?;
             validate_customization(&customization)?;
@@ -107,11 +104,17 @@ pub fn dispatch(op: &str, input: Value) -> Result<Value, String> {
             if !genotypes.values().all(Value::is_string){return Err("Invalid genotypes".into())}
             let results=results::validate_snapshot(&snapshot)?.to_vec();
             if let Some(custom)=snapshot.get("customization"){validate_customization(custom)?;}
-            session.genotypes=genotypes.clone();session.sealed_genotype=None;session.results=results;session.metadata=snapshot["metadata"].clone();session.metadata["count"]=json!(session.genotypes.len());session.customization=snapshot.get("customization").filter(|v|v.is_object()).cloned().unwrap_or_else(||json!({"fields":{},"context":""}));Ok(session.metadata.clone())
+            session.genotypes=genotypes.iter().map(|(k,v)|(k.clone(),v.clone())).collect();session.sealed_genotype=None;session.results=results;session.result_positions=result_positions(&session.results);session.metadata=snapshot["metadata"].clone();session.metadata["count"]=json!(session.genotypes.len());session.customization=snapshot.get("customization").filter(|v|v.is_object()).cloned().unwrap_or_else(||json!({"fields":{},"context":""}));Ok(session.metadata.clone())
         },
         "session_clear"=>{*session=Session::default();Ok(Value::Null)},
         _=>Err("Unknown session operation".into())
     }
+}
+
+fn result_positions(rows:&[Value])->HashMap<String,usize> {
+    let mut positions=HashMap::with_capacity(rows.len());
+    for (i,row) in rows.iter().enumerate(){positions.entry(row["studyId"].to_string()).or_insert(i);}
+    positions
 }
 
 fn validate_customization(value:&Value)->Result<(),String> {

@@ -1,4 +1,5 @@
-import { determineEffectTypeAndSize, calculateRiskScore } from "./risk-calculator";
+import {AnalysisPool} from "./analysis-pool";
+import type {GWASStudy} from "./gwas-db";
 import * as pako from "pako";
 import type { SavedResult } from "./results-manager";
 
@@ -137,197 +138,39 @@ export async function runAllAnalysisOnboarding(
     throw new Error("Preview catalog schema is missing required columns.");
   }
 
-  const estimatedTotalLines = Math.max(1, Math.floor(decompressed.length / 500));
-  const chunkSize = 10 * 1024 * 1024;
-  let position = headerEndIdx + (decompressed[headerEndIdx] === 0x0d ? 2 : 1);
-  let leftover = new Uint8Array(0);
-  let processedStudies = 0;
-  let matchCount = 0;
-  let lastProgressUpdate = Date.now();
-  const results: SavedResult[] = [];
-
-  emitProgress({
-    phase: "analyzing",
-    loaded: 0,
-    total: estimatedTotalLines,
-    processedStudies: 0,
-    matchCount: 0,
-    message: "Scanning the preview fields against your uploaded genotypes.",
-  });
-
-  while (position < decompressed.length) {
-    const chunkEnd = Math.min(position + chunkSize, decompressed.length);
-    const chunk = decompressed.slice(position, chunkEnd);
-    const combined = new Uint8Array(leftover.length + chunk.length);
-    combined.set(leftover);
-    combined.set(chunk, leftover.length);
-
-    let lastNewline = combined.length - 1;
-    for (let i = combined.length - 1; i >= 0; i--) {
-      if (combined[i] === 0x0a) {
-        lastNewline = i;
-        break;
-      }
+  const estimatedTotalLines=Math.max(1,Math.floor(decompressed.length/500));
+  const pool=new AnalysisPool(),pending=new Set<Promise<void>>(),analysisChunks:SavedResult[][]=[];
+  const textDecoder=new TextDecoder('utf-8');
+  const now=new Date().toISOString();
+  let processedStudies=0,matchCount=0,index=0,failure:unknown;
+  const progress=()=>emitProgress({phase:'analyzing',loaded:processedStudies,total:estimatedTotalLines,processedStudies,matchCount,message:'Matching the catalog on your device.'});
+  const prepare=(line:string):GWASStudy|null=>{
+    const cols=line.split('\t'),id=Number.parseInt(cols[idIdx]||'',10),allele=cols[riskAlleleIdx]?.trim(),size=cols[orBetaIdx]?.trim();
+    if(!id || !allele || !size || hasResult(id))return null;
+    const [snp,base]=allele.split('-'),gt=genotypeData.get(snp);
+    if(!base || !gt || !/^[ACGT]{2}$/.test(gt) || !gt.includes(base))return null;
+    return {id,study_accession:cols[accessionIdx]||'',disease_trait:cols[traitIdx]||'Unknown trait',study:cols[studyIdx]||'Unknown study',snps:cols[colMap.snps]||snp,strongest_snp_risk_allele:allele,or_or_beta:size,ci_text:cols[ciTextIdx]||'',p_value:cols[pValueIdx]||'',pvalue_mlog:cols[pValueMlogIdx]||'',mapped_gene:cols[mappedGeneIdx]||'',initial_sample_size:cols[sampleSizeIdx]||'',replication_sample_size:cols[replicationSampleSizeIdx]||''};
+  };
+  let position=headerEndIdx+(decompressed[headerEndIdx]===0x0d?2:1),leftover='';
+  try {
+    while(position<decompressed.length){
+      if(failure)throw failure;
+      const end=Math.min(position+2*1024*1024,decompressed.length);
+      const text=leftover+textDecoder.decode(decompressed.subarray(position,end),{stream:end<decompressed.length});
+      const newline=end===decompressed.length?text.length:text.lastIndexOf('\n')+1;
+      const lines=text.slice(0,newline).split(/\r?\n/).filter(line=>line.trim());
+      leftover=text.slice(newline);position=end;
+      const studies=lines.map(prepare).filter((row):row is GWASStudy=>row!==null),order=index++;
+      const work:Promise<void>=pool.analyze(studies,genotypeData,now).then(rows=>{analysisChunks[order]=rows;processedStudies+=lines.length;matchCount+=rows.length;progress();}).catch(error=>{failure=error;}).finally(()=>pending.delete(work));
+      pending.add(work);
+      if(pending.size>=pool.concurrency)await Promise.race(pending);
+      if(options.maxResults && matchCount>=options.maxResults)break;
+      await new Promise(resolve=>setTimeout(resolve,0));
     }
-
-    const textChunk = decoder.decode(combined.slice(0, lastNewline + 1));
-    const lines = textChunk.split(/\r?\n/);
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      processedStudies++;
-
-      const now = Date.now();
-      if (now - lastProgressUpdate >= 250) {
-        emitProgress({
-          phase: "analyzing",
-          loaded: processedStudies,
-          total: estimatedTotalLines,
-          processedStudies,
-          matchCount,
-          message: "Scanning the preview fields against your uploaded genotypes.",
-        });
-        lastProgressUpdate = now;
-      }
-
-      const cols = line.split("\t");
-      const id = Number.parseInt(cols[idIdx] || "", 10);
-      const strongestRiskAllele = cols[riskAlleleIdx]?.trim();
-      const effectSize = cols[orBetaIdx]?.trim();
-
-      if (!id || !strongestRiskAllele || !effectSize) {
-        continue;
-      }
-
-      const [riskSnpId, riskAlleleBase] = strongestRiskAllele.split("-");
-      if (!riskSnpId || !riskAlleleBase) continue;
-
-      const userGenotype = genotypeData.get(riskSnpId);
-      if (!userGenotype || !/^[ACGT]{2}$/.test(userGenotype) || !userGenotype.includes(riskAlleleBase)) {
-        continue;
-      }
-
-      const effect = determineEffectTypeAndSize(effectSize, cols[ciTextIdx] || "");
-      const effectType = effect.effectType;
-      const adjustedEffect = Number.parseFloat(effect.effectSize);
-      const { score: riskScore, level: riskLevel } = calculateRiskScore(userGenotype, strongestRiskAllele, effect.effectSize, effectType);
-
-      if (!hasResult(id)) {
-        results.push({
-          studyId: id,
-          gwasId: cols[accessionIdx] || "",
-          traitName: cols[traitIdx] || "Unknown trait",
-          studyTitle: cols[studyIdx] || "Unknown study",
-          userGenotype,
-          riskAllele: strongestRiskAllele,
-          effectSize,
-          effectType,
-          riskScore,
-          riskLevel,
-          matchedSnp: riskSnpId,
-          analysisDate: new Date().toISOString(),
-          pValue: pValueIdx !== undefined ? cols[pValueIdx] || undefined : undefined,
-          pValueMlog: pValueMlogIdx !== undefined ? cols[pValueMlogIdx] || undefined : undefined,
-          mappedGene: cols[mappedGeneIdx] || undefined,
-          sampleSize: sampleSizeIdx !== undefined ? cols[sampleSizeIdx] || undefined : undefined,
-          replicationSampleSize: replicationSampleSizeIdx !== undefined ? cols[replicationSampleSizeIdx] || undefined : undefined,
-        });
-        matchCount++;
-        if (options.maxResults && results.length >= options.maxResults) {
-          emitProgress({
-            phase: "complete",
-            loaded: processedStudies,
-            total: processedStudies,
-            processedStudies,
-            matchCount,
-            message: "Preview analysis complete.",
-          });
-          return results;
-        }
-      }
-    }
-
-    leftover = combined.slice(lastNewline + 1);
-    position = chunkEnd;
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  }
-
-  const finalLine = decoder.decode(leftover).trim();
-  if (finalLine) {
-    processedStudies++;
-    const cols = finalLine.split("\t");
-    const id = Number.parseInt(cols[idIdx] || "", 10);
-    const strongestRiskAllele = cols[riskAlleleIdx]?.trim();
-    const effectSize = cols[orBetaIdx]?.trim();
-
-    if (id && strongestRiskAllele && effectSize) {
-      const [riskSnpId, riskAlleleBase] = strongestRiskAllele.split("-");
-      const userGenotype = riskSnpId ? genotypeData.get(riskSnpId) : undefined;
-
-      if (riskSnpId && riskAlleleBase && userGenotype && /^[ACGT]{2}$/.test(userGenotype) && userGenotype.includes(riskAlleleBase)) {
-        const effectValue = Number.parseFloat(effectSize);
-        const ciTextLower = (cols[ciTextIdx] || "").toLowerCase();
-        const hasIncrease = ciTextLower.includes("increase");
-        const hasDecrease = ciTextLower.includes("decrease");
-        const effectType: "OR" | "beta" = hasIncrease || hasDecrease ? "beta" : "OR";
-
-        let adjustedEffect = effectValue;
-        if (effectType === "beta" && hasDecrease && !hasIncrease) {
-          adjustedEffect = -Math.abs(effectValue);
-        }
-
-        const riskAlleleCount = userGenotype.split("").filter((base) => base === riskAlleleBase).length;
-        let riskScore = 1.0;
-        let riskLevel: "increased" | "decreased" | "neutral" = "neutral";
-
-        if (!Number.isNaN(adjustedEffect) && adjustedEffect !== 0) {
-          if (effectType === "OR") {
-            if (riskAlleleCount > 0) {
-              riskScore = Math.pow(adjustedEffect, riskAlleleCount);
-              riskLevel = adjustedEffect > 1 ? "increased" : adjustedEffect < 1 ? "decreased" : "neutral";
-            }
-          } else {
-            riskScore = adjustedEffect * riskAlleleCount;
-            if (riskAlleleCount > 0) {
-              riskLevel = adjustedEffect > 0 ? "increased" : adjustedEffect < 0 ? "decreased" : "neutral";
-            }
-          }
-        }
-
-        if (!hasResult(id)) {
-          results.push({
-            studyId: id,
-            gwasId: cols[accessionIdx] || "",
-            traitName: cols[traitIdx] || "Unknown trait",
-            studyTitle: cols[studyIdx] || "Unknown study",
-            userGenotype,
-            riskAllele: strongestRiskAllele,
-            effectSize,
-            effectType,
-            riskScore,
-            riskLevel,
-            matchedSnp: riskSnpId,
-            analysisDate: new Date().toISOString(),
-            pValue: pValueIdx !== undefined ? cols[pValueIdx] || undefined : undefined,
-            pValueMlog: pValueMlogIdx !== undefined ? cols[pValueMlogIdx] || undefined : undefined,
-            mappedGene: cols[mappedGeneIdx] || undefined,
-            sampleSize: sampleSizeIdx !== undefined ? cols[sampleSizeIdx] || undefined : undefined,
-            replicationSampleSize: replicationSampleSizeIdx !== undefined ? cols[replicationSampleSizeIdx] || undefined : undefined,
-          });
-          matchCount++;
-        }
-      }
-    }
-  }
-
-  emitProgress({
-    phase: "complete",
-    loaded: processedStudies,
-    total: processedStudies,
-    processedStudies,
-    matchCount,
-    message: "Preview analysis complete.",
-  });
-
-  return results;
+    await Promise.all(pending);
+    if(failure)throw failure;
+    const results=analysisChunks.flat().slice(0,options.maxResults||Infinity);
+    emitProgress({phase:'complete',loaded:processedStudies,total:processedStudies,processedStudies,matchCount:results.length,message:'Preview analysis complete.'});
+    return results;
+  } finally {await Promise.all(pending);pool.close();}
 }

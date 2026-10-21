@@ -273,15 +273,28 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun runAll() = run("Analyzing catalog on device") {
         require(dataUnlocked && metadata.optInt("count")>0) { "Unlock or import your DNA first." }
         markDataChanged()
-        var offset=0
-        while(true) {
+        val pageSize=5000
+        val concurrency=3
+        var offset=0;var processed=0;var matches=0;var finished=false
+        val now=Instant.now().toString()
+        while(!finished) {
             ensureActiveTask()
-            val page=api("/api/studies?fetchAll=true&searchMode=exact&excludeLowQuality=false&excludeMissingGenotype=false&limit=1000&offset=$offset")
-            val batch=page.getJSONArray("data")
-            if(batch.length()==0)break
-            withContext(Dispatchers.Default){ Core.call("session_analyze",json("session" to session,"studies" to batch,"strict" to true,"now" to Instant.now().toString())) }
-            markDataChanged();offset+=1000;status="Analyzed up to $offset catalog records"
-            if(batch.length()<1000)break
+            val start=offset
+            coroutineScope {
+                // Bounded prefetch overlaps network latency and the Rust CPU pool.
+                val pages=(0 until concurrency).map { index->async {api("/api/studies?fetchAll=true&searchMode=exact&excludeLowQuality=false&excludeMissingGenotype=false&limit=$pageSize&offset=${start+index*pageSize}")} }
+                try {
+                    for(page in pages) {
+                        val batch=page.await().getJSONArray("data")
+                        if(batch.length()==0){finished=true;break}
+                        markDataChanged()
+                        matches+=withContext(Dispatchers.Default){(Core.call("session_analyze_count",json("session" to session,"studies" to batch,"strict" to true,"now" to now)) as Number).toInt()}
+                        markDataChanged();processed+=batch.length();status="Analyzed $processed studies • $matches matches"
+                        if(batch.length()<pageSize){finished=true;break}
+                    }
+                } finally {pages.forEach {if(it.isActive)it.cancel()} }
+            }
+            offset+=pageSize*concurrency
         }
         refreshResults()
     }

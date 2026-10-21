@@ -1,5 +1,6 @@
 //! Portable client domain logic. No HTTP, filesystem, UI, or OS key storage.
 //! All platforms use the same versioned JSON protocol over WASM or UniFFI.
+mod analysis;
 mod crypto;
 mod vault;
 mod files;
@@ -45,6 +46,12 @@ pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
             text(&input, "effectType"),
         )),
         "analyze_study" => Ok(risk::analyze(&input)),
+        "analyze_studies" => {
+            let genotypes=input["genotypes"].as_object().ok_or("Invalid genotype batch")?;
+            let studies=input["studies"].as_array().ok_or("Invalid study batch")?;
+            if studies.len()>50000{return Err("Study batch exceeds 50,000 rows".into());}
+            Ok(json!(analysis::run(studies,analysis::Genotypes::Json(genotypes),input["strict"]==true,text(&input,"now"),input["parallel"]!=false)))
+        },
         "parse_sample_size" => Ok(json!(quality::sample_size(input.as_str().unwrap_or("")))),
         "parse_p_value" => Ok(json!(quality::p_value(input.as_str().unwrap_or("")))),
         "quality_flags" => Ok(quality::flags(&input)),

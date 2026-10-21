@@ -5,12 +5,21 @@ import { openPortableVault } from "../vault-format.mjs";
 const root = new URL("../../.test-data/public-sample/", import.meta.url)
   .pathname;
 const origin = process.env.EXPLORER_TEST_URL || "http://127.0.0.1:3000";
-const expected = JSON.parse(readFileSync(root + "expected.json"));
-const studies = JSON.parse(readFileSync(root + "studies.json"));
+let expected = JSON.parse(readFileSync(root + "expected.json"));
+let studies = JSON.parse(readFileSync(root + "studies.json"));
+const copies=Number(process.env.EXPLORER_PERF_COPIES||1);
+assert.ok(Number.isInteger(copies) && copies>=1 && copies<=100);
+if(copies>1){
+  studies=Array.from({length:copies},(_,copy)=>studies.map(row=>({...row,id:row.id+copy*10000000}))).flat();
+  expected={...expected,matches:expected.matches*copies,results:Array.from({length:copies},(_,copy)=>expected.results.map(row=>({...row,studyId:row.studyId+copy*10000000}))).flat()};
+}
 const { browser, page } = await openBrowser();
 page.setDefaultTimeout(60000);
 try {
   const errors = [];
+  let analysisWorkers=0;const workerFallbacks=[];
+  page.on("worker",()=>analysisWorkers++);
+  page.on("console",message=>{if(message.text().includes("Background worker unavailable"))workerFallbacks.push(message.text());});
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", async (dialog) => {
     console.log("DIALOG", dialog.type(), dialog.message().slice(0, 120));
@@ -73,11 +82,15 @@ try {
     e.scrollTop = e.scrollHeight;
     e.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
+  const analysisStart=Date.now();
   await page.getByRole("button", { name: /I Understand/ }).click();
   await page
     .getByRole("heading", { name: "Analysis Complete!", exact: true })
     .waitFor();
 
+  assert.ok(analysisWorkers>=1,"Chromium Run All must execute background workers");
+  assert.equal(workerFallbacks.length,0,"Background workers must successfully run Rust");
+  console.log(`PASS Run All: ${studies.length} studies, ${expected.matches} matches in ${Date.now()-analysisStart} ms using ${analysisWorkers} workers`);
   await page.screenshot({ path: root + "web-runall.png", fullPage: true });
   writeFileSync(root + "web-errors.json", JSON.stringify(errors, null, 2));
   await page.getByRole("button", { name: "Close", exact: true }).last().click();

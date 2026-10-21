@@ -12,3 +12,7 @@ lto = true
 codegen-units = 1
 opt-level = "s"
 strip = "debuginfo"
+
+# Matching is a hot path on every client; prioritize throughput over minimal code size.
+[profile.release.package.explorer-core]
+opt-level = 3

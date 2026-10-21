@@ -243,15 +243,35 @@ import UIKit
     func runAll(){work("Analyzing catalog on device"){
         guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
         self.markDataChanged()
-        var offset=0
-        while true{
+        let pageSize=5000
+        var offset=0,processed=0,matches=0,finished=false
+        let now=ISO8601DateFormatter().string(from:Date())
+        while !finished {
             try Task.checkCancellation()
-            let page=try await self.api("/api/studies?fetchAll=true&searchMode=exact&excludeLowQuality=false&excludeMissingGenotype=false&limit=1000&offset=\(offset)")
-            let rows=page["data"] as? [[String:Any]] ?? [];if rows.isEmpty{break}
-            let input:[String:Any]=["session":self.session,"studies":rows,"strict":true,"now":ISO8601DateFormatter().string(from:Date())]
-            _=try await Task.detached{try Core.call("session_analyze",input)}.value
-            self.markDataChanged();offset+=1000;self.status="Analyzed up to \(offset) catalog records"
-            if rows.count<1000{break}
+            let start=offset
+            // Three bounded requests overlap latency; commit pages in catalog order.
+            let pages=try await withThrowingTaskGroup(of:(Int,[[String:Any]]).self) { group in
+                for index in 0..<3 {
+                    group.addTask {
+                        let page=try await self.api("/api/studies?fetchAll=true&searchMode=exact&excludeLowQuality=false&excludeMissingGenotype=false&limit=\(pageSize)&offset=\(start+index*pageSize)")
+                        return (index,page["data"] as? [[String:Any]] ?? [])
+                    }
+                }
+                var output:[(Int,[[String:Any]])]=[]
+                for try await page in group{output.append(page)}
+                return output.sorted{$0.0<$1.0}.map{$0.1}
+            }
+            for rows in pages {
+                try Task.checkCancellation()
+                if rows.isEmpty{finished=true;break}
+                self.markDataChanged()
+                let input:[String:Any]=["session":self.session,"studies":rows,"strict":true,"now":now]
+                let count=try await Task.detached{try Core.call("session_analyze_count",input) as! Int}.value
+                self.markDataChanged();processed+=rows.count;matches+=count
+                self.status="Analyzed \(processed) studies • \(matches) matches"
+                if rows.count<pageSize{finished=true;break}
+            }
+            offset+=pageSize*3
         }
         try self.refreshResults()
     }}

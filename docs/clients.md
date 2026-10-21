@@ -99,3 +99,5 @@ The full public 23andMe regression procedure, provenance, reference calculations
 ## Mobile payments
 
 Mobile uses StoreKit 2 and Google Play Billing, with verified account entitlements shared across clients. Stablecoin payments are available only on Web. See [mobile billing setup and validation](mobile-billing.md) for product IDs, required server credentials, migration, notifications and store testing. The earlier browser-based native checkout has been removed.
+
+See [Run All performance and benchmarks](run-all-performance.md) for bounded native/browser parallelism, concurrent page loading, result parity and reproduction commands.
