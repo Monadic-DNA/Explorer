@@ -39,6 +39,14 @@ jobs:
           arch: x86_64
           script: apps/android/gradlew -p apps/android -PexplorerAbis=x86_64 connectedDebugAndroidTest --no-daemon
 
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: explorer-android-test-results
+          path: |
+            apps/android/app/build/reports/androidTests
+            apps/android/app/build/outputs/androidTest-results
+
   ios:
     runs-on: macos-15
     steps:

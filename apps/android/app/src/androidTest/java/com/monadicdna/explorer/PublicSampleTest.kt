@@ -51,14 +51,14 @@ class PublicSampleTest {
             }
             val bytes=assets.open("public-sample/23andme-public.txt").use{it.readBytes()}
             ui.runOnUiThread { model.run("Importing public sample") { model.importGenotypeData(bytes,"23andme-public.txt") } }
-            ui.waitUntil(180000){model.metadata.optInt("count")==expected.getInt("parsedVariants")||model.error!=null}
+            ui.waitUntil(180000){(!model.busy && model.metadata.optInt("count")==expected.getInt("parsedVariants"))||model.error!=null}
             ui.runOnUiThread {
                 assertNull(model.error)
                 assertEquals(expected.getInt("parsedVariants"),model.metadata.getInt("count"))
             }
             ui.onNodeWithText("Results",useUnmergedTree=false).performClick()
             ui.onNodeWithText("Run all").performClick()
-            ui.waitUntil(180000){model.results.size==expected.getInt("matches")||model.error!=null}
+            ui.waitUntil(180000){(!model.busy && model.results.size==expected.getInt("matches"))||model.error!=null}
             ui.onNodeWithText("${expected.getInt("matches")} saved study matches").assertIsDisplayed()
             ui.runOnUiThread {
                 assertNull(model.error)
