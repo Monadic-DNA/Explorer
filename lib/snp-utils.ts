@@ -1,3 +1,5 @@
+import { coreCall } from "./core";
+
 // Cache parsed SNP strings to avoid re-parsing same strings
 const snpParseCache = new Map<string, string[]>();
 
@@ -9,10 +11,7 @@ export function parseVariantIds(snps: string | null): string[] {
     return snpParseCache.get(snps)!;
   }
 
-  const parsed = snps
-    .split(/[;,\s]+/)
-    .map((id) => id.trim())
-    .filter(Boolean);
+  const parsed = coreCall<string[]>("parse_variant_ids", snps);
 
   // Cache result (limit cache size to prevent memory bloat)
   if (snpParseCache.size < 100000) {

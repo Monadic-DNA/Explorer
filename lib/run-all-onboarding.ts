@@ -1,3 +1,4 @@
+import { determineEffectTypeAndSize, calculateRiskScore } from "./risk-calculator";
 import * as pako from "pako";
 import type { SavedResult } from "./results-manager";
 
@@ -206,34 +207,10 @@ export async function runAllAnalysisOnboarding(
         continue;
       }
 
-      const effectValue = Number.parseFloat(effectSize);
-      const ciTextLower = (cols[ciTextIdx] || "").toLowerCase();
-      const hasIncrease = ciTextLower.includes("increase");
-      const hasDecrease = ciTextLower.includes("decrease");
-      const effectType: "OR" | "beta" = hasIncrease || hasDecrease ? "beta" : "OR";
-
-      let adjustedEffect = effectValue;
-      if (effectType === "beta" && hasDecrease && !hasIncrease) {
-        adjustedEffect = -Math.abs(effectValue);
-      }
-
-      const riskAlleleCount = userGenotype.split("").filter((base) => base === riskAlleleBase).length;
-      let riskScore = 1.0;
-      let riskLevel: "increased" | "decreased" | "neutral" = "neutral";
-
-      if (!Number.isNaN(adjustedEffect) && adjustedEffect !== 0) {
-        if (effectType === "OR") {
-          if (riskAlleleCount > 0) {
-            riskScore = Math.pow(adjustedEffect, riskAlleleCount);
-            riskLevel = adjustedEffect > 1 ? "increased" : adjustedEffect < 1 ? "decreased" : "neutral";
-          }
-        } else {
-          riskScore = adjustedEffect * riskAlleleCount;
-          if (riskAlleleCount > 0) {
-            riskLevel = adjustedEffect > 0 ? "increased" : adjustedEffect < 0 ? "decreased" : "neutral";
-          }
-        }
-      }
+      const effect = determineEffectTypeAndSize(effectSize, cols[ciTextIdx] || "");
+      const effectType = effect.effectType;
+      const adjustedEffect = Number.parseFloat(effect.effectSize);
+      const { score: riskScore, level: riskLevel } = calculateRiskScore(userGenotype, strongestRiskAllele, effect.effectSize, effectType);
 
       if (!hasResult(id)) {
         results.push({

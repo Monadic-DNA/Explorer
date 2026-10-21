@@ -1,0 +1,3705 @@
+{
+  "results": [
+    {
+      "studyId": 1,
+      "gwasId": "GCST1",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs0-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs0",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 2,
+      "gwasId": "GCST2",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs1-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs1",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 3,
+      "gwasId": "GCST3",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs2-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs2",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 4,
+      "gwasId": "GCST4",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs3-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs3",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 5,
+      "gwasId": "GCST5",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs4-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs4",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 6,
+      "gwasId": "GCST6",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs5-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs5",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 7,
+      "gwasId": "GCST7",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs6-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs6",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 8,
+      "gwasId": "GCST8",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs7-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs7",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 9,
+      "gwasId": "GCST9",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs8-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs8",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 10,
+      "gwasId": "GCST10",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs9-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs9",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 11,
+      "gwasId": "GCST11",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs10-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs10",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 12,
+      "gwasId": "GCST12",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs11-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs11",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 13,
+      "gwasId": "GCST13",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs12-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs12",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 14,
+      "gwasId": "GCST14",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs13-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs13",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 15,
+      "gwasId": "GCST15",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs14-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs14",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 16,
+      "gwasId": "GCST16",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs15-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs15",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 17,
+      "gwasId": "GCST17",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs16-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs16",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 18,
+      "gwasId": "GCST18",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs17-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs17",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 19,
+      "gwasId": "GCST19",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs18-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs18",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 20,
+      "gwasId": "GCST20",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs19-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs19",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 21,
+      "gwasId": "GCST21",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs20-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs20",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 22,
+      "gwasId": "GCST22",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs21-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs21",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 23,
+      "gwasId": "GCST23",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs22-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs22",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 24,
+      "gwasId": "GCST24",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs23-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs23",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 25,
+      "gwasId": "GCST25",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs24-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs24",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 26,
+      "gwasId": "GCST26",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs25-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs25",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 27,
+      "gwasId": "GCST27",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs26-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs26",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 28,
+      "gwasId": "GCST28",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs27-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs27",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 29,
+      "gwasId": "GCST29",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs28-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs28",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 30,
+      "gwasId": "GCST30",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs29-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs29",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 31,
+      "gwasId": "GCST31",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs30-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs30",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 32,
+      "gwasId": "GCST32",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs31-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs31",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 33,
+      "gwasId": "GCST33",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs32-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs32",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 34,
+      "gwasId": "GCST34",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs33-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs33",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 35,
+      "gwasId": "GCST35",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs34-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs34",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 36,
+      "gwasId": "GCST36",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs35-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs35",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 37,
+      "gwasId": "GCST37",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs36-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs36",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 38,
+      "gwasId": "GCST38",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs37-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs37",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 39,
+      "gwasId": "GCST39",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs38-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs38",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 40,
+      "gwasId": "GCST40",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs39-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs39",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 41,
+      "gwasId": "GCST41",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs40-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs40",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 42,
+      "gwasId": "GCST42",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs41-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs41",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 43,
+      "gwasId": "GCST43",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs42-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs42",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 44,
+      "gwasId": "GCST44",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs43-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs43",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 45,
+      "gwasId": "GCST45",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs44-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs44",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 46,
+      "gwasId": "GCST46",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs45-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs45",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 47,
+      "gwasId": "GCST47",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs46-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs46",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 48,
+      "gwasId": "GCST48",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs47-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs47",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 49,
+      "gwasId": "GCST49",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs48-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs48",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 50,
+      "gwasId": "GCST50",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs49-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs49",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 51,
+      "gwasId": "GCST51",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs50-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs50",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 52,
+      "gwasId": "GCST52",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs51-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs51",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 53,
+      "gwasId": "GCST53",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs52-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs52",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 54,
+      "gwasId": "GCST54",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs53-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs53",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 55,
+      "gwasId": "GCST55",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs54-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs54",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 56,
+      "gwasId": "GCST56",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs55-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs55",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 57,
+      "gwasId": "GCST57",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs56-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs56",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 58,
+      "gwasId": "GCST58",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs57-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs57",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 59,
+      "gwasId": "GCST59",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs58-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs58",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 60,
+      "gwasId": "GCST60",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs59-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs59",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 61,
+      "gwasId": "GCST61",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs60-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs60",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 62,
+      "gwasId": "GCST62",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs61-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs61",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 63,
+      "gwasId": "GCST63",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs62-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs62",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 64,
+      "gwasId": "GCST64",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs63-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs63",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 65,
+      "gwasId": "GCST65",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs64-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs64",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 66,
+      "gwasId": "GCST66",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs65-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs65",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 67,
+      "gwasId": "GCST67",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs66-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs66",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 68,
+      "gwasId": "GCST68",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs67-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs67",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 69,
+      "gwasId": "GCST69",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs68-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs68",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 70,
+      "gwasId": "GCST70",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs69-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs69",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 71,
+      "gwasId": "GCST71",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs70-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs70",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 72,
+      "gwasId": "GCST72",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs71-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs71",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 73,
+      "gwasId": "GCST73",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs72-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs72",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 74,
+      "gwasId": "GCST74",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs73-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs73",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 75,
+      "gwasId": "GCST75",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs74-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs74",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 76,
+      "gwasId": "GCST76",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs75-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs75",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 77,
+      "gwasId": "GCST77",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs76-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs76",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 78,
+      "gwasId": "GCST78",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs77-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs77",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 79,
+      "gwasId": "GCST79",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs78-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs78",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 80,
+      "gwasId": "GCST80",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs79-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs79",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 81,
+      "gwasId": "GCST81",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs80-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs80",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 82,
+      "gwasId": "GCST82",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs81-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs81",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 83,
+      "gwasId": "GCST83",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs82-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs82",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 84,
+      "gwasId": "GCST84",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs83-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs83",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 85,
+      "gwasId": "GCST85",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs84-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs84",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 86,
+      "gwasId": "GCST86",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs85-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs85",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 87,
+      "gwasId": "GCST87",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs86-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs86",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 88,
+      "gwasId": "GCST88",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs87-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs87",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 89,
+      "gwasId": "GCST89",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs88-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs88",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 90,
+      "gwasId": "GCST90",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs89-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs89",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 91,
+      "gwasId": "GCST91",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs90-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs90",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 92,
+      "gwasId": "GCST92",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs91-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs91",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 93,
+      "gwasId": "GCST93",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs92-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs92",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 94,
+      "gwasId": "GCST94",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs93-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs93",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 95,
+      "gwasId": "GCST95",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs94-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs94",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 96,
+      "gwasId": "GCST96",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs95-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.7,
+      "riskLevel": "increased",
+      "matchedSnp": "rs95",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 97,
+      "gwasId": "GCST97",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs96-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs96",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 98,
+      "gwasId": "GCST98",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs97-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs97",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 99,
+      "gwasId": "GCST99",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs98-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs98",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 100,
+      "gwasId": "GCST100",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs99-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs99",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 101,
+      "gwasId": "GCST101",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs100-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs100",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 102,
+      "gwasId": "GCST102",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs101-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs101",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 103,
+      "gwasId": "GCST103",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs102-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs102",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 104,
+      "gwasId": "GCST104",
+      "traitName": "Breast cancer",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs103-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.6,
+      "riskLevel": "increased",
+      "matchedSnp": "rs103",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 105,
+      "gwasId": "GCST105",
+      "traitName": "Height",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs104-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "increased",
+      "matchedSnp": "rs104",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 106,
+      "gwasId": "GCST106",
+      "traitName": "Coronary heart disease",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs105-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 0.8,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs105",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 107,
+      "gwasId": "GCST107",
+      "traitName": "Type 2 diabetes",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs106-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.9,
+      "riskLevel": "increased",
+      "matchedSnp": "rs106",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 108,
+      "gwasId": "GCST108",
+      "traitName": "Rheumatoid arthritis",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs107-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 2,
+      "riskLevel": "increased",
+      "matchedSnp": "rs107",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 109,
+      "gwasId": "GCST109",
+      "traitName": "Cognitive performance",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs108-A",
+      "effectSize": "1.2",
+      "effectType": "beta",
+      "riskScore": 0.4,
+      "riskLevel": "decreased",
+      "matchedSnp": "rs108",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    },
+    {
+      "studyId": 110,
+      "gwasId": "GCST110",
+      "traitName": "Bone density",
+      "studyTitle": "Synthetic regression fixture",
+      "userGenotype": "AG",
+      "riskAllele": "rs109-A",
+      "effectSize": "1.2",
+      "effectType": "OR",
+      "riskScore": 1.3,
+      "riskLevel": "increased",
+      "matchedSnp": "rs109",
+      "analysisDate": "2026-01-01",
+      "pValue": "1e-10",
+      "pValueMlog": "10",
+      "mappedGene": "GENE",
+      "sampleSize": "10,000 participants",
+      "replicationSampleSize": "5000"
+    }
+  ],
+  "customization": {
+    "age": 42,
+    "genderAtBirth": "female",
+    "ethnicities": [
+      "Example ancestry"
+    ],
+    "countriesOfOrigin": [
+      "Example country"
+    ],
+    "personalConditions": [
+      "coronary heart disease"
+    ],
+    "familyConditions": [
+      "type 2 diabetes"
+    ],
+    "smokingHistory": "never-smoked",
+    "alcoholUse": "rare",
+    "diet": "regular",
+    "medications": [
+      "example"
+    ]
+  },
+  "cases": [
+    {
+      "kind": "health",
+      "withHistory": false,
+      "selected": [
+        {
+          "studyId": 18
+        },
+        {
+          "studyId": 27
+        },
+        {
+          "studyId": 36
+        },
+        {
+          "studyId": 54
+        },
+        {
+          "studyId": 63
+        },
+        {
+          "studyId": 72
+        },
+        {
+          "studyId": 90
+        },
+        {
+          "studyId": 99
+        },
+        {
+          "studyId": 108
+        },
+        {
+          "studyId": 8
+        },
+        {
+          "studyId": 26
+        },
+        {
+          "studyId": 35
+        },
+        {
+          "studyId": 44
+        },
+        {
+          "studyId": 62
+        },
+        {
+          "studyId": 71
+        },
+        {
+          "studyId": 80
+        },
+        {
+          "studyId": 98
+        },
+        {
+          "studyId": 107
+        },
+        {
+          "studyId": 6
+        },
+        {
+          "studyId": 15
+        },
+        {
+          "studyId": 24
+        },
+        {
+          "studyId": 42
+        },
+        {
+          "studyId": 51
+        },
+        {
+          "studyId": 60
+        },
+        {
+          "studyId": 78
+        },
+        {
+          "studyId": 87
+        },
+        {
+          "studyId": 96
+        },
+        {
+          "studyId": 14
+        },
+        {
+          "studyId": 23
+        },
+        {
+          "studyId": 32
+        },
+        {
+          "studyId": 4
+        },
+        {
+          "studyId": 7
+        },
+        {
+          "studyId": 10
+        },
+        {
+          "studyId": 16
+        },
+        {
+          "studyId": 19
+        },
+        {
+          "studyId": 22
+        },
+        {
+          "studyId": 28
+        },
+        {
+          "studyId": 31
+        },
+        {
+          "studyId": 34
+        },
+        {
+          "studyId": 40
+        },
+        {
+          "studyId": 43
+        },
+        {
+          "studyId": 46
+        },
+        {
+          "studyId": 52
+        },
+        {
+          "studyId": 55
+        },
+        {
+          "studyId": 58
+        },
+        {
+          "studyId": 64
+        },
+        {
+          "studyId": 67
+        },
+        {
+          "studyId": 70
+        },
+        {
+          "studyId": 76
+        },
+        {
+          "studyId": 79
+        }
+      ],
+      "counts": {},
+      "prompt": "You are a genetic counselor writing a personalized health insights report. Your goal is to surface insights the user does not already know from their symptoms alone.\n\n\nSTRONGEST ADDITIONAL ELEVATED SIGNALS (30):\nCognitive performance | OR 2.00x \u2191 | gene: GENE | snp: rs17 | genotype: AG (risk allele: rs17-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs26 | genotype: AG (risk allele: rs26-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs35 | genotype: AG (risk allele: rs35-A) | p: very strong\nBone density | OR 2.00x \u2191 | gene: GENE | snp: rs53 | genotype: AG (risk allele: rs53-A) | p: very strong\nHeight | OR 2.00x \u2191 | gene: GENE | snp: rs62 | genotype: AG (risk allele: rs62-A) | p: very strong\nType 2 diabetes | OR 2.00x \u2191 | gene: GENE | snp: rs71 | genotype: AG (risk allele: rs71-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs89 | genotype: AG (risk allele: rs89-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs98 | genotype: AG (risk allele: rs98-A) | p: very strong\nRheumatoid arthritis | OR 2.00x \u2191 | gene: GENE | snp: rs107 | genotype: AG (risk allele: rs107-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs7 | genotype: AG (risk allele: rs7-A) | p: very strong\nBone density | OR 1.90x \u2191 | gene: GENE | snp: rs25 | genotype: AG (risk allele: rs25-A) | p: very strong\nHeight | OR 1.90x \u2191 | gene: GENE | snp: rs34 | genotype: AG (risk allele: rs34-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs43 | genotype: AG (risk allele: rs43-A) | p: very strong\nBreast cancer | OR 1.90x \u2191 | gene: GENE | snp: rs61 | genotype: AG (risk allele: rs61-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs70 | genotype: AG (risk allele: rs70-A) | p: very strong\nRheumatoid arthritis | OR 1.90x \u2191 | gene: GENE | snp: rs79 | genotype: AG (risk allele: rs79-A) | p: very strong\nHeight | OR 1.90x \u2191 | gene: GENE | snp: rs97 | genotype: AG (risk allele: rs97-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs106 | genotype: AG (risk allele: rs106-A) | p: very strong\nBreast cancer | OR 1.70x \u2191 | gene: GENE | snp: rs5 | genotype: AG (risk allele: rs5-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs14 | genotype: AG (risk allele: rs14-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs23 | genotype: AG (risk allele: rs23-A) | p: very strong\nHeight | OR 1.70x \u2191 | gene: GENE | snp: rs41 | genotype: AG (risk allele: rs41-A) | p: very strong\nType 2 diabetes | OR 1.70x \u2191 | gene: GENE | snp: rs50 | genotype: AG (risk allele: rs50-A) | p: very strong\nCognitive performance | OR 1.70x \u2191 | gene: GENE | snp: rs59 | genotype: AG (risk allele: rs59-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs77 | genotype: AG (risk allele: rs77-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs86 | genotype: AG (risk allele: rs86-A) | p: very strong\nBone density | OR 1.70x \u2191 | gene: GENE | snp: rs95 | genotype: AG (risk allele: rs95-A) | p: very strong\nHeight | OR 1.60x \u2191 | gene: GENE | snp: rs13 | genotype: AG (risk allele: rs13-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs22 | genotype: AG (risk allele: rs22-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs31 | genotype: AG (risk allele: rs31-A) | p: very strong\n\nSTRONGEST PROTECTIVE SIGNALS (20):\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs3 | genotype: AG (risk allele: rs3-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs6 | genotype: AG (risk allele: rs6-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs9 | genotype: AG (risk allele: rs9-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs15 | genotype: AG (risk allele: rs15-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs18 | genotype: AG (risk allele: rs18-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs21 | genotype: AG (risk allele: rs21-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs27 | genotype: AG (risk allele: rs27-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs30 | genotype: AG (risk allele: rs30-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs33 | genotype: AG (risk allele: rs33-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs39 | genotype: AG (risk allele: rs39-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs42 | genotype: AG (risk allele: rs42-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs45 | genotype: AG (risk allele: rs45-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs51 | genotype: AG (risk allele: rs51-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs54 | genotype: AG (risk allele: rs54-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs57 | genotype: AG (risk allele: rs57-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs63 | genotype: AG (risk allele: rs63-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs66 | genotype: AG (risk allele: rs66-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs69 | genotype: AG (risk allele: rs69-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs75 | genotype: AG (risk allele: rs75-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs78 | genotype: AG (risk allele: rs78-A) | p: very strong\n\nDATA FORMAT: Trait | Effect size (\u2191 elevated / \u2193 protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence | [matched condition]\n\nWrite a report organized by GENETIC MECHANISM (4-5 mechanisms). For each:\n- Name specific variants and explain effect sizes in plain, concrete terms\n- Identify what biological process is involved at a molecular level\n- Flag any OR > 5x as a large effect likely from a specialized study\n\nThen add:\n**Protective signals**: Associations where the allele is linked to lower rates in population studies. Use hedged language.\n**Most notable findings**: 4-5 bullets of the most striking discoveries.\n**What to investigate further**: 3-4 research threads the user could explore. Specific genes, pathways, or cross-trait connections with well-studied literature.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the signal patterns in these results, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. Reference specific genes or findings from this report.\n\nLanguage rules (strictly enforced):\n- These are population-level statistics. Write \"population studies associate this variant with X\", never \"your genome does X\" or deterministic personal claims.\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n\n800-1000 words.\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a specific follow-up question about a gene, SNP, or mechanism from this report]\n- [a question about a cross-trait pattern or surprising finding]\n- [a question about a protective signal or novel finding outside the health history]\n- [a question about what the user's specific genotype means for one of the key findings]\n- [a question about a research thread worth exploring]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them."
+    },
+    {
+      "kind": "health",
+      "withHistory": true,
+      "selected": [
+        {
+          "studyId": 36,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 99,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 8,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 71,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 15,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 78,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 50,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 92,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 22,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 43,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 64,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 106,
+          "matchedCondition": "coronary heart disease"
+        },
+        {
+          "studyId": 72,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 44,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 107,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 51,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 23,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 86,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 30,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 2,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 16,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 58,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 79,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 100,
+          "matchedCondition": "family history: type 2 diabetes"
+        },
+        {
+          "studyId": 18
+        },
+        {
+          "studyId": 27
+        },
+        {
+          "studyId": 54
+        },
+        {
+          "studyId": 63
+        },
+        {
+          "studyId": 90
+        },
+        {
+          "studyId": 108
+        },
+        {
+          "studyId": 4
+        },
+        {
+          "studyId": 7
+        },
+        {
+          "studyId": 10
+        },
+        {
+          "studyId": 19
+        },
+        {
+          "studyId": 28
+        },
+        {
+          "studyId": 31
+        },
+        {
+          "studyId": 34
+        },
+        {
+          "studyId": 40
+        },
+        {
+          "studyId": 46
+        },
+        {
+          "studyId": 52
+        },
+        {
+          "studyId": 55
+        },
+        {
+          "studyId": 67
+        },
+        {
+          "studyId": 70
+        },
+        {
+          "studyId": 76
+        },
+        {
+          "studyId": 82
+        },
+        {
+          "studyId": 88
+        },
+        {
+          "studyId": 91
+        },
+        {
+          "studyId": 94
+        },
+        {
+          "studyId": 103
+        }
+      ],
+      "counts": {},
+      "prompt": "You are a genetic counselor writing a personalized health insights report. Your goal is to surface insights the user does not already know from their symptoms alone.\n\n\nEthnicities: Example ancestry\nCountries of ancestral origin: Example country\nGender assigned at birth: female\nAge: 42\nSmoking history: Never smoked\nAlcohol use: Rare\nCurrent medications/supplements: example\nDietary preferences: Regular diet (no restrictions)\nPersonal medical history: coronary heart disease\nFamily medical history: type 2 diabetes\n\nHEALTH HISTORY:\ncoronary heart disease\ntype 2 diabetes (family history)\n\nRESULTS MATCHED TO HEALTH HISTORY (24):\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs35 | genotype: AG (risk allele: rs35-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs98 | genotype: AG (risk allele: rs98-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs7 | genotype: AG (risk allele: rs7-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs70 | genotype: AG (risk allele: rs70-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs14 | genotype: AG (risk allele: rs14-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs77 | genotype: AG (risk allele: rs77-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 1.60x \u2191 | gene: GENE | snp: rs49 | genotype: AG (risk allele: rs49-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 1.30x \u2191 | gene: GENE | snp: rs91 | genotype: AG (risk allele: rs91-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs21 | genotype: AG (risk allele: rs21-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs42 | genotype: AG (risk allele: rs42-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs63 | genotype: AG (risk allele: rs63-A) | p: very strong [matched: coronary heart disease]\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs105 | genotype: AG (risk allele: rs105-A) | p: very strong [matched: coronary heart disease]\nType 2 diabetes | OR 2.00x \u2191 | gene: GENE | snp: rs71 | genotype: AG (risk allele: rs71-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs43 | genotype: AG (risk allele: rs43-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs106 | genotype: AG (risk allele: rs106-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.70x \u2191 | gene: GENE | snp: rs50 | genotype: AG (risk allele: rs50-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs22 | genotype: AG (risk allele: rs22-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs85 | genotype: AG (risk allele: rs85-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.40x \u2191 | gene: GENE | snp: rs29 | genotype: AG (risk allele: rs29-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 1.30x \u2191 | gene: GENE | snp: rs1 | genotype: AG (risk allele: rs1-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs15 | genotype: AG (risk allele: rs15-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs57 | genotype: AG (risk allele: rs57-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs78 | genotype: AG (risk allele: rs78-A) | p: very strong [matched: family history: type 2 diabetes]\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs99 | genotype: AG (risk allele: rs99-A) | p: very strong [matched: family history: type 2 diabetes]\n\nSTRONGEST ADDITIONAL ELEVATED SIGNALS (6):\nCognitive performance | OR 2.00x \u2191 | gene: GENE | snp: rs17 | genotype: AG (risk allele: rs17-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs26 | genotype: AG (risk allele: rs26-A) | p: very strong\nBone density | OR 2.00x \u2191 | gene: GENE | snp: rs53 | genotype: AG (risk allele: rs53-A) | p: very strong\nHeight | OR 2.00x \u2191 | gene: GENE | snp: rs62 | genotype: AG (risk allele: rs62-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs89 | genotype: AG (risk allele: rs89-A) | p: very strong\nRheumatoid arthritis | OR 2.00x \u2191 | gene: GENE | snp: rs107 | genotype: AG (risk allele: rs107-A) | p: very strong\n\nSTRONGEST PROTECTIVE SIGNALS (19):\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs3 | genotype: AG (risk allele: rs3-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs6 | genotype: AG (risk allele: rs6-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs9 | genotype: AG (risk allele: rs9-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs18 | genotype: AG (risk allele: rs18-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs27 | genotype: AG (risk allele: rs27-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs30 | genotype: AG (risk allele: rs30-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs33 | genotype: AG (risk allele: rs33-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs39 | genotype: AG (risk allele: rs39-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs45 | genotype: AG (risk allele: rs45-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs51 | genotype: AG (risk allele: rs51-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs54 | genotype: AG (risk allele: rs54-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs66 | genotype: AG (risk allele: rs66-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs69 | genotype: AG (risk allele: rs69-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs75 | genotype: AG (risk allele: rs75-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs81 | genotype: AG (risk allele: rs81-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs87 | genotype: AG (risk allele: rs87-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs90 | genotype: AG (risk allele: rs90-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs93 | genotype: AG (risk allele: rs93-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs102 | genotype: AG (risk allele: rs102-A) | p: very strong\n\nDATA FORMAT: Trait | Effect size (\u2191 elevated / \u2193 protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence | [matched condition]\n\nThe user already knows they have these conditions. Do NOT simply report \"you have variants for X and you reported X.\" That adds no value.\n\nInstead, write a report that tells them something genuinely new. Structure it as follows:\n\n**1. Genetic mechanisms underlying your conditions**\nExplain WHY the user has certain conditions at a biological pathway level. What mechanism do the variants operate through? How do multiple variants converge on the same pathway? Be specific: not \"increases inflammation\" but which cells, which signaling molecules, which process.\n\n**2. What your genome protects you from**\nUse the protective signals section. Identify any large protective effects, especially those that counterbalance elevated risks in the same pathway or protect against conditions that run in the family. These are often the most surprising and useful findings.\n\n**3. Signals outside your known health history**\nFrom the strongest overall signals, identify anything that points to conditions or traits NOT mentioned in the user's health history. These are genuinely novel; flag them clearly as \"you may not have known this.\"\n\n**4. Most notable findings** (4-5 bullets)\nThe most surprising, largest-effect, or cross-cutting discoveries. Prioritize findings that the user could not have known just from their symptoms.\n\n**5. What to investigate further**\n3-4 specific research threads the user could pursue to understand their genetic dynamics better. Frame these as topics to read about or questions to explore, not clinical actions. Focus on: specific genes that appeared repeatedly and have well-studied literature, pathway connections worth understanding, or cross-trait mechanisms that link seemingly unrelated findings.\n\n**6. Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the signal patterns in these results, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like genuine insights, not generic disclaimers. Reference specific genes or findings from this report.\n\nLanguage rules (strictly enforced):\n- These are population-level GWAS associations, not individual predictions. Write accordingly: \"population studies associate this variant with X\", \"carriers of this allele show\", \"this signal is consistent with\"; never \"your genome does X\" or \"this drives your Y\".\n- For mechanisms: describe what the gene/pathway does in the population literature, not what it is doing in this person's body. \"BTBD9 is associated with dopamine regulation in RLS cohorts\" not \"your BTBD9 variants are disrupting your dopamine signaling.\"\n- For protective signals: \"population studies find this allele associated with lower rates of X\" not \"your genome protects you from X.\"\n- Include rsIDs when mentioning specific variants (e.g., \"rs429358, an APOE variant\"). Where the user's genotype is informative (heterozygous vs homozygous), note it: \"carrying one copy of the risk allele\" vs \"homozygous for the risk allele.\"\n- Flag any OR > 5x as \"large effect, likely a specialized or rare-variant study; treat as uncertain.\" Do not anchor conclusions on it.\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n- Distinguish between well-replicated signals (strong p-value label, named gene) and single suggestive hits.\n- 700-900 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a specific follow-up question about a gene, SNP, or mechanism from this report]\n- [a question about a cross-trait pattern or surprising finding]\n- [a question about a protective signal or novel finding outside the health history]\n- [a question about what the user's specific genotype means for one of the key findings]\n- [a question about a research thread worth exploring]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them."
+    },
+    {
+      "kind": "healthspan",
+      "withHistory": false,
+      "selected": [
+        {
+          "studyId": 36,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 99,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 8,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 71,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 15,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 78,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 50,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 92,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 22,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 43,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 64,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 106,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 72,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 44,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 107,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 51,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 23,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 86,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 30,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 2,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 16,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 58,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 79,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 100,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 18,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 60,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 32,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 95,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 39,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 102,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 11,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 74,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 4,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 46,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 67,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 88,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 108,
+          "domain": "immune"
+        },
+        {
+          "studyId": 80,
+          "domain": "immune"
+        },
+        {
+          "studyId": 24,
+          "domain": "immune"
+        },
+        {
+          "studyId": 87,
+          "domain": "immune"
+        },
+        {
+          "studyId": 59,
+          "domain": "immune"
+        },
+        {
+          "studyId": 3,
+          "domain": "immune"
+        },
+        {
+          "studyId": 66,
+          "domain": "immune"
+        },
+        {
+          "studyId": 38,
+          "domain": "immune"
+        },
+        {
+          "studyId": 10,
+          "domain": "immune"
+        },
+        {
+          "studyId": 31,
+          "domain": "immune"
+        },
+        {
+          "studyId": 52,
+          "domain": "immune"
+        },
+        {
+          "studyId": 94,
+          "domain": "immune"
+        },
+        {
+          "studyId": 54,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 26,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 96,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 68,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 12,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 75,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 47,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 110,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 19,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 40,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 82,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 103,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 27,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 90,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 62,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 6,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 104,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 48,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 20,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 83,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 34,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 55,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 76,
+          "domain": "cancer"
+        }
+      ],
+      "counts": {
+        "cardiovascular": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "metabolic": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "neurological": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "immune": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "musculoskeletal": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "cancer": {
+          "elevated": 8,
+          "protective": 3
+        }
+      },
+      "prompt": "You are writing a personalized genetic healthspan report. The reader is not a scientist but is curious and health-conscious. Write the way a knowledgeable friend who happens to be a geneticist would explain this: clear, specific, and honest about uncertainty. These are population-level statistics; use \"population studies associate\" / \"carriers show\" throughout, never deterministic claims.\n\n\nDATA FORMAT: Trait | Effect size (\u2191 elevated / \u2193 protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence\n\n## CARDIOVASCULAR\nElevated (8):\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs35 | genotype: AG (risk allele: rs35-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs98 | genotype: AG (risk allele: rs98-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs7 | genotype: AG (risk allele: rs7-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs70 | genotype: AG (risk allele: rs70-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs14 | genotype: AG (risk allele: rs14-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs77 | genotype: AG (risk allele: rs77-A) | p: very strong\nCoronary heart disease | OR 1.60x \u2191 | gene: GENE | snp: rs49 | genotype: AG (risk allele: rs49-A) | p: very strong\nCoronary heart disease | OR 1.30x \u2191 | gene: GENE | snp: rs91 | genotype: AG (risk allele: rs91-A) | p: very strong\nProtective (4):\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs21 | genotype: AG (risk allele: rs21-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs42 | genotype: AG (risk allele: rs42-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs63 | genotype: AG (risk allele: rs63-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs105 | genotype: AG (risk allele: rs105-A) | p: very strong\n\n## METABOLIC & ENDOCRINE\nElevated (8):\nType 2 diabetes | OR 2.00x \u2191 | gene: GENE | snp: rs71 | genotype: AG (risk allele: rs71-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs43 | genotype: AG (risk allele: rs43-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs106 | genotype: AG (risk allele: rs106-A) | p: very strong\nType 2 diabetes | OR 1.70x \u2191 | gene: GENE | snp: rs50 | genotype: AG (risk allele: rs50-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs22 | genotype: AG (risk allele: rs22-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs85 | genotype: AG (risk allele: rs85-A) | p: very strong\nType 2 diabetes | OR 1.40x \u2191 | gene: GENE | snp: rs29 | genotype: AG (risk allele: rs29-A) | p: very strong\nType 2 diabetes | OR 1.30x \u2191 | gene: GENE | snp: rs1 | genotype: AG (risk allele: rs1-A) | p: very strong\nProtective (4):\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs15 | genotype: AG (risk allele: rs15-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs57 | genotype: AG (risk allele: rs57-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs78 | genotype: AG (risk allele: rs78-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs99 | genotype: AG (risk allele: rs99-A) | p: very strong\n\n## NEUROLOGICAL & COGNITIVE\nElevated (8):\nCognitive performance | OR 2.00x \u2191 | gene: GENE | snp: rs17 | genotype: AG (risk allele: rs17-A) | p: very strong\nCognitive performance | OR 1.70x \u2191 | gene: GENE | snp: rs59 | genotype: AG (risk allele: rs59-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs31 | genotype: AG (risk allele: rs31-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs94 | genotype: AG (risk allele: rs94-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs38 | genotype: AG (risk allele: rs38-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs101 | genotype: AG (risk allele: rs101-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs10 | genotype: AG (risk allele: rs10-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs73 | genotype: AG (risk allele: rs73-A) | p: very strong\nProtective (4):\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs3 | genotype: AG (risk allele: rs3-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs45 | genotype: AG (risk allele: rs45-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs66 | genotype: AG (risk allele: rs66-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs87 | genotype: AG (risk allele: rs87-A) | p: very strong\n\n## IMMUNE & INFLAMMATORY\nElevated (8):\nRheumatoid arthritis | OR 2.00x \u2191 | gene: GENE | snp: rs107 | genotype: AG (risk allele: rs107-A) | p: very strong\nRheumatoid arthritis | OR 1.90x \u2191 | gene: GENE | snp: rs79 | genotype: AG (risk allele: rs79-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs23 | genotype: AG (risk allele: rs23-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs86 | genotype: AG (risk allele: rs86-A) | p: very strong\nRheumatoid arthritis | OR 1.60x \u2191 | gene: GENE | snp: rs58 | genotype: AG (risk allele: rs58-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs2 | genotype: AG (risk allele: rs2-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs65 | genotype: AG (risk allele: rs65-A) | p: very strong\nRheumatoid arthritis | OR 1.30x \u2191 | gene: GENE | snp: rs37 | genotype: AG (risk allele: rs37-A) | p: very strong\nProtective (4):\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs9 | genotype: AG (risk allele: rs9-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs30 | genotype: AG (risk allele: rs30-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs51 | genotype: AG (risk allele: rs51-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs93 | genotype: AG (risk allele: rs93-A) | p: very strong\n\n## MUSCULOSKELETAL\nElevated (8):\nBone density | OR 2.00x \u2191 | gene: GENE | snp: rs53 | genotype: AG (risk allele: rs53-A) | p: very strong\nBone density | OR 1.90x \u2191 | gene: GENE | snp: rs25 | genotype: AG (risk allele: rs25-A) | p: very strong\nBone density | OR 1.70x \u2191 | gene: GENE | snp: rs95 | genotype: AG (risk allele: rs95-A) | p: very strong\nBone density | OR 1.60x \u2191 | gene: GENE | snp: rs67 | genotype: AG (risk allele: rs67-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs11 | genotype: AG (risk allele: rs11-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs74 | genotype: AG (risk allele: rs74-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs46 | genotype: AG (risk allele: rs46-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs109 | genotype: AG (risk allele: rs109-A) | p: very strong\nProtective (4):\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs18 | genotype: AG (risk allele: rs18-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs39 | genotype: AG (risk allele: rs39-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs81 | genotype: AG (risk allele: rs81-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs102 | genotype: AG (risk allele: rs102-A) | p: very strong\n\n## CANCER SUSCEPTIBILITY\nElevated (8):\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs26 | genotype: AG (risk allele: rs26-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs89 | genotype: AG (risk allele: rs89-A) | p: very strong\nBreast cancer | OR 1.90x \u2191 | gene: GENE | snp: rs61 | genotype: AG (risk allele: rs61-A) | p: very strong\nBreast cancer | OR 1.70x \u2191 | gene: GENE | snp: rs5 | genotype: AG (risk allele: rs5-A) | p: very strong\nBreast cancer | OR 1.60x \u2191 | gene: GENE | snp: rs103 | genotype: AG (risk allele: rs103-A) | p: very strong\nBreast cancer | OR 1.40x \u2191 | gene: GENE | snp: rs47 | genotype: AG (risk allele: rs47-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs19 | genotype: AG (risk allele: rs19-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs82 | genotype: AG (risk allele: rs82-A) | p: very strong\nProtective (3):\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs33 | genotype: AG (risk allele: rs33-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs54 | genotype: AG (risk allele: rs54-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs75 | genotype: AG (risk allele: rs75-A) | p: very strong\n\nNo health history provided. Focus on the strongest and most surprising signals.\n\nStructure the report as follows. Do NOT use the domain names as section headers:\n\n**Your aging profile** (write this first)\n2-3 sentences. What are the 1-2 most important things to understand about this person's genetic aging biology? Be direct and specific. This is the executive summary a non-scientist will actually remember.\n\n**Key findings** (3-4 findings, each as a named header + 2-3 paragraphs)\nChoose the 3-4 most important and interesting genetic themes across ALL domains combined. These should be the signals that matter most for long-term healthspan \u2014 the things a person would actually want to know and think about. Each finding should:\n- Have a short, plain-English header (e.g., \"Metabolic-cardiovascular tension\", \"Cognitive aging and APOE\", \"Immune system tuning\")\n- Open with a one-sentence plain statement of what the finding is\n- Explain the biology in 2 paragraphs: what the gene or pathway does, what the signal pattern suggests, and why it matters for aging\n- Focus on what is most surprising or actionable from a healthspan perspective\n- Skip pseudogenes (LINC, LOC, MIR) entirely\n\n**Other signals worth noting** (1 short paragraph)\nBriefly mention 2-3 additional signals from domains not covered in Key findings. One sentence each. This gives breadth without diluting the main findings.\n\n**What to understand about your aging biology**\n4 genes, each with a 1-sentence hook explaining WHY it matters for how the body ages, not just what trait it is associated with. Write these for someone who will go and search for more.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the patterns across these healthspan signals, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the findings. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like insights, not disclaimers. Reference specific genes or findings from this report.\n\nStyle rules:\n- No domain-name headers in the body of the report.\n- The \"Key findings\" headers should describe the biological theme, not the domain (e.g., \"The metabolic-inflammatory axis\" not \"Cardiovascular\").\n- Write for someone who wants to understand their biology, not catalog it.\n- When citing a specific variant, include the rsID where available (e.g., \"rs429358, an APOE variant\"). Where the genotype is informative, note it: \"heterozygous for the risk allele\" vs \"homozygous.\"\n- Population-level language; never \"your genome does X.\"\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n- 800-1000 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a specific question about a key finding, gene, or SNP from this report]\n- [a question about how two signals or domains connect]\n- [a question about what a specific genotype or protective signal means]\n- [a question about the biology behind a surprising or cross-domain finding]\n- [a question about a gene worth researching further]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them."
+    },
+    {
+      "kind": "healthspan",
+      "withHistory": true,
+      "selected": [
+        {
+          "studyId": 36,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 99,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 8,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 71,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 15,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 78,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 50,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 92,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 22,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 43,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 64,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 106,
+          "domain": "cardiovascular"
+        },
+        {
+          "studyId": 72,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 44,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 107,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 51,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 23,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 86,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 30,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 2,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 16,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 58,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 79,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 100,
+          "domain": "metabolic"
+        },
+        {
+          "studyId": 18,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 60,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 32,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 95,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 39,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 102,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 11,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 74,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 4,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 46,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 67,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 88,
+          "domain": "neurological"
+        },
+        {
+          "studyId": 108,
+          "domain": "immune"
+        },
+        {
+          "studyId": 80,
+          "domain": "immune"
+        },
+        {
+          "studyId": 24,
+          "domain": "immune"
+        },
+        {
+          "studyId": 87,
+          "domain": "immune"
+        },
+        {
+          "studyId": 59,
+          "domain": "immune"
+        },
+        {
+          "studyId": 3,
+          "domain": "immune"
+        },
+        {
+          "studyId": 66,
+          "domain": "immune"
+        },
+        {
+          "studyId": 38,
+          "domain": "immune"
+        },
+        {
+          "studyId": 10,
+          "domain": "immune"
+        },
+        {
+          "studyId": 31,
+          "domain": "immune"
+        },
+        {
+          "studyId": 52,
+          "domain": "immune"
+        },
+        {
+          "studyId": 94,
+          "domain": "immune"
+        },
+        {
+          "studyId": 54,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 26,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 96,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 68,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 12,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 75,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 47,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 110,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 19,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 40,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 82,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 103,
+          "domain": "musculoskeletal"
+        },
+        {
+          "studyId": 27,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 90,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 62,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 6,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 104,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 48,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 20,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 83,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 34,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 55,
+          "domain": "cancer"
+        },
+        {
+          "studyId": 76,
+          "domain": "cancer"
+        }
+      ],
+      "counts": {
+        "cardiovascular": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "metabolic": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "neurological": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "immune": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "musculoskeletal": {
+          "elevated": 8,
+          "protective": 4
+        },
+        "cancer": {
+          "elevated": 8,
+          "protective": 3
+        }
+      },
+      "prompt": "You are writing a personalized genetic healthspan report. The reader is not a scientist but is curious and health-conscious. Write the way a knowledgeable friend who happens to be a geneticist would explain this: clear, specific, and honest about uncertainty. These are population-level statistics; use \"population studies associate\" / \"carriers show\" throughout, never deterministic claims.\n\n\nEthnicities: Example ancestry\nCountries of ancestral origin: Example country\nGender assigned at birth: female\nAge: 42\nSmoking history: Never smoked\nAlcohol use: Rare\nCurrent medications/supplements: example\nDietary preferences: Regular diet (no restrictions)\nPersonal medical history: coronary heart disease\nFamily medical history: type 2 diabetes\n\nHEALTH HISTORY:\n- Personal: coronary heart disease\n- Family: type 2 diabetes\n\nDATA FORMAT: Trait | Effect size (\u2191 elevated / \u2193 protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence\n\n## CARDIOVASCULAR\nElevated (8):\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs35 | genotype: AG (risk allele: rs35-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs98 | genotype: AG (risk allele: rs98-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs7 | genotype: AG (risk allele: rs7-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs70 | genotype: AG (risk allele: rs70-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs14 | genotype: AG (risk allele: rs14-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs77 | genotype: AG (risk allele: rs77-A) | p: very strong\nCoronary heart disease | OR 1.60x \u2191 | gene: GENE | snp: rs49 | genotype: AG (risk allele: rs49-A) | p: very strong\nCoronary heart disease | OR 1.30x \u2191 | gene: GENE | snp: rs91 | genotype: AG (risk allele: rs91-A) | p: very strong\nProtective (4):\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs21 | genotype: AG (risk allele: rs21-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs42 | genotype: AG (risk allele: rs42-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs63 | genotype: AG (risk allele: rs63-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs105 | genotype: AG (risk allele: rs105-A) | p: very strong\n\n## METABOLIC & ENDOCRINE\nElevated (8):\nType 2 diabetes | OR 2.00x \u2191 | gene: GENE | snp: rs71 | genotype: AG (risk allele: rs71-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs43 | genotype: AG (risk allele: rs43-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs106 | genotype: AG (risk allele: rs106-A) | p: very strong\nType 2 diabetes | OR 1.70x \u2191 | gene: GENE | snp: rs50 | genotype: AG (risk allele: rs50-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs22 | genotype: AG (risk allele: rs22-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs85 | genotype: AG (risk allele: rs85-A) | p: very strong\nType 2 diabetes | OR 1.40x \u2191 | gene: GENE | snp: rs29 | genotype: AG (risk allele: rs29-A) | p: very strong\nType 2 diabetes | OR 1.30x \u2191 | gene: GENE | snp: rs1 | genotype: AG (risk allele: rs1-A) | p: very strong\nProtective (4):\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs15 | genotype: AG (risk allele: rs15-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs57 | genotype: AG (risk allele: rs57-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs78 | genotype: AG (risk allele: rs78-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs99 | genotype: AG (risk allele: rs99-A) | p: very strong\n\n## NEUROLOGICAL & COGNITIVE\nElevated (8):\nCognitive performance | OR 2.00x \u2191 | gene: GENE | snp: rs17 | genotype: AG (risk allele: rs17-A) | p: very strong\nCognitive performance | OR 1.70x \u2191 | gene: GENE | snp: rs59 | genotype: AG (risk allele: rs59-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs31 | genotype: AG (risk allele: rs31-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs94 | genotype: AG (risk allele: rs94-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs38 | genotype: AG (risk allele: rs38-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs101 | genotype: AG (risk allele: rs101-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs10 | genotype: AG (risk allele: rs10-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs73 | genotype: AG (risk allele: rs73-A) | p: very strong\nProtective (4):\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs3 | genotype: AG (risk allele: rs3-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs45 | genotype: AG (risk allele: rs45-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs66 | genotype: AG (risk allele: rs66-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs87 | genotype: AG (risk allele: rs87-A) | p: very strong\n\n## IMMUNE & INFLAMMATORY\nElevated (8):\nRheumatoid arthritis | OR 2.00x \u2191 | gene: GENE | snp: rs107 | genotype: AG (risk allele: rs107-A) | p: very strong\nRheumatoid arthritis | OR 1.90x \u2191 | gene: GENE | snp: rs79 | genotype: AG (risk allele: rs79-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs23 | genotype: AG (risk allele: rs23-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs86 | genotype: AG (risk allele: rs86-A) | p: very strong\nRheumatoid arthritis | OR 1.60x \u2191 | gene: GENE | snp: rs58 | genotype: AG (risk allele: rs58-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs2 | genotype: AG (risk allele: rs2-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs65 | genotype: AG (risk allele: rs65-A) | p: very strong\nRheumatoid arthritis | OR 1.30x \u2191 | gene: GENE | snp: rs37 | genotype: AG (risk allele: rs37-A) | p: very strong\nProtective (4):\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs9 | genotype: AG (risk allele: rs9-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs30 | genotype: AG (risk allele: rs30-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs51 | genotype: AG (risk allele: rs51-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs93 | genotype: AG (risk allele: rs93-A) | p: very strong\n\n## MUSCULOSKELETAL\nElevated (8):\nBone density | OR 2.00x \u2191 | gene: GENE | snp: rs53 | genotype: AG (risk allele: rs53-A) | p: very strong\nBone density | OR 1.90x \u2191 | gene: GENE | snp: rs25 | genotype: AG (risk allele: rs25-A) | p: very strong\nBone density | OR 1.70x \u2191 | gene: GENE | snp: rs95 | genotype: AG (risk allele: rs95-A) | p: very strong\nBone density | OR 1.60x \u2191 | gene: GENE | snp: rs67 | genotype: AG (risk allele: rs67-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs11 | genotype: AG (risk allele: rs11-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs74 | genotype: AG (risk allele: rs74-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs46 | genotype: AG (risk allele: rs46-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs109 | genotype: AG (risk allele: rs109-A) | p: very strong\nProtective (4):\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs18 | genotype: AG (risk allele: rs18-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs39 | genotype: AG (risk allele: rs39-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs81 | genotype: AG (risk allele: rs81-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs102 | genotype: AG (risk allele: rs102-A) | p: very strong\n\n## CANCER SUSCEPTIBILITY\nElevated (8):\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs26 | genotype: AG (risk allele: rs26-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs89 | genotype: AG (risk allele: rs89-A) | p: very strong\nBreast cancer | OR 1.90x \u2191 | gene: GENE | snp: rs61 | genotype: AG (risk allele: rs61-A) | p: very strong\nBreast cancer | OR 1.70x \u2191 | gene: GENE | snp: rs5 | genotype: AG (risk allele: rs5-A) | p: very strong\nBreast cancer | OR 1.60x \u2191 | gene: GENE | snp: rs103 | genotype: AG (risk allele: rs103-A) | p: very strong\nBreast cancer | OR 1.40x \u2191 | gene: GENE | snp: rs47 | genotype: AG (risk allele: rs47-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs19 | genotype: AG (risk allele: rs19-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs82 | genotype: AG (risk allele: rs82-A) | p: very strong\nProtective (3):\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs33 | genotype: AG (risk allele: rs33-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs54 | genotype: AG (risk allele: rs54-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs75 | genotype: AG (risk allele: rs75-A) | p: very strong\n\nUse the health history to anchor the report: note where genetic signals reinforce known conditions, where they diverge, and which findings the user is unlikely to have encountered from their symptoms alone.\n\nStructure the report as follows. Do NOT use the domain names as section headers:\n\n**Your aging profile** (write this first)\n2-3 sentences. What are the 1-2 most important things to understand about this person's genetic aging biology? Be direct and specific. This is the executive summary a non-scientist will actually remember.\n\n**Key findings** (3-4 findings, each as a named header + 2-3 paragraphs)\nChoose the 3-4 most important and interesting genetic themes across ALL domains combined. These should be the signals that matter most for long-term healthspan \u2014 the things a person would actually want to know and think about. Each finding should:\n- Have a short, plain-English header (e.g., \"Metabolic-cardiovascular tension\", \"Cognitive aging and APOE\", \"Immune system tuning\")\n- Open with a one-sentence plain statement of what the finding is\n- Explain the biology in 2 paragraphs: what the gene or pathway does, what the signal pattern suggests, and why it matters for aging\n- Connect explicitly to the user's health history when relevant\n- Skip pseudogenes (LINC, LOC, MIR) entirely\n\n**Other signals worth noting** (1 short paragraph)\nBriefly mention 2-3 additional signals from domains not covered in Key findings. One sentence each. This gives breadth without diluting the main findings.\n\n**What to understand about your aging biology**\n4 genes, each with a 1-sentence hook explaining WHY it matters for how the body ages, not just what trait it is associated with. Write these for someone who will go and search for more.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the patterns across these healthspan signals, write 4 specific hypotheses about this person's biology or lived experience. Each should be a concrete statement grounded in the findings. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like insights, not disclaimers. Reference specific genes or findings from this report.\n\nStyle rules:\n- No domain-name headers in the body of the report.\n- The \"Key findings\" headers should describe the biological theme, not the domain (e.g., \"The metabolic-inflammatory axis\" not \"Cardiovascular\").\n- Write for someone who wants to understand their biology, not catalog it.\n- When citing a specific variant, include the rsID where available (e.g., \"rs429358, an APOE variant\"). Where the genotype is informative, note it: \"heterozygous for the risk allele\" vs \"homozygous.\"\n- Population-level language; never \"your genome does X.\"\n- Do not recommend clinical tests, doctors, or lifestyle changes.\n- 800-1000 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a specific question about a key finding, gene, or SNP from this report]\n- [a question about how two signals or domains connect]\n- [a question about what a specific genotype or protective signal means]\n- [a question about the biology behind a surprising or cross-domain finding]\n- [a question about a gene worth researching further]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them."
+    },
+    {
+      "kind": "toptraits",
+      "withHistory": false,
+      "selected": [
+        {
+          "studyId": 18
+        },
+        {
+          "studyId": 27
+        },
+        {
+          "studyId": 36
+        },
+        {
+          "studyId": 54
+        },
+        {
+          "studyId": 63
+        },
+        {
+          "studyId": 72
+        },
+        {
+          "studyId": 90
+        },
+        {
+          "studyId": 99
+        },
+        {
+          "studyId": 108
+        },
+        {
+          "studyId": 8
+        },
+        {
+          "studyId": 26
+        },
+        {
+          "studyId": 35
+        },
+        {
+          "studyId": 44
+        },
+        {
+          "studyId": 62
+        },
+        {
+          "studyId": 71
+        },
+        {
+          "studyId": 80
+        },
+        {
+          "studyId": 98
+        },
+        {
+          "studyId": 107
+        },
+        {
+          "studyId": 6
+        },
+        {
+          "studyId": 15
+        },
+        {
+          "studyId": 24
+        },
+        {
+          "studyId": 42
+        },
+        {
+          "studyId": 51
+        },
+        {
+          "studyId": 60
+        },
+        {
+          "studyId": 78
+        },
+        {
+          "studyId": 1
+        },
+        {
+          "studyId": 5
+        },
+        {
+          "studyId": 9
+        },
+        {
+          "studyId": 13
+        },
+        {
+          "studyId": 17
+        },
+        {
+          "studyId": 21
+        },
+        {
+          "studyId": 25
+        },
+        {
+          "studyId": 29
+        },
+        {
+          "studyId": 33
+        },
+        {
+          "studyId": 37
+        },
+        {
+          "studyId": 41
+        },
+        {
+          "studyId": 45
+        },
+        {
+          "studyId": 49
+        },
+        {
+          "studyId": 53
+        },
+        {
+          "studyId": 57
+        },
+        {
+          "studyId": 61
+        },
+        {
+          "studyId": 65
+        },
+        {
+          "studyId": 69
+        },
+        {
+          "studyId": 73
+        },
+        {
+          "studyId": 77
+        },
+        {
+          "studyId": 81
+        },
+        {
+          "studyId": 85
+        },
+        {
+          "studyId": 89
+        },
+        {
+          "studyId": 93
+        },
+        {
+          "studyId": 97
+        },
+        {
+          "studyId": 87
+        },
+        {
+          "studyId": 96
+        },
+        {
+          "studyId": 14
+        },
+        {
+          "studyId": 23
+        },
+        {
+          "studyId": 32
+        },
+        {
+          "studyId": 50
+        },
+        {
+          "studyId": 59
+        },
+        {
+          "studyId": 68
+        },
+        {
+          "studyId": 86
+        },
+        {
+          "studyId": 95
+        },
+        {
+          "studyId": 104
+        },
+        {
+          "studyId": 3
+        },
+        {
+          "studyId": 12
+        },
+        {
+          "studyId": 30
+        },
+        {
+          "studyId": 39
+        },
+        {
+          "studyId": 48
+        },
+        {
+          "studyId": 66
+        },
+        {
+          "studyId": 75
+        },
+        {
+          "studyId": 84
+        },
+        {
+          "studyId": 102
+        },
+        {
+          "studyId": 2
+        },
+        {
+          "studyId": 11
+        },
+        {
+          "studyId": 20
+        },
+        {
+          "studyId": 38
+        },
+        {
+          "studyId": 47
+        },
+        {
+          "studyId": 56
+        },
+        {
+          "studyId": 74
+        },
+        {
+          "studyId": 83
+        },
+        {
+          "studyId": 92
+        },
+        {
+          "studyId": 110
+        },
+        {
+          "studyId": 4
+        },
+        {
+          "studyId": 7
+        },
+        {
+          "studyId": 10
+        },
+        {
+          "studyId": 16
+        },
+        {
+          "studyId": 19
+        },
+        {
+          "studyId": 22
+        },
+        {
+          "studyId": 28
+        },
+        {
+          "studyId": 31
+        },
+        {
+          "studyId": 34
+        },
+        {
+          "studyId": 40
+        },
+        {
+          "studyId": 43
+        },
+        {
+          "studyId": 46
+        },
+        {
+          "studyId": 52
+        },
+        {
+          "studyId": 55
+        },
+        {
+          "studyId": 58
+        },
+        {
+          "studyId": 64
+        },
+        {
+          "studyId": 67
+        },
+        {
+          "studyId": 70
+        },
+        {
+          "studyId": 76
+        },
+        {
+          "studyId": 79
+        }
+      ],
+      "counts": {},
+      "prompt": "You are writing a personalized genetics report. These are the 50 strongest genetic signals by effect size across all results.\n\n\nDATA FORMAT: Trait | Effect size (\u2191 elevated / \u2193 protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence\n\nELEVATED SIGNALS (71):\nCognitive performance | OR 2.00x \u2191 | gene: GENE | snp: rs17 | genotype: AG (risk allele: rs17-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs26 | genotype: AG (risk allele: rs26-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs35 | genotype: AG (risk allele: rs35-A) | p: very strong\nBone density | OR 2.00x \u2191 | gene: GENE | snp: rs53 | genotype: AG (risk allele: rs53-A) | p: very strong\nHeight | OR 2.00x \u2191 | gene: GENE | snp: rs62 | genotype: AG (risk allele: rs62-A) | p: very strong\nType 2 diabetes | OR 2.00x \u2191 | gene: GENE | snp: rs71 | genotype: AG (risk allele: rs71-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs89 | genotype: AG (risk allele: rs89-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs98 | genotype: AG (risk allele: rs98-A) | p: very strong\nRheumatoid arthritis | OR 2.00x \u2191 | gene: GENE | snp: rs107 | genotype: AG (risk allele: rs107-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs7 | genotype: AG (risk allele: rs7-A) | p: very strong\nBone density | OR 1.90x \u2191 | gene: GENE | snp: rs25 | genotype: AG (risk allele: rs25-A) | p: very strong\nHeight | OR 1.90x \u2191 | gene: GENE | snp: rs34 | genotype: AG (risk allele: rs34-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs43 | genotype: AG (risk allele: rs43-A) | p: very strong\nBreast cancer | OR 1.90x \u2191 | gene: GENE | snp: rs61 | genotype: AG (risk allele: rs61-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs70 | genotype: AG (risk allele: rs70-A) | p: very strong\nRheumatoid arthritis | OR 1.90x \u2191 | gene: GENE | snp: rs79 | genotype: AG (risk allele: rs79-A) | p: very strong\nHeight | OR 1.90x \u2191 | gene: GENE | snp: rs97 | genotype: AG (risk allele: rs97-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs106 | genotype: AG (risk allele: rs106-A) | p: very strong\nBreast cancer | OR 1.70x \u2191 | gene: GENE | snp: rs5 | genotype: AG (risk allele: rs5-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs14 | genotype: AG (risk allele: rs14-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs23 | genotype: AG (risk allele: rs23-A) | p: very strong\nHeight | OR 1.70x \u2191 | gene: GENE | snp: rs41 | genotype: AG (risk allele: rs41-A) | p: very strong\nType 2 diabetes | OR 1.70x \u2191 | gene: GENE | snp: rs50 | genotype: AG (risk allele: rs50-A) | p: very strong\nCognitive performance | OR 1.70x \u2191 | gene: GENE | snp: rs59 | genotype: AG (risk allele: rs59-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs77 | genotype: AG (risk allele: rs77-A) | p: very strong\nBone density | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs4 | genotype: AG (risk allele: rs4-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs8 | genotype: AG (risk allele: rs8-A) | p: very strong\nRheumatoid arthritis | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs16 | genotype: AG (risk allele: rs16-A) | p: very strong\nHeight | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs20 | genotype: AG (risk allele: rs20-A) | p: very strong\nCoronary heart disease | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs28 | genotype: AG (risk allele: rs28-A) | p: very strong\nBone density | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs32 | genotype: AG (risk allele: rs32-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs40 | genotype: AG (risk allele: rs40-A) | p: very strong\nRheumatoid arthritis | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs44 | genotype: AG (risk allele: rs44-A) | p: very strong\nCognitive performance | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs52 | genotype: AG (risk allele: rs52-A) | p: very strong\nCoronary heart disease | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs56 | genotype: AG (risk allele: rs56-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs64 | genotype: AG (risk allele: rs64-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs68 | genotype: AG (risk allele: rs68-A) | p: very strong\nHeight | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs76 | genotype: AG (risk allele: rs76-A) | p: very strong\nCognitive performance | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs80 | genotype: AG (risk allele: rs80-A) | p: very strong\nBone density | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs88 | genotype: AG (risk allele: rs88-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs92 | genotype: AG (risk allele: rs92-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs86 | genotype: AG (risk allele: rs86-A) | p: very strong\nBone density | OR 1.70x \u2191 | gene: GENE | snp: rs95 | genotype: AG (risk allele: rs95-A) | p: very strong\nHeight | OR 1.60x \u2191 | gene: GENE | snp: rs13 | genotype: AG (risk allele: rs13-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs22 | genotype: AG (risk allele: rs22-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs31 | genotype: AG (risk allele: rs31-A) | p: very strong\nCoronary heart disease | OR 1.60x \u2191 | gene: GENE | snp: rs49 | genotype: AG (risk allele: rs49-A) | p: very strong\nRheumatoid arthritis | OR 1.60x \u2191 | gene: GENE | snp: rs58 | genotype: AG (risk allele: rs58-A) | p: very strong\nBone density | OR 1.60x \u2191 | gene: GENE | snp: rs67 | genotype: AG (risk allele: rs67-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs85 | genotype: AG (risk allele: rs85-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs94 | genotype: AG (risk allele: rs94-A) | p: very strong\nBreast cancer | OR 1.60x \u2191 | gene: GENE | snp: rs103 | genotype: AG (risk allele: rs103-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs2 | genotype: AG (risk allele: rs2-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs11 | genotype: AG (risk allele: rs11-A) | p: very strong\nType 2 diabetes | OR 1.40x \u2191 | gene: GENE | snp: rs29 | genotype: AG (risk allele: rs29-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs38 | genotype: AG (risk allele: rs38-A) | p: very strong\nBreast cancer | OR 1.40x \u2191 | gene: GENE | snp: rs47 | genotype: AG (risk allele: rs47-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs65 | genotype: AG (risk allele: rs65-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs74 | genotype: AG (risk allele: rs74-A) | p: very strong\nHeight | OR 1.40x \u2191 | gene: GENE | snp: rs83 | genotype: AG (risk allele: rs83-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs101 | genotype: AG (risk allele: rs101-A) | p: very strong\nType 2 diabetes | OR 1.30x \u2191 | gene: GENE | snp: rs1 | genotype: AG (risk allele: rs1-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs10 | genotype: AG (risk allele: rs10-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs19 | genotype: AG (risk allele: rs19-A) | p: very strong\nRheumatoid arthritis | OR 1.30x \u2191 | gene: GENE | snp: rs37 | genotype: AG (risk allele: rs37-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs46 | genotype: AG (risk allele: rs46-A) | p: very strong\nHeight | OR 1.30x \u2191 | gene: GENE | snp: rs55 | genotype: AG (risk allele: rs55-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs73 | genotype: AG (risk allele: rs73-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs82 | genotype: AG (risk allele: rs82-A) | p: very strong\nCoronary heart disease | OR 1.30x \u2191 | gene: GENE | snp: rs91 | genotype: AG (risk allele: rs91-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs109 | genotype: AG (risk allele: rs109-A) | p: very strong\n\nPROTECTIVE SIGNALS (29):\nCoronary heart disease | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs0 | genotype: AG (risk allele: rs0-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs12 | genotype: AG (risk allele: rs12-A) | p: very strong\nCognitive performance | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs24 | genotype: AG (risk allele: rs24-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs36 | genotype: AG (risk allele: rs36-A) | p: very strong\nHeight | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs48 | genotype: AG (risk allele: rs48-A) | p: very strong\nBone density | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs60 | genotype: AG (risk allele: rs60-A) | p: very strong\nRheumatoid arthritis | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs72 | genotype: AG (risk allele: rs72-A) | p: very strong\nCoronary heart disease | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs84 | genotype: AG (risk allele: rs84-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs96 | genotype: AG (risk allele: rs96-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs3 | genotype: AG (risk allele: rs3-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs6 | genotype: AG (risk allele: rs6-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs9 | genotype: AG (risk allele: rs9-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs15 | genotype: AG (risk allele: rs15-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs18 | genotype: AG (risk allele: rs18-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs21 | genotype: AG (risk allele: rs21-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs27 | genotype: AG (risk allele: rs27-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs30 | genotype: AG (risk allele: rs30-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs33 | genotype: AG (risk allele: rs33-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs39 | genotype: AG (risk allele: rs39-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs42 | genotype: AG (risk allele: rs42-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs45 | genotype: AG (risk allele: rs45-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs51 | genotype: AG (risk allele: rs51-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs54 | genotype: AG (risk allele: rs54-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs57 | genotype: AG (risk allele: rs57-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs63 | genotype: AG (risk allele: rs63-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs66 | genotype: AG (risk allele: rs66-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs69 | genotype: AG (risk allele: rs69-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs75 | genotype: AG (risk allele: rs75-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs78 | genotype: AG (risk allele: rs78-A) | p: very strong\n\nYour job is to build a hypothesis about this person's biological character from their strongest signals. Not a gene-by-gene tour; a portrait. What kind of metabolism, immune system, and brain does population-level data suggest this profile is associated with? What is the most interesting or unexpected thing about this combination of signals?\n\nStructure:\n**Biological portrait** (3-4 sentences)\nOpen with a direct hypothesis: what does this combination of strong signals most plausibly suggest about how this person's body works? Be specific and opinionated, and frame it as a hypothesis drawn from population statistics, not a fact. Mention the 1-2 most important signals by name.\n\n**Key themes** (3-4 themes, each as a short header + 2 paragraphs)\nChoose the 3-4 most important biological stories in these results. Each theme should:\n- Start with a one-sentence hypothesis about what the signals in this theme collectively suggest about this person's biology\n- Second paragraph: what do the specific genes/SNPs do, and why do they cluster; what does this combination mean together\n- Include specific rsIDs and genotypes where informative\n- Mention both elevated and protective signals within the theme where they interact\n- Skip pseudogenes (LINC, LOC, MIR)\n\n**What stands out** (1 paragraph)\nThe most surprising, counterintuitive, or medically interesting finding in these results: something the person is unlikely to have noticed on their own. Explain why it matters.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the patterns in these signals, write 4 specific, testable hypotheses about this person's biology or lived experience. Each should be a concrete statement about something that may be true about them \u2014 how they feel, how their body tends to work, what they may notice about themselves \u2014 grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like insights, not disclaimers.\n\nStyle rules:\n- Write for someone who wants to understand their own biology, not a textbook\n- Population-level language throughout: \"population studies associate\", \"carriers tend to show\", never \"your genome does X\"\n- Be specific: name the genes, cite rsIDs, note genotypes where the user's specific variant is informative\n- Do not recommend clinical tests, doctors, or lifestyle changes\n- 700-900 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a question about the most prominent gene or pathway from this report]\n- [a question about how two of the top signals relate to each other]\n- [a question about one of the protective signals or a surprising finding]\n- [a question about what a specific genotype means for one of the key themes]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them."
+    },
+    {
+      "kind": "toptraits",
+      "withHistory": true,
+      "selected": [
+        {
+          "studyId": 18
+        },
+        {
+          "studyId": 27
+        },
+        {
+          "studyId": 36
+        },
+        {
+          "studyId": 54
+        },
+        {
+          "studyId": 63
+        },
+        {
+          "studyId": 72
+        },
+        {
+          "studyId": 90
+        },
+        {
+          "studyId": 99
+        },
+        {
+          "studyId": 108
+        },
+        {
+          "studyId": 8
+        },
+        {
+          "studyId": 26
+        },
+        {
+          "studyId": 35
+        },
+        {
+          "studyId": 44
+        },
+        {
+          "studyId": 62
+        },
+        {
+          "studyId": 71
+        },
+        {
+          "studyId": 80
+        },
+        {
+          "studyId": 98
+        },
+        {
+          "studyId": 107
+        },
+        {
+          "studyId": 6
+        },
+        {
+          "studyId": 15
+        },
+        {
+          "studyId": 24
+        },
+        {
+          "studyId": 42
+        },
+        {
+          "studyId": 51
+        },
+        {
+          "studyId": 60
+        },
+        {
+          "studyId": 78
+        },
+        {
+          "studyId": 1
+        },
+        {
+          "studyId": 5
+        },
+        {
+          "studyId": 9
+        },
+        {
+          "studyId": 13
+        },
+        {
+          "studyId": 17
+        },
+        {
+          "studyId": 21
+        },
+        {
+          "studyId": 25
+        },
+        {
+          "studyId": 29
+        },
+        {
+          "studyId": 33
+        },
+        {
+          "studyId": 37
+        },
+        {
+          "studyId": 41
+        },
+        {
+          "studyId": 45
+        },
+        {
+          "studyId": 49
+        },
+        {
+          "studyId": 53
+        },
+        {
+          "studyId": 57
+        },
+        {
+          "studyId": 61
+        },
+        {
+          "studyId": 65
+        },
+        {
+          "studyId": 69
+        },
+        {
+          "studyId": 73
+        },
+        {
+          "studyId": 77
+        },
+        {
+          "studyId": 81
+        },
+        {
+          "studyId": 85
+        },
+        {
+          "studyId": 89
+        },
+        {
+          "studyId": 93
+        },
+        {
+          "studyId": 97
+        },
+        {
+          "studyId": 87
+        },
+        {
+          "studyId": 96
+        },
+        {
+          "studyId": 14
+        },
+        {
+          "studyId": 23
+        },
+        {
+          "studyId": 32
+        },
+        {
+          "studyId": 50
+        },
+        {
+          "studyId": 59
+        },
+        {
+          "studyId": 68
+        },
+        {
+          "studyId": 86
+        },
+        {
+          "studyId": 95
+        },
+        {
+          "studyId": 104
+        },
+        {
+          "studyId": 3
+        },
+        {
+          "studyId": 12
+        },
+        {
+          "studyId": 30
+        },
+        {
+          "studyId": 39
+        },
+        {
+          "studyId": 48
+        },
+        {
+          "studyId": 66
+        },
+        {
+          "studyId": 75
+        },
+        {
+          "studyId": 84
+        },
+        {
+          "studyId": 102
+        },
+        {
+          "studyId": 2
+        },
+        {
+          "studyId": 11
+        },
+        {
+          "studyId": 20
+        },
+        {
+          "studyId": 38
+        },
+        {
+          "studyId": 47
+        },
+        {
+          "studyId": 56
+        },
+        {
+          "studyId": 74
+        },
+        {
+          "studyId": 83
+        },
+        {
+          "studyId": 92
+        },
+        {
+          "studyId": 110
+        },
+        {
+          "studyId": 4
+        },
+        {
+          "studyId": 7
+        },
+        {
+          "studyId": 10
+        },
+        {
+          "studyId": 16
+        },
+        {
+          "studyId": 19
+        },
+        {
+          "studyId": 22
+        },
+        {
+          "studyId": 28
+        },
+        {
+          "studyId": 31
+        },
+        {
+          "studyId": 34
+        },
+        {
+          "studyId": 40
+        },
+        {
+          "studyId": 43
+        },
+        {
+          "studyId": 46
+        },
+        {
+          "studyId": 52
+        },
+        {
+          "studyId": 55
+        },
+        {
+          "studyId": 58
+        },
+        {
+          "studyId": 64
+        },
+        {
+          "studyId": 67
+        },
+        {
+          "studyId": 70
+        },
+        {
+          "studyId": 76
+        },
+        {
+          "studyId": 79
+        }
+      ],
+      "counts": {},
+      "prompt": "You are writing a personalized genetics report. These are the 50 strongest genetic signals by effect size across all results.\n\n\nEthnicities: Example ancestry\nCountries of ancestral origin: Example country\nGender assigned at birth: female\nAge: 42\nSmoking history: Never smoked\nAlcohol use: Rare\nCurrent medications/supplements: example\nDietary preferences: Regular diet (no restrictions)\nPersonal medical history: coronary heart disease\nFamily medical history: type 2 diabetes\n\nDATA FORMAT: Trait | Effect size (\u2191 elevated / \u2193 protective) | Gene | SNP (rsID) | Genotype (risk allele) | Statistical confidence\n\nELEVATED SIGNALS (71):\nCognitive performance | OR 2.00x \u2191 | gene: GENE | snp: rs17 | genotype: AG (risk allele: rs17-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs26 | genotype: AG (risk allele: rs26-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs35 | genotype: AG (risk allele: rs35-A) | p: very strong\nBone density | OR 2.00x \u2191 | gene: GENE | snp: rs53 | genotype: AG (risk allele: rs53-A) | p: very strong\nHeight | OR 2.00x \u2191 | gene: GENE | snp: rs62 | genotype: AG (risk allele: rs62-A) | p: very strong\nType 2 diabetes | OR 2.00x \u2191 | gene: GENE | snp: rs71 | genotype: AG (risk allele: rs71-A) | p: very strong\nBreast cancer | OR 2.00x \u2191 | gene: GENE | snp: rs89 | genotype: AG (risk allele: rs89-A) | p: very strong\nCoronary heart disease | OR 2.00x \u2191 | gene: GENE | snp: rs98 | genotype: AG (risk allele: rs98-A) | p: very strong\nRheumatoid arthritis | OR 2.00x \u2191 | gene: GENE | snp: rs107 | genotype: AG (risk allele: rs107-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs7 | genotype: AG (risk allele: rs7-A) | p: very strong\nBone density | OR 1.90x \u2191 | gene: GENE | snp: rs25 | genotype: AG (risk allele: rs25-A) | p: very strong\nHeight | OR 1.90x \u2191 | gene: GENE | snp: rs34 | genotype: AG (risk allele: rs34-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs43 | genotype: AG (risk allele: rs43-A) | p: very strong\nBreast cancer | OR 1.90x \u2191 | gene: GENE | snp: rs61 | genotype: AG (risk allele: rs61-A) | p: very strong\nCoronary heart disease | OR 1.90x \u2191 | gene: GENE | snp: rs70 | genotype: AG (risk allele: rs70-A) | p: very strong\nRheumatoid arthritis | OR 1.90x \u2191 | gene: GENE | snp: rs79 | genotype: AG (risk allele: rs79-A) | p: very strong\nHeight | OR 1.90x \u2191 | gene: GENE | snp: rs97 | genotype: AG (risk allele: rs97-A) | p: very strong\nType 2 diabetes | OR 1.90x \u2191 | gene: GENE | snp: rs106 | genotype: AG (risk allele: rs106-A) | p: very strong\nBreast cancer | OR 1.70x \u2191 | gene: GENE | snp: rs5 | genotype: AG (risk allele: rs5-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs14 | genotype: AG (risk allele: rs14-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs23 | genotype: AG (risk allele: rs23-A) | p: very strong\nHeight | OR 1.70x \u2191 | gene: GENE | snp: rs41 | genotype: AG (risk allele: rs41-A) | p: very strong\nType 2 diabetes | OR 1.70x \u2191 | gene: GENE | snp: rs50 | genotype: AG (risk allele: rs50-A) | p: very strong\nCognitive performance | OR 1.70x \u2191 | gene: GENE | snp: rs59 | genotype: AG (risk allele: rs59-A) | p: very strong\nCoronary heart disease | OR 1.70x \u2191 | gene: GENE | snp: rs77 | genotype: AG (risk allele: rs77-A) | p: very strong\nBone density | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs4 | genotype: AG (risk allele: rs4-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs8 | genotype: AG (risk allele: rs8-A) | p: very strong\nRheumatoid arthritis | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs16 | genotype: AG (risk allele: rs16-A) | p: very strong\nHeight | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs20 | genotype: AG (risk allele: rs20-A) | p: very strong\nCoronary heart disease | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs28 | genotype: AG (risk allele: rs28-A) | p: very strong\nBone density | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs32 | genotype: AG (risk allele: rs32-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs40 | genotype: AG (risk allele: rs40-A) | p: very strong\nRheumatoid arthritis | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs44 | genotype: AG (risk allele: rs44-A) | p: very strong\nCognitive performance | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs52 | genotype: AG (risk allele: rs52-A) | p: very strong\nCoronary heart disease | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs56 | genotype: AG (risk allele: rs56-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs64 | genotype: AG (risk allele: rs64-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs68 | genotype: AG (risk allele: rs68-A) | p: very strong\nHeight | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs76 | genotype: AG (risk allele: rs76-A) | p: very strong\nCognitive performance | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs80 | genotype: AG (risk allele: rs80-A) | p: very strong\nBone density | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs88 | genotype: AG (risk allele: rs88-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2191 | gene: GENE | snp: rs92 | genotype: AG (risk allele: rs92-A) | p: very strong\nRheumatoid arthritis | OR 1.70x \u2191 | gene: GENE | snp: rs86 | genotype: AG (risk allele: rs86-A) | p: very strong\nBone density | OR 1.70x \u2191 | gene: GENE | snp: rs95 | genotype: AG (risk allele: rs95-A) | p: very strong\nHeight | OR 1.60x \u2191 | gene: GENE | snp: rs13 | genotype: AG (risk allele: rs13-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs22 | genotype: AG (risk allele: rs22-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs31 | genotype: AG (risk allele: rs31-A) | p: very strong\nCoronary heart disease | OR 1.60x \u2191 | gene: GENE | snp: rs49 | genotype: AG (risk allele: rs49-A) | p: very strong\nRheumatoid arthritis | OR 1.60x \u2191 | gene: GENE | snp: rs58 | genotype: AG (risk allele: rs58-A) | p: very strong\nBone density | OR 1.60x \u2191 | gene: GENE | snp: rs67 | genotype: AG (risk allele: rs67-A) | p: very strong\nType 2 diabetes | OR 1.60x \u2191 | gene: GENE | snp: rs85 | genotype: AG (risk allele: rs85-A) | p: very strong\nCognitive performance | OR 1.60x \u2191 | gene: GENE | snp: rs94 | genotype: AG (risk allele: rs94-A) | p: very strong\nBreast cancer | OR 1.60x \u2191 | gene: GENE | snp: rs103 | genotype: AG (risk allele: rs103-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs2 | genotype: AG (risk allele: rs2-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs11 | genotype: AG (risk allele: rs11-A) | p: very strong\nType 2 diabetes | OR 1.40x \u2191 | gene: GENE | snp: rs29 | genotype: AG (risk allele: rs29-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs38 | genotype: AG (risk allele: rs38-A) | p: very strong\nBreast cancer | OR 1.40x \u2191 | gene: GENE | snp: rs47 | genotype: AG (risk allele: rs47-A) | p: very strong\nRheumatoid arthritis | OR 1.40x \u2191 | gene: GENE | snp: rs65 | genotype: AG (risk allele: rs65-A) | p: very strong\nBone density | OR 1.40x \u2191 | gene: GENE | snp: rs74 | genotype: AG (risk allele: rs74-A) | p: very strong\nHeight | OR 1.40x \u2191 | gene: GENE | snp: rs83 | genotype: AG (risk allele: rs83-A) | p: very strong\nCognitive performance | OR 1.40x \u2191 | gene: GENE | snp: rs101 | genotype: AG (risk allele: rs101-A) | p: very strong\nType 2 diabetes | OR 1.30x \u2191 | gene: GENE | snp: rs1 | genotype: AG (risk allele: rs1-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs10 | genotype: AG (risk allele: rs10-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs19 | genotype: AG (risk allele: rs19-A) | p: very strong\nRheumatoid arthritis | OR 1.30x \u2191 | gene: GENE | snp: rs37 | genotype: AG (risk allele: rs37-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs46 | genotype: AG (risk allele: rs46-A) | p: very strong\nHeight | OR 1.30x \u2191 | gene: GENE | snp: rs55 | genotype: AG (risk allele: rs55-A) | p: very strong\nCognitive performance | OR 1.30x \u2191 | gene: GENE | snp: rs73 | genotype: AG (risk allele: rs73-A) | p: very strong\nBreast cancer | OR 1.30x \u2191 | gene: GENE | snp: rs82 | genotype: AG (risk allele: rs82-A) | p: very strong\nCoronary heart disease | OR 1.30x \u2191 | gene: GENE | snp: rs91 | genotype: AG (risk allele: rs91-A) | p: very strong\nBone density | OR 1.30x \u2191 | gene: GENE | snp: rs109 | genotype: AG (risk allele: rs109-A) | p: very strong\n\nPROTECTIVE SIGNALS (29):\nCoronary heart disease | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs0 | genotype: AG (risk allele: rs0-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs12 | genotype: AG (risk allele: rs12-A) | p: very strong\nCognitive performance | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs24 | genotype: AG (risk allele: rs24-A) | p: very strong\nType 2 diabetes | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs36 | genotype: AG (risk allele: rs36-A) | p: very strong\nHeight | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs48 | genotype: AG (risk allele: rs48-A) | p: very strong\nBone density | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs60 | genotype: AG (risk allele: rs60-A) | p: very strong\nRheumatoid arthritis | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs72 | genotype: AG (risk allele: rs72-A) | p: very strong\nCoronary heart disease | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs84 | genotype: AG (risk allele: rs84-A) | p: very strong\nBreast cancer | \u03b2=+0.400 \u2193 | gene: GENE | snp: rs96 | genotype: AG (risk allele: rs96-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs3 | genotype: AG (risk allele: rs3-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs6 | genotype: AG (risk allele: rs6-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs9 | genotype: AG (risk allele: rs9-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs15 | genotype: AG (risk allele: rs15-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs18 | genotype: AG (risk allele: rs18-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs21 | genotype: AG (risk allele: rs21-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs27 | genotype: AG (risk allele: rs27-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs30 | genotype: AG (risk allele: rs30-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs33 | genotype: AG (risk allele: rs33-A) | p: very strong\nBone density | OR 0.80x \u2193 | gene: GENE | snp: rs39 | genotype: AG (risk allele: rs39-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs42 | genotype: AG (risk allele: rs42-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs45 | genotype: AG (risk allele: rs45-A) | p: very strong\nRheumatoid arthritis | OR 0.80x \u2193 | gene: GENE | snp: rs51 | genotype: AG (risk allele: rs51-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs54 | genotype: AG (risk allele: rs54-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs57 | genotype: AG (risk allele: rs57-A) | p: very strong\nCoronary heart disease | OR 0.80x \u2193 | gene: GENE | snp: rs63 | genotype: AG (risk allele: rs63-A) | p: very strong\nCognitive performance | OR 0.80x \u2193 | gene: GENE | snp: rs66 | genotype: AG (risk allele: rs66-A) | p: very strong\nHeight | OR 0.80x \u2193 | gene: GENE | snp: rs69 | genotype: AG (risk allele: rs69-A) | p: very strong\nBreast cancer | OR 0.80x \u2193 | gene: GENE | snp: rs75 | genotype: AG (risk allele: rs75-A) | p: very strong\nType 2 diabetes | OR 0.80x \u2193 | gene: GENE | snp: rs78 | genotype: AG (risk allele: rs78-A) | p: very strong\n\nYour job is to build a hypothesis about this person's biological character from their strongest signals. Not a gene-by-gene tour; a portrait. What kind of metabolism, immune system, and brain does population-level data suggest this profile is associated with? What is the most interesting or unexpected thing about this combination of signals?\n\nStructure:\n**Biological portrait** (3-4 sentences)\nOpen with a direct hypothesis: what does this combination of strong signals most plausibly suggest about how this person's body works? Be specific and opinionated, and frame it as a hypothesis drawn from population statistics, not a fact. Mention the 1-2 most important signals by name.\n\n**Key themes** (3-4 themes, each as a short header + 2 paragraphs)\nChoose the 3-4 most important biological stories in these results. Each theme should:\n- Start with a one-sentence hypothesis about what the signals in this theme collectively suggest about this person's biology\n- Second paragraph: what do the specific genes/SNPs do, and why do they cluster; what does this combination mean together\n- Include specific rsIDs and genotypes where informative\n- Mention both elevated and protective signals within the theme where they interact\n- Skip pseudogenes (LINC, LOC, MIR)\n\n**What stands out** (1 paragraph)\nThe most surprising, counterintuitive, or medically interesting finding in these results: something the person is unlikely to have noticed on their own. Explain why it matters.\n\n**Hypotheses about you** (4 hypotheses, each 2-3 sentences)\nBased on the patterns in these signals, write 4 specific, testable hypotheses about this person's biology or lived experience. Each should be a concrete statement about something that may be true about them \u2014 how they feel, how their body tends to work, what they may notice about themselves \u2014 grounded in the strongest signals. Frame each as \"People with this signal pattern tend to...\" or \"This combination of variants is consistent with someone who...\". Be direct and specific. These should feel like insights, not disclaimers.\n\nStyle rules:\n- Write for someone who wants to understand their own biology, not a textbook\n- Population-level language throughout: \"population studies associate\", \"carriers tend to show\", never \"your genome does X\"\n- Be specific: name the genes, cite rsIDs, note genotypes where the user's specific variant is informative\n- Do not recommend clinical tests, doctors, or lifestyle changes\n- 700-900 words total\n\nAfter the report, append exactly this block (required, verbatim format):\n\nCHAT_QUESTIONS:\n- [a question about the most prominent gene or pathway from this report]\n- [a question about how two of the top signals relate to each other]\n- [a question about one of the protective signals or a surprising finding]\n- [a question about what a specific genotype means for one of the key themes]\n\nQuestions must reference specific genes, rsIDs, or findings from this report. Write them as the user would ask them."
+    }
+  ]
+}

@@ -1,5 +1,3 @@
-import CryptoJS from 'crypto-js';
+import { coreCall } from "./core";
 
-export function calculateFileHash(fileContent: string): string {
-  return CryptoJS.SHA256(fileContent).toString();
-}
+export function calculateFileHash(fileContent: string): string { return coreCall("file_hash", fileContent); }

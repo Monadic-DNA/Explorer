@@ -7,7 +7,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "core:build": "node scripts/build-core.mjs",
+    "core:test": "cargo test --locked -p explorer-core",
+    "predev": "npm run core:build",
+    "prebuild": "npm run core:build",
+    "prelint": "npm run core:build",
+    "pretest": "npm run core:build",
+    "test": "node --experimental-transform-types --test tests/core.test.mjs",
+    "test:public-sample:prepare": "python3 scripts/prepare-public-sample.py",
+    "test:public-sample:web": "node tests/e2e/public-sample-web.mjs",
+    "test:public-sample:api": "node tests/e2e/public-sample-api.mjs"
   },
   "keywords": [],
   "author": "Monadic DNA / Recherché Inc",
@@ -52,6 +62,7 @@
     "@types/sql.js": "^1.4.9",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.10",
+    "playwright": "^1.64.1",
     "typescript": "^5.9.3"
   },
   "packageManager": "yarn@4.9.1+sha512.f95ce356460e05be48d66401c1ae64ef84d163dd689964962c6888a9810865e39097a5e9de748876c2e0bf89b232d583c33982773e9903ae7a76257270986538"

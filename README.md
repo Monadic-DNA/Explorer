@@ -51,7 +51,9 @@ Match your DNA data against an open ended catalogue of DNA traits with private L
 
 ### Running the Monadic DNA Explorer
 
-The repository includes a Next.js single-page application for exploring GWAS studies.
+The repository contains a Next.js web app, a native Kotlin/Compose Android app, a native SwiftUI iOS app, and a shared Rust client core. See [cross-platform development](docs/clients.md) for architecture, mobile builds, and validation.
+
+Install Rust with rustup before running the web app; `rust-toolchain.toml` selects the toolchain and WASM target. The npm lifecycle scripts build the shared core automatically.
 
 ```bash
 # Set PostgreSQL connection string

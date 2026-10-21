@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- User-configured Ollama hosts can use HTTP on a local network.
+     ExplorerModel separately requires HTTPS for catalog and account requests. -->
+<network-security-config><base-config cleartextTrafficPermitted="true"/></network-security-config>

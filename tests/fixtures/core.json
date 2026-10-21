@@ -1,0 +1,469 @@
+[
+  {
+    "name": "split variants",
+    "operation": "parse_variant_ids",
+    "input": " rs1; rs2,rs3\trs4\nrs5 ",
+    "expected": [
+      "rs1",
+      "rs2",
+      "rs3",
+      "rs4",
+      "rs5"
+    ]
+  },
+  {
+    "name": "no-call ''",
+    "operation": "valid_genotype",
+    "input": "",
+    "expected": false
+  },
+  {
+    "name": "no-call '--'",
+    "operation": "valid_genotype",
+    "input": "--",
+    "expected": false
+  },
+  {
+    "name": "no-call '-'",
+    "operation": "valid_genotype",
+    "input": "-",
+    "expected": false
+  },
+  {
+    "name": "no-call '---'",
+    "operation": "valid_genotype",
+    "input": "---",
+    "expected": false
+  },
+  {
+    "name": "no-call '00'",
+    "operation": "valid_genotype",
+    "input": "00",
+    "expected": false
+  },
+  {
+    "name": "valid insertion",
+    "operation": "valid_genotype",
+    "input": "ID",
+    "expected": true
+  },
+  {
+    "name": "score ('AG', 'rs1-A', '1.5', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "AG",
+      "riskAllele": "rs1-A",
+      "effectSize": "1.5",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 1.5,
+      "level": "increased"
+    }
+  },
+  {
+    "name": "score ('AA', 'rs1-A', '1.5', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "AA",
+      "riskAllele": "rs1-A",
+      "effectSize": "1.5",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 2.25,
+      "level": "increased"
+    }
+  },
+  {
+    "name": "score ('GG', 'rs1-A', '1.5', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "GG",
+      "riskAllele": "rs1-A",
+      "effectSize": "1.5",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 1,
+      "level": "neutral"
+    }
+  },
+  {
+    "name": "score ('AA', 'rs1-A', '0.5', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "AA",
+      "riskAllele": "rs1-A",
+      "effectSize": "0.5",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 0.25,
+      "level": "decreased"
+    }
+  },
+  {
+    "name": "score ('AG', 'rs1-A', '-2', 'beta')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "AG",
+      "riskAllele": "rs1-A",
+      "effectSize": "-2",
+      "effectType": "beta"
+    },
+    "expected": {
+      "score": -2,
+      "level": "decreased"
+    }
+  },
+  {
+    "name": "score ('GG', 'rs1-A', '-2', 'beta')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "GG",
+      "riskAllele": "rs1-A",
+      "effectSize": "-2",
+      "effectType": "beta"
+    },
+    "expected": {
+      "score": -0.0,
+      "level": "neutral"
+    }
+  },
+  {
+    "name": "score ('--', 'rs1-A', '2', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "--",
+      "riskAllele": "rs1-A",
+      "effectSize": "2",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 1,
+      "level": "neutral"
+    }
+  },
+  {
+    "name": "score ('TC', 'rs1-A', '2', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "TC",
+      "riskAllele": "rs1-A",
+      "effectSize": "2",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 1,
+      "level": "neutral"
+    }
+  },
+  {
+    "name": "score ('AG', 'rs1-A', 'bad', 'OR')",
+    "operation": "risk_score",
+    "input": {
+      "genotype": "AG",
+      "riskAllele": "rs1-A",
+      "effectSize": "bad",
+      "effectType": "OR"
+    },
+    "expected": {
+      "score": 1,
+      "level": "neutral"
+    }
+  },
+  {
+    "name": "negative beta",
+    "operation": "effect",
+    "input": {
+      "value": "0.3",
+      "ci": "[0.2-0.4] unit decrease"
+    },
+    "expected": {
+      "effectType": "beta",
+      "effectSize": "-0.3"
+    }
+  },
+  {
+    "name": "OR interval",
+    "operation": "effect",
+    "input": {
+      "value": "1.3",
+      "ci": "[1.1-1.5]"
+    },
+    "expected": {
+      "effectType": "OR",
+      "effectSize": "1.3"
+    }
+  },
+  {
+    "name": "MD5 compatible file identity",
+    "operation": "file_hash",
+    "input": "abc",
+    "expected": "900150983cd24fb0d6963f7d28e17f72"
+  },
+  {
+    "name": "sample duplicate cohorts",
+    "operation": "parse_sample_size",
+    "input": "10000 participants and 9500 described again",
+    "expected": 10000
+  },
+  {
+    "name": "sample distinct cohorts",
+    "operation": "parse_sample_size",
+    "input": "10000 cases, 5000 controls",
+    "expected": 15000
+  },
+  {
+    "name": "scientific p",
+    "operation": "parse_p_value",
+    "input": "5 x 10^-8",
+    "expected": 5e-08
+  },
+  {
+    "name": "inequality p",
+    "operation": "parse_p_value",
+    "input": "< 5e-8",
+    "expected": 5e-08
+  },
+  {
+    "name": "missing p",
+    "operation": "parse_p_value",
+    "input": "NR",
+    "expected": null
+  },
+  {
+    "name": "invalid prime",
+    "operation": "prime",
+    "input": 1,
+    "expected": false
+  },
+  {
+    "name": "prime",
+    "operation": "prime",
+    "input": 294001,
+    "expected": true
+  },
+  {
+    "name": "delicate prime",
+    "operation": "delicate_prime",
+    "input": 294001,
+    "expected": true
+  },
+  {
+    "name": "ordinary prime",
+    "operation": "delicate_prime",
+    "input": 7,
+    "expected": false
+  },
+  {
+    "name": "invalid promo",
+    "operation": "promo",
+    "input": "000294001",
+    "expected": {
+      "valid": false,
+      "discount": 1,
+      "message": "Invalid code format"
+    }
+  },
+  {
+    "name": "empty overview",
+    "operation": "overview_statistics",
+    "input": [],
+    "expected": {
+      "totalResults": 0,
+      "increasedRisk": 0,
+      "increasedRiskPercent": "0.0",
+      "decreasedRisk": 0,
+      "decreasedRiskPercent": "0.0",
+      "neutral": 0,
+      "neutralPercent": "0.0",
+      "topRisks": [],
+      "topProtective": []
+    }
+  },
+  {
+    "name": "parse 23andme",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "# 23andMe\nrs1\t1\t100\tAG"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "23andme"
+    }
+  },
+  {
+    "name": "parse monadic",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "RSID,CHROMOSOME,POSITION,RESULT\nrs1,1,100,AG"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "monadic"
+    }
+  },
+  {
+    "name": "parse ancestry",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "rsid\tchromosome\tposition\tallele1\tallele2\nrs1\t26\t100\tA\tG"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "MT",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "ancestrydna"
+    }
+  },
+  {
+    "name": "parse no-call",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "# 23andMe\nrs1 1 100 -"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "--"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "23andme"
+    }
+  },
+  {
+    "name": "parse myheritage",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "# MyHeritage\nRSID,CHROMOSOME,POSITION,RESULT\n\"rs1\",\"1\",\"100\",\"AG\""
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "myheritage"
+    }
+  },
+  {
+    "name": "parse ftdna",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "# FamilyTreeDNA\n# name\tchromosome\tposition\tallele1\tallele2\nrs1\t1\t100\tA\tG"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "ftdna"
+    }
+  },
+  {
+    "name": "parse livingdna",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "# Living DNA\nrs1 1 100 A G"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "livingdna"
+    }
+  },
+  {
+    "name": "parse mapmygenome",
+    "operation": "parse_genotype",
+    "input": {
+      "content": "SNP Name\tChr\tPosition\tAllele1...Plus\tAllele2...Plus\nrs1\t1\t100\tA\tG"
+    },
+    "expected": {
+      "success": true,
+      "data": [
+        {
+          "rsid": "rs1",
+          "chromosome": "1",
+          "position": 100,
+          "genotype": "AG"
+        }
+      ],
+      "totalVariants": 1,
+      "validVariants": 1,
+      "detectedFormat": "mapmygenome"
+    }
+  },
+  {
+    "name": "exact SNP allele check",
+    "operation": "analyze_study",
+    "input": {
+      "genotypes": {
+        "rs1": "TT"
+      },
+      "snps": "rs1",
+      "riskAllele": "rs1-A",
+      "effectSize": "2"
+    },
+    "expected": {
+      "hasMatch": false
+    }
+  }
+]

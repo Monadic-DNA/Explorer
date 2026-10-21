@@ -1,0 +1,12 @@
+[
+  {"key":"age","label":"Age","type":"number"},
+  {"key":"genderAtBirth","label":"Gender assigned at birth","type":"text"},
+  {"key":"ethnicities","label":"Ancestries (comma separated)","type":"list"},
+  {"key":"countriesOfOrigin","label":"Countries of ancestral origin (comma separated)","type":"list"},
+  {"key":"personalConditions","label":"Personal health history (comma separated)","type":"list"},
+  {"key":"familyConditions","label":"Family health history (comma separated)","type":"list"},
+  {"key":"medications","label":"Medications and supplements (comma separated)","type":"list"},
+  {"key":"smokingHistory","label":"Smoking history","type":"select","options":[{"value":"","label":"Not specified"},{"value":"never-smoked","label":"Never smoked"},{"value":"past-smoker","label":"Former smoker"},{"value":"still-smoking","label":"Currently smoking"}]},
+  {"key":"alcoholUse","label":"Alcohol use","type":"select","options":[{"value":"","label":"Not specified"},{"value":"none","label":"None"},{"value":"rare","label":"Rare"},{"value":"mild","label":"Mild"},{"value":"moderate","label":"Moderate"},{"value":"heavy","label":"Heavy"}]},
+  {"key":"diet","label":"Dietary preferences","type":"text"}
+]

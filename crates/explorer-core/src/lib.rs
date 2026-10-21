@@ -1,0 +1,159 @@
+//! Portable client domain logic. No HTTP, filesystem, UI, or OS key storage.
+//! All platforms use the same versioned JSON protocol over WASM or UniFFI.
+mod crypto;
+mod files;
+mod genotype;
+mod llm;
+mod nilai;
+mod preview;
+mod quality;
+mod reports;
+mod results;
+mod risk;
+mod session;
+
+use serde_json::{json, Value};
+
+#[cfg(feature = "ffi")]
+uniffi::setup_scaffolding!();
+
+pub(crate) fn text<'a>(v: &'a Value, k: &str) -> &'a str {
+    v.get(k).and_then(Value::as_str).unwrap_or("")
+}
+pub(crate) fn array(v: &Value) -> &[Value] {
+    v.as_array().map(Vec::as_slice).unwrap_or(&[])
+}
+
+pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
+    match operation {
+        "version" => Ok(json!({"protocol":1,"core":env!("CARGO_PKG_VERSION")})),
+        "parse_genotype" => Ok(genotype::parse(
+            text(&input, "content"),
+            text(&input, "format"),
+        )),
+        "decode_file" => Ok(json!(files::decode(&input)?)),
+        "parse_variant_ids" => Ok(json!(risk::variants(input.as_str().unwrap_or("")))),
+        "valid_genotype" => Ok(json!(risk::valid(input.as_str().unwrap_or("")))),
+        "effect" => Ok(risk::effect(text(&input, "value"), text(&input, "ci"))),
+        "risk_score" => Ok(risk::score(
+            text(&input, "genotype"),
+            text(&input, "riskAllele"),
+            text(&input, "effectSize"),
+            text(&input, "effectType"),
+        )),
+        "analyze_study" => Ok(risk::analyze(&input)),
+        "parse_sample_size" => Ok(json!(quality::sample_size(input.as_str().unwrap_or("")))),
+        "parse_p_value" => Ok(json!(quality::p_value(input.as_str().unwrap_or("")))),
+        "quality_flags" => Ok(quality::flags(&input)),
+        "evidence" => Ok(quality::evidence(&input)),
+        "prime" => Ok(json!(quality::prime(input.as_u64().unwrap_or(0)))),
+        "delicate_prime" => Ok(json!(quality::delicate(input.as_u64().unwrap_or(0)))),
+        "promo" => Ok(quality::promo(input.as_str().unwrap_or(""))),
+        "feature_access" => {
+            let promo = quality::promo(text(&input, "promo"));
+            let premium = input["activeSubscription"] == true
+                || (promo["valid"] == true && promo["discount"] == 0);
+            let kind = text(&input, "kind");
+            let report_type = match kind {
+                "Overview" => Some("overview"),
+                "Healthspan" => Some("healthspan"),
+                "Top traits" => Some("top_traits"),
+                _ => None,
+            };
+            Ok(json!({"allowed":kind == "Health" || premium,"reportType":report_type}))
+        }
+        "file_hash" => Ok(json!(crypto::file_hash(input.as_str().unwrap_or("")))),
+        "export_results" => Ok(json!(results::export(array(&input)))),
+        "import_results" => results::import(&input),
+        "overview_statistics" => Ok(reports::statistics(array(&input))),
+        "partition_results" => reports::partition(&input),
+        "format_results" => Ok(json!(reports::format_results(array(&input)))),
+        "report_prompt" => Ok(reports::prompt(&input)),
+        "select_report" => Ok(reports::select(&input)),
+        "report_rules" => Ok(reports::rules().clone()),
+        "user_context" => Ok(json!(reports::context(&input))),
+        "profile_schema" => Ok(reports::profile_schema()),
+        "parse_profile" => reports::parse_profile(&input),
+        "preview_category" => Ok(preview::classify(&input)),
+        "preview_select" => Ok(preview::select(&input)),
+        "preview_insight" => Ok(preview::insight(&input)),
+        "render_prompt" => reports::render(&input),
+        "extract_report" => Ok(reports::extract(&input)),
+        "llm_config" => Ok(llm::config(&input)),
+        "nilai_keypair" => nilai::keypair(&input),
+        "nilai_info" => nilai::info(&input),
+        "nilai_invocation" => nilai::invocation(&input),
+        "seal" => crypto::seal(&input),
+        "open" => crypto::open(&input),
+        "auth_keypair" => crypto::auth_keypair(&input),
+        "auth_seal" => crypto::auth_seal(&input),
+        "auth_open" => crypto::auth_open(&input),
+        op if op.starts_with("session_") => session::dispatch(op, input),
+        _ => Err(format!("Unknown core operation: {operation}")),
+    }
+}
+
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn core_call(request: String) -> String {
+    let result = serde_json::from_str::<Value>(&request)
+        .map_err(|e| e.to_string())
+        .and_then(|request| {
+            if request.get("version").and_then(Value::as_u64) != Some(1) {
+                return Err("Unsupported core protocol version".into());
+            }
+            dispatch(
+                text(&request, "operation"),
+                request.get("input").cloned().unwrap_or(Value::Null),
+            )
+        });
+    envelope(result)
+}
+
+fn envelope(result: Result<Value, String>) -> String {
+    match result {
+        Ok(value) => json!({"ok":true,"value":value}).to_string(),
+        Err(error) => json!({"ok":false,"error":error}).to_string(),
+    }
+}
+
+/// Transfer large native files as bytes instead of building a base64 JSON string.
+/// Parsing, gzip bounds, hashing and session state remain shared with WASM.
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn import_genotype(session: u64, bytes: Vec<u8>, file_name: String) -> String {
+    envelope(files::decode_bytes(bytes).and_then(|content| {
+        session::dispatch(
+            "session_import",
+            json!({"session":session,"content":content,"fileName":file_name}),
+        )
+    }))
+}
+
+// Import-free WASM ABI: synchronous on browsers, Node SSR and web workers.
+// Input/output are UTF-8; callers own input allocations and copy output before
+// the next call. Native platforms call core_call through generated UniFFI.
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use std::cell::RefCell;
+    thread_local! { static OUTPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) }; }
+    #[no_mangle]
+    pub extern "C" fn explorer_alloc(len: usize) -> *mut u8 {
+        Box::into_raw(vec![0u8; len].into_boxed_slice()) as *mut u8
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn explorer_free(ptr: *mut u8, len: usize) {
+        drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len)));
+    }
+    #[no_mangle]
+    pub unsafe extern "C" fn explorer_call(ptr: *const u8, len: usize) -> *const u8 {
+        let input = String::from_utf8_lossy(std::slice::from_raw_parts(ptr, len));
+        OUTPUT.with(|out| {
+            let mut out = out.borrow_mut();
+            *out = super::core_call(input.into_owned()).into_bytes();
+            out.as_ptr()
+        })
+    }
+    #[no_mangle]
+    pub extern "C" fn explorer_result_len() -> usize {
+        OUTPUT.with(|out| out.borrow().len())
+    }
+}

@@ -27,6 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install shared core toolchain
+        run: rustup show active-toolchain
+
+      - name: Test Rust and WASM contracts
+        run: |
+          npm run core:test
+          npm test
+
       - name: Run linter
         run: npm run lint
 
@@ -37,6 +45,36 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+
+      - name: Prepare full public 23andMe sample and browser
+        run: |
+          npm run test:public-sample:prepare
+          npx playwright install --with-deps chromium
+
+      - name: Verify public sample import, scores, export and portable vault in Chromium
+        run: |
+          node node_modules/next/dist/bin/next start > /tmp/explorer-public-sample-server.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid"' EXIT
+          node --input-type=module <<'JS'
+          let ready=false;
+          for(let attempt=0;attempt<60;attempt++) {
+            try { if((await fetch('http://127.0.0.1:3000')).ok){ready=true;break;} } catch {}
+            await new Promise(resolve=>setTimeout(resolve,500));
+          }
+          if(!ready)throw new Error('Production server did not start');
+          JS
+          npm run test:public-sample:web
+
+      - name: Upload public sample browser evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: public-sample-browser-evidence
+          include-hidden-files: true
+          path: |
+            .test-data/public-sample/*.png
+            .test-data/public-sample/web-results.tsv
+          retention-days: 7
 
       - name: Upload build artifacts
         if: matrix.node-version == '24.x'

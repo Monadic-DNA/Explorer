@@ -15,6 +15,11 @@ export default defineConfig([
   },
   globalIgnores([
     '.next/**',
+    'target/**',
+    'lib/generated/**',
+    'apps/**/build/**',
+    'apps/android/.gradle/**',
+    'apps/ios/Generated/**',
     'out/**',
     'build/**',
     'coverage/**',

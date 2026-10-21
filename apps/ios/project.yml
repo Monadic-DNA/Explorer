@@ -1,0 +1,48 @@
+name: Explorer
+options:
+  deploymentTarget:
+    iOS: '17.0'
+  bundleIdPrefix: com.monadicdna
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    IPHONEOS_DEPLOYMENT_TARGET: '17.0'
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  Explorer:
+    type: application
+    platform: iOS
+    sources:
+      - Explorer
+      - Generated/ExplorerCore.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.monadicdna.explorer
+        SWIFT_OBJC_BRIDGING_HEADER: Generated/ExplorerCoreFFI.h
+        HEADER_SEARCH_PATHS: '$(inherited) $(SRCROOT)/Generated'
+        OTHER_LDFLAGS: '$(inherited) -lexplorer_core'
+        'LIBRARY_SEARCH_PATHS[sdk=iphoneos*]': '$(inherited) $(SRCROOT)/../../target/aarch64-apple-ios/release'
+        'LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*][arch=arm64]': '$(inherited) $(SRCROOT)/../../target/aarch64-apple-ios-sim/release'
+        'LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*][arch=x86_64]': '$(inherited) $(SRCROOT)/../../target/x86_64-apple-ios/release'
+        MARKETING_VERSION: '1.0.0'
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Explorer/Info.plist
+    scheme:
+      testTargets:
+        - ExplorerTests
+  ExplorerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - ExplorerTests
+      - path: TestData
+        type: folder
+        buildPhase: resources
+        optional: true
+    dependencies:
+      - target: Explorer
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.monadicdna.explorer.tests

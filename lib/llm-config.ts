@@ -1,3 +1,5 @@
+import { coreCall } from "./core";
+
 /**
  * Centralized LLM Configuration Service
  *
@@ -69,100 +71,10 @@ export function saveLLMConfig(config: LLMConfig): void {
 /**
  * Get the display name for the current provider
  */
-export function getProviderDisplayName(provider: LLMProvider): string {
-  switch (provider) {
-    case 'nilai':
-      return 'nilAI';
-    case 'ollama':
-      return 'Ollama (Local)';
-    case 'huggingface':
-      return 'HuggingFace';
-  }
-}
-
-/**
- * Get the full model identifier for API calls
- */
-export function getModelIdentifier(config: LLMConfig): string {
-  // If custom model is selected, use the custom model name
-  if (config.model === 'custom' && config.customModel) {
-    return config.customModel;
-  }
-
-  switch (config.provider) {
-    case 'nilai':
-      return config.model === 'gemma-4-26B-A4B-it' ? 'google/gemma-4-26B-A4B-it' : config.model;
-    case 'ollama':
-      return config.model;
-    case 'huggingface':
-      // For HuggingFace, append :together suffix if not already present
-      if (config.model === 'gemma-4-26B-A4B-it') {
-        return 'google/gemma-4-26B-A4B-it:together';
-      } else if (config.model === 'openai/gpt-oss-120b') {
-        return 'openai/gpt-oss-120b:together';
-      }
-      return config.model.includes(':') ? config.model : `${config.model}:together`;
-  }
-}
-
-/**
- * nilAI API endpoint
- */
-const NILAI_API_ENDPOINT = 'https://api.nilai.nillion.network/nuc/v1/';
-
-/**
- * Get the API endpoint for the current provider
- */
-export function getAPIEndpoint(config: LLMConfig): string {
-  switch (config.provider) {
-    case 'nilai':
-      return NILAI_API_ENDPOINT;
-    case 'ollama':
-      const address = config.ollamaAddress || 'localhost';
-      const port = config.ollamaPort || 11434;
-      return `http://${address}:${port}`;
-    case 'huggingface':
-      return 'https://router.huggingface.co/v1';
-  }
-}
-
-/**
- * Check if the current configuration requires client-side only processing
- */
-export function isClientSideOnly(provider: LLMProvider): boolean {
-  // nilAI uses delegation tokens and is client-side only
-  // Ollama and HuggingFace can be called from client directly
-  return true; // All providers are client-side only now
-}
-
-/**
- * Get available models for a provider
- */
-export function getAvailableModels(provider: LLMProvider): string[] {
-  switch (provider) {
-    case 'nilai':
-      return ['gemma-4-26B-A4B-it'];
-    case 'ollama':
-      return ['gemma-4-26B-A4B-it']; // Default, user can enter custom
-    case 'huggingface':
-      return ['gemma-4-26B-A4B-it'];
-  }
-}
-
-/**
- * Validate if a configuration is complete
- */
-export function isConfigValid(config: LLMConfig): { valid: boolean; error?: string } {
-  if (config.provider === 'huggingface' && !config.huggingfaceApiKey) {
-    return { valid: false, error: 'HuggingFace API key is required' };
-  }
-
-  if (config.model === 'custom' && !config.customModel?.trim()) {
-    return { valid: false, error: 'Custom model name is required when "Custom..." is selected' };
-  }
-
-  // Ollama address and port have defaults ('localhost' and 11434) so always valid
-  // No additional validation needed
-
-  return { valid: true };
-}
+type PortableConfig = { identifier: string; endpoint: string; displayName: string; models: string[]; validation: { valid: boolean; error?: string } };
+export function getProviderDisplayName(provider: LLMProvider): string { return coreCall<PortableConfig>("llm_config", { provider }).displayName; }
+export function getModelIdentifier(config: LLMConfig): string { return coreCall<PortableConfig>("llm_config", config).identifier; }
+export function getAPIEndpoint(config: LLMConfig): string { return coreCall<PortableConfig>("llm_config", config).endpoint; }
+export function isClientSideOnly(provider: LLMProvider): boolean { void provider; return true; }
+export function getAvailableModels(provider: LLMProvider): string[] { return coreCall<PortableConfig>("llm_config", { provider }).models; }
+export function isConfigValid(config: LLMConfig): { valid: boolean; error?: string } { return coreCall<PortableConfig>("llm_config", config).validation; }

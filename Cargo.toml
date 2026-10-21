@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/explorer-core", "tools/bindgen"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license-file = "LICENSE"
+version = "1.0.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+strip = "debuginfo"
