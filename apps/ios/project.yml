@@ -15,6 +15,11 @@ targets:
     sources:
       - Explorer
       - Generated/ExplorerCore.swift
+      # Bundled research catalog for Run all, placed by scripts/build-native.mjs.
+      - path: Generated/catalog.zst
+        buildPhase: resources
+      - path: Generated/catalog.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.monadicdna.explorer

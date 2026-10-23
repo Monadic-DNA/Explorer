@@ -188,6 +188,7 @@ test('batch Run All matches session results exactly and keeps order and overwrit
     assert.equal(coreCall('session_analyze_count',{session,studies,strict:true,now}),expected.length);
     const stored=coreCall('session_results',{session});
     assert.equal(stored.length,new Set(expected.map(row=>row.studyId)).size);
+    assert.equal(coreCall('session_result_count',{session}),stored.length);
     assert.equal(stored.find(row=>row.studyId===1).studyTitle,'Latest duplicate');
     assert.deepEqual(stored.map(row=>row.studyId),[...new Set(expected.map(row=>row.studyId))]);
     assert.ok(expected.every(row=>row.riskScore===-0.25));

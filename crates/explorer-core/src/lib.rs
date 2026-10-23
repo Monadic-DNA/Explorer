@@ -1,6 +1,8 @@
 //! Portable client domain logic. No HTTP, filesystem, UI, or OS key storage.
 //! All platforms use the same versioned JSON protocol over WASM or UniFFI.
 mod analysis;
+#[cfg(not(target_arch = "wasm32"))]
+mod catalog;
 mod crypto;
 mod vault;
 mod files;
@@ -137,6 +139,20 @@ pub fn import_genotype(session: u64, bytes: Vec<u8>, file_name: String) -> Strin
         )
     }))
 }
+
+/// Bundled catalog snapshots for native Run all. Hosts open the snapshot file once and
+/// then match it in chunks so they can show progress and cancel between chunks.
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn catalog_open(path: String) -> String { envelope(catalog::open(&path)) }
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn catalog_analyze_next(handle: u64, session: u64, max_rows: u32, now: String) -> String {
+    envelope(catalog::analyze_next(handle, session, max_rows as usize, &now))
+}
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn catalog_close(handle: u64) { catalog::close(handle) }
 
 /// Keys use native byte buffers; the large plaintext genotype snapshot never crosses the FFI boundary.
 #[cfg_attr(feature = "ffi", uniffi::export)]

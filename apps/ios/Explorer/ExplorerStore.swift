@@ -26,6 +26,9 @@ import UIKit
     @Published var busy=false
     @Published var status=""
     @Published var error:String?
+    @Published var notice:String?
+    @Published private(set) var progress:Double?
+    @Published private(set) var protection=""
     @Published var report=""
     @Published var reportTitle=""
     @Published var reportQuestions:[String]=[]
@@ -68,7 +71,7 @@ import UIKit
         let existed=await dataVault.exists
         restoreCustomization(try await dataVault.unlock(session))
         metadata=try Core.object("session_metadata",["session":session]);try refreshResults()
-        dataUnlocked=true;storageMessage="Saved on device • \(await dataVault.protection)"
+        dataUnlocked=true;storageMessage="Saved securely on this device";protection=await dataVault.protection
         if !existed {
             let fields=(try? JSONSerialization.jsonObject(with:Data(DeviceStore.get("profile-fields").utf8))) as? [String:Any] ?? [:]
             restoreCustomization(["fields":fields,"context":DeviceStore.get("profile")])
@@ -91,7 +94,7 @@ import UIKit
         try await dataVault.save(session,custom)
         lastCustomization=try JSONSerialization.data(withJSONObject:custom,options:.sortedKeys)
         if version==dataVersion{dataDirty=false}
-        storageMessage=dataDirty ? "Saving securely…" : "Saved on device • \(await dataVault.protection)"
+        storageMessage=dataDirty ? "Saving securely…" : "Saved securely on this device"
         queueSync()
     }
     private func wipeMemory(){
@@ -182,14 +185,16 @@ import UIKit
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
         guard !busy else{return}
         guard !syncing else{error="Encrypted sync is in progress. Please retry in a moment.";return}
-        busy=true;status=label;error=nil
+        busy=true;status=label;error=nil;notice=nil;progress=nil
         task=Task {
-            defer{busy=false}
-            do{try await operation();status="Complete"}catch is CancellationError{status="Cancelled"}catch{self.error=error.localizedDescription}
+            defer{busy=false;progress=nil}
+            do{try await operation();status="Saving securely…"}catch is CancellationError{status="Cancelled. Saving what was completed…"}catch{self.error=error.localizedDescription}
             do{try await flushData()}catch{storageMessage="Changes not saved. Please retry.";self.error=error.localizedDescription}
         }
     }
     func cancel(){task?.cancel()}
+    // Once the operation has finished or was cancelled, only the final save remains.
+    var cancellable:Bool{busy && !status.hasPrefix("Cancelled") && status != "Saving securely…"}
     func origin() throws -> String {
         guard let url=URL(string:backend),url.user==nil,url.password==nil,url.query==nil,url.fragment==nil else{throw Core.Failure(message:"Enter an HTTPS backend origin")}
         var allowed=url.scheme=="https"
@@ -237,6 +242,9 @@ import UIKit
         let metadata=try await Task.detached{try Core.importFile(session,data,name)}.value
         try Task.checkCancellation();self.metadata=metadata
         self.results=[];self.markDataChanged()
+        let names=["23andme":"23andMe","ancestrydna":"AncestryDNA","myheritage":"MyHeritage","ftdna":"FamilyTreeDNA","livingdna":"LivingDNA","mapmygenome":"Mapmygenome","monadic":"Monadic DNA"]
+        let format=(metadata["detectedFormat"] as? String).flatMap{names[$0]}.map{" from \($0)"} ?? ""
+        self.notice="Imported \(self.variantCount.formatted()) variants\(format). Open Results and choose Run all studies to match them against the research catalog."
     }}
     func refreshResults() throws{results=try Core.array("session_results",["session":session]).map(Record.init)}
     func analyze(_ record:Record){work("Matching DNA on device"){
@@ -245,41 +253,49 @@ import UIKit
         let session=self.session;let input:[String:Any]=["session":session,"studies":[record.raw],"now":ISO8601DateFormatter().string(from:Date())]
         _=try await Task.detached{try Core.call("session_analyze",input)}.value
         self.markDataChanged();try self.refreshResults()
+        self.notice=self.results.contains{$0.id==record.id} ? "Match saved to Results." : "Your DNA has no called genotype for this study's risk variant."
     }}
-    func runAll(){work("Analyzing catalog on device"){
+    func loadStudy(_ id:Int){work("Loading study"){
+        let data=try await self.api("/api/studies?id=\(id)")
+        self.selectedStudy=(data["data"] as? [[String:Any]] ?? []).first.map(Record.init)
+    }}
+    /// The catalog snapshot bundled with this release, from catalog.json.
+    let catalogInfo:[String:Any]?=Bundle.main.url(forResource:"catalog",withExtension:"json").flatMap{try? Data(contentsOf:$0)}.flatMap{try? JSONSerialization.jsonObject(with:$0) as? [String:Any]}
+    private static let catalogChunk=50000
+    func runAll(){work("Opening the research catalog"){
         guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
+        // Rust streams the bundled snapshot straight from the app bundle.
+        guard let path=Bundle.main.path(forResource:"catalog",ofType:"zst") else{throw Core.Failure(message:"The research catalog is missing from this build")}
         self.markDataChanged()
-        let pageSize=5000
-        var offset=0,processed=0,matches=0,finished=false
         let now=ISO8601DateFormatter().string(from:Date())
-        while !finished {
+        let started=Date();var refreshed=started
+        let catalog=try await Task.detached{try Core.catalogOpen(path)}.value
+        let handle=catalog["handle"] as? Int ?? 0;let total=catalog["rows"] as? Int ?? 0
+        defer{Core.catalogClose(handle)}
+        // Merge each chunk's matches by study ID; re-reading every saved result per chunk wastes memory.
+        var merged=self.results;var positions=Dictionary(uniqueKeysWithValues:merged.enumerated().map{($1.id,$0)})
+        var matched=Set<Int>();var processed=0;var complete=false
+        while true {
             try Task.checkCancellation()
-            let start=offset
-            // Three bounded requests overlap latency; commit pages in catalog order.
-            let pages=try await withThrowingTaskGroup(of:(Int,[[String:Any]]).self) { group in
-                for index in 0..<3 {
-                    group.addTask {
-                        let page=try await self.api("/api/studies?fetchAll=true&searchMode=exact&excludeLowQuality=false&excludeMissingGenotype=false&limit=\(pageSize)&offset=\(start+index*pageSize)")
-                        return (index,page["data"] as? [[String:Any]] ?? [])
-                    }
-                }
-                var output:[(Int,[[String:Any]])]=[]
-                for try await page in group{output.append(page)}
-                return output.sorted{$0.0<$1.0}.map{$0.1}
+            let session=self.session
+            let size=Self.catalogChunk
+            let chunk=try await Task.detached{try Core.catalogAnalyzeNext(handle,session,size,now)}.value
+            for raw in chunk["matches"] as? [[String:Any]] ?? []{
+                let record=Record(raw:raw);matched.insert(record.id)
+                if let index=positions[record.id]{merged[index]=record}else{positions[record.id]=merged.count;merged.append(record)}
             }
-            for rows in pages {
-                try Task.checkCancellation()
-                if rows.isEmpty{finished=true;break}
-                self.markDataChanged()
-                let input:[String:Any]=["session":self.session,"studies":rows,"strict":true,"now":now]
-                let count=try await Task.detached{try Core.call("session_analyze_count",input) as! Int}.value
-                self.markDataChanged();processed+=rows.count;matches+=count
-                self.status="Analyzed \(processed) studies • \(matches) matches"
-                if rows.count<pageSize{finished=true;break}
-            }
-            offset+=pageSize*3
+            self.markDataChanged();processed+=chunk["rows"] as? Int ?? 0
+            let elapsed=Int(Date().timeIntervalSince(started))
+            self.progress=total>0 ? Double(processed)/Double(total) : nil
+            self.status="Analyzed \(processed.formatted()) of \(total.formatted()) studies (\(total>0 ? processed*100/total : 0)%) • \((chunk["saved"] as? Int ?? merged.count).formatted()) matches • \(elapsed/60):\(String(format:"%02d",elapsed%60)) elapsed"
+            // Matches appear while the run continues.
+            if Date().timeIntervalSince(refreshed)>3{self.results=merged;refreshed=Date()}
+            if chunk["done"] as? Bool==true{complete=true;break}
         }
-        try self.refreshResults()
+        // A complete run also drops results the bundled catalog no longer produces, as the core did.
+        self.results=complete ? merged.filter{matched.contains($0.id)} : merged
+        let seconds=Int(Date().timeIntervalSince(started))
+        self.notice="Run all finished in \(seconds/60):\(String(format:"%02d",seconds%60)). Analyzed \(processed.formatted()) studies from research catalog \(catalog["version"] as? String ?? "") and saved \(self.results.count.formatted()) matches."
     }}
     func clear(){lockData()}
     func exportResults() throws -> String{try Core.string("session_export",["session":session])}
@@ -306,7 +322,7 @@ import UIKit
             let snapshot=try Core.string("open",encrypted);_=try Core.call("session_restore",["session":self.session,"snapshot":snapshot]);self.markDataChanged();try await self.flushData()
         }
         self.metadata=try Core.object("session_metadata",["session":self.session]);try self.refreshResults()
-        self.storageMessage="Saved on device • \(await self.dataVault.protection)"
+        self.storageMessage="Saved securely on this device";self.protection=await self.dataVault.protection
     }}
     func deleteVault(){work("Deleting saved data"){
         self.autosave?.cancel();await self.autosave?.value;self.syncTask?.cancel();await self.syncTask?.value

@@ -60,6 +60,15 @@ yarn-error.log*
 
 # Kotlin compiler workspace cache
 apps/android/.kotlin/
+# Android Studio project settings for apps/android
+/apps/android/.idea/
 
 apps/ios/*.xcresult/
 apps/ios/test-attachments/
+
+# Database connection files (for example .uat-db or .prod-db) hold credentials.
+/.*-db
+# Catalog snapshots are uploaded to the Space; only catalog/snapshot.json is committed.
+/catalog/dist/
+/apps/android/app/src/main/assets/catalog.zst
+/apps/android/app/src/main/assets/catalog.json

@@ -11,6 +11,14 @@ object Core {
         check(response.getBoolean("ok")) { response.optString("error","File import failed") }
         return response.getJSONObject("value")
     }
+    private fun envelope(response: String, failure: String): JSONObject {
+        val value=JSONObject(response)
+        check(value.getBoolean("ok")) { value.optString("error",failure) }
+        return value.getJSONObject("value")
+    }
+    fun catalogOpen(path: String)=envelope(com.monadicdna.explorer.core.catalogOpen(path),"Unable to open the research catalog")
+    fun catalogAnalyzeNext(handle: Long, session: Long, maxRows: Int, now: String)=envelope(com.monadicdna.explorer.core.catalogAnalyzeNext(handle.toULong(),session.toULong(),maxRows.toUInt(),now),"Unable to analyze the research catalog")
+    fun catalogClose(handle: Long)=com.monadicdna.explorer.core.catalogClose(handle.toULong())
     fun persistSession(session:Long,key:ByteArray,id:String,revision:Long,nonce:ByteArray,customization:String):JSONObject {
         val response=JSONObject(com.monadicdna.explorer.core.persistSession(session.toULong(),key,id,revision.toULong(),nonce,customization))
         check(response.getBoolean("ok")){response.optString("error","Unable to encrypt data")};return response.getJSONObject("value")

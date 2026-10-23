@@ -2,6 +2,16 @@ import Foundation
 
 enum Core {
     struct Failure: LocalizedError { let message: String; var errorDescription: String? { message } }
+    private static func envelope(_ response:String,_ failure:String)throws->[String:Any]{
+        guard let envelope=try JSONSerialization.jsonObject(with:Data(response.utf8)) as? [String:Any] else{throw Failure(message:"Invalid core response")}
+        guard envelope["ok"] as? Bool == true else{throw Failure(message:envelope["error"] as? String ?? failure)}
+        guard let value=envelope["value"] as? [String:Any] else{throw Failure(message:failure)}
+        return value
+    }
+    // Wrappers are named differently from the generated globals so Swift does not shadow them.
+    static func catalogOpen(_ path:String)throws->[String:Any]{try envelope(Explorer.catalogOpen(path:path),"Unable to open the research catalog")}
+    static func catalogAnalyzeNext(_ handle:Int,_ session:Int,_ maxRows:Int,_ now:String)throws->[String:Any]{try envelope(Explorer.catalogAnalyzeNext(handle:UInt64(handle),session:UInt64(session),maxRows:UInt32(maxRows),now:now),"Unable to analyze the research catalog")}
+    static func catalogClose(_ handle:Int){Explorer.catalogClose(handle:UInt64(handle))}
     static func importFile(_ session:Int,_ bytes:Data,_ name:String)throws->[String:Any]{
         let response=importGenotype(session:UInt64(session),bytes:bytes,fileName:name)
         guard let envelope=try JSONSerialization.jsonObject(with:Data(response.utf8)) as? [String:Any] else{throw Failure(message:"Invalid core response")}

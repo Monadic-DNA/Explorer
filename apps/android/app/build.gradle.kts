@@ -19,11 +19,16 @@ android {
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    // The bundled catalog snapshot is already zstd-compressed.
+    androidResources { noCompress += "zst" }
     testOptions.unitTests.all {
         it.systemProperty("jna.library.path", rootProject.file("../../target/release").absolutePath)
         it.systemProperty("explorer.sample.dir", rootProject.file("../../.test-data/public-sample").absolutePath)
     }
 }
+// scripts/build-native.mjs places the catalog snapshot pinned in catalog/snapshot.json.
+val catalogAsset = file("src/main/assets/catalog.zst")
+tasks.named("preBuild") { doFirst { check(catalogAsset.exists()) { "Missing bundled research catalog. Run: node scripts/build-native.mjs android <abi>" } } }
 dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.8.7")

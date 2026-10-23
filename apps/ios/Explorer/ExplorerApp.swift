@@ -10,6 +10,18 @@ import UniformTypeIdentifiers
         .onChange(of:scenePhase) { _, phase in if phase == .background { store.backgroundLock() } } } }
 }
 
+// Sheets cover the root view, so each presentation shows its own error and notice alerts.
+struct ExplorerMessages: ViewModifier {
+    @EnvironmentObject var store:ExplorerStore
+    func body(content:Content)->some View {
+        content
+            .alert("Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){Button("OK"){store.error=nil}}message:{Text(store.error ?? "")}
+            .alert("Done",isPresented:Binding(get:{store.notice != nil && store.error == nil},set:{if !$0{store.notice=nil}})){Button("OK"){store.notice=nil}}message:{Text(store.notice ?? "")}
+    }
+}
+
+private func effectNumber(_ value:Double)->String{value.formatted(.number.precision(.significantDigits(1...3)))}
+
 struct TextExport: FileDocument {
     static var readableContentTypes:[UTType] { [.data] }
     var data:Data
@@ -29,21 +41,21 @@ struct ExplorerView: View {
     @State private var vaultPassword=""
     func startImport(_ kind:String){importKind=kind;importing=true}
     func export(_ name:String,_ text:String){exportName=name;exportDocument=TextExport(text);exporting=true}
-    private var storageStatus:some View { HStack { Text(store.storageMessage).font(.caption); Spacer();
+    private var storageStatus:some View { HStack { Text(store.variantCount>0 && store.dataUnlocked ? "\(store.variantCount.formatted()) variants • \(store.storageMessage)" : store.storageMessage).font(.caption); Spacer();
                 if store.dataUnlocked { Button("Lock data",action:store.lockData).disabled(store.busy) }
                 else { Button("Unlock data",action:store.unlockSavedData).disabled(store.busy) }
             }.padding(.horizontal).padding(.vertical,8) }
     var body: some View {
         VStack(spacing:0){
             storageStatus
-            if store.busy{HStack{ProgressView();Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();Button("Cancel",action:store.cancel)}.padding()}
+            if store.busy{HStack{if let progress=store.progress{ProgressView(value:progress).frame(width:60)}else{ProgressView()};Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();if store.cancellable{Button("Cancel",action:store.cancel)}}.padding()}
             TabView(selection:$selectedTab){
-                NavigationStack{HomeView(importDNA:{startImport("dna")},browse:{selectedTab=1})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
+                NavigationStack{HomeView(importDNA:{startImport("dna")},browse:{selectedTab=1},results:{selectedTab=2})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
                 NavigationStack{BrowseView()}.tabItem{Label("Browse",systemImage:"magnifyingglass")}.tag(1)
                 NavigationStack{ResultsView(export:export,importResults:{startImport("results")})}.tabItem{Label("Results",systemImage:"list.bullet")}.tag(2)
-                NavigationStack{ChatView()}.tabItem{Label("Chat",systemImage:"bubble.left.and.bubble.right")}.tag(3)
+                NavigationStack{ChatView(openSettings:{selectedTab=4})}.tabItem{Label("Chat",systemImage:"bubble.left.and.bubble.right")}.tag(3)
                 NavigationStack{List{
-                    VaultArt(name:"vault").listRowBackground(Color.clear)
+                    VaultArt(name:"discover").listRowBackground(Color.clear)
                     NavigationLink("Reports"){ReportsView(export:export)}
                     NavigationLink("On-device vault"){VaultView(password:$vaultPassword,importDNA:{startImport("dna")},importVault:{startImport("vault")},export:export)}
                     NavigationLink("Connection and provider settings"){SettingsView()}
@@ -52,8 +64,8 @@ struct ExplorerView: View {
                 }.vaultScreen().navigationTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
             }
         }
-        .sheet(item:$store.selectedStudy){record in NavigationStack{StudyView(record:record).toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){store.selectedStudy=nil}}}}}
-        .alert("Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){Button("OK"){store.error=nil}}message:{Text(store.error ?? "")}
+        .sheet(item:$store.selectedStudy){record in NavigationStack{StudyView(record:record).toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){store.selectedStudy=nil}}}}.modifier(ExplorerMessages()).environmentObject(store)}
+        .modifier(ExplorerMessages())
         .fileImporter(isPresented:$importing,allowedContentTypes:[.data]){result in
             switch result{
             case .success(let url):
@@ -69,12 +81,20 @@ struct HomeView:View{
     @EnvironmentObject var store:ExplorerStore
     var importDNA:()->Void
     var browse:()->Void
+    var results:()->Void
     var body:some View{ScrollView{VStack(alignment:.leading,spacing:20){
         VaultHero()
-        Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
-        Button("Import your DNA",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!store.acceptedDisclaimer)
+        if store.variantCount==0 {
+            Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
+            Button("Import your DNA",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!store.acceptedDisclaimer)
+            if !store.acceptedDisclaimer{Text("Turn on the switch above to enable import.").font(.footnote).foregroundStyle(.secondary)}
+        } else if store.results.isEmpty {
+            Button("Run all studies"){results();store.runAll()}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
+        } else {
+            Button("View \(store.results.count.formatted()) matches",action:results).buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
+        }
         Button("Browse studies",action:browse).buttonStyle(.bordered).buttonBorderShape(.capsule)
-        Text("\(store.variantCount) variants • \(store.results.count) saved study matches")
+        Text(store.variantCount>0 ? "\(store.variantCount.formatted()) variants • \(store.results.count.formatted()) saved study matches" : store.dataUnlocked ? "No DNA imported yet." : "Unlock your saved data or import a raw DNA file to begin.")
         if !store.results.isEmpty,let insight=try? Core.object("preview_insight",store.results.map(\.raw)){
             Text(insight["headline"] as? String ?? "").font(.custom("SpaceGrotesk-Bold",size:17,relativeTo:.headline))
             Text("\(insight["protectiveCount"] as? Int ?? 0) protective associations • \(insight["elevatedCount"] as? Int ?? 0) elevated associations")
@@ -96,7 +116,7 @@ struct BrowseView:View{
             Toggle("Semantic search",isOn:$semantic)
             Button("Search"){offset=0;store.browse(query,trait,semantic:semantic)}.disabled(store.busy)
         }.frame(height:230)
-        List(store.studies){study in Button{store.selectedStudy=study}label:{VStack(alignment:.leading,spacing:6){Text(study.text("disease_trait")).font(.custom("SpaceGrotesk-Bold",size:17,relativeTo:.headline));Text(study.text("study")).font(.custom("SpaceGrotesk-Regular",size:15,relativeTo:.subheadline)).foregroundStyle(.secondary);Text("\(study.text("study_accession")) • \(study.text("confidenceBand","Research finding"))").font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))}}.tint(.primary)}
+        List(store.studies){study in Button{store.selectedStudy=study}label:{VStack(alignment:.leading,spacing:6){Text(study.text("disease_trait")).font(.custom("SpaceGrotesk-Bold",size:17,relativeTo:.headline));Text(study.text("study")).font(.custom("SpaceGrotesk-Regular",size:15,relativeTo:.subheadline)).foregroundStyle(.secondary);Text([study.text("strongest_snp_risk_allele"),study.text("study_accession"),study.text("confidenceBand","Research finding")].filter{!$0.isEmpty}.joined(separator:" • ")).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))}}.tint(.primary)}
         HStack{Button("Previous"){offset=max(0,offset-50);store.browse(query,trait,semantic:semantic,offset:offset)}.disabled(offset==0||store.busy);Spacer();Button("Next"){offset+=50;store.browse(query,trait,semantic:semantic,offset:offset)}.disabled(store.studies.isEmpty||store.busy)}.padding()
     }.vaultScreen().navigationTitle("Browse research")}
 }
@@ -104,11 +124,17 @@ struct BrowseView:View{
 struct StudyView:View{
     @EnvironmentObject var store:ExplorerStore
     let record:Record
+    private var hasDNA:Bool{store.dataUnlocked && store.variantCount>0}
+    private var effectLabel:String{((try? Core.object("effect",["value":record.text("or_or_beta"),"ci":record.text("ci_text")]))?["effectType"] as? String)=="beta" ? "Beta (trait change)" : "Odds ratio"}
     var body:some View{List{
-        Section{Text(record.text("disease_trait")).font(VaultStyle.heading(24));Text(record.text("study"));Button("Match my DNA on device"){store.analyze(record)}.disabled(store.busy)}
+        Section{
+            Text(record.text("disease_trait")).font(VaultStyle.heading(24));Text(record.text("study"))
+            Button("Match my DNA on device"){store.analyze(record)}.disabled(store.busy || !hasDNA)
+            if !hasDNA{Text(store.dataUnlocked ? "Import your DNA in More → On-device vault to match this study." : "Unlock your saved data to match this study.").font(.footnote).foregroundStyle(.secondary)}
+        }
         if let result=store.results.first(where:{$0.id==record.id}){Section("Your match"){ResultView(record:result)}}
         Section("Research details"){
-            ForEach([("study_accession","Accession"),("mapped_gene","Genes"),("snps","Variants"),("strongest_snp_risk_allele","Risk allele"),("or_or_beta","OR / beta"),("ci_text","Effect interval"),("p_value","P-value"),("initial_sample_size","Discovery sample"),("replication_sample_size","Replication sample"),("first_author","Author"),("journal","Journal"),("date","Publication date")],id:\.0){key,label in
+            ForEach([("study_accession","Accession"),("mapped_gene","Genes"),("snps","Variants"),("strongest_snp_risk_allele","Risk allele"),("or_or_beta",effectLabel),("ci_text","Effect interval"),("p_value","P-value"),("initial_sample_size","Discovery sample"),("replication_sample_size","Replication sample"),("first_author","Author"),("journal","Journal"),("date","Publication date")],id:\.0){key,label in
                 if !record.text(key).isEmpty{LabeledContent(label,value:record.text(key))}
             }
         }
@@ -125,8 +151,8 @@ struct ResultView:View{
         VStack(alignment: .leading, spacing: 10) {
             Image("vault_star").resizable().scaledToFit().frame(width:28,height:28).accessibilityHidden(true)
             Text(record.text("traitName")).font(VaultStyle.cardTitle).fixedSize(horizontal:false, vertical:true)
-            Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType","OR")) \(record.number("riskScore"),specifier:"%.3f")")
-            Text(record.text("riskLevel"))
+            Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType")=="beta" ? "Beta" : "OR") \(effectNumber(record.number("riskScore")))")
+            Label(record.text("riskLevel").capitalized,systemImage:record.text("riskLevel")=="increased" ? "arrow.up" : record.text("riskLevel")=="decreased" ? "arrow.down" : "circle").font(VaultStyle.body().bold())
             Text(evidence).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))
         }
         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
@@ -141,15 +167,34 @@ struct ResultsView:View{
     var export:(String,String)->Void
     var importResults:()->Void
     @State private var filter=""
+    @State private var direction="All"
+    @State private var sort="Catalog order"
+    private var shown:[Record]{
+        let rows=store.results.filter{(filter.isEmpty||$0.text("traitName").localizedCaseInsensitiveContains(filter))&&(direction=="All"||$0.text("riskLevel").caseInsensitiveCompare(direction) == .orderedSame)}
+        func size(_ r:Record)->Double{r.text("effectType")=="beta" ? abs(r.number("riskScore")) : abs(log(max(r.number("riskScore"),1e-9)))}
+        switch sort{
+        case "Effect size":return rows.sorted{size($0)>size($1)}
+        case "P-value":return rows.sorted{$0.number("pValueMlog")>$1.number("pValueMlog")}
+        default:return rows
+        }
+    }
     var body:some View{List{
         Section{
-            Text("\(store.results.count) saved study matches")
-            Button("Run all studies",action:store.runAll).disabled(store.busy)
+            Text("\(store.results.count.formatted()) saved study matches").font(VaultStyle.heading(20))
+            Button("Run all studies",action:store.runAll).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy||store.variantCount==0)
             Button("Export results as TSV"){do{export("monadic-results.tsv",try store.exportResults())}catch{store.error=error.localizedDescription}}.disabled(store.results.isEmpty)
             Button("Import saved results",action:importResults)
-            TextField("Filter saved traits",text:$filter)
+            if let info=store.catalogInfo{Text("Research catalog \(info["version"] as? String ?? "") • \((info["rows"] as? Int ?? 0).formatted()) studies • bundled with this app").font(.footnote)}
+            if store.results.isEmpty {
+                Text(!store.dataUnlocked ? "Unlock your saved data to see saved matches." : store.variantCount==0 ? "Import a raw DNA file in More → On-device vault first. Then Run all studies compares it with the research catalog on this device." : "Choose Run all studies to compare your DNA with the research catalog bundled with this app. Matching runs on this device and takes under a minute.").foregroundStyle(.secondary)
+            } else {
+                TextField("Filter saved traits",text:$filter)
+                Picker("Direction",selection:$direction){ForEach(["All","Increased","Decreased"],id:\.self){Text($0)}}.pickerStyle(.segmented)
+                Picker("Sort by",selection:$sort){ForEach(["Catalog order","Effect size","P-value"],id:\.self){Text($0)}}
+                if shown.count != store.results.count{Text("Showing \(shown.count.formatted()) of \(store.results.count.formatted())").font(.footnote)}
+            }
         }
-        ForEach(store.results.filter{filter.isEmpty||$0.text("traitName").localizedCaseInsensitiveContains(filter)}){record in ResultView(record:record)}
+        ForEach(shown){record in Button{store.loadStudy(record.id)}label:{ResultView(record:record)}.buttonStyle(.plain).listRowBackground(Color.clear).listRowSeparator(.hidden)}
     }.vaultScreen().navigationTitle("Your results")}
 }
 
@@ -159,9 +204,13 @@ struct ProviderConsent:View{
 }
 struct ChatView:View{
     @EnvironmentObject var store:ExplorerStore
+    var openSettings:()->Void
     @State private var message=""
-    var body:some View{VStack{
-        ProviderConsent().padding()
+    private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
+    var body:some View{VStack(alignment:.leading){
+        HStack{Text("Provider: \(providerName) • \(store.model)").font(.footnote);Spacer();Button("Change",action:openSettings)}.padding(.horizontal)
+        ProviderConsent().padding(.horizontal)
+        if store.messages.isEmpty{Text(store.results.isEmpty ? "Chat answers questions about your saved matches. Run all studies in Results first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matched results go only to the provider shown." : "Ask a question about your matched findings, for example which traits have the strongest evidence.").foregroundStyle(.secondary).padding(.horizontal)}
         List(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){Text(item.element.0).font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)}}
         HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder);Button("Send"){store.sendChat(message);message=""}.disabled(store.busy||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
     }.vaultScreen().navigationTitle("DNA chat")}
@@ -206,9 +255,10 @@ struct VaultView:View{
     private var localData:some View {
         Section("On-device genetic data"){
             Text("DNA, results and customization are saved automatically in an encrypted vault after device authentication. Locking clears your decrypted session.")
-            Text(store.storageMessage)
+            Text(store.dataUnlocked ? "Key protection: \(store.protection)" : "Locked. Your data stays encrypted until you unlock it.").font(.footnote)
             Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
             Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(!store.acceptedDisclaimer||store.busy)
+            if !store.acceptedDisclaimer{Text("Turn on the switch above to enable import.").font(.footnote).foregroundStyle(.secondary)}
             Button(store.dataUnlocked ? "Lock saved data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
     }

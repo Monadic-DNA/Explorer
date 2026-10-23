@@ -35,11 +35,11 @@ class DeviceAuthentication(private val activity:FragmentActivity) {
                     override fun onAuthenticationError(code:Int,message:CharSequence){pending=null;if(continuation.isActive)continuation.resumeWithException(IllegalStateException("Device authentication was not completed."))}
                 })
                 continuation.invokeOnCancellation{pending=null;prompt.cancelAuthentication()}
-                prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Unlock your saved data").setSubtitle("Protect your DNA, results and customization")
+                prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Confirm it's you").setSubtitle("Explorer needs this to open or save your encrypted DNA, results and customization")
                     .setAllowedAuthenticators(Authenticators.BIOMETRIC_STRONG or Authenticators.DEVICE_CREDENTIAL).build())
             } else {
                 continuation.invokeOnCancellation{pending=null}
-                credential.launch(keyguard.createConfirmDeviceCredentialIntent("Unlock your saved data","Protect your DNA, results and customization"))
+                credential.launch(keyguard.createConfirmDeviceCredentialIntent("Confirm it's you","Explorer needs this to open or save your encrypted DNA, results and customization"))
             }
         }
     }

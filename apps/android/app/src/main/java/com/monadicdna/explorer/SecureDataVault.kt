@@ -114,8 +114,11 @@ class SecureDataVault(
         }}
     }
     suspend fun save(session:Long,customization:JSONObject)=withContext(Dispatchers.IO){mutex.withLock {
-        val current=JSONObject(requireNotNull(record){"Unlock your saved data first."}.toString())
-        val envelope=current.getJSONObject("envelope")
+        // Shallow copy: the large encrypted envelope is replaced, and only the small sync object changes.
+        val previous=requireNotNull(record){"Unlock your saved data first."}
+        val current=JSONObject(previous,previous.keys().asSequence().toList().toTypedArray())
+        current.put("sync",JSONObject(previous.getJSONObject("sync").toString()))
+        val envelope=previous.getJSONObject("envelope")
         current.put("envelope",Core.persistSession(session,requireNotNull(key),envelope.getString("vaultId"),envelope.getLong("revision")+1,randomBytes(12),customization.toString()))
         current.getJSONObject("sync").put("dirty",true)
         write(current)

@@ -45,6 +45,11 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var busy by mutableStateOf(false)
     var status by mutableStateOf("")
     var error by mutableStateOf<String?>(null)
+    var notice by mutableStateOf<String?>(null)
+    var progress by mutableStateOf<Float?>(null)
+        private set
+    // Set while an in-app document picker is open so its activity does not lock the vault.
+    var pickingFile=false
     var report by mutableStateOf("")
     var reportTitle by mutableStateOf("")
     var reportQuestions by mutableStateOf(emptyList<String>())
@@ -90,7 +95,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val restored=dataVault.unlock(session){requireNotNull(authenticate){"Open the app to unlock your saved data."}.invoke()}
         restoreCustomization(restored)
         metadata=Core.obj("session_metadata",json("session" to session));refreshResults()
-        dataUnlocked=true;storageMessage="Saved on device • ${dataVault.protection}"
+        dataUnlocked=true;storageMessage="Saved securely on this device"
         if(!hadData) {
             val legacy=store.get("profile-fields").ifBlank{"{}"}
             restoreCustomization(json("fields" to JSONObject(legacy),"context" to store.get("profile")))
@@ -111,7 +116,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         dataVault.save(session,custom)
         lastCustomization=custom.toString()
         if(version==dataVersion)dataDirty=false
-        storageMessage=if(dataDirty)"Saving securely…" else "Saved on device • ${dataVault.protection}"
+        storageMessage=if(dataDirty)"Saving securely…" else "Saved securely on this device"
         queueSync()
     }
     private fun wipeMemory() {
@@ -129,7 +134,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             dataVault.lock();wipeMemory();storageMessage="Your saved data is locked.";locking=false
         }
     }
-    fun backgroundLock(){if(dataUnlocked)lockData()}
+    fun backgroundLock(){if(dataUnlocked&&!pickingFile)lockData()}
     private fun queueSync() {
         if(!dataUnlocked || locking)return
         if(syncJob?.isActive==true){syncAgain=true;return}
@@ -205,17 +210,19 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         if (busy) return
         if(syncing){error="Encrypted sync is in progress. Please retry in a moment.";return}
         task = viewModelScope.launch {
-            busy=true; status=label; error=null
-            try { block(); status="Complete" }
-            catch (cancelled: CancellationException) { status="Cancelled"; throw cancelled }
+            busy=true; status=label; error=null; notice=null; progress=null
+            try { block(); status="Saving securely…" }
+            catch (cancelled: CancellationException) { status="Cancelled. Saving what was completed…"; throw cancelled }
             catch (e: Exception) { error=e.message ?: "Operation failed" }
             finally {
                 try{if(dataUnlocked && dataDirty)withContext(NonCancellable){flushData()}}catch(e:Exception){storageMessage="Changes not saved. Please retry.";error=e.message}
-                busy=false
+                busy=false; progress=null
             }
         }
     }
     fun cancel() { task?.cancel() }
+    // Once the operation has finished or was cancelled, only the final save remains.
+    val cancellable get()=task?.isActive==true&&!status.startsWith("Cancelled")&&status!="Saving securely…"
     private fun checkedBackend(): String {
         val uri=Uri.parse(backend)
         require(uri.scheme=="https" || (BuildConfig.DEBUG && uri.scheme=="http" && uri.host in listOf("localhost","127.0.0.1","10.0.2.2"))) { "Use an HTTPS backend (debug builds also allow the local emulator host)." }
@@ -268,6 +275,8 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val importSession=session
         metadata=withContext(Dispatchers.Default) { Core.importGenotype(importSession,bytes,name) }
         results=emptyList();markDataChanged()
+        val format=formatNames[metadata.optString("detectedFormat")]?.let{" from $it"}.orEmpty()
+        notice="Imported ${metadata.optInt("count").grouped()} variants$format. Open Results and choose Run all studies to match them against the research catalog."
     }
     suspend fun refreshResults() { results=withContext(Dispatchers.Default) { Core.arr("session_results",json("session" to session)).objects() } }
     fun analyze(study: JSONObject) = run("Analyzing on device") {
@@ -275,37 +284,59 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         markDataChanged()
         withContext(Dispatchers.Default) { Core.arr("session_analyze",json("session" to session,"studies" to JSONArray().put(study),"now" to Instant.now().toString())) }
         markDataChanged();refreshResults()
-        if(results.none { it.optInt("studyId")==study.optInt("id") }) status="No matching called risk variant in this study"
+        notice=if(results.none { it.optInt("studyId")==study.optInt("id") }) "Your DNA has no called genotype for this study's risk variant." else "Match saved to Results."
     }
-    fun runAll() = run("Analyzing catalog on device") {
+    /** The catalog snapshot bundled with this release, from assets/catalog.json. */
+    val catalogInfo: JSONObject? = runCatching{JSONObject(app.assets.open("catalog.json").bufferedReader().use{it.readText()})}.getOrNull()
+    fun runAll() = run("Opening the research catalog") {
         require(dataUnlocked && metadata.optInt("count")>0) { "Unlock or import your DNA first." }
         markDataChanged()
-        val pageSize=5000
-        val concurrency=3
-        var offset=0;var processed=0;var matches=0;var finished=false
         val now=Instant.now().toString()
-        while(!finished) {
-            ensureActiveTask()
-            val start=offset
-            coroutineScope {
-                // Bounded prefetch overlaps network latency and the Rust CPU pool.
-                val pages=(0 until concurrency).map { index->async {api("/api/studies?fetchAll=true&searchMode=exact&excludeLowQuality=false&excludeMissingGenotype=false&limit=$pageSize&offset=${start+index*pageSize}")} }
-                try {
-                    for(page in pages) {
-                        val batch=page.await().getJSONArray("data")
-                        if(batch.length()==0){finished=true;break}
-                        markDataChanged()
-                        matches+=withContext(Dispatchers.Default){(Core.call("session_analyze_count",json("session" to session,"studies" to batch,"strict" to true,"now" to now)) as Number).toInt()}
-                        markDataChanged();processed+=batch.length();status="Analyzed $processed studies • $matches matches"
-                        if(batch.length()<pageSize){finished=true;break}
-                    }
-                } finally {pages.forEach {if(it.isActive)it.cancel()} }
+        val started=System.currentTimeMillis();var refreshed=started
+        val timing=RunTiming()
+        val catalog=withContext(Dispatchers.Default){Core.catalogOpen(catalogFile().path)}
+        val handle=catalog.getLong("handle");val total=catalog.getInt("rows")
+        // Merge each chunk's matches by study ID; re-reading every saved result per chunk exhausts memory.
+        val merged=LinkedHashMap<Int,JSONObject>().apply{results.forEach{put(it.optInt("studyId"),it)}}
+        val matched=HashSet<Int>()
+        var processed=0;var complete=false
+        try {
+            while(true) {
+                ensureActiveTask()
+                val mark=System.nanoTime()
+                val chunk=withContext(Dispatchers.Default){Core.catalogAnalyzeNext(handle,session,CATALOG_CHUNK,now)}
+                timing.core+=System.nanoTime()-mark
+                chunk.getJSONArray("matches").objects().forEach{val id=it.optInt("studyId");merged[id]=it;matched+=id}
+                markDataChanged();processed+=chunk.getInt("rows")
+                val elapsed=(System.currentTimeMillis()-started)/1000
+                progress=if(total>0)processed.toFloat()/total else null
+                status="Analyzed ${processed.grouped()} of ${total.grouped()} studies (${if(total>0)processed*100/total else 0}%) • ${chunk.getInt("saved").grouped()} matches • ${elapsed/60}:${"%02d".format(elapsed%60)} elapsed"
+                if(BuildConfig.DEBUG)android.util.Log.d("RunAll",timing.line(processed,System.currentTimeMillis()-started))
+                // Publishing copies references only, so matches appear while the run continues.
+                if(System.currentTimeMillis()-refreshed>3000){results=merged.values.toList();refreshed=System.currentTimeMillis()}
+                if(chunk.getBoolean("done")){complete=true;break}
             }
-            offset+=pageSize*concurrency
-        }
-        refreshResults()
+        } finally { Core.catalogClose(handle) }
+        // Same order and last-write-wins semantics as the session, without a second full copy.
+        // A complete run also drops results the bundled catalog no longer produces, as the core did.
+        results=merged.values.filter{!complete||it.optInt("studyId") in matched}
+        val seconds=(System.currentTimeMillis()-started)/1000
+        notice="Run all finished in ${seconds/60}:${"%02d".format(seconds%60)}. Analyzed ${processed.grouped()} studies from research catalog ${catalog.getString("version")} and saved ${results.size.grouped()} matches."
     }
     private suspend fun ensureActiveTask() { currentCoroutineContext().ensureActive() }
+    // Rust streams the snapshot from a real file, so the asset is copied out of the APK once per catalog version.
+    private suspend fun catalogFile()=withContext(Dispatchers.IO){
+        val app=getApplication<Application>()
+        val dir=java.io.File(app.noBackupFilesDir,"catalog").apply{mkdirs()}
+        val file=java.io.File(dir,"${catalogInfo?.optString("version")?:"bundled"}.zst")
+        if(!file.exists()){
+            val part=java.io.File(dir,file.name+".part")
+            app.assets.open("catalog.zst").use{input->part.outputStream().use{input.copyTo(it)}}
+            check(part.renameTo(file)){"Unable to prepare the research catalog."}
+        }
+        dir.listFiles()?.filter{it!=file}?.forEach{it.delete()}
+        file
+    }
     fun clear(){lockData()}
     fun exportResults(): String = Core.call("session_export",json("session" to session)) as String
     fun importResults(content: String, name: String) = run("Importing results") { importResultsData(content, name) }
@@ -325,7 +356,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             val snapshot=withContext(Dispatchers.Default){Core.call("open",archive.put("password",password)) as String}
             Core.call("session_restore",json("session" to session,"snapshot" to snapshot));markDataChanged();flushData()
         }
-        metadata=Core.obj("session_metadata",json("session" to session));refreshResults();storageMessage="Saved on device • ${dataVault.protection}"
+        metadata=Core.obj("session_metadata",json("session" to session));refreshResults();storageMessage="Saved securely on this device"
     }
     fun deleteVault()=run("Deleting saved data"){
         autosave?.cancelAndJoin();syncJob?.cancelAndJoin();dataVault.delete();getApplication<Application>().deleteFile("vault.json");dataDirty=false;wipeMemory();storageMessage="Local saved data deleted."
@@ -427,3 +458,15 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     }
 
 }
+
+fun Int.grouped():String=String.format(java.util.Locale.getDefault(),"%,d",this)
+
+private val formatNames=mapOf("23andme" to "23andMe","ancestrydna" to "AncestryDNA","myheritage" to "MyHeritage","ftdna" to "FamilyTreeDNA","livingdna" to "LivingDNA","mapmygenome" to "Mapmygenome","monadic" to "Monadic DNA")
+
+// Debug instrumentation for Run All: cumulative nanoseconds spent matching in Rust.
+private class RunTiming { var core=0L
+    fun line(processed:Int,elapsed:Long)="studies=$processed elapsed=${elapsed}ms rust=${core/1_000_000}ms"
+}
+
+// Rows per Run all chunk: large enough to use the Rust thread pool, small enough for prompt progress and Cancel.
+private const val CATALOG_CHUNK=50000

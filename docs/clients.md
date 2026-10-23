@@ -17,7 +17,7 @@ Normal operations on all hosts use the same versioned JSON protocol: `{version:1
 
 The web adapter (`lib/core.ts`) loads an import-free WASM module synchronously, including in workers and server rendering. Existing TypeScript functions retain their public signatures and delegate domain work to Rust. Kotlin and Swift call the same entry point through generated UniFFI bindings, using a native shared/static library respectively. Generated bindings, WASM source, native libraries, and Xcode projects are ignored and regenerated from the locked Rust workspace.
 
-HTTP transport, provider SDK integration, cancellation, UI state, browser IndexedDB, platform file access, and OS credential storage remain in their hosts. The backend's PostgreSQL/pgvector search, authentication verification, Stripe, and blockchain services remain server-side. The web app retains its IndexedDB catalog cache and WebCrypto nonextractable device key; mobile Run All fetches catalog pages from the same API and scores on device. Native catalog browsing requires a network connection.
+HTTP transport, provider SDK integration, cancellation, UI state, browser IndexedDB, platform file access, and OS credential storage remain in their hosts. The backend's PostgreSQL/pgvector search, authentication verification, Stripe, and blockchain services remain server-side. The web app retains its IndexedDB catalog cache and WebCrypto nonextractable device key; mobile Run All matches the catalog snapshot bundled with each app release, on device and offline. Native catalog browsing and search require a network connection.
 
 ## Features
 
@@ -40,6 +40,20 @@ npm run build
 ```
 
 Keep `POSTGRES_DB` pointed at your environment's local database during development. No database credentials or server provider keys are embedded in mobile apps. CI production builds do not require database access during compilation.
+
+## Bundled research catalog
+
+Each native release bundles the research catalog snapshot pinned in `catalog/snapshot.json`; Run All reads it on device instead of paging the API. The snapshot is about 20 MB (zstd), stores study-level text once per study, and records its version, row count and SHA-256.
+
+To update it for a release:
+
+```sh
+node scripts/catalog-snapshot.mjs      # prompts for the Postgres connection string; read-only export
+s3cmd put --acl-public catalog/dist/<file>.zst s3://monadic-dna-explorer/<file>.zst
+git add catalog/snapshot.json          # catalog/dist/ is not committed
+```
+
+`CATALOG_DATABASE_URL` can supply the connection string non-interactively. The script verifies the server certificate like `lib/db.ts` (`certs/ca-certificate.crt` or `DATABASE_CA_CERT`). `scripts/build-native.mjs` places the pinned snapshot in each app: it uses `catalog/dist/` or its download cache under `target/catalog/` when the SHA-256 matches, otherwise downloads it from the Space's CDN endpoint, and fails on a mismatch. Android builds stop early if the snapshot has not been placed.
 
 ## Android
 

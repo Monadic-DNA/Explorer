@@ -8,6 +8,14 @@ pub enum Genotypes<'a> { Session(&'a HashMap<String,Value>), Json(&'a serde_json
 impl<'a> Genotypes<'a> {
     fn get(self,id:&str)->Option<&'a Value>{match self{Self::Session(values)=>values.get(id),Self::Json(values)=>values.get(id)}}
 }
+/// Strict Run all matching needs a called genotype for the risk allele's SNP that contains the
+/// risk base. Returns that SNP and genotype. The catalog reader also uses this to skip rows
+/// before building them, so both paths share one rule.
+pub(crate) fn strict_candidate<'a,'b>(allele:&'b str,genotypes:Genotypes<'a>)->Option<(&'b str,&'a str)> {
+    let mut parts=allele.split('-');let id=parts.next()?;let base=parts.next().filter(|s|!s.is_empty())?;
+    let gt=genotypes.get(id)?.as_str()?;
+    (gt.len()==2 && gt.bytes().all(|c|b"ACGT".contains(&c)) && gt.contains(base)).then_some((id,gt))
+}
 fn study(study:&Value,genotypes:Genotypes<'_>,strict:bool,now:&str)->Option<Value> {
     let snps=text(study,"snps");let allele=text(study,"strongest_snp_risk_allele");let size=text(study,"or_or_beta");
     // Most catalog rows do not match this person's DNA. Reject them before parsing
@@ -16,9 +24,7 @@ fn study(study:&Value,genotypes:Genotypes<'_>,strict:bool,now:&str)->Option<Valu
     let mut matches=serde_json::Map::new();
     if strict {
         if size.is_empty(){return None}
-        let mut parts=allele.split('-');let id=parts.next()?;let base=parts.next().filter(|s|!s.is_empty())?;
-        let gt=genotypes.get(id)?.as_str()?;
-        if gt.len()!=2 || !gt.bytes().all(|c|b"ACGT".contains(&c)) || !gt.contains(base) {return None}
+        let (id,gt)=strict_candidate(allele,genotypes)?;
         if !snps.split(|c:char|c==';'||c==','||c.is_whitespace()).any(|s|s==id){return None}
         matches.insert(id.to_string(),json!(gt));
     } else {

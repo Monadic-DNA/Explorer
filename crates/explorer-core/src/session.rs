@@ -44,6 +44,12 @@ impl Default for Session {
 }
 static SESSIONS: OnceLock<Mutex<HashMap<u64, Session>>> = OnceLock::new();
 static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+/// Read-only access to a session's genotypes for the bundled catalog's pre-filter.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn with_genotypes<R>(id: u64, f: impl FnOnce(&HashMap<String, Value>) -> R) -> Result<R, String> {
+    let sessions = SESSIONS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    Ok(f(&sessions.get(&id).ok_or("Session is closed")?.genotypes))
+}
 pub fn dispatch(op: &str, input: Value) -> Result<Value, String> {
     let mut sessions = SESSIONS
         .get_or_init(|| Mutex::new(HashMap::new()))
@@ -86,6 +92,15 @@ pub fn dispatch(op: &str, input: Value) -> Result<Value, String> {
             if op=="session_analyze_count"{Ok(json!(analyzed.len()))}else{Ok(json!(analyzed))}
         },
         "session_results"=>Ok(json!(session.results)),
+        "session_result_count"=>Ok(json!(session.results.len())),
+        "session_retain_results"=>{
+            // studyIds use the same string form as result_positions keys.
+            let keep:std::collections::HashSet<&str>=array(&input["studyIds"]).iter().filter_map(Value::as_str).collect();
+            let before=session.results.len();
+            session.results.retain(|row|keep.contains(row["studyId"].to_string().as_str()));
+            session.result_positions=result_positions(&session.results);
+            Ok(json!(before-session.results.len()))
+        },
         "session_export"=>Ok(json!(results::export(&session.results))),
         "session_import_results"=>{let value=results::import(&input)?;session.results=array(&value["results"]).to_vec();session.result_positions=result_positions(&session.results);Ok(json!(session.results.len()))},
         "session_persist"=>{

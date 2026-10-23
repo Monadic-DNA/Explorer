@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
@@ -19,7 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -34,11 +37,12 @@ class MainActivity: FragmentActivity() {
     private val model by lazy { ViewModelProvider(this)[ExplorerModel::class.java] }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        if(!BuildConfig.DEBUG)window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         deviceAuthentication=DeviceAuthentication(this)
         val weak=java.lang.ref.WeakReference(deviceAuthentication)
         model.authenticate={requireNotNull(weak.get()){ "Open the app to unlock saved data." }.authenticate()}
         intent?.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth)
+        androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).isAppearanceLightStatusBars=true
         setContent { VaultTheme { ExplorerApp(model) } }
     }
     override fun onStop() { super.onStop(); if(!isChangingConfigurations) model.backgroundLock() }
@@ -60,36 +64,41 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     var tab by remember { mutableStateOf("Home") }
     val context=LocalContext.current
     var exportContent by remember { mutableStateOf("") }
-    val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")){uri->if(uri!=null)model.run("Writing export"){kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.contentResolver.openOutputStream(uri)!!.use{it.write(exportContent.toByteArray())}};exportContent=""}}
-    val importDNA=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null){model.run("Reading DNA file"){
+    val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")){uri->model.pickingFile=false;if(uri!=null)model.run("Writing export"){kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.contentResolver.openOutputStream(uri)!!.use{it.write(exportContent.toByteArray())}};exportContent=""}}
+    val importDNA=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->model.pickingFile=false;if(uri!=null){model.run("Reading DNA file"){
         val bytes=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){readDocument(context,uri)}
         // Schedule import after this short IO operation has completed.
         model.importGenotypeData(bytes,uri.lastPathSegment?:"genotype.txt")
     }}}
-    val importResults=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)model.run("Reading results"){
+    val importResults=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->model.pickingFile=false;if(uri!=null)model.run("Reading results"){
         val content=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){readDocument(context,uri).toString(Charsets.UTF_8)}
         val name=if(uri.toString().endsWith("json"))"results.json" else "results.tsv"
         model.importResultsData(content,name)
     }}
-    fun exportText(name: String, content: String){exportContent=content;export.launch(name)}
+    fun exportText(name: String, content: String){exportContent=content;model.pickingFile=true;export.launch(name)}
+    fun selectTab(name: String){tab=name;model.error=null}
     Scaffold(
-        topBar={TopAppBar(title={Text("Explorer",style=MaterialTheme.typography.titleLarge)},actions={TextButton(onClick={tab="Vault"}){Text(if(model.metadata.optInt("count")>0)"DNA loaded" else "Import DNA")}})},
-        bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { listOf("Home","Browse","Results","Chat","More").forEachIndexed{index,name->NavigationBarItem(selected=tab==name,onClick={tab=name},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.Default.Search;2->Icons.AutoMirrored.Filled.List;3->Icons.AutoMirrored.Filled.Chat;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
+        topBar={TopAppBar(title={Text("Explorer",style=MaterialTheme.typography.titleLarge)},actions={if(model.metadata.optInt("count")==0)TextButton(onClick={selectTab("Vault")}){Text("Import DNA")}})},
+        bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { listOf("Home","Browse","Results","Chat","More").forEachIndexed{index,name->NavigationBarItem(selected=tab==name,onClick={selectTab(name)},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.Default.Search;2->Icons.AutoMirrored.Filled.List;3->Icons.AutoMirrored.Filled.Chat;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
-            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween){
-                Text(model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                val variants=model.metadata.optInt("count")
+                Text(if(variants>0&&model.dataUnlocked)"${variants.grouped()} variants • ${model.storageMessage}" else model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
                 if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}
                 else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock data")}
             }
-            if(model.busy){LinearProgressIndicator(Modifier.fillMaxWidth());Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween){Text(model.status,Modifier.weight(1f));TextButton(onClick=model::cancel){Text("Cancel")}}}
-            model.error?.let{message->Card(Modifier.padding(12.dp)){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
+            if(model.busy){model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:LinearProgressIndicator(Modifier.fillMaxWidth());Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}}
+            Messages(model)
             if(model.locking){Text("Your data is protected",Modifier.padding(24.dp))} else when(tab){
                 "Home"->ScreenColumn{
                     VaultHero()
-                    Button(onClick={tab="Vault"}){Text("Import your DNA")}
-                    OutlinedButton(onClick={tab="Browse";model.browse("","",true)}){Text("Browse studies")}
-                    Text("${model.metadata.optInt("count")} variants • ${model.results.size} saved study matches")
+                    val variants=model.metadata.optInt("count")
+                    if(variants==0)Button(onClick={selectTab("Vault")}){Text("Import your DNA")}
+                    else if(model.results.isEmpty())Button(onClick={selectTab("Results");model.runAll()},enabled=!model.busy){Text("Run all studies")}
+                    else Button(onClick={selectTab("Results")}){Text("View ${model.results.size.grouped()} matches")}
+                    OutlinedButton(onClick={selectTab("Browse");model.browse("","",true)}){Text("Browse studies")}
+                    Text(if(variants>0)"${variants.grouped()} variants • ${model.results.size.grouped()} saved study matches" else if(model.dataUnlocked)"No DNA imported yet." else "Unlock your saved data or import a raw DNA file to begin.")
                     if(model.results.isNotEmpty()){
                         val insight=remember(model.results){Core.obj("preview_insight",org.json.JSONArray(model.results))}
                         Text(insight.getString("headline"),style=MaterialTheme.typography.titleMedium)
@@ -98,18 +107,32 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                     Text("Genetic associations are educational research findings, not a diagnosis. Odds ratios are relative, not absolute risk; beta values describe trait changes.",style=MaterialTheme.typography.bodySmall)
                 }
                 "Browse"->BrowseScreen(model)
-                "Results"->ResultsScreen(model,{name,content->exportText(name,content)},{importResults.launch(arrayOf("text/*","application/json","application/octet-stream"))})
-                "Chat"->ChatScreen(model)
+                "Results"->ResultsScreen(model,{selectTab("Vault")},{name,content->exportText(name,content)},{model.pickingFile=true;importResults.launch(arrayOf("text/*","application/json","application/octet-stream"))})
+                "Chat"->ChatScreen(model){selectTab("Settings")}
                 "Reports"->ReportScreen(model){exportText("monadic-report.md",model.report)}
-                "Vault"->VaultScreen(model,{importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}){name,content->exportText(name,content)}
+                "Vault"->VaultScreen(model,{model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}){name,content->exportText(name,content)}
                 "Settings"->SettingsScreen(model)
                 "Account"->AccountScreen(model)
-                "More"->ScreenColumn{VaultArt(R.drawable.vault_vault);Text("Entirely in your hands.",style=MaterialTheme.typography.headlineMedium);listOf("Reports","Vault","Settings","Account").forEach{name->OutlinedButton(onClick={tab=name},modifier=Modifier.fillMaxWidth()){Text(name)}};Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.")}
+                "More"->ScreenColumn{VaultArt(R.drawable.vault_discover);Text("More",style=MaterialTheme.typography.headlineMedium);listOf("Reports","Vault","Settings","Account").forEach{name->OutlinedButton(onClick={selectTab(name)},modifier=Modifier.fillMaxWidth()){Text(name)}};Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.")}
             }
         }
     }
-    if(model.selectedStudy!=null) ModalBottomSheet(onDismissRequest={model.selectedStudy=null}){StudyScreen(model,model.selectedStudy!!)}
+    if(model.selectedStudy!=null) ModalBottomSheet(onDismissRequest={model.selectedStudy=null}){Column(Modifier.navigationBarsPadding()){Messages(model);StudyScreen(model,model.selectedStudy!!)}}
 }
+
+@Composable private fun Messages(model: ExplorerModel){
+    model.error?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
+    model.notice?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer)){Column(Modifier.padding(12.dp)){Text(message);TextButton(onClick={model.notice=null}){Text("Dismiss")}}}}
+}
+
+// The whole row toggles the checkbox, so the label is a tap target too.
+@Composable private fun CheckRow(checked: Boolean, onChange: (Boolean)->Unit, label: String, small: Boolean=true){
+    Row(Modifier.fillMaxWidth().toggleable(value=checked,role=Role.Checkbox,onValueChange=onChange).padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
+        Checkbox(checked=checked,onCheckedChange=null,modifier=Modifier.padding(end=12.dp));Text(label,style=if(small)MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyLarge)
+    }
+}
+
+private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java.math.BigDecimal(value).round(java.math.MathContext(3)).stripTrailingZeros().toPlainString()
 
 @Composable private fun ScreenColumn(content: @Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp),content=content)}
 
@@ -118,9 +141,9 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     Column(Modifier.fillMaxSize().padding(16.dp)){
         OutlinedTextField(value=query,onValueChange={query=it},label={Text("Search traits, studies, genes or SNPs")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(value=trait,onValueChange={trait=it},label={Text("Trait filter (optional)")},modifier=Modifier.fillMaxWidth())
-        Row{Checkbox(checked=semantic,onCheckedChange={semantic=it});Text("Semantic search",Modifier.padding(top=12.dp));Spacer(Modifier.weight(1f));Button(onClick={offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
+        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){CheckRow(semantic,{semantic=it},"Semantic search",small=false)};Button(onClick={offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
         if(model.studies.isEmpty())Text("Search the catalog to discover studies.")
-        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)){items(model.studies,key={it.optInt("id")}){study->Card(onClick={model.showStudy(study)},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(study.optString("disease_trait","Unknown trait"),fontWeight=FontWeight.Bold);Text(study.optString("study"),maxLines=3);Text("${study.optString("study_accession")} • ${study.optString("confidenceBand","Research finding")}",style=MaterialTheme.typography.labelSmall)}}}}
+        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)){items(model.studies,key={it.optInt("id")}){study->Card(onClick={model.showStudy(study)},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(study.optString("disease_trait","Unknown trait"),fontWeight=FontWeight.Bold);Text(study.optString("study"),maxLines=3);Text(listOf(study.optString("strongest_snp_risk_allele"),study.optString("study_accession"),study.optString("confidenceBand","Research finding")).filter{it.isNotBlank()&&it!="null"}.joinToString(" • "),style=MaterialTheme.typography.labelSmall)}}}}
         Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()){TextButton(onClick={offset=(offset-50).coerceAtLeast(0);model.browse(query,trait,semantic,offset)},enabled=offset>0&&!model.busy){Text("Previous")};TextButton(onClick={offset+=50;model.browse(query,trait,semantic,offset)},enabled=model.studies.isNotEmpty()&&!model.busy){Text("Next")}}
     }
 }
@@ -129,35 +152,63 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     val context=LocalContext.current
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         Text(study.optString("disease_trait"),style=MaterialTheme.typography.headlineMedium);Text(study.optString("study"))
-        for((key,label) in listOf("study_accession" to "Accession","mapped_gene" to "Genes","snps" to "Variants","strongest_snp_risk_allele" to "Reported risk allele","or_or_beta" to "OR / beta","ci_text" to "Effect interval","p_value" to "P-value","initial_sample_size" to "Discovery sample","replication_sample_size" to "Replication sample","first_author" to "Author","journal" to "Journal","date" to "Publication date")){val value=study.optString(key);if(value.isNotBlank()&&value!="null")Text("$label: $value")}
-        Button(onClick={model.analyze(study)},enabled=!model.busy){Text("Match my DNA on device")}
+        val effectLabel=remember(study.toString()){if(Core.obj("effect",json("value" to study.optString("or_or_beta"),"ci" to study.optString("ci_text"))).optString("effectType")=="beta")"Beta (trait change)" else "Odds ratio"}
+        for((key,label) in listOf("study_accession" to "Accession","mapped_gene" to "Genes","snps" to "Variants","strongest_snp_risk_allele" to "Reported risk allele","or_or_beta" to effectLabel,"ci_text" to "Effect interval","p_value" to "P-value","initial_sample_size" to "Discovery sample","replication_sample_size" to "Replication sample","first_author" to "Author","journal" to "Journal","date" to "Publication date")){val value=study.optString(key);if(value.isNotBlank()&&value!="null")Text("$label: $value")}
+        val hasDNA=model.dataUnlocked&&model.metadata.optInt("count")>0
+        Button(onClick={model.analyze(study)},enabled=!model.busy&&hasDNA){Text("Match my DNA on device")}
+        if(!hasDNA)Text(if(model.dataUnlocked)"Import your DNA in More → Vault to match this study." else "Unlock your saved data to match this study.",style=MaterialTheme.typography.bodySmall)
         model.results.firstOrNull{it.optInt("studyId")==study.optInt("id")}?.let{result->ResultCard(result)}
         val pmid=study.optString("pubmedid");if(pmid.matches(Regex("^[0-9]+$")))TextButton(onClick={openBrowser(context,"https://pubmed.ncbi.nlm.nih.gov/$pmid/")}){Text("Read original publication")}
         Text("An association does not establish causation or predict an individual's health outcome.",style=MaterialTheme.typography.bodySmall)
     }
 }
 
-@Composable private fun ResultCard(result: JSONObject){
+@Composable private fun ResultCard(result: JSONObject, onClick: (()->Unit)?=null){
     val evidence=remember(result.toString()){Core.obj("evidence",result)}
     val palette=remember(result.toString()){vaultCardPalette(Core.obj("preview_category",result).getString("id"))}
-    Card(Modifier.fillMaxWidth(),shape=androidx.compose.foundation.shape.RoundedCornerShape(40.dp),colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)){Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${result.optString("effectType","OR")} ${result.optDouble("riskScore")}");Text(result.optString("riskLevel"));Text(evidence.getString("label"),style=MaterialTheme.typography.labelSmall)}}
+    val shape=androidx.compose.foundation.shape.RoundedCornerShape(40.dp);val colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)
+    val body: @Composable ColumnScope.()->Unit={Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${if(result.optString("effectType")=="beta")"Beta" else "OR"} ${effectNumber(result.optDouble("riskScore"))}");Text(when(result.optString("riskLevel")){"increased"->"▲ Increased";"decreased"->"▼ Decreased";else->"● ${result.optString("riskLevel").replaceFirstChar{it.uppercase()}}"},fontWeight=FontWeight.Bold);Text(evidence.getString("label"),style=MaterialTheme.typography.labelSmall)}}
+    if(onClick!=null)Card(onClick=onClick,modifier=Modifier.fillMaxWidth(),shape=shape,colors=colors,content=body) else Card(Modifier.fillMaxWidth(),shape=shape,colors=colors,content=body)
 }
 
-@Composable private fun ResultsScreen(model: ExplorerModel,export: (String,String)->Unit,importResults: ()->Unit){
-    var filter by remember{mutableStateOf("")}
+@Composable private fun ResultsScreen(model: ExplorerModel,openVault: ()->Unit,export: (String,String)->Unit,importResults: ()->Unit){
+    var filter by remember{mutableStateOf("")};var direction by remember{mutableStateOf("All")};var sort by remember{mutableStateOf("Catalog order")}
+    val shown=remember(model.results,filter,direction,sort){
+        val rows=model.results.filter{it.optString("traitName").contains(filter,true)&&(direction=="All"||it.optString("riskLevel").equals(direction,true))}
+        when(sort){
+            "Effect size"->rows.sortedByDescending{val v=it.optDouble("riskScore");if(it.optString("effectType")=="beta")kotlin.math.abs(v) else kotlin.math.abs(kotlin.math.ln(v.coerceAtLeast(1e-9)))}
+            "P-value"->rows.sortedByDescending{it.optDouble("pValueMlog",0.0)}
+            else->rows
+        }
+    }
+    val hasDNA=model.metadata.optInt("count")>0
     Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-        Text("${model.results.size} saved study matches",style=MaterialTheme.typography.titleLarge)
-        Row{TextButton(onClick={model.runAll()},enabled=!model.busy){Text("Run all")};TextButton(onClick={export("monadic-results.tsv",model.exportResults())},enabled=model.results.isNotEmpty()){Text("Export")};TextButton(onClick=importResults){Text("Import")}}
-        OutlinedTextField(value=filter,onValueChange={filter=it},label={Text("Filter saved traits")},modifier=Modifier.fillMaxWidth())
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(model.results.filter{it.optString("traitName").contains(filter,true)},key={it.optInt("studyId")}){result->ResultCard(result)}}
+        Text("${model.results.size.grouped()} saved study matches",style=MaterialTheme.typography.titleLarge)
+        Row(verticalAlignment=Alignment.CenterVertically){Button(onClick={model.runAll()},enabled=!model.busy&&hasDNA){Text("Run all studies")};Spacer(Modifier.width(8.dp));TextButton(onClick={export("monadic-results.tsv",model.exportResults())},enabled=model.results.isNotEmpty()){Text("Export")};TextButton(onClick=importResults){Text("Import")}}
+        model.catalogInfo?.let{Text("Research catalog ${it.optString("version")} • ${it.optInt("rows").grouped()} studies • bundled with this app",style=MaterialTheme.typography.bodySmall)}
+        if(model.results.isEmpty()){
+            Text(when{!model.dataUnlocked->"Unlock your saved data to see saved matches.";!hasDNA->"Import a raw DNA file first. Then Run all studies compares it with the research catalog on this device.";else->"Choose Run all studies to compare your DNA with the research catalog bundled with this app. Matching runs on this device and takes under a minute."})
+            if(!hasDNA)OutlinedButton(onClick=openVault){Text("Go to Vault")}
+        } else {
+            OutlinedTextField(value=filter,onValueChange={filter=it},label={Text("Filter saved traits")},modifier=Modifier.fillMaxWidth())
+            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)})}
+                listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)})}
+            }
+            if(shown.size!=model.results.size)Text("Showing ${shown.size.grouped()} of ${model.results.size.grouped()}",style=MaterialTheme.typography.bodySmall)
+            LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){items(shown,key={it.optInt("studyId")}){result->ResultCard(result){model.loadStudy(result.optInt("studyId"))}}}
+        }
     }
 }
 
-@Composable private fun Consent(model: ExplorerModel){Row{Checkbox(checked=model.shareResultsWithLLM,onCheckedChange={model.shareResultsWithLLM=it});Text("Allow matched results and profile context to be sent to my selected LLM provider.",style=MaterialTheme.typography.bodySmall)}}
-@Composable private fun ChatScreen(model: ExplorerModel){
+@Composable private fun Consent(model: ExplorerModel){CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},"Allow matched results and profile context to be sent to my selected LLM provider.")}
+@Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit){
     var message by remember{mutableStateOf("")}
     Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+        val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
+        Row(verticalAlignment=Alignment.CenterVertically){Text("Provider: $providerName • ${model.model}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);TextButton(onClick=openSettings){Text("Change")}}
         Consent(model)
+        if(model.messages.isEmpty())Text(when{model.results.isEmpty()->"Chat answers questions about your saved matches. Run all studies in Results first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matched results go only to the provider shown.";else->"Ask a question about your matched findings, for example which traits have the strongest evidence."},style=MaterialTheme.typography.bodyMedium)
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){items(model.messages.toList()){(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(role,fontWeight=FontWeight.Bold);Text(text)}}}}
         OutlinedTextField(value=message,onValueChange={message=it},label={Text("Ask about your matched findings")},modifier=Modifier.fillMaxWidth())
         Button(onClick={model.sendChat(message);message=""},enabled=!model.busy&&message.isNotBlank()){Text("Send")}
@@ -168,7 +219,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 @Composable private fun VaultScreen(model:ExplorerModel,importDNA:()->Unit,export:(String,String)->Unit){
     var password by remember{mutableStateOf("")};var confirm by remember{mutableStateOf("")}
     val context=LocalContext.current
-    val importBackup=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)model.run("Restoring encrypted backup"){
+    val importBackup=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->model.pickingFile=false;if(uri!=null)model.run("Restoring encrypted backup"){
         val bytes=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){readDocument(context,uri)}
         val pass=password;password="";model.openVaultData(pass,bytes.toString(Charsets.UTF_8))
     }}
@@ -176,16 +227,17 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         VaultArt(R.drawable.vault_vault)
         Text("Private on-device data",style=MaterialTheme.typography.headlineMedium)
         Text("DNA, results and customization save automatically while unlocked. Unlock with your device authentication. Locking clears decrypted data from this app's memory.")
-        Text(model.storageMessage)
-        Row{Checkbox(checked=model.acceptedDisclaimer,onCheckedChange={model.acceptedDisclaimer=it});Text("I understand this is educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)}
+        Text(if(model.dataUnlocked)"Key protection: ${model.dataVault.protection}" else "Locked. Your data stays encrypted until you unlock it.",style=MaterialTheme.typography.bodySmall)
+        CheckRow(model.acceptedDisclaimer,{model.acceptedDisclaimer=it},"I understand this is educational research, not medical advice.")
         Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=model.acceptedDisclaimer&&!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
+        if(!model.acceptedDisclaimer)Text("Tick the box above to enable import.",style=MaterialTheme.typography.bodySmall)
         if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock and clear decrypted data")}
         Text("Recovery and encrypted sync",style=MaterialTheme.typography.titleLarge)
         Text("Use a long, unique recovery passphrase (at least 12 characters). It protects exported backups and lets your other devices unlock encrypted cloud data. Keep it safe; we cannot recover it for you.")
         OutlinedTextField(value=password,onValueChange={password=it},label={Text("Recovery passphrase")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
         OutlinedButton(onClick={val pass=password;password="";model.run("Exporting encrypted backup"){export("monadic-vault.json",model.sealedVault(pass))}},enabled=!model.busy&&model.dataUnlocked&&password.length>=12){Text("Export encrypted backup")}
-        OutlinedButton(onClick={importBackup.launch(arrayOf("application/json","text/*","application/octet-stream"))},enabled=!model.busy&&password.isNotEmpty()){Text("Restore encrypted backup (replaces device data)")}
+        OutlinedButton(onClick={model.pickingFile=true;importBackup.launch(arrayOf("application/json","text/*","application/octet-stream"))},enabled=!model.busy&&password.isNotEmpty()){Text("Restore encrypted backup (replaces device data)")}
         OutlinedButton(onClick={val pass=password;password="";model.enableSync(pass)},enabled=!model.busy&&model.dataUnlocked&&model.wallet.isNotBlank()&&password.length>=12){Text("Enable encrypted sync")}
         OutlinedButton(onClick=model::syncNow,enabled=!model.busy&&model.dataUnlocked&&model.wallet.isNotBlank()){Text("Sync now")}
         OutlinedButton(onClick={confirm="cloudRestore"},enabled=!model.busy&&model.wallet.isNotBlank()&&password.isNotEmpty()){Text("Restore cloud copy (replaces device data)")}
