@@ -24,6 +24,8 @@ import UIKit
     @Published private(set) var resultCount=0
     /// Changes whenever the stored results change, so screens reload their pages.
     @Published private(set) var resultsVersion=0
+    /// What Chat or a premium report needs before it can run: "sign-in" or "premium". Cleared by the next operation.
+    @Published var accessNeeded:String?
     /// A question started on Home that the Chat tab picks up.
     @Published var chatDraft=""
     @Published private(set) var personalizeSkipped=DeviceStore.get("personalize-skipped")=="true"
@@ -202,7 +204,7 @@ import UIKit
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
         guard !busy else{return}
-        busy=true;status=label;error=nil;notice=nil;progress=nil
+        busy=true;status=label;error=nil;notice=nil;progress=nil;accessNeeded=nil
         task=Task {
             defer{busy=false;progress=nil}
             // Every change is already written to the encrypted store, so nothing remains to save afterwards.
@@ -374,14 +376,14 @@ import UIKit
     private func requireAccess(_ kind:String) async throws {
         var access=try Core.object("feature_access",["kind":kind])
         if access["allowed"] as? Bool == true{return}
-        guard !wallet.isEmpty else{throw Core.Failure(message:"Sign in to your Explorer account first")}
+        guard !wallet.isEmpty else{accessNeeded="sign-in";throw Core.Failure(message:kind=="Chat" ? "Chat is part of Premium. Sign in to your Explorer account to continue. The Health report is free." : "The \(kind) report is part of Premium. Sign in to your Explorer account to continue. The Health report is free.")}
         subscription=try await api("/api/check-subscription",["walletAddress":wallet])
         let active=(subscription?["subscription"] as? [String:Any])?["isActive"] as? Bool ?? false
         access=try Core.object("feature_access",["kind":kind,"activeSubscription":active])
         if access["allowed"] as? Bool == true{return}
-        guard let type=access["reportType"] as? String else{throw Core.Failure(message:"An active subscription is required for chat")}
+        guard let type=access["reportType"] as? String else{accessNeeded="premium";throw Core.Failure(message:"Chat needs an active Premium subscription.")}
         let passes=try await api("/api/report-access",["walletAddress":wallet])
-        guard ((passes["availableReports"] as? [String:Any])?[type] as? Int ?? 0)>0 else{throw Core.Failure(message:"Purchase a subscription or report pass in Account, then try again")}
+        guard ((passes["availableReports"] as? [String:Any])?[type] as? Int ?? 0)>0 else{accessNeeded="premium";throw Core.Failure(message:"The \(kind) report needs Premium or a report pass.")}
         _=try await api("/api/report-access",["walletAddress":wallet,"reportType":type,"action":"consume"])
     }
     private func complete(_ messages:[[String:Any]]) async throws -> String {
@@ -416,12 +418,13 @@ import UIKit
         let prompt=try await Task.detached{try Core.object("store_report_prompt",input)}.value
         return prompt["messages"] as? [[String:Any]] ?? []
     }
-    func sendChat(_ message:String){work("Asking selected provider"){
+    /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
+    func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         try await self.requireAccess("Chat")
         var messages=try await self.reportPrompt("DNA chat")
         messages+=self.messages.map{["role":$0.0,"content":$0.1]};messages.append(["role":"user","content":message])
-        let response=try await self.complete(messages);self.messages.append(("user",message));self.messages.append(("assistant",response))
+        let response=try await self.complete(messages);self.messages.append(("user",message));self.messages.append(("assistant",response));onSent()
     }}
     func generateReport(_ kind:String){work("Generating report"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing results with the selected provider first")}

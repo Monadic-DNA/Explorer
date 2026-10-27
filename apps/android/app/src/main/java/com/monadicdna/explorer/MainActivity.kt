@@ -79,7 +79,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         model.importResultsData(content,name)
     }}
     fun exportText(name: String, content: String){exportContent=content;model.pickingFile=true;export.launch(name)}
-    fun selectTab(name: String){tab=name;model.error=null;model.notice=null}
+    fun selectTab(name: String){tab=name;model.error=null;model.notice=null;model.dismissAccessNeeded()}
     val tabs=listOf("Home","Chat","Reports","You","More")
     // Screens opened from More return there; other tabs return Home before Back leaves the app.
     BackHandler(enabled=tab!="Home"){selectTab(if(tab in tabs)"Home" else "More")}
@@ -102,8 +102,8 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 "You"->YouScreen(model,{selectTab("Home")}){selectTab("Vault")}
                 "Browse"->BrowseScreen(model)
                 "Results"->ResultsScreen(model,{selectTab("Vault")},{name,content->exportText(name,content)},{model.pickingFile=true;importResults.launch(arrayOf("text/*","application/json","application/octet-stream"))})
-                "Chat"->ChatScreen(model,{selectTab("Settings")}){selectTab("You")}
-                "Reports"->ReportScreen(model,{selectTab("Chat")}){exportText("monadic-report.md",model.report)}
+                "Chat"->ChatScreen(model,{selectTab("Settings")},{selectTab("You")}){selectTab("Account")}
+                "Reports"->ReportScreen(model,{selectTab("Chat")},{selectTab("Account")}){exportText("monadic-report.md",model.report)}
                 "Vault"->VaultScreen(model){model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}
                 "Settings"->SettingsScreen(model)
                 "Account"->AccountScreen(model)
@@ -115,7 +115,8 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 }
 
 @Composable private fun Messages(model: ExplorerModel){
-    model.error?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
+    // An access requirement is shown by AccessNeeded, with a button, instead of here.
+    model.error?.takeIf{model.accessNeeded==null}?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
     model.notice?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer)){Column(Modifier.padding(12.dp)){Text(message);TextButton(onClick={model.notice=null}){Text("Dismiss")}}}}
 }
 
@@ -205,30 +206,43 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 }
 
 @Composable private fun Consent(model: ExplorerModel){CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},"Allow matched results and profile context to be sent to my selected LLM provider.")}
-@Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit){
+/** Explains what Chat or a premium report needs and links to Account, instead of a bare error. */
+@Composable private fun AccessNeeded(model: ExplorerModel, openAccount: ()->Unit){
+    val needed=model.accessNeeded ?: return
+    OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+        Text(if(needed=="sign-in")"Sign in to use Premium features" else "Premium needed",style=MaterialTheme.typography.titleMedium)
+        Text(model.error ?: "",style=MaterialTheme.typography.bodyMedium)
+        Text(if(needed=="sign-in")"Chat and the Healthspan, Top traits and Overview reports are part of Premium. The Health report is free." else "Subscribe, or buy a pass for a single report, in Account.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick=openAccount){Text(if(needed=="sign-in")"Sign in" else "See Premium options")}
+    }}
+}
+@Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit){
     var message by remember{mutableStateOf(model.chatDraft)}
     LaunchedEffect(Unit){model.chatDraft=""}
     Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
         Row(verticalAlignment=Alignment.CenterVertically){Text("Provider: $providerName • ${model.model}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);TextButton(onClick=openSettings){Text("Change")}}
         Consent(model)
-        if(model.messages.isEmpty()){
+        // While an access requirement is shown, it takes the place of the intro so its button stays visible.
+        if(model.messages.isEmpty()&&model.accessNeeded==null){
             Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion."},style=MaterialTheme.typography.bodyMedium)
             if((model.resultCount>0))CHAT_SUGGESTIONS.forEach{SuggestionChip(onClick={message=it},label={Text(it)})}
             if((model.resultCount>0)&&!model.personalized)TextButton(onClick=personalize){Text("Personalize answers")}
         }
-        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){items(model.messages.toList()){(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(role,fontWeight=FontWeight.Bold);Text(text)}}}}
+        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){items(model.messages.toList()){(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(if(role=="user")"You" else "Explorer",fontWeight=FontWeight.Bold);if(role=="user")Text(text) else MarkdownText(text)}}}}
         OutlinedTextField(value=message,onValueChange={message=it},label={Text("Ask about your matched findings")},modifier=Modifier.fillMaxWidth())
-        Button(onClick={model.sendChat(message);message=""},enabled=!model.busy&&message.isNotBlank()){Text("Send")}
+        AccessNeeded(model,openAccount)
+        Button(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&message.isNotBlank()){Text("Send")}
     }
 }
-@Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,export: ()->Unit){ScreenColumn{
+@Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,openAccount: ()->Unit,export: ()->Unit){ScreenColumn{
     Text("Reports",style=MaterialTheme.typography.headlineMedium)
     Text(if((model.resultCount==0))"Reports summarize your research matches. Add your DNA file on Home first." else "Each report reads your ${model.resultCount.grouped()} research matches${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
     Consent(model)
     ReportCards(model){kind->if(!model.busy&&(model.resultCount>0))model.generateReport(kind)}
+    AccessNeeded(model,openAccount)
     if(model.report.isNotEmpty()){
-        Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);Text(model.report)
+        Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);MarkdownText(model.report)
         Button(onClick=export){Text("Export report")}
         if(model.reportQuestions.isNotEmpty())Text("Ask a follow-up",style=MaterialTheme.typography.titleMedium)
         model.reportQuestions.forEach{question->SuggestionChip(onClick={model.chatDraft=question;openChat()},label={Text(question)})}

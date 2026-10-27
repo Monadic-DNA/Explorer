@@ -13,9 +13,14 @@ import UniformTypeIdentifiers
 // Sheets cover the root view, so each presentation shows its own error and notice alerts.
 struct ExplorerMessages: ViewModifier {
     @EnvironmentObject var store:ExplorerStore
+    var openAccount:()->Void={}
     func body(content:Content)->some View {
         content
-            .alert("Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){Button("OK"){store.error=nil}}message:{Text(store.error ?? "")}
+            // Access requirements get a button to Account instead of a bare error.
+            .alert(store.accessNeeded=="sign-in" ? "Sign in to use Premium features" : store.accessNeeded != nil ? "Premium needed" : "Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){
+                if store.accessNeeded != nil{Button(store.accessNeeded=="sign-in" ? "Sign in" : "See Premium options"){store.error=nil;store.accessNeeded=nil;openAccount()};Button("Not now",role:.cancel){store.error=nil;store.accessNeeded=nil}}
+                else{Button("OK"){store.error=nil}}
+            }message:{Text(store.error ?? "")}
             .alert("Done",isPresented:Binding(get:{store.notice != nil && store.error == nil},set:{if !$0{store.notice=nil}})){Button("OK"){store.notice=nil}}message:{Text(store.notice ?? "")}
     }
 }
@@ -33,6 +38,7 @@ struct TextExport: FileDocument {
 struct ExplorerView: View {
     @EnvironmentObject var store:ExplorerStore
     @State private var selectedTab=0
+    @State private var showAccount=false
     @State private var importing=false
     @State private var importKind="dna"
     @State private var exporting=false
@@ -60,13 +66,13 @@ struct ExplorerView: View {
                     NavigationLink("Browse research"){BrowseView()}
                     NavigationLink("Vault and backups"){vault}
                     NavigationLink("Connection and AI provider"){SettingsView()}
-                    NavigationLink("Account and premium"){AccountView(billing:store.billing)}
+                    NavigationLink("Account and premium",isActive:$showAccount){AccountView(billing:store.billing)}
                     Section("Supported DNA exports"){Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, Monadic DNA and compatible raw files. Gzip archives are supported.")}
                 }.vaultScreen().navigationTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
             }
         }
         .sheet(item:$store.selectedStudy){record in NavigationStack{StudyView(record:record).toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){store.selectedStudy=nil}}}}.modifier(ExplorerMessages()).environmentObject(store)}
-        .modifier(ExplorerMessages())
+        .modifier(ExplorerMessages(openAccount:{store.selectedStudy=nil;selectedTab=4;showAccount=true}))
         .fileImporter(isPresented:$importing,allowedContentTypes:[.data]){result in
             switch result{
             case .success(let url):
@@ -276,7 +282,7 @@ struct ChatView:View{
             if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize).padding(.horizontal)}
         }
         List(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){Text(item.element.0).font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)}}
-        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder);Button("Send"){store.sendChat(message);message=""}.disabled(store.busy||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
+        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder);Button("Send"){store.sendChat(message){message=""}}.disabled(store.busy||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
     }.vaultScreen().navigationTitle("Chat")
     // A question started on Home arrives as a draft.
     .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}

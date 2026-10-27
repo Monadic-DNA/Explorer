@@ -59,6 +59,10 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var reportTitle by mutableStateOf("")
     var reportQuestions by mutableStateOf(emptyList<String>())
     var shareResultsWithLLM by mutableStateOf(false)
+    /** What Chat or a premium report needs before it can run: "sign-in" or "premium". Cleared by the next operation. */
+    var accessNeeded by mutableStateOf<String?>(null)
+        private set
+    fun dismissAccessNeeded(){accessNeeded=null}
     /** A question started on Home that the Chat tab picks up. */
     var chatDraft by mutableStateOf("")
     var personalizeSkipped by mutableStateOf(store.get("personalize-skipped")=="true")
@@ -238,7 +242,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun run(label: String, block: suspend () -> Unit) {
         if (busy) return
         task = viewModelScope.launch {
-            busy=true; status=label; error=null; notice=null; progress=null
+            busy=true; status=label; error=null; notice=null; progress=null; accessNeeded=null
             // Every change is already written to the encrypted store, so nothing remains to save afterwards.
             try { block(); status="Complete" }
             catch (cancelled: CancellationException) { status="Cancelled"; throw cancelled }
@@ -411,14 +415,14 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     private suspend fun requireAccess(kind: String) {
         var access=Core.obj("feature_access",json("kind" to kind))
         if(access.getBoolean("allowed"))return
-        require(wallet.isNotBlank()){ "Sign in to your Explorer account first." }
+        if(wallet.isBlank()){accessNeeded="sign-in";error(if(kind=="Chat")"Chat is part of Premium. Sign in to your Explorer account to continue." else "The $kind report is part of Premium. Sign in to your Explorer account to continue.")}
         subscription=api("/api/check-subscription",json("walletAddress" to wallet))
         access=Core.obj("feature_access",json("kind" to kind,"activeSubscription" to subscription?.optJSONObject("subscription")?.optBoolean("isActive")))
         if(access.getBoolean("allowed"))return
-        require(!access.isNull("reportType")){ "An active subscription is required for chat." }
+        if(access.isNull("reportType")){accessNeeded="premium";error("Chat needs an active Premium subscription.")}
         val type=access.getString("reportType")
         val passes=api("/api/report-access",json("walletAddress" to wallet))
-        require(passes.getJSONObject("availableReports").optInt(type)>0){ "Purchase a subscription or report pass in Account, then try again." }
+        if(passes.getJSONObject("availableReports").optInt(type)<=0){accessNeeded="premium";error("The $kind report needs Premium or a report pass.")}
         api("/api/report-access",json("walletAddress" to wallet,"reportType" to type,"action" to "consume"))
     }
     private fun llmConfig()=json("provider" to provider,"model" to model,"huggingfaceApiKey" to apiKey,"ollamaAddress" to ollamaAddress,"ollamaPort" to (ollamaPort.toIntOrNull()?:11434))
@@ -452,13 +456,15 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     private suspend fun reportPrompt(kind: String)=withContext(Dispatchers.Default){
         Core.obj("store_report_prompt",storeInput("kind" to kind,"customization" to profileData(),"context" to profile)).getJSONArray("messages")
     }
-    fun sendChat(message: String) = run("Asking selected provider") {
+    /** `onSent` runs once a reply has arrived, so a failed send keeps the user's question. */
+    fun sendChat(message: String, onSent: ()->Unit={}) = run("Asking selected provider") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         require(message.isNotBlank()){"Enter a message"}
         requireAccess("Chat")
         val prompt=reportPrompt("DNA chat")
         messages.forEach{prompt.put(json("role" to it.first,"content" to it.second))};prompt.put(json("role" to "user","content" to message))
         val reply=complete(prompt);messages.add("user" to message);messages.add("assistant" to reply)
+        onSent()
     }
     fun generateReport(kind: String) = run("Generating $kind report") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}

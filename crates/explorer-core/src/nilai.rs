@@ -103,8 +103,11 @@ pub fn invocation(v: &Value) -> Result<Value, String> {
         "did:nil:{}",
         hex(signing.verifying_key().to_encoded_point(true).as_bytes())
     );
+    // nilAI's /public_key endpoint answers with a JSON string, quotes included; hosts pass the body as is.
+    let raw = text(v, "serverKey").trim();
+    let server_key = serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_string());
     let public = STANDARD
-        .decode(text(v, "serverKey").trim())
+        .decode(server_key.trim())
         .map_err(|_| "Invalid nilAI server key")?;
     VerifyingKey::from_sec1_bytes(&public).map_err(|_| "Invalid nilAI server key")?;
     let server_did = format!("did:nil:{}", hex(&public));

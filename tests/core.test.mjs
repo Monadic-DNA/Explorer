@@ -95,6 +95,8 @@ test('nilAI NUC authentication interoperates with the existing Nillion SDK', asy
   assert.equal(coreCall('nilai_info', grant).expiresAt, now+300);
   assert.throws(() => coreCall('nilai_invocation', { ...input, delegation: grant, now: now+301 }), /expired/);
   assert.throws(() => coreCall('nilai_invocation', { ...input, privateKey: '🎉' }), /Invalid/);
+  // nilAI's /public_key endpoint returns the key as a JSON string; the raw response body must work.
+  assert.equal(coreCall('nilai_invocation', { ...input, serverKey: JSON.stringify(input.serverKey) + '\n' }).split('/').length, token.split('/').length);
 });
 
 test('gzip import shares the same bounded decoder across native and web adapters', async () => {
