@@ -58,120 +58,48 @@ final class HardwareVaultKey: VaultKeyProtector {
     }
 }
 
+/// The device's encrypted store (docs/native-data-store.md). A random 32-byte local key, wrapped by the
+/// Secure Enclave, opens the SQLCipher database. The local key never leaves this device.
 actor SecureDataVault {
+    private static let keyID="Explorer store key v1"
     private let directory:URL
-    private var url:URL { directory.appendingPathComponent("vault-v2.json") }
     private let protector:VaultKeyProtector
-    private var key:Data?
-    private var record:[String:Any]?
+    private var keyURL:URL { directory.appendingPathComponent("device-key.json") }
+    private var databaseURL:URL { directory.appendingPathComponent("explorer.db") }
     init(protector:VaultKeyProtector=HardwareVaultKey(), directory:URL?=nil) {
         self.protector=protector
         self.directory=directory ?? FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("protected-data",isDirectory:true)
     }
-    var exists:Bool { FileManager.default.fileExists(atPath:url.path) }
-    var protection:String {protector.description}
-    private func wipe(){if key != nil {key!.resetBytes(in:0..<key!.count)};key=nil;record=nil;protector.reset()}
-    private func write(_ input:[String:Any]) throws {
-        guard let key else {throw Core.Failure(message:"Unlock your saved data first")}
-        var value=input;value.removeValue(forKey:"mac")
-        value["mac"]=try Core.string("vault_record_mac",["key":key.base64EncodedString(),"record":value])
+    var exists:Bool { FileManager.default.fileExists(atPath:keyURL.path) && FileManager.default.fileExists(atPath:databaseURL.path) }
+    var protection:String { protector.description }
+    private func removeDatabase(){for suffix in ["","-wal","-shm"]{try? FileManager.default.removeItem(atPath:databaseURL.path+suffix)}}
+    /// Authenticates the user, then opens (creating on first use) the store. Returns its handle and metadata.
+    func unlock() async throws -> [String:Any] {
+        try await protector.authenticate()
+        defer{protector.reset()}
+        // The app's default Data Protection entitlement makes SQLite's own journal files "Complete" too.
         try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true,attributes:[.protectionKey:FileProtectionType.complete])
         var folder=directory;var resources=URLResourceValues();resources.isExcludedFromBackup=true;try folder.setResourceValues(resources)
-        try JSONSerialization.data(withJSONObject:value,options:.sortedKeys).write(to:url,options:[.atomic,.completeFileProtection])
-        record=value
-    }
-    func unlock(_ session:Int) async throws -> [String:Any] {
-        try await protector.authenticate()
-        if exists {
-            guard let value=try JSONSerialization.jsonObject(with:Data(contentsOf:url)) as? [String:Any],let envelope=value["envelope"] as? [String:Any],let id=envelope["vaultId"] as? String,let wrapped=value["deviceKey"] as? [String:Any] else {throw Core.Failure(message:"Invalid saved vault")}
-            var opened=try protector.unwrap(wrapped,id:id)
-            do {
-                _=try Core.call("vault_record_verify",["key":opened.base64EncodedString(),"record":value])
-                try Core.restorePersisted(session,opened,envelope)
-                key=opened;record=value
-                return try Core.object("session_customization",["session":session])
-            } catch {opened.resetBytes(in:0..<opened.count);wipe();throw error}
+        // Earlier development builds kept a single encrypted blob here; it is never read.
+        try? FileManager.default.removeItem(at:directory.appendingPathComponent("vault-v2.json"))
+        var key:Data
+        if FileManager.default.fileExists(atPath:keyURL.path) {
+            guard let wrapped=try JSONSerialization.jsonObject(with:Data(contentsOf:keyURL)) as? [String:Any] else{throw Core.Failure(message:"Invalid protected key")}
+            key=try protector.unwrap(wrapped,id:Self.keyID)
+        } else {
+            // A key without its database would be useless; start both fresh.
+            removeDatabase()
+            guard let random=Data(base64Encoded:try DeviceStore.entropy(32)),random.count==32 else{throw Core.Failure(message:"Secure random numbers are unavailable")}
+            key=random
+            try JSONSerialization.data(withJSONObject:try protector.wrap(key,id:Self.keyID),options:.sortedKeys).write(to:keyURL,options:[.atomic,.completeFileProtection])
         }
-        guard let generated=Data(base64Encoded:try DeviceStore.entropy(32)) else {throw Core.Failure(message:"Unable to create a data key")}
-        key=generated
-        let id=UUID().uuidString.lowercased()
-        let envelope=try Core.sealSession(session,generated,id,1,try random(12),["fields":[:],"context":""])
-        try write(["version":2,"deviceKey":protector.wrap(generated,id:id),"envelope":envelope,"sync":["enabled":false,"revision":0,"dirty":false]])
-        return ["fields":[:],"context":""]
+        defer{key.resetBytes(in:0..<key.count)}
+        return try Core.openStore(databaseURL.path,key)
     }
-    private func random(_ count:Int) throws -> Data {Data(base64Encoded:try DeviceStore.entropy(count))!}
-    func save(_ session:Int,_ customization:[String:Any]) throws {
-        guard let key,var current=record,let envelope=current["envelope"] as? [String:Any],let id=envelope["vaultId"] as? String,let revision=envelope["revision"] as? Int else {throw Core.Failure(message:"Unlock your saved data first")}
-        current["envelope"]=try Core.sealSession(session,key,id,revision+1,try random(12),customization)
-        var sync=current["sync"] as? [String:Any] ?? [:];sync["dirty"]=true;current["sync"]=sync
-        try write(current)
-    }
-    func lock(){wipe()}
+    func lock(_ handle:Int){Core.closeStore(handle)}
+    /// Deletes this device's data and its wrapping key. The cloud copy is handled by sync.
     func delete() throws {
-        if exists {try FileManager.default.removeItem(at:url)}
-        try protector.delete();wipe()
-    }
-    func backup(_ password:String) throws -> [String:Any] {
-        guard let key,let current=record,let envelope=current["envelope"] as? [String:Any] else {throw Core.Failure(message:"Unlock your saved data first")}
-        let wrapped=try Core.object("vault_wrap_key",["key":key.base64EncodedString(),"vaultId":envelope["vaultId"]!,"password":password,"salt":DeviceStore.entropy(16),"nonce":DeviceStore.entropy(12)])
-        return try authenticatedArchive(["version":2,"envelope":envelope,"wrappedKey":wrapped])
-    }
-    func restore(_ session:Int,_ archive:[String:Any],_ password:String,allowOlder:Bool=false) async throws -> [String:Any] {
-        try await protector.authenticate()
-        guard let envelope=archive["envelope"] as? [String:Any],let wrapped=archive["wrappedKey"] as? [String:Any],let id=envelope["vaultId"] as? String,id==wrapped["vaultId"] as? String else {throw Core.Failure(message:"Invalid recovery archive")}
-        guard var recovered=Data(base64Encoded:try Core.string("vault_unwrap_key",["wrappedKey":wrapped,"password":password])) else {throw Core.Failure(message:"Invalid recovered key")}
-        let temporary=try Core.call("session_create") as! Int
-        defer{_ = try? Core.call("session_close",["session":temporary])}
-        do {
-            _=try Core.call("vault_record_verify",["key":recovered.base64EncodedString(),"record":archive])
-            try Core.restorePersisted(temporary,recovered,envelope)
-            if !allowOlder,let old=record?["envelope"] as? [String:Any],old["vaultId"] as? String==id,(old["revision"] as? Int ?? 0)>(envelope["revision"] as? Int ?? 0) {throw Core.Failure(message:"This backup is older than this device's saved data")}
-            let previous=key;key=recovered
-            do {try write(["version":2,"deviceKey":protector.wrap(recovered,id:id),"envelope":envelope,"wrappedKey":wrapped,"sync":["enabled":false,"revision":0,"dirty":false]])} catch {key=previous;throw error}
-            try Core.restorePersisted(session,recovered,envelope)
-            return try Core.object("session_customization",["session":session])
-        } catch {recovered.resetBytes(in:0..<recovered.count);throw error}
-    }
-    func configuration() -> [String:Any]? {record?["sync"] as? [String:Any]}
-    private func authenticatedArchive(_ value:[String:Any]) throws -> [String:Any] {
-        guard let key else{throw Core.Failure(message:"Unlock saved data first")}
-        var archive=value;archive["mac"]=try Core.string("vault_record_mac",["key":key.base64EncodedString(),"record":value]);return archive
-    }
-    func archive() throws -> [String:Any] {
-        guard let current=record,let envelope=current["envelope"],let wrapped=current["wrappedKey"] else {throw Core.Failure(message:"Set up encrypted sync first")}
-        return try authenticatedArchive(["version":2,"envelope":envelope,"wrappedKey":wrapped])
-    }
-    func enableSync(_ wallet:String,_ password:String) throws {
-        guard var current=record else {throw Core.Failure(message:"Unlock your saved data first")}
-        current["wrappedKey"]=try backup(password)["wrappedKey"]
-        current["sync"]=["enabled":true,"wallet":wallet.lowercased(),"revision":0,"dirty":true]
-        try write(current)
-    }
-    func synced(_ revision:Int,_ uploadedRevision:Int) throws {
-        guard var current=record,var sync=current["sync"] as? [String:Any] else {return}
-        sync["revision"]=revision;sync["dirty"]=((current["envelope"] as? [String:Any])?["revision"] as? Int) != uploadedRevision;current["sync"]=sync;try write(current)
-    }
-    func enableExistingSync(_ wallet:String,_ revision:Int) throws {
-        guard var current=record else{throw Core.Failure(message:"Unlock saved data first")}
-        current["sync"]=["enabled":true,"wallet":wallet.lowercased(),"revision":revision,"dirty":false];try write(current)
-    }
-    func disableSync() throws {
-        guard var current=record,var sync=current["sync"] as? [String:Any] else {return}
-        sync["enabled"]=false;current["sync"]=sync;try write(current)
-    }
-    func genotypeDigest()->String?{(record?["envelope"] as? [String:Any])?["genotypeDigest"] as? String}
-    func acceptCloud(_ session:Int,_ archive:[String:Any],_ revision:Int) throws -> [String:Any] {
-        var archive=archive
-        guard let key,var current=record,let old=current["envelope"] as? [String:Any],var envelope=archive["envelope"] as? [String:Any],old["vaultId"] as? String==envelope["vaultId"] as? String else {throw Core.Failure(message:"This cloud vault needs its recovery passphrase on this device")}
-        guard (envelope["revision"] as? Int ?? 0)>=(old["revision"] as? Int ?? 0) else{throw Core.Failure(message:"The cloud copy is older than this device. Restore it explicitly only if you intend to replace newer data.")}
-        if envelope["genotype"]==nil,envelope["genotypeDigest"] as? String==old["genotypeDigest"] as? String {envelope["genotype"]=old["genotype"];archive["envelope"]=envelope}
-        let temporary=try Core.call("session_create") as! Int
-        defer{_ = try? Core.call("session_close",["session":temporary])}
-        _=try Core.call("vault_record_verify",["key":key.base64EncodedString(),"record":archive])
-        try Core.restorePersisted(temporary,key,envelope)
-        current["envelope"]=envelope;current["wrappedKey"]=archive["wrappedKey"]
-        var sync=current["sync"] as? [String:Any] ?? [:];sync["revision"]=revision;sync["dirty"]=false;current["sync"]=sync
-        try write(current);try Core.restorePersisted(session,key,envelope)
-        return try Core.object("session_customization",["session":session])
+        removeDatabase();try? FileManager.default.removeItem(at:keyURL);try protector.delete()
+        guard !exists else{throw Core.Failure(message:"Unable to delete saved data")}
     }
 }

@@ -13,7 +13,7 @@ const ALLELE_COLUMN: usize = 2; // strongest_snp_risk_allele
 
 type Reader = BufReader<ruzstd::decoding::StreamingDecoder<Box<dyn Read + Send>, ruzstd::decoding::FrameDecoder>>;
 // `matched` lets a complete run drop saved results the current catalog no longer produces.
-struct Catalog { reader: Reader, studies: Vec<Vec<String>>, matched: HashSet<String>, done: bool }
+struct Catalog { reader: Reader, studies: Vec<Vec<String>>, version: String, matched: HashSet<i64>, done: bool }
 
 static CATALOGS: OnceLock<Mutex<HashMap<u64, Catalog>>> = OnceLock::new();
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
@@ -61,12 +61,13 @@ pub fn open(path: &str) -> Result<Value, String> {
     }
     expect_section(&mut reader, "#rows", &ROW_COLUMNS)?;
     let handle = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    catalogs().insert(handle, Catalog { reader, studies, matched: HashSet::new(), done: false });
+    catalogs().insert(handle, Catalog { reader, studies, version: version.clone(), matched: HashSet::new(), done: false });
     Ok(json!({"handle":handle,"version":version,"rows":rows,"studies":count}))
 }
 
-/// Matches up to `max_rows` further catalog rows against the session, like one Run all page.
-pub fn analyze_next(handle: u64, session: u64, max_rows: usize, now: &str) -> Result<Value, String> {
+/// Matches up to `max_rows` further catalog rows into the session and returns counts.
+/// Matches up to `max_rows` further catalog rows into the store and returns counts.
+pub fn analyze_next(handle: u64, store: u64, max_rows: usize, now: &str) -> Result<Value, String> {
     let mut all = catalogs();
     let catalog = all.get_mut(&handle).ok_or("The research catalog is closed")?;
     let mut lines = Vec::with_capacity(max_rows.min(100_000));
@@ -75,7 +76,8 @@ pub fn analyze_next(handle: u64, session: u64, max_rows: usize, now: &str) -> Re
     }
     let count = lines.len();
     // Most rows cannot match this person's DNA; skip them before building JSON, using the scorer's own rule.
-    let candidates: Vec<String> = crate::session::with_genotypes(session, |genotypes| {
+    crate::store::with(store, |db| {
+    let candidates: Vec<String> = crate::store::with_genotypes(db, |genotypes| {
         lines.into_iter().filter(|record| record.split('\t').nth(ALLELE_COLUMN).is_some_and(|allele| crate::analysis::strict_candidate(allele, crate::analysis::Genotypes::Session(genotypes)).is_some())).collect()
     })?;
     let mut rows = Vec::with_capacity(candidates.len());
@@ -91,14 +93,26 @@ pub fn analyze_next(handle: u64, session: u64, max_rows: usize, now: &str) -> Re
         for (key, value) in STUDY_COLUMNS.iter().zip(study) { row.insert((*key).into(), text(value)); }
         rows.push(Value::Object(row));
     }
-    let matches = crate::session::dispatch("session_analyze", json!({"session":session,"studies":rows,"strict":true,"now":now}))?;
-    catalog.matched.extend(matches.as_array().into_iter().flatten().map(|row| row["studyId"].to_string()));
+    let matches = crate::store::with_genotypes(db, |genotypes| crate::analysis::run(&rows, crate::analysis::Genotypes::Session(genotypes), true, now, true))?;
+    let tx = db.conn.unchecked_transaction().map_err(crate::store::sql)?;
+    crate::store::upsert(&tx, &matches, "catalog")?;
+    catalog.matched.extend(matches.iter().filter_map(|row| row["studyId"].as_i64()));
     if catalog.done {
-        // The whole catalog was matched, so results it did not produce are stale.
-        crate::session::dispatch("session_retain_results", json!({"session":session,"studyIds":catalog.matched.iter().collect::<Vec<_>>()}))?;
+        // The whole catalog was matched, so catalog results it did not produce are stale.
+        tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS run_matched(study_id INTEGER PRIMARY KEY); DELETE FROM run_matched;").map_err(crate::store::sql)?;
+        {
+            let mut keep = tx.prepare("INSERT OR IGNORE INTO run_matched(study_id) VALUES(?1)").map_err(crate::store::sql)?;
+            for id in &catalog.matched { keep.execute([id]).map_err(crate::store::sql)?; }
+        }
+        tx.execute("DELETE FROM results WHERE source='catalog' AND study_id NOT IN (SELECT study_id FROM run_matched)", []).map_err(crate::store::sql)?;
+        crate::store::set_meta(&tx, "catalogVersion", &catalog.version)?;
+        crate::store::touch(&tx, "results")?;
     }
-    let saved = crate::session::dispatch("session_result_count", json!({"session":session}))?;
-    Ok(json!({"rows":count,"matches":matches,"saved":saved,"done":catalog.done}))
+    tx.commit().map_err(crate::store::sql)?;
+    if catalog.done { crate::store::release_genotypes(db); }
+    // Hosts read results through store queries, so only counts cross the boundary.
+    Ok(json!({"rows":count,"matched":matches.len(),"saved":crate::store::result_count(&db.conn)?,"done":catalog.done}))
+    })
 }
 
 pub fn close(handle: u64) { catalogs().remove(&handle); }

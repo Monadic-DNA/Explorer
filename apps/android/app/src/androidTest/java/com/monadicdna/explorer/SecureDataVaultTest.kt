@@ -23,48 +23,40 @@ class TestVaultProtector:VaultKeyProtector {
     }
     override fun delete(){}
 }
+/** An in-memory stand-in for Block Store, shared by two simulated devices. */
+class TestSyncKeys: SyncKeyStore {
+    var key: String? = null
+    override suspend fun get() = key
+    override suspend fun put(key: String) { this.key = key }
+    override suspend fun delete() { key = null }
+}
 class SecureDataVaultTest {
-    @Test fun restartRecoveryTamperAndGenotypeReuse()=runBlocking {
+    @Test fun storePersistsIsEncryptedRejectsOtherKeysAndDeletes()=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val dir=File(context.cacheDir,"vault-test-${System.nanoTime()}")
-        val second=File(context.cacheDir,"vault-second-${System.nanoTime()}")
         val protector=TestVaultProtector()
-        val s=(Core.call("session_create") as Number).toLong()
-        val t=(Core.call("session_create") as Number).toLong()
-        try {
-            val vault=SecureDataVault(context,protector,dir)
-            vault.unlock(s){}
-            Core.call("session_import",json("session" to s,"content" to "# 23andMe\nrs1 1 100 AG","fileName" to "private.txt"))
-            val custom=json("fields" to json("age" to "42"),"context" to "private context")
-            vault.save(s,custom)
-            vault.enableSync("0x"+"a".repeat(40),"unique recovery passphrase")
-            val first=vault.archive();val genotype=first.getJSONObject("envelope").getJSONObject("genotype").toString()
-            first.getJSONObject("envelope").remove("genotype") // Returned archive must be independent of saved record.
-            assertTrue(vault.archive().getJSONObject("envelope").has("genotype"))
-            vault.save(s,json("fields" to json("age" to "43"),"context" to "private context"))
-            assertEquals(genotype,vault.archive().getJSONObject("envelope").getJSONObject("genotype").toString())
-            val backup=JSONObject(vault.backup("unique recovery passphrase"))
-            val raw=File(dir,"vault-v2.json").readText()
-            assertFalse(raw.contains("private context"));assertFalse(raw.contains("private.txt"));assertFalse(raw.contains("rs1"))
-            vault.lock()
-            val restarted=SecureDataVault(context,protector,dir)
-            assertEquals("43",restarted.unlock(t){}.getJSONObject("fields").getString("age"))
-            assertEquals(1,Core.obj("session_metadata",json("session" to t)).getInt("count"))
-            val recovered=SecureDataVault(context,TestVaultProtector(),second)
-            var failed=false
-            try{recovered.restore(t,backup,"incorrect recovery password",{})}catch(_:Exception){failed=true}
-            assertTrue(failed);assertFalse(recovered.exists)
-            assertEquals("43",recovered.restore(t,backup,"unique recovery passphrase",{}).getJSONObject("fields").getString("age"))
-            recovered.save(t,json("fields" to json("age" to "44"),"context" to "remote update"))
-            assertEquals("44",restarted.acceptCloud(s,recovered.archive(),2).getJSONObject("fields").getString("age"))
-            recovered.save(t,json("fields" to json("age" to "45"),"context" to "remote update"))
-            val delta=recovered.archive();delta.getJSONObject("envelope").remove("genotype")
-            assertEquals("45",restarted.acceptCloud(s,delta,3).getJSONObject("fields").getString("age"))
-            restarted.lock()
-            val changed=JSONObject(raw);changed.getJSONObject("sync").put("revision",999)
-            File(dir,"vault-v2.json").writeText(changed.toString())
-            failed=false;try{restarted.unlock(t){}}catch(_:Exception){failed=true};assertTrue(failed)
-            recovered.lock()
-        } finally {Core.call("session_close",json("session" to s));Core.call("session_close",json("session" to t));dir.deleteRecursively();second.deleteRecursively()}
+        val vault=SecureDataVault(context,protector,dir)
+        assertFalse(vault.exists)
+        var handle=vault.unlock{}.getLong("handle")
+        assertTrue(vault.exists)
+        Core.storeImportGenotype(handle,"# 23andMe\nrs1 1 100 AG\n".toByteArray(),"private.txt")
+        Core.call("store_set_customization",json("store" to handle,"customization" to json("fields" to json("age" to "42"),"context" to "private context")))
+        vault.lock(handle)
+        // Nothing private is readable on disk.
+        val raw=File(dir,"explorer.db").readBytes().toString(Charsets.ISO_8859_1)
+        for(secret in listOf("private context","private.txt","SQLite format"))assertFalse(secret,raw.contains(secret))
+        // A restarted app opens the same data with the same device key.
+        handle=SecureDataVault(context,protector,dir).unlock{}.getLong("handle")
+        assertEquals(1,Core.obj("store_metadata",json("store" to handle)).getInt("count"))
+        assertEquals("42",Core.obj("store_customization",json("store" to handle)).getJSONObject("fields").getString("age"))
+        vault.lock(handle)
+        // Another device's key cannot open it.
+        var failed=false
+        try{SecureDataVault(context,TestVaultProtector(),dir).unlock{}}catch(_:Exception){failed=true}
+        assertTrue(failed)
+        vault.delete()
+        assertFalse(vault.exists)
+        assertFalse(File(dir,"explorer.db").exists())
+        dir.deleteRecursively();Unit
     }
 }

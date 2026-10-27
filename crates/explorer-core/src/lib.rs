@@ -3,6 +3,11 @@
 mod analysis;
 #[cfg(not(target_arch = "wasm32"))]
 mod catalog;
+#[cfg(not(target_arch = "wasm32"))]
+mod store;
+#[cfg(not(target_arch = "wasm32"))]
+mod sync;
+mod sync_auth;
 mod crypto;
 mod vault;
 mod files;
@@ -100,6 +105,11 @@ pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
         "auth_keypair" => crypto::auth_keypair(&input),
         "auth_seal" => crypto::auth_seal(&input),
         "auth_open" => crypto::auth_open(&input),
+        "sync_verify" => sync_auth::verify(&input),
+        #[cfg(not(target_arch = "wasm32"))]
+        op if op.starts_with("store_sync_") || op == "store_needs_match" => sync::dispatch(op, &input),
+        #[cfg(not(target_arch = "wasm32"))]
+        op if op.starts_with("store_") => store::dispatch(op, &input),
         op if op.starts_with("session_") => session::dispatch(op, input),
         _ => Err(format!("Unknown core operation: {operation}")),
     }
@@ -147,26 +157,30 @@ pub fn import_genotype(session: u64, bytes: Vec<u8>, file_name: String) -> Strin
 pub fn catalog_open(path: String) -> String { envelope(catalog::open(&path)) }
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg_attr(feature = "ffi", uniffi::export)]
-pub fn catalog_analyze_next(handle: u64, session: u64, max_rows: u32, now: String) -> String {
-    envelope(catalog::analyze_next(handle, session, max_rows as usize, &now))
+pub fn catalog_analyze_next(handle: u64, store: u64, max_rows: u32, now: String) -> String {
+    envelope(catalog::analyze_next(handle, store, max_rows as usize, &now))
+}
+
+/// Opens the device's encrypted store with its 32-byte local key (unwrapped by the platform key store).
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn store_open(path: String, key: Vec<u8>) -> String {
+    let key = zeroize::Zeroizing::new(key);
+    envelope(store::open(&path, &key))
+}
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn store_close(handle: u64) { store::close(handle) }
+/// Large DNA files cross the FFI boundary as bytes, as with `import_genotype`.
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn store_import_genotype(handle: u64, bytes: Vec<u8>, file_name: String) -> String {
+    envelope(store::import_genotype(handle, bytes, &file_name))
 }
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg_attr(feature = "ffi", uniffi::export)]
 pub fn catalog_close(handle: u64) { catalog::close(handle) }
 
-/// Keys use native byte buffers; the large plaintext genotype snapshot never crosses the FFI boundary.
-#[cfg_attr(feature = "ffi", uniffi::export)]
-pub fn persist_session(session: u64, key: Vec<u8>, vault_id: String, revision: u64, nonce: Vec<u8>, customization: String) -> String {
-    let key = zeroize::Zeroizing::new(key);
-    envelope(session::persist(session,&key,&vault_id,revision,&nonce,&customization))
-}
-#[cfg_attr(feature = "ffi", uniffi::export)]
-pub fn restore_persisted_session(session: u64, key: Vec<u8>, encrypted: String) -> String {
-    let key = zeroize::Zeroizing::new(key);
-    envelope(serde_json::from_str::<Value>(&encrypted).map_err(|_|"Invalid vault".to_string())
-        .and_then(|encrypted| vault::open(&encrypted,&key))
-        .and_then(|snapshot| session::dispatch("session_restore",json!({"session":session,"snapshot":snapshot}))))
-}
 
 // Import-free WASM ABI: synchronous on browsers, Node SSR and web workers.
 // Input/output are UTF-8; callers own input allocations and copy output before

@@ -103,44 +103,49 @@ fn parallel_run_all_is_identical_to_serial_and_stably_ordered() {
     for (i,row) in parallel.as_array().unwrap().iter().enumerate(){assert_eq!(row["studyId"],i);}
 }
 
+
 #[test]
-fn bundled_catalog_snapshots_match_in_chunks_like_the_json_batch_path() {
-    let genotypes=json!({"rs1":"AG","rs2":"GG"});
+fn session_result_views_match_the_json_operations_without_host_copies() {
+    let genotypes=json!({"rs1":"AG","rs2":"GG","rs3":"CC","rs4":"TT"});
     let studies=json!([
-        {"id":1,"study_accession":"GCST1","disease_trait":"Trait","study":"Study one","snps":"rs1","strongest_snp_risk_allele":"rs1-A","or_or_beta":"0.5","ci_text":"unit decrease","initial_sample_size":"1,000 cases","replication_sample_size":null,"p_value":"1E-8","pvalue_mlog":"8","mapped_gene":"GENE1"},
-        {"id":2,"study_accession":"GCST1","disease_trait":"Trait","study":"Study one","snps":"rs2","strongest_snp_risk_allele":"rs2-G","or_or_beta":"1.2","ci_text":"[1.1-1.3]","initial_sample_size":"1,000 cases","replication_sample_size":null,"p_value":"2E-9","pvalue_mlog":"8.7","mapped_gene":null},
-        {"id":3,"study_accession":"GCST2","disease_trait":"Other","study":"Study two","snps":"rs9","strongest_snp_risk_allele":"rs9-A","or_or_beta":"1.2","ci_text":null,"initial_sample_size":"500","replication_sample_size":"200","p_value":"3E-8","pvalue_mlog":"7.5","mapped_gene":"GENE9"}
+        {"id":1,"study_accession":"GCST1","disease_trait":"Heart rate","study":"S1","snps":"rs1","strongest_snp_risk_allele":"rs1-A","or_or_beta":"0.5","ci_text":"unit decrease","p_value":"1E-8","pvalue_mlog":"8","mapped_gene":"G1"},
+        {"id":2,"study_accession":"GCST2","disease_trait":"Type 2 diabetes","study":"S2","snps":"rs2","strongest_snp_risk_allele":"rs2-G","or_or_beta":"1.2","ci_text":"[1.1-1.3]","p_value":"1E-20","pvalue_mlog":"20","mapped_gene":"G2"},
+        {"id":3,"study_accession":"GCST3","disease_trait":"Heart failure","study":"S3","snps":"rs3","strongest_snp_risk_allele":"rs3-C","or_or_beta":"3.0","ci_text":"[2-4]","p_value":"1E-9","pvalue_mlog":"9","mapped_gene":"G3"},
+        {"id":4,"study_accession":"GCST4","disease_trait":"Height","study":"S4","snps":"rs4","strongest_snp_risk_allele":"rs4-T","or_or_beta":"0.1","ci_text":"unit increase","p_value":"1E-12","pvalue_mlog":"12","mapped_gene":"G4"}
     ]);
-    // The layout scripts/catalog-snapshot.mjs writes.
-    let text="EXPLORER-CATALOG\t1\t2026-10-23-test\t3\t2\n#studies\tstudy_accession\tstudy\tinitial_sample_size\treplication_sample_size\nGCST1\tStudy one\t1,000 cases\t\nGCST2\tStudy two\t500\t200\n#rows\tid\tsnps\tstrongest_snp_risk_allele\tor_or_beta\tci_text\tdisease_trait\tp_value\tpvalue_mlog\tmapped_gene\tstudy\n1\trs1\trs1-A\t0.5\tunit decrease\tTrait\t1E-8\t8\tGENE1\t0\n2\trs2\trs2-G\t1.2\t[1.1-1.3]\tTrait\t2E-9\t8.7\t\t0\n3\trs9\trs9-A\t1.2\t\tOther\t3E-8\t7.5\tGENE9\t1\n";
-    let now="2026-10-23T00:00:00Z";
+    let now="2026-10-26T00:00:00Z";
     let session=dispatch("session_create",Value::Null).unwrap().as_u64().unwrap();
-    // A stale saved result from an earlier catalog must be dropped by a complete run.
-    let stale=dispatch("analyze_studies",json!({"genotypes":genotypes,"studies":[{"id":99,"study_accession":"GCST9","disease_trait":"Old","study":"Old","snps":"rs1","strongest_snp_risk_allele":"rs1-A","or_or_beta":"1.5","ci_text":""}],"strict":true,"now":now})).unwrap();
-    dispatch("session_restore",json!({"session":session,"snapshot":json!({"version":1,"genotypes":genotypes,"results":stale,"metadata":{"count":2}}).to_string()})).unwrap();
-    let expected=dispatch("analyze_studies",json!({"genotypes":genotypes,"studies":studies,"strict":true,"now":now})).unwrap();
-    let file=std::env::temp_dir().join(format!("explorer-catalog-test-{}.zst",std::process::id()));
-    std::fs::write(&file,compress(text)).unwrap();
-    let opened:Value=serde_json::from_str(&explorer_core::catalog_open(file.to_string_lossy().into())).unwrap();
-    std::fs::remove_file(&file).unwrap();
-    assert_eq!(opened["ok"],true,"{opened}");
-    assert_eq!(opened["value"]["rows"],3);
-    assert_eq!(opened["value"]["version"],"2026-10-23-test");
-    let handle=opened["value"]["handle"].as_u64().unwrap();
-    let mut matches=Vec::new();
-    loop {
-        let chunk:Value=serde_json::from_str(&explorer_core::catalog_analyze_next(handle,session,2,now.into())).unwrap();
-        assert_eq!(chunk["ok"],true,"{chunk}");
-        matches.extend(chunk["value"]["matches"].as_array().unwrap().iter().cloned());
-        if chunk["value"]["done"]==true{break}
+    dispatch("session_restore",json!({"session":session,"snapshot":json!({"version":1,"genotypes":genotypes,"results":[],"metadata":{"count":4}}).to_string()})).unwrap();
+    let results=dispatch("session_analyze",json!({"session":session,"studies":studies,"strict":true,"now":now})).unwrap();
+    assert_eq!(results.as_array().unwrap().len(),4);
+    let ids=|page:&Value|page["rows"].as_array().unwrap().iter().map(|r|r["studyId"].as_i64().unwrap()).collect::<Vec<_>>();
+    let page=|extra:Value|{let mut input=json!({"session":session});for (k,v) in extra.as_object().unwrap(){input[k]=v.clone()}dispatch("session_results_page",input).unwrap()};
+    // Paging keeps catalog order and reports totals.
+    let first=page(json!({"offset":0,"limit":2}));
+    assert_eq!((first["total"].as_u64(),first["count"].as_u64(),ids(&first)),(Some(4),Some(4),vec![1,2]));
+    assert_eq!(ids(&page(json!({"offset":2,"limit":2}))),vec![3,4]);
+    // Filter is case-insensitive on the trait name; direction uses riskLevel.
+    let heart=page(json!({"filter":"HEART"}));
+    assert_eq!((heart["total"].as_u64(),heart["count"].as_u64(),ids(&heart)),(Some(2),Some(4),vec![1,3]));
+    assert_eq!(ids(&page(json!({"direction":"decreased"}))),vec![1]);
+    // Effect size uses riskScore, which counts risk-allele copies: |ln 3²|=2.20, |-0.5|=0.5,
+    // |ln 1.2²|=0.36, |0.1×2|=0.2. P-value: highest -log10(p) first.
+    assert_eq!(ids(&page(json!({"sort":"effect"}))),vec![3,1,2,4]);
+    assert_eq!(ids(&page(json!({"sort":"pvalue"}))),vec![2,4,3,1]);
+    assert_eq!(dispatch("session_result",json!({"session":session,"studyId":3})).unwrap()["studyId"],3);
+    assert_eq!(dispatch("session_result",json!({"session":session,"studyId":99})).unwrap(),Value::Null);
+    // Report prompts, insight and Overview groups are identical to the JSON operations.
+    let custom=json!({"age":40});
+    assert_eq!(dispatch("session_report_prompt",json!({"session":session,"kind":"Health","customization":custom,"context":"note"})).unwrap(),
+               dispatch("report_prompt",json!({"kind":"Health","results":results,"customization":custom,"context":"note"})).unwrap());
+    assert_eq!(dispatch("session_insight",json!({"session":session})).unwrap(),dispatch("preview_insight",results.clone()).unwrap());
+    let groups=dispatch("session_report_groups",json!({"session":session,"groups":2})).unwrap();
+    let expected=dispatch("partition_results",json!({"results":results,"groups":2})).unwrap();
+    for (group,rows) in groups.as_array().unwrap().iter().zip(expected.as_array().unwrap()) {
+        assert_eq!(group["count"],rows.as_array().unwrap().len());
+        assert_eq!(group["text"],dispatch("format_results",rows.clone()).unwrap());
     }
-    explorer_core::catalog_close(handle);
-    assert_eq!(Value::Array(matches),expected);
-    assert_eq!(dispatch("session_results",json!({"session":session})).unwrap(),expected);
-    let closed:Value=serde_json::from_str(&explorer_core::catalog_analyze_next(handle,session,2,now.into())).unwrap();
-    assert_eq!(closed["ok"],false);
-    let missing:Value=serde_json::from_str(&explorer_core::catalog_open("/nonexistent/catalog.zst".into())).unwrap();
-    assert_eq!(missing["ok"],false);
+    // Lending results to these views must leave the session's results intact.
+    assert_eq!(dispatch("session_results",json!({"session":session})).unwrap(),results);
     dispatch("session_close",json!({"session":session})).unwrap();
-    fn compress(text:&str)->Vec<u8>{ruzstd::encoding::compress_to_vec(text.as_bytes(),ruzstd::encoding::CompressionLevel::Fastest)}
 }

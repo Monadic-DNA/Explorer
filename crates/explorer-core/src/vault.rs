@@ -41,7 +41,7 @@ pub fn seal(snapshot: &str, key: &[u8], id: &str, revision: u64, iv: &[u8]) -> R
     envelope["ciphertext"]=STANDARD.encode(crypt(key,iv,&compressed,authenticated.as_bytes(),true)?).into();
     Ok(envelope)
 }
-fn open_raw(envelope: &Value, key: &[u8]) -> Result<String,String> {
+fn open_raw(envelope: &Value, key: &[u8]) -> Result<Zeroizing<String>,String> {
     let authenticated=aad(envelope)?;
     if text(envelope,"ciphertext").len()>MAX {return Err("Vault exceeds supported size".into());}
     let iv=bytes(envelope,"nonce",12)?; let ciphertext=bytes(envelope,"ciphertext",0)?;
@@ -49,9 +49,10 @@ fn open_raw(envelope: &Value, key: &[u8]) -> Result<String,String> {
     let mut decoder=GzDecoder::new(compressed.as_slice()).take((MAX+1) as u64);
     let mut plain=Zeroizing::new(Vec::new()); decoder.read_to_end(&mut plain).map_err(|_|"Invalid vault compression")?;
     if plain.len()>MAX {return Err("Expanded vault exceeds supported size".into());}
-    String::from_utf8(plain.to_vec()).map_err(|_|"Invalid vault encoding".into())
+    // Move the buffer into the string rather than copying decrypted data again.
+    String::from_utf8(std::mem::take(&mut *plain)).map(Zeroizing::new).map_err(|error|{let mut bytes=error.into_bytes();zeroize::Zeroize::zeroize(&mut bytes);"Invalid vault encoding".into()})
 }
-fn domain_key(key:&[u8],domain:&[u8])->Result<Zeroizing<Vec<u8>>,String> {
+pub(crate) fn domain_key(key:&[u8],domain:&[u8])->Result<Zeroizing<Vec<u8>>,String> {
     if key.len()!=32 {return Err("Invalid data key length".into());}
     use hmac::{Hmac,Mac};
     let mut derived=<Hmac<sha2::Sha256> as Mac>::new_from_slice(key).map_err(|_|"Invalid data key")?;
@@ -66,18 +67,28 @@ pub fn digest(value:&Value)->String {
     format!("{:x}",sha2::Sha256::digest(value.to_string().as_bytes()))
 }
 pub fn seal_genotypes(genotypes:&Value,key:&[u8],id:&str,iv:&[u8])->Result<Value,String> {
+    seal_genotype_text(&Zeroizing::new(genotypes.to_string()),key,id,iv)
+}
+/// Seals genotypes already serialized as a JSON object, so sessions need not build a JSON copy.
+pub fn seal_genotype_text(genotypes:&str,key:&[u8],id:&str,iv:&[u8])->Result<Value,String> {
     let derived=genotype_key(key)?;
-    seal(&genotypes.to_string(),&derived,id,1,iv)
+    seal(genotypes,&derived,id,1,iv)
 }
 pub fn seal_state(mut snapshot:Value,genotype:Value,key:&[u8],id:&str,revision:u64,iv:&[u8])->Result<Value,String> {
     snapshot.as_object_mut().ok_or("Invalid vault snapshot")?.remove("genotypes");
-    let hash=digest(&genotype);snapshot["genotypeDigest"]=hash.clone().into();
-    let plaintext=Zeroizing::new(snapshot.to_string());
+    let hash=digest(&genotype);snapshot["genotypeDigest"]=hash.into();
+    seal_state_text(&Zeroizing::new(snapshot.to_string()),genotype,key,id,revision,iv)
+}
+/// Seals a state snapshot that is already serialized and already carries `genotypeDigest(genotype)`.
+pub fn seal_state_text(plaintext:&str,genotype:Value,key:&[u8],id:&str,revision:u64,iv:&[u8])->Result<Value,String> {
+    let hash=digest(&genotype);
     let state_key=domain_key(key,b"monadic-dna/explorer/state-key/v2")?;
-    let mut encrypted=seal(&plaintext,&state_key,id,revision,iv)?;
+    let mut encrypted=seal(plaintext,&state_key,id,revision,iv)?;
     encrypted["genotype"]=genotype;encrypted["genotypeDigest"]=hash.into();Ok(encrypted)
 }
-pub fn open(envelope:&Value,key:&[u8])->Result<String,String> {
+pub fn open(envelope:&Value,key:&[u8])->Result<String,String> {open_value(envelope,key).map(|snapshot|snapshot.to_string())}
+/// Opens a vault into its snapshot value; native restore moves it into the session without re-parsing.
+pub fn open_value(envelope:&Value,key:&[u8])->Result<Value,String> {
     let state_key=domain_key(key,b"monadic-dna/explorer/state-key/v2")?;
     let plain=Zeroizing::new(open_raw(envelope,&state_key)?);
     let mut snapshot:Value=serde_json::from_str(&plain).map_err(|_|"Invalid vault snapshot")?;
@@ -89,7 +100,7 @@ pub fn open(envelope:&Value,key:&[u8])->Result<String,String> {
         snapshot["genotypes"]=serde_json::from_str(&opened).map_err(|_|"Invalid genotype data")?;
         snapshot.as_object_mut().unwrap().remove("genotypeDigest");
     }
-    Ok(snapshot.to_string())
+    Ok(snapshot)
 }
 fn recovery_key(password: &str, salt: &[u8]) -> Result<Zeroizing<[u8;32]>,String> {
     if password.len()<12 || password.len()>1024 || salt.len()!=16 {return Err("Use a recovery passphrase of at least 12 characters".into());}

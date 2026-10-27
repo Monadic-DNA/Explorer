@@ -16,46 +16,36 @@ final class TestVaultProtector:VaultKeyProtector {
     func reset(){}
     func delete()throws{}
 }
+/// An in-memory stand-in for iCloud Keychain, shared by simulated devices.
+final class TestSyncKeys:SyncKeyStore {
+    var key:String?
+    func get()throws->String?{key}
+    func put(_ key:String)throws{self.key=key}
+    func delete()throws{key=nil}
+}
 final class SecureDataVaultTests:XCTestCase {
-    func testRestartRecoveryTamperAndGenotypeReuse() async throws {
+    func testStorePersistsIsEncryptedRejectsOtherKeysAndDeletes() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let second=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let protector=TestVaultProtector(),vault=SecureDataVault(protector:TestVaultProtector(),directory:second)
-        let local=SecureDataVault(protector:protector,directory:root)
-        let s=try Core.call("session_create") as! Int,t=try Core.call("session_create") as! Int
-        defer{_ = try? Core.call("session_close",["session":s]);_ = try? Core.call("session_close",["session":t]);try? FileManager.default.removeItem(at:root);try? FileManager.default.removeItem(at:second)}
-        _=try await local.unlock(s)
-        _=try Core.call("session_import",["session":s,"content":"# 23andMe\nrs1 1 100 AG","fileName":"private.txt"])
-        try await local.save(s,["fields":["age":"42"],"context":"private context"])
-        try await local.enableSync("0x"+String(repeating:"a",count:40),"unique recovery passphrase")
-        let first=try await local.archive(),initial=first["envelope"] as! [String:Any]
-        try await local.save(s,["fields":["age":"43"],"context":"private context"])
-        let backup=try await local.backup("unique recovery passphrase"),next=backup["envelope"] as! [String:Any]
-        XCTAssertEqual(initial["genotypeDigest"] as? String,next["genotypeDigest"] as? String)
-        let raw=try String(contentsOf:root.appendingPathComponent("vault-v2.json"),encoding:.utf8)
-        XCTAssertFalse(raw.contains("private context"));XCTAssertFalse(raw.contains("private.txt"));XCTAssertFalse(raw.contains("rs1"))
-        await local.lock()
+        defer{try? FileManager.default.removeItem(at:root)}
+        let protector=TestVaultProtector()
+        let vault=SecureDataVault(protector:protector,directory:root)
+        let missing=await vault.exists;XCTAssertFalse(missing)
+        var handle=try XCTUnwrap(try await vault.unlock()["handle"] as? Int)
+        _=try Core.importToStore(handle,Data("# 23andMe\nrs1 1 100 AG\n".utf8),"private.txt")
+        _=try Core.call("store_set_customization",["store":handle,"customization":["fields":["age":"42"],"context":"private context"]])
+        await vault.lock(handle)
+        // Nothing private is readable on disk.
+        let raw=String(decoding:try Data(contentsOf:root.appendingPathComponent("explorer.db")),as:UTF8.self)
+        for secret in ["private context","private.txt","SQLite format"]{XCTAssertFalse(raw.contains(secret),secret)}
+        // A restarted app opens the same data with the same device key.
         let restarted=SecureDataVault(protector:protector,directory:root)
-        let customization=try await restarted.unlock(t)
-        XCTAssertEqual((customization["fields"] as? [String:String])?["age"],"43")
-        XCTAssertEqual(try Core.object("session_metadata",["session":t])["count"] as? Int,1)
-        do{_=try await vault.restore(t,backup,"incorrect recovery password");XCTFail("Wrong password accepted")}catch{}
-        let absent=await vault.exists;XCTAssertFalse(absent)
-        let restored=try await vault.restore(t,backup,"unique recovery passphrase")
-        XCTAssertEqual((restored["fields"] as? [String:String])?["age"],"43")
-        try await vault.save(t,["fields":["age":"44"],"context":"remote update"])
-        let remote=try await restarted.acceptCloud(s,try await vault.archive(),2)
-        XCTAssertEqual((remote["fields"] as? [String:String])?["age"],"44")
-        try await vault.save(t,["fields":["age":"45"],"context":"remote update"])
-        var delta=try await vault.archive(),deltaEnvelope=delta["envelope"] as! [String:Any]
-        deltaEnvelope.removeValue(forKey:"genotype");delta["envelope"]=deltaEnvelope
-        let updated=try await restarted.acceptCloud(s,delta,3)
-        XCTAssertEqual((updated["fields"] as? [String:String])?["age"],"45")
-        await restarted.lock()
-        var changed=try JSONSerialization.jsonObject(with:Data(raw.utf8)) as! [String:Any]
-        changed["sync"]=["enabled":true,"revision":999]
-        try JSONSerialization.data(withJSONObject:changed).write(to:root.appendingPathComponent("vault-v2.json"))
-        do{_=try await restarted.unlock(t);XCTFail("Tampered record accepted")}catch{}
-        await vault.lock()
+        handle=try XCTUnwrap(try await restarted.unlock()["handle"] as? Int)
+        XCTAssertEqual(try Core.object("store_metadata",["store":handle])["count"] as? Int,1)
+        XCTAssertEqual((try Core.object("store_customization",["store":handle])["fields"] as? [String:String])?["age"],"42")
+        await restarted.lock(handle)
+        // Another device's key cannot open it.
+        do{_=try await SecureDataVault(protector:TestVaultProtector(),directory:root).unlock();XCTFail("Another device key opened the store")}catch{}
+        try await restarted.delete()
+        let deleted=await restarted.exists;XCTAssertFalse(deleted)
     }
 }

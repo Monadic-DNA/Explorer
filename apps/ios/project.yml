@@ -34,6 +34,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Explorer/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Explorer/Explorer.entitlements
     scheme:
       testTargets:
         - ExplorerTests

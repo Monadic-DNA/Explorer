@@ -47,7 +47,9 @@ if(platform==='android'){
   const [target,compiler]=targets[arch];
   run('rustup',['target','add',target]);
   const bin=path.join(prebuilt,host,'bin');
-  const env={...process.env,[`CARGO_TARGET_${target.replaceAll('-','_').toUpperCase()}_LINKER`]:path.join(bin,compiler),[`CC_${target.replaceAll('-','_')}`]:path.join(bin,compiler),[`AR_${target.replaceAll('-','_')}`]:path.join(bin,'llvm-ar')};
+  const env={...process.env,[`CARGO_TARGET_${target.replaceAll('-','_').toUpperCase()}_LINKER`]:path.join(bin,compiler),[`CC_${target.replaceAll('-','_')}`]:path.join(bin,compiler),[`AR_${target.replaceAll('-','_')}`]:path.join(bin,'llvm-ar'),
+    // The vendored OpenSSL that SQLCipher uses also needs ranlib, which modern NDKs ship only as llvm-ranlib.
+    [`RANLIB_${target.replaceAll('-','_')}`]:path.join(bin,'llvm-ranlib')};
   run(cargo,['build','--locked','--release','-p','explorer-core','--features','ffi','--target',target],env);
   const libs=path.join(root,'apps/android/app/src/main/jniLibs',arch);mkdirSync(libs,{recursive:true});copyFileSync(path.join(targetDir,target,'release/libexplorer_core.so'),path.join(libs,'libexplorer_core.so'));
   bind(hostLibrary,'kotlin',path.join(root,'apps/android/app/src/main/java'));

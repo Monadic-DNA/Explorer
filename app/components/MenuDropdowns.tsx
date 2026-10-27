@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Link from "next/link";
 import { FileIcon, SaveIcon, TrashIcon, MessageIcon, ClockIcon } from "./Icons";
 
 // My Data Dropdown
@@ -54,8 +53,6 @@ export function MyDataDropdown({
         <div className="upload-section">
           <UserDataUploadComponent />
         </div>
-
-        <Link className="control-button" href="/portable-vault" onClick={onClose}>Import or export a portable encrypted vault</Link>
 
         {hasSavedData && (
           <div className="dropdown-actions">

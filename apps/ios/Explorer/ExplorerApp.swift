@@ -38,27 +38,28 @@ struct ExplorerView: View {
     @State private var exporting=false
     @State private var exportDocument=TextExport()
     @State private var exportName="monadic-results.tsv"
-    @State private var vaultPassword=""
     func startImport(_ kind:String){importKind=kind;importing=true}
     func export(_ name:String,_ text:String){exportName=name;exportDocument=TextExport(text);exporting=true}
     private var storageStatus:some View { HStack { Text(store.variantCount>0 && store.dataUnlocked ? "\(store.variantCount.formatted()) variants • \(store.storageMessage)" : store.storageMessage).font(.caption); Spacer();
                 if store.dataUnlocked { Button("Lock data",action:store.lockData).disabled(store.busy) }
                 else { Button("Unlock data",action:store.unlockSavedData).disabled(store.busy) }
             }.padding(.horizontal).padding(.vertical,8) }
+    private var vault:some View{VaultView(importDNA:{startImport("dna")})}
     var body: some View {
         VStack(spacing:0){
-            storageStatus
+            // A first-time user has no vault yet, so there is nothing to lock or unlock.
+            if store.dataUnlocked || store.vaultExists{storageStatus}
             if store.busy{HStack{if let progress=store.progress{ProgressView(value:progress).frame(width:60)}else{ProgressView()};Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();if store.cancellable{Button("Cancel",action:store.cancel)}}.padding()}
             TabView(selection:$selectedTab){
-                NavigationStack{HomeView(importDNA:{startImport("dna")},browse:{selectedTab=1},results:{selectedTab=2})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
-                NavigationStack{BrowseView()}.tabItem{Label("Browse",systemImage:"magnifyingglass")}.tag(1)
-                NavigationStack{ResultsView(export:export,importResults:{startImport("results")})}.tabItem{Label("Results",systemImage:"list.bullet")}.tag(2)
-                NavigationStack{ChatView(openSettings:{selectedTab=4})}.tabItem{Label("Chat",systemImage:"bubble.left.and.bubble.right")}.tag(3)
+                NavigationStack{HomeView(importDNA:{startImport("dna")},go:{selectedTab=$0},results:{ResultsView(export:export,importResults:{startImport("results")})})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
+                NavigationStack{ChatView(personalize:{selectedTab=3})}.tabItem{Label("Chat",systemImage:"bubble.left.and.bubble.right")}.tag(1)
+                NavigationStack{ReportsView(openChat:{selectedTab=1},export:export)}.tabItem{Label("Reports",systemImage:"doc.text")}.tag(2)
+                NavigationStack{YouView(done:{selectedTab=0},vault:{vault})}.tabItem{Label("You",systemImage:"person")}.tag(3)
                 NavigationStack{List{
-                    VaultArt(name:"discover").listRowBackground(Color.clear)
-                    NavigationLink("Reports"){ReportsView(export:export)}
-                    NavigationLink("On-device vault"){VaultView(password:$vaultPassword,importDNA:{startImport("dna")},importVault:{startImport("vault")},export:export)}
-                    NavigationLink("Connection and provider settings"){SettingsView()}
+                    NavigationLink("Your matches"){ResultsView(export:export,importResults:{startImport("results")})}
+                    NavigationLink("Browse research"){BrowseView()}
+                    NavigationLink("Vault and backups"){vault}
+                    NavigationLink("Connection and AI provider"){SettingsView()}
                     NavigationLink("Account and premium"){AccountView(billing:store.billing)}
                     Section("Supported DNA exports"){Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, Monadic DNA and compatible raw files. Gzip archives are supported.")}
                 }.vaultScreen().navigationTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
@@ -69,7 +70,7 @@ struct ExplorerView: View {
         .fileImporter(isPresented:$importing,allowedContentTypes:[.data]){result in
             switch result{
             case .success(let url):
-                switch importKind{case "results":store.importResults(url);case "vault":let password=vaultPassword;vaultPassword="";store.unlockVault(password,file:url);default:store.importDNA(url)}
+                if importKind=="results"{store.importResults(url)}else{store.importDNA(url)}
             case .failure(let error):store.error=error.localizedDescription
             }
         }
@@ -77,30 +78,83 @@ struct ExplorerView: View {
     }
 }
 
-struct HomeView:View{
+private let reportKinds=[("Health","Health findings with the strongest research evidence."),("Healthspan","What your matches suggest about healthy aging."),("Top traits","Your most notable trait associations."),("Overview","A summary across all of your matches.")]
+private let chatSuggestions=["Which of my results have the strongest evidence?","What do my results say about heart health?","Is there anything I could discuss with my doctor?"]
+
+// Steps on Home: import DNA (Run all follows automatically), personalize, then Chat and Reports.
+struct HomeView<Results:View>:View{
     @EnvironmentObject var store:ExplorerStore
     var importDNA:()->Void
-    var browse:()->Void
-    var results:()->Void
-    var body:some View{ScrollView{VStack(alignment:.leading,spacing:20){
-        VaultHero()
-        if store.variantCount==0 {
-            Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
-            Button("Import your DNA",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!store.acceptedDisclaimer)
-            if !store.acceptedDisclaimer{Text("Turn on the switch above to enable import.").font(.footnote).foregroundStyle(.secondary)}
-        } else if store.results.isEmpty {
-            Button("Run all studies"){results();store.runAll()}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
+    var go:(Int)->Void
+    @ViewBuilder var results:()->Results
+    @State private var question=""
+    private var ready:Bool{store.resultCount>0 && (store.personalized||store.personalizeSkipped)}
+    var body:some View{ScrollView{VStack(alignment:.leading,spacing:18){
+        if !store.dataUnlocked && !store.vaultExists && store.restorable {
+            VaultHero()
+            Text("Your data is ready to restore").font(VaultStyle.heading(28))
+            Text("An encrypted copy of your DNA, results and personalization from your other device is available. Confirm it's you to restore it on this device.")
+            Button("Restore my data",action:store.unlockSavedData).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
+        } else if !store.dataUnlocked && store.vaultExists {
+            VaultHero()
+            Text("Welcome back. Unlock your saved data to continue.").font(VaultStyle.heading(20))
+        } else if ready {
+            Text("Ask about your DNA").font(VaultStyle.heading(28))
+            Text("Chat answers questions using your \(store.resultCount.formatted()) research matches\(store.personalized ? " and what you told us about yourself" : "").")
+            TextField("What would you like to know?",text:$question,axis:.vertical).textFieldStyle(.roundedBorder)
+            Button("Ask"){store.chatDraft=question;go(1)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(question.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+            ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){store.chatDraft=suggestion;go(1)}.buttonStyle(.bordered).buttonBorderShape(.capsule)}
+            if !store.personalized{Button{go(3)}label:{VStack(alignment:.leading,spacing:4){Text("Make answers about you").font(.headline);Text("Add your age, ancestry and health history. It stays encrypted on this device.").font(.footnote)}.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary))}.tint(.primary)}
+            Text("Reports").font(VaultStyle.heading(22)).padding(.top,8)
+            ReportCards{_ in go(2)}
+            HStack{Text("\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) matches").font(.footnote);Spacer();NavigationLink("Matches"){results()};NavigationLink("Browse"){BrowseView()}}
         } else {
-            Button("View \(store.results.count.formatted()) matches",action:results).buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-        }
-        Button("Browse studies",action:browse).buttonStyle(.bordered).buttonBorderShape(.capsule)
-        Text(store.variantCount>0 ? "\(store.variantCount.formatted()) variants • \(store.results.count.formatted()) saved study matches" : store.dataUnlocked ? "No DNA imported yet." : "Unlock your saved data or import a raw DNA file to begin.")
-        if !store.results.isEmpty,let insight=try? Core.object("preview_insight",store.results.map(\.raw)){
-            Text(insight["headline"] as? String ?? "").font(.custom("SpaceGrotesk-Bold",size:17,relativeTo:.headline))
-            Text("\(insight["protectiveCount"] as? Int ?? 0) protective associations • \(insight["elevatedCount"] as? Int ?? 0) elevated associations")
+            if store.syncing && store.variantCount==0{Text("Restoring your data from your other device…").font(.headline)}
+            Text("Understand what your DNA says about you").font(VaultStyle.heading(28))
+            if store.variantCount==0{Text("Explorer compares your raw DNA file with published genetic research on this device. Then you can ask questions about your results and read reports.")}
+            Step(number:1,title:"Add your DNA file",done:store.variantCount>0,enabled:true){
+                if store.variantCount>0 {
+                    Text("\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) research matches").font(.footnote)
+                    // Matching normally follows the import; this covers a cancelled or failed run.
+                    if store.resultCount==0 && !store.busy{Button("Find research matches",action:store.runAll).buttonStyle(.borderedProminent).buttonBorderShape(.capsule)}
+                } else {
+                    Text("Raw data from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome or Monadic DNA. It never leaves this device.").font(.footnote)
+                    Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer).font(.footnote)
+                    Button("Choose DNA file",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!store.acceptedDisclaimer||store.busy)
+                }
+            }
+            Step(number:2,title:"Tell us about you",done:store.personalized,enabled:store.variantCount>0){
+                Text("Age, ancestry and health history make Chat and Reports specific to you. Everything you enter is optional and stays encrypted on this device.").font(.footnote)
+                if store.variantCount>0 && !store.personalized{HStack{Button("Personalize"){go(3)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule);Button("Skip for now",action:store.skipPersonalization)}}
+            }
+            // Home switches to Chat and Reports once steps 1 and 2 are done, so step 3 is a preview here.
+            Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Chat about your results, or read a report such as the free Health report.").font(.footnote)}
+            NavigationLink("Browse research without your DNA"){BrowseView()}
         }
         Text("Associations are not diagnoses or individual health predictions. Odds ratios are relative, not absolute risk; beta values describe trait changes.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote)).foregroundStyle(.secondary)
     }.padding()}.vaultScreen().navigationTitle("Explorer").navigationBarTitleDisplayMode(.inline)}
+}
+
+struct Step<Content:View>:View{
+    let number:Int;let title:String;let done:Bool;let enabled:Bool
+    @ViewBuilder var content:()->Content
+    // Done steps are tinted, the current step is outlined, and later steps are dimmed.
+    var body:some View{VStack(alignment:.leading,spacing:8){
+        Text(done ? "✓  \(title)" : "\(number)  \(title)").font(.headline)
+        content()
+    }.frame(maxWidth:.infinity,alignment:.leading).padding()
+    .background(done ? Color.accentColor.opacity(0.12) : Color.clear,in:RoundedRectangle(cornerRadius:20))
+    .overlay(RoundedRectangle(cornerRadius:20).stroke(enabled && !done ? Color.primary : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
+    .opacity(enabled ? 1 : 0.45)}
+}
+
+struct ReportCards:View{
+    @EnvironmentObject var store:ExplorerStore
+    var open:(String)->Void
+    private var premium:Bool{(store.subscription?["subscription"] as? [String:Any])?["isActive"] as? Bool == true}
+    var body:some View{ForEach(reportKinds,id:\.0){kind,description in
+        Button{open(kind)}label:{HStack{VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).foregroundStyle(.secondary)};Spacer();Text(kind=="Health" ? "Free" : premium ? "" : "Premium").font(.caption)}.padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary.opacity(0.5)))}.tint(.primary)
+    }}
 }
 
 struct BrowseView:View{
@@ -130,9 +184,9 @@ struct StudyView:View{
         Section{
             Text(record.text("disease_trait")).font(VaultStyle.heading(24));Text(record.text("study"))
             Button("Match my DNA on device"){store.analyze(record)}.disabled(store.busy || !hasDNA)
-            if !hasDNA{Text(store.dataUnlocked ? "Import your DNA in More → On-device vault to match this study." : "Unlock your saved data to match this study.").font(.footnote).foregroundStyle(.secondary)}
+            if !hasDNA{Text(store.dataUnlocked ? "Add your DNA file on Home to match this study." : "Unlock your saved data to match this study.").font(.footnote).foregroundStyle(.secondary)}
         }
-        if let result=store.results.first(where:{$0.id==record.id}){Section("Your match"){ResultView(record:result)}}
+        if let result=store.resultFor(record.id){Section("Your match"){ResultView(record:result)}}
         Section("Research details"){
             ForEach([("study_accession","Accession"),("mapped_gene","Genes"),("snps","Variants"),("strongest_snp_risk_allele","Risk allele"),("or_or_beta",effectLabel),("ci_text","Effect interval"),("p_value","P-value"),("initial_sample_size","Discovery sample"),("replication_sample_size","Replication sample"),("first_author","Author"),("journal","Journal"),("date","Publication date")],id:\.0){key,label in
                 if !record.text(key).isEmpty{LabeledContent(label,value:record.text(key))}
@@ -169,33 +223,39 @@ struct ResultsView:View{
     @State private var filter=""
     @State private var direction="All"
     @State private var sort="Catalog order"
-    private var shown:[Record]{
-        let rows=store.results.filter{(filter.isEmpty||$0.text("traitName").localizedCaseInsensitiveContains(filter))&&(direction=="All"||$0.text("riskLevel").caseInsensitiveCompare(direction) == .orderedSame)}
-        func size(_ r:Record)->Double{r.text("effectType")=="beta" ? abs(r.number("riskScore")) : abs(log(max(r.number("riskScore"),1e-9)))}
-        switch sort{
-        case "Effect size":return rows.sorted{size($0)>size($1)}
-        case "P-value":return rows.sorted{$0.number("pValueMlog")>$1.number("pValueMlog")}
-        default:return rows
-        }
+    // Pages come from the Rust session, which filters and sorts; only loaded pages are held here.
+    @State private var rows:[Record]=[]
+    @State private var total=0
+    @State private var loading=false
+    private var sortKey:String{["Catalog order":"catalog","Effect size":"effect","P-value":"pvalue"][sort] ?? "catalog"}
+    private func load(reset:Bool) async {
+        guard !loading else{return};loading=true;defer{loading=false}
+        guard let page=try? await store.resultsPage(filter:filter,direction:direction.lowercased(),sort:sortKey,offset:reset ? 0 : rows.count) else{return}
+        rows=reset ? page.rows : rows+page.rows;total=page.total
     }
     var body:some View{List{
         Section{
-            Text("\(store.results.count.formatted()) saved study matches").font(VaultStyle.heading(20))
+            Text("\(store.resultCount.formatted()) saved study matches").font(VaultStyle.heading(20))
             Button("Run all studies",action:store.runAll).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy||store.variantCount==0)
-            Button("Export results as TSV"){do{export("monadic-results.tsv",try store.exportResults())}catch{store.error=error.localizedDescription}}.disabled(store.results.isEmpty)
+            Button("Export results as TSV"){do{export("monadic-results.tsv",try store.exportResults())}catch{store.error=error.localizedDescription}}.disabled(store.resultCount==0)
             Button("Import saved results",action:importResults)
             if let info=store.catalogInfo{Text("Research catalog \(info["version"] as? String ?? "") • \((info["rows"] as? Int ?? 0).formatted()) studies • bundled with this app").font(.footnote)}
-            if store.results.isEmpty {
-                Text(!store.dataUnlocked ? "Unlock your saved data to see saved matches." : store.variantCount==0 ? "Import a raw DNA file in More → On-device vault first. Then Run all studies compares it with the research catalog on this device." : "Choose Run all studies to compare your DNA with the research catalog bundled with this app. Matching runs on this device and takes under a minute.").foregroundStyle(.secondary)
+            if store.resultCount==0 {
+                Text(!store.dataUnlocked ? "Unlock your saved data to see saved matches." : store.variantCount==0 ? "Add your DNA file on Home first. Then Run all studies compares it with the research catalog on this device." : "Choose Run all studies to compare your DNA with the research catalog bundled with this app. Matching runs on this device and takes under a minute.").foregroundStyle(.secondary)
             } else {
                 TextField("Filter saved traits",text:$filter)
                 Picker("Direction",selection:$direction){ForEach(["All","Increased","Decreased"],id:\.self){Text($0)}}.pickerStyle(.segmented)
                 Picker("Sort by",selection:$sort){ForEach(["Catalog order","Effect size","P-value"],id:\.self){Text($0)}}
-                if shown.count != store.results.count{Text("Showing \(shown.count.formatted()) of \(store.results.count.formatted())").font(.footnote)}
+                if total != store.resultCount{Text("Showing \(total.formatted()) of \(store.resultCount.formatted())").font(.footnote)}
             }
         }
-        ForEach(shown){record in Button{store.loadStudy(record.id)}label:{ResultView(record:record)}.buttonStyle(.plain).listRowBackground(Color.clear).listRowSeparator(.hidden)}
-    }.vaultScreen().navigationTitle("Your results")}
+        ForEach(rows){record in
+            Button{store.loadStudy(record.id)}label:{ResultView(record:record)}.buttonStyle(.plain).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                // Load the next page as the list nears its end.
+                .onAppear{if record.id==rows.dropLast(10).last?.id ?? rows.last?.id, rows.count<total{Task{await load(reset:false)}}}
+        }
+    }.vaultScreen().navigationTitle("Your results")
+    .task(id:"\(filter)|\(direction)|\(sort)|\(store.resultsVersion)"){await load(reset:true)}}
 }
 
 struct ProviderConsent:View{
@@ -204,28 +264,32 @@ struct ProviderConsent:View{
 }
 struct ChatView:View{
     @EnvironmentObject var store:ExplorerStore
-    var openSettings:()->Void
+    var personalize:()->Void
     @State private var message=""
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
-        HStack{Text("Provider: \(providerName) • \(store.model)").font(.footnote);Spacer();Button("Change",action:openSettings)}.padding(.horizontal)
+        HStack{Text("Provider: \(providerName) • \(store.model)").font(.footnote);Spacer();NavigationLink("Change"){SettingsView()}}.padding(.horizontal)
         ProviderConsent().padding(.horizontal)
-        if store.messages.isEmpty{Text(store.results.isEmpty ? "Chat answers questions about your saved matches. Run all studies in Results first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matched results go only to the provider shown." : "Ask a question about your matched findings, for example which traits have the strongest evidence.").foregroundStyle(.secondary).padding(.horizontal)}
+        if store.messages.isEmpty{
+            Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion.").foregroundStyle(.secondary).padding(.horizontal)
+            if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}.padding(.horizontal)}
+            if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize).padding(.horizontal)}
+        }
         List(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){Text(item.element.0).font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)}}
         HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder);Button("Send"){store.sendChat(message);message=""}.disabled(store.busy||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
-    }.vaultScreen().navigationTitle("DNA chat")}
+    }.vaultScreen().navigationTitle("Chat")
+    // A question started on Home arrives as a draft.
+    .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}
 }
 struct ReportsView:View{
     @EnvironmentObject var store:ExplorerStore
+    var openChat:()->Void
     var export:(String,String)->Void
     var body: some View {
         List {
-            VaultArt(name: "discover").listRowBackground(Color.clear)
+            Text(store.resultCount==0 ? "Reports summarize your research matches. Add your DNA file on Home first." : "Each report reads your \(store.resultCount.formatted()) research matches\(store.personalized ? " and what you told us about yourself" : "").")
             ProviderConsent()
-            ForEach(["Overview", "Health", "Healthspan", "Top traits"], id: \.self) { kind in
-                Button("Generate \(kind) report") { store.generateReport(kind) }
-                    .disabled(store.busy || store.results.isEmpty)
-            }
+            ReportCards{kind in if !store.busy && store.resultCount>0{store.generateReport(kind)}}.listRowSeparator(.hidden)
             if !store.report.isEmpty {
                 Section(store.reportTitle) {
                     Text(.init(store.report)).textSelection(.enabled)
@@ -235,7 +299,7 @@ struct ReportsView:View{
             if !store.reportQuestions.isEmpty {
                 Section("Ask a follow-up") {
                     ForEach(store.reportQuestions, id: \.self) { question in
-                        Button(question) { store.sendChat(question) }.disabled(store.busy)
+                        Button(question) { store.chatDraft=question;openChat() }
                     }
                 }
             }
@@ -243,56 +307,56 @@ struct ReportsView:View{
     }
 }
 
+struct YouView<Vault:View>:View{
+    @EnvironmentObject var store:ExplorerStore
+    var done:()->Void
+    @ViewBuilder var vault:()->Vault
+    var body:some View{Form{
+        Section{Text("Optional details make Chat and Reports specific to you. They are encrypted on this device and only shared with your AI provider when you allow it.")}
+        if !store.dataUnlocked{Button("Unlock to edit",action:store.unlockSavedData).disabled(store.busy)}
+        else {
+            Section("About you"){
+                ForEach(store.profileSchema){field in
+                    let value=Binding<String>(get:{store.profileFields[field.key] ?? ""},set:{store.profileFields[field.key]=$0})
+                    if let options=field.options{Picker(field.label,selection:value){ForEach(options){Text($0.label).tag($0.value)}}.disabled(store.syncing || store.locking)}
+                    else{TextField(field.label,text:value,axis:.vertical).disabled(store.syncing || store.locking)}
+                }
+                TextField("Anything else for your reports (optional)",text:$store.profile,axis:.vertical).disabled(store.syncing || store.locking)
+                Text("Saved automatically.").font(.footnote)
+            }
+            Button("Done",action:done)
+        }
+        Section("Your data"){
+            Text(store.variantCount>0 ? "\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) research matches" : "No DNA file imported yet.")
+            NavigationLink("Vault and backups"){vault()}
+            if store.dataUnlocked{Button("Lock",action:store.lockData).disabled(store.busy)}
+        }
+    }.vaultScreen().navigationTitle("You")}
+}
+
 struct VaultView:View{
     @EnvironmentObject var store:ExplorerStore
-    @Binding var password:String
     var importDNA:()->Void
-    var importVault:()->Void
-    var export:(String,String)->Void
     @State private var confirmDelete=false
-    @State private var confirmRestore=false
-    @State private var confirmCloudDelete=false
-    private var localData:some View {
+    private var syncBinding:Binding<Bool>{Binding(get:{store.syncEnabled},set:{store.setSync($0)})}
+    var body:some View{Form{
+        VaultArt(name:"vault").listRowBackground(Color.clear)
         Section("On-device genetic data"){
-            Text("DNA, results and customization are saved automatically in an encrypted vault after device authentication. Locking clears your decrypted session.")
+            Text("Your DNA, results and personalization are kept in an encrypted database on this device. Unlocking needs your device authentication, and locking closes it.")
             Text(store.dataUnlocked ? "Key protection: \(store.protection)" : "Locked. Your data stays encrypted until you unlock it.").font(.footnote)
             Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
             Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(!store.acceptedDisclaimer||store.busy)
             if !store.acceptedDisclaimer{Text("Turn on the switch above to enable import.").font(.footnote).foregroundStyle(.secondary)}
-            Button(store.dataUnlocked ? "Lock saved data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
+            Button(store.dataUnlocked ? "Lock" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
-    }
-    private var recovery:some View {
-        Section("Encrypted recovery and transfer"){
-            Text("Use a unique recovery passphrase of at least 12 characters. Keep it somewhere safe: we cannot recover it. Device keys stay on their original devices.")
-            SecureField("Recovery passphrase",text:$password).textContentType(.password)
-            Button("Export encrypted portable vault"){
-                let p=password;password="";store.work("Encrypting portable vault"){export("monadic-vault.json",try await store.encryptedVault(p))}
-            }.disabled(password.count<12||store.busy)
-            Button("Import portable vault (replaces device data)",action:importVault).disabled(password.isEmpty||store.busy)
-            Button("Migrate previous saved vault"){let p=password;password="";store.unlockVault(p)}.disabled(password.isEmpty||store.busy)
+        Section("Sync across your devices"){
+            Text("An end-to-end encrypted copy is kept so a new iPhone or iPad signed in to your Apple ID fills in automatically. The server can't read it, and no sign-in is needed.")
+            Toggle("Sync",isOn:syncBinding).disabled(!store.dataUnlocked||store.busy)
+            Text(!store.dataUnlocked ? "Unlock to change sync." : store.syncing ? "Syncing…" : !store.syncMessage.isEmpty ? store.syncMessage : store.syncEnabled ? "Up to date." : "Turning sync off deleted the cloud copy. Data on this device is unchanged.").font(.footnote)
         }
-    }
-    private var synchronization:some View {
-        Section("Optional encrypted multi-device sync"){
-            Text("Sign in to the same Explorer account on each device. Only encrypted data and a passphrase-protected data key are uploaded. Concurrent edits require a choice before replacing data.")
-            Button("Enable encrypted sync"){let p=password;password="";store.enableSync(p)}.disabled(password.count<12||store.busy||store.wallet.isEmpty)
-            Button("Sync now",action:store.syncNow).disabled(store.busy||store.syncing)
-            Button("Restore cloud copy (replaces device data)"){confirmRestore=true}.disabled(password.isEmpty||store.busy||store.wallet.isEmpty)
-            Button("Disable sync on this device",action:store.disableSync).disabled(!store.dataUnlocked||store.busy)
-            Button("Delete encrypted cloud copy",role:.destructive){confirmCloudDelete=true}.disabled(!store.dataUnlocked||store.busy||store.wallet.isEmpty)
-        }
-    }
-    var body:some View{Form{
-        VaultArt(name:"vault").listRowBackground(Color.clear)
-        localData
-        recovery
-        synchronization
-        Button("Delete local vault",role:.destructive){confirmDelete=true}.disabled(store.busy)
+        Button("Delete data from this device",role:.destructive){confirmDelete=true}.disabled(store.busy||(!store.dataUnlocked && !store.vaultExists))
     }.vaultScreen().navigationTitle("Private vault")
-    .confirmationDialog("Delete this device's vault and clear memory? Cloud data is retained.",isPresented:$confirmDelete){Button("Delete",role:.destructive,action:store.deleteVault)}
-    .confirmationDialog("Replace device data with the cloud copy? Export a backup first to retain local changes.",isPresented:$confirmRestore){Button("Replace device data",role:.destructive){let p=password;password="";store.restoreCloud(p)}}
-    .confirmationDialog("Delete the cloud copy? Other devices will need to set up sync again.",isPresented:$confirmCloudDelete){Button("Delete cloud copy",role:.destructive,action:store.deleteCloud)}
+    .confirmationDialog(store.syncEnabled ? "Delete your data from this device? The encrypted cloud copy stays, so you can restore it later." : "Delete your data from this device? Sync is off, so there is no other copy.",isPresented:$confirmDelete,titleVisibility:.visible){Button("Delete",role:.destructive,action:store.deleteVault)}
     }
 }
 
@@ -309,16 +373,6 @@ struct SettingsView:View{
             SecureField("Your provider API key",text:$store.apiKey)
             if store.provider=="ollama"{TextField("Ollama hostname",text:$store.ollamaAddress).autocorrectionDisabled().textInputAutocapitalization(.never);TextField("Ollama port",text:$store.ollamaPort).keyboardType(.numberPad)}
             if store.provider=="nilai"{Text("Leave the key blank for one-use backend delegation. Prompts go directly to nilAI; only your public key visits the backend.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))}
-        }
-        Section("Optional personalization"){
-            if !store.dataUnlocked { Button("Unlock customization",action:store.unlockSavedData) }
-            ForEach(store.profileSchema){field in
-                let value=Binding<String>(get:{store.profileFields[field.key] ?? ""},set:{store.profileFields[field.key]=$0})
-                if let options=field.options{Picker(field.label,selection:value){ForEach(options){Text($0.label).tag($0.value)}}.disabled(!store.dataUnlocked || store.syncing || store.locking)}
-                else{TextField(field.label,text:value,axis:.vertical).disabled(!store.dataUnlocked || store.syncing || store.locking)}
-            }
-            TextField("Additional context for reports",text:$store.profile,axis:.vertical).disabled(!store.dataUnlocked || store.syncing || store.locking)
-            Text("Customization is saved automatically in the encrypted data vault.").font(.footnote)
         }
         Button("Save securely in Keychain"){do{try store.saveSettings()}catch{store.error=error.localizedDescription}}
     }.vaultScreen().navigationTitle("Settings")}

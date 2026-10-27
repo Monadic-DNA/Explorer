@@ -70,112 +70,43 @@ internal fun encode(bytes:ByteArray)=Base64.encodeToString(bytes,Base64.NO_WRAP)
 internal fun decode(value:String)=Base64.decode(value,Base64.NO_WRAP)
 internal fun randomBytes(count:Int)=ByteArray(count).also{SecureRandom().nextBytes(it)}
 
-/** Atomic ciphertext-only storage. Device wrapping keys are never included in portable/cloud archives. */
+/**
+ * The device's encrypted store (docs/native-data-store.md). A random 32-byte local key, wrapped by the
+ * authenticated Keystore key, opens the SQLCipher database. The local key never leaves this device.
+ */
 class SecureDataVault(
     context:Context,
     private val protector:VaultKeyProtector=HardwareVaultKey(context),
-    directory:File=File(context.noBackupFilesDir,"protected-data")
+    private val directory:File=File(context.noBackupFilesDir,"protected-data")
 ) {
-    private val file=AtomicFile(File(directory,"vault-v2.json"))
+    private val keyFile=AtomicFile(File(directory,"device-key.json"))
+    private val database=File(directory,"explorer.db")
     private val mutex=Mutex()
-    private var key:ByteArray?=null
-    private var record:JSONObject?=null
-    val exists get()=file.baseFile.exists() || File(file.baseFile.path+".bak").exists()
+    val exists get()=keyFile.baseFile.exists() && database.exists()
     val protection get()=protector.description
-    private fun authenticatedRecord():JSONObject {
-        val value=JSONObject(file.openRead().bufferedReader().use{it.readText()})
-        val id=value.getJSONObject("envelope").getString("vaultId")
-        val opened=protector.unwrap(value.getJSONObject("deviceKey"),id)
-        try {Core.call("vault_record_verify",json("key" to encode(opened),"record" to value));key?.fill(0);key=opened;record=value;return value}
-        catch(error:Exception){opened.fill(0);throw error}
-    }
-    private fun write(value:JSONObject) {
-        value.remove("mac")
-        value.put("mac",Core.call("vault_record_mac",json("key" to encode(requireNotNull(key)),"record" to value)))
-        file.baseFile.parentFile!!.mkdirs()
-        val stream=file.startWrite()
-        try{stream.write(value.toString().toByteArray());file.finishWrite(stream)}catch(error:Exception){file.failWrite(stream);throw error}
-        record=value
-    }
-    suspend fun unlock(session:Long,authenticate:suspend()->Unit):JSONObject {
+    /** Authenticates the user, then opens (creating on first use) the store. Returns the store handle. */
+    suspend fun unlock(authenticate:suspend()->Unit):JSONObject {
         authenticate()
         return withContext(Dispatchers.IO){mutex.withLock {
-            if(exists) {
-                val value=authenticatedRecord()
-                try{Core.restorePersisted(session,requireNotNull(key),value.getJSONObject("envelope").toString());Core.obj("session_customization",json("session" to session))}
-                catch(error:Exception){key?.fill(0);key=null;record=null;throw error}
-            } else {
-                key=randomBytes(32)
-                val id=UUID.randomUUID().toString()
-                val initial=Core.persistSession(session,requireNotNull(key),id,1,randomBytes(12),json("fields" to JSONObject(),"context" to "").toString())
-                write(json("version" to 2,"deviceKey" to protector.wrap(requireNotNull(key),id),"envelope" to initial,"sync" to json("enabled" to false,"revision" to 0,"dirty" to false)))
-                json("fields" to JSONObject(),"context" to "")
+            directory.mkdirs()
+            // Earlier development builds kept a single encrypted blob here; it is never read.
+            File(directory,"vault-v2.json").delete()
+            val key=if(keyFile.baseFile.exists()) protector.unwrap(JSONObject(keyFile.readFully().toString(Charsets.UTF_8)),KEY_ID)
+            else randomBytes(32).also{key->
+                // A key without its database would be useless; start both fresh.
+                listOf("","-wal","-shm").forEach{File(database.path+it).delete()}
+                val stream=keyFile.startWrite()
+                try{stream.write(protector.wrap(key,KEY_ID).toString().toByteArray());keyFile.finishWrite(stream)}catch(error:Exception){keyFile.failWrite(stream);throw error}
             }
+            try{Core.storeOpen(database.path,key)}finally{key.fill(0)}
         }}
     }
-    suspend fun save(session:Long,customization:JSONObject)=withContext(Dispatchers.IO){mutex.withLock {
-        // Shallow copy: the large encrypted envelope is replaced, and only the small sync object changes.
-        val previous=requireNotNull(record){"Unlock your saved data first."}
-        val current=JSONObject(previous,previous.keys().asSequence().toList().toTypedArray())
-        current.put("sync",JSONObject(previous.getJSONObject("sync").toString()))
-        val envelope=previous.getJSONObject("envelope")
-        current.put("envelope",Core.persistSession(session,requireNotNull(key),envelope.getString("vaultId"),envelope.getLong("revision")+1,randomBytes(12),customization.toString()))
-        current.getJSONObject("sync").put("dirty",true)
-        write(current)
+    suspend fun lock(handle:Long)=withContext(Dispatchers.IO){mutex.withLock{Core.storeClose(handle)}}
+    /** Deletes this device's data and its wrapping key. The cloud copy is handled by sync. */
+    suspend fun delete()=withContext(Dispatchers.IO){mutex.withLock{
+        listOf("","-wal","-shm").forEach{File(database.path+it).delete()}
+        keyFile.delete();protector.delete()
+        check(!exists){"Unable to delete saved data."}
     }}
-    suspend fun lock()=withContext(Dispatchers.IO){mutex.withLock{key?.fill(0);key=null;record=null}}
-    suspend fun delete()=withContext(Dispatchers.IO){mutex.withLock{file.delete();check(!exists){"Unable to delete saved data."};protector.delete();key?.fill(0);key=null;record=null}}
-    suspend fun backup(password:String):String=withContext(Dispatchers.Default){mutex.withLock {
-        val current=requireNotNull(record){"Unlock your saved data first."}
-        val wrapped=Core.obj("vault_wrap_key",json("key" to encode(requireNotNull(key)),"vaultId" to current.getJSONObject("envelope").getString("vaultId"),"password" to password,"salt" to encode(randomBytes(16)),"nonce" to encode(randomBytes(12))))
-        authenticatedArchive(json("version" to 2,"envelope" to current.getJSONObject("envelope"),"wrappedKey" to wrapped)).toString()
-    }}
-    suspend fun restore(session:Long,archive:JSONObject,password:String,authenticate:suspend()->Unit,allowOlder:Boolean=false):JSONObject {
-        authenticate()
-        return withContext(Dispatchers.Default){mutex.withLock {
-            val envelope=archive.getJSONObject("envelope");val wrapped=archive.getJSONObject("wrappedKey")
-            check(envelope.getString("vaultId")==wrapped.getString("vaultId")){"Recovery key belongs to a different vault."}
-            val recovered=decode(Core.call("vault_unwrap_key",json("wrappedKey" to wrapped,"password" to password)) as String)
-            val temporary=(Core.call("session_create") as Number).toLong()
-            try {
-                Core.call("vault_record_verify",json("key" to encode(recovered),"record" to archive))
-                Core.restorePersisted(temporary,recovered,envelope.toString()) // Validate all data before replacing disk or the active session.
-                if(!allowOlder && record?.getJSONObject("envelope")?.getString("vaultId")==envelope.getString("vaultId")) check(envelope.getLong("revision")>=record!!.getJSONObject("envelope").getLong("revision")){"This backup is older than this device's saved data."}
-                val replacement=json("version" to 2,"deviceKey" to protector.wrap(recovered,envelope.getString("vaultId")),"envelope" to envelope,"wrappedKey" to wrapped,"sync" to json("enabled" to false,"revision" to 0,"dirty" to false))
-                val previous=key;key=recovered
-                try{write(replacement)}catch(error:Exception){key=previous;throw error}
-                previous?.fill(0)
-                Core.restorePersisted(session,recovered,envelope.toString())
-                Core.obj("session_customization",json("session" to session))
-            } finally {if(key!==recovered)recovered.fill(0);Core.call("session_close",json("session" to temporary))}
-        }}
-    }
-    suspend fun syncConfiguration():JSONObject?=mutex.withLock{record?.optJSONObject("sync")?.let{JSONObject(it.toString())}}
-    suspend fun enableSync(wallet:String,password:String)=withContext(Dispatchers.Default){mutex.withLock {
-        val current=JSONObject(requireNotNull(record){"Unlock your saved data first."}.toString())
-        current.put("wrappedKey",Core.obj("vault_wrap_key",json("key" to encode(requireNotNull(key)),"vaultId" to current.getJSONObject("envelope").getString("vaultId"),"password" to password,"salt" to encode(randomBytes(16)),"nonce" to encode(randomBytes(12)))))
-        current.put("sync",json("enabled" to true,"wallet" to wallet.lowercase(),"revision" to 0,"dirty" to true))
-        write(current)
-    }}
-    private fun authenticatedArchive(value:JSONObject):JSONObject {value.put("mac",Core.call("vault_record_mac",json("key" to encode(requireNotNull(key)),"record" to value)));return value}
-    suspend fun archive():JSONObject=mutex.withLock{val current=requireNotNull(record);JSONObject(authenticatedArchive(json("version" to 2,"envelope" to current.getJSONObject("envelope"),"wrappedKey" to current.getJSONObject("wrappedKey"))).toString())}
-    suspend fun synced(revision:Long,uploadedRevision:Long)=withContext(Dispatchers.IO){mutex.withLock{val current=JSONObject(requireNotNull(record).toString());current.getJSONObject("sync").put("revision",revision).put("dirty",current.getJSONObject("envelope").getLong("revision")!=uploadedRevision);write(current)}}
-    suspend fun enableExistingSync(wallet:String,revision:Long)=withContext(Dispatchers.IO){mutex.withLock{val current=JSONObject(requireNotNull(record).toString());current.put("sync",json("enabled" to true,"wallet" to wallet.lowercase(),"revision" to revision,"dirty" to false));write(current)}}
-    suspend fun disableSync()=withContext(Dispatchers.IO){mutex.withLock{val current=JSONObject(requireNotNull(record).toString());current.getJSONObject("sync").put("enabled",false);write(current)}}
-    suspend fun genotypeDigest():String?=mutex.withLock{record?.getJSONObject("envelope")?.optString("genotypeDigest")}
-    suspend fun acceptCloud(session:Long,archive:JSONObject,revision:Long)=withContext(Dispatchers.Default){mutex.withLock{
-        val current=JSONObject(requireNotNull(record).toString());val envelope=archive.getJSONObject("envelope")
-        if(!envelope.has("genotype") && envelope.optString("genotypeDigest")==current.getJSONObject("envelope").optString("genotypeDigest"))envelope.put("genotype",current.getJSONObject("envelope").getJSONObject("genotype"))
-        check(envelope.getString("vaultId")==current.getJSONObject("envelope").getString("vaultId")){"This cloud vault needs its recovery passphrase on this device."}
-        check(envelope.getLong("revision")>=current.getJSONObject("envelope").getLong("revision")){"The cloud copy is older than this device. Restore it explicitly only if you intend to replace newer data."}
-        val temporary=(Core.call("session_create") as Number).toLong()
-        try {
-            Core.call("vault_record_verify",json("key" to encode(requireNotNull(key)),"record" to archive))
-            Core.restorePersisted(temporary,requireNotNull(key),envelope.toString())
-            current.put("envelope",envelope).put("wrappedKey",archive.getJSONObject("wrappedKey"))
-            current.getJSONObject("sync").put("revision",revision).put("dirty",false)
-            write(current);Core.restorePersisted(session,requireNotNull(key),envelope.toString())
-            Core.obj("session_customization",json("session" to session))
-        } finally {Core.call("session_close",json("session" to temporary))}
-    }}
+    private companion object { const val KEY_ID="Explorer store key v1" }
 }

@@ -447,4 +447,4 @@ Cerezo M, Sollis E, Ji Y, Lewis E, Abid A, Bircan KO, Hall P, Hayhurst J, John S
 doi.org/10.1093/nar/gkae1070
 Nucleic Acids Research, Volume 53, Issue D1, 6 January 2025, Pages D998–D1005
 
-See [secure persistence, recovery and encrypted sync](docs/secure-data-vault.md) for device key protection, cross-platform transfers and backend setup.
+See [native data store and sync](docs/native-data-store.md) for device key protection, sync and backend setup.

@@ -589,8 +589,28 @@ pub fn partition(v: &Value) -> Result<Value, String> {
     }
     Ok(json!(groups))
 }
+/// Formats each Overview group without cloning results; same ordering and grouping as `partition`.
+pub fn format_groups(rows: &[Value], n: usize) -> Result<Vec<Value>, String> {
+    if n == 0 || n > 10000 {
+        return Err("Group count must be between 1 and 10000".into());
+    }
+    let mut sorted: Vec<&Value> = rows.iter().collect();
+    sorted.sort_by(|a, b| {
+        (b["riskScore"].as_f64().unwrap_or(1.0) - 1.0)
+            .abs()
+            .total_cmp(&(a["riskScore"].as_f64().unwrap_or(1.0) - 1.0).abs())
+    });
+    let mut groups = vec![Vec::new(); n];
+    for (i, r) in sorted.into_iter().enumerate() {
+        groups[i % n].push(r)
+    }
+    Ok(groups.into_iter().map(|g| json!({"count":g.len(),"text":format_rows(g.into_iter())})).collect())
+}
 pub fn format_results(rows: &[Value]) -> String {
-    rows.iter()
+    format_rows(rows.iter())
+}
+fn format_rows<'a>(rows: impl Iterator<Item = &'a Value>) -> String {
+    rows
         .map(|r| {
             format!(
                 "{}|{}|{}|{}|{}|{}",

@@ -18,9 +18,10 @@ import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:SecureDataVault=SecureDataVault(app)) : AndroidViewModel(app) {
+class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:SecureDataVault=SecureDataVault(app), private val syncKeys:SyncKeyStore=BlockStoreSyncKeys(app)) : AndroidViewModel(app) {
     val store = DeviceStore(app)
-    var session = (Core.call("session_create") as Number).toLong()
+    /** Handle of the open encrypted store (docs/native-data-store.md); null while locked. */
+    var storeHandle: Long? = null
         private set
     var backend by mutableStateOf(store.get("backend").ifBlank { "https://explorer.monadicdna.com" })
     var provider by mutableStateOf(store.get("provider").ifBlank { "nilai" })
@@ -31,15 +32,19 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var profile by mutableStateOf("")
     val profileSchema = Core.arr("profile_schema").objects()
     val profileFields = mutableStateMapOf<String,String>().apply {
-        val fields=JSONObject()
-        profileSchema.forEach { put(it.getString("key"),fields.optString(it.getString("key"))) }
+        profileSchema.forEach { put(it.getString("key"),"") }
     }
     private fun profileData() = Core.obj("parse_profile",JSONObject(profileFields.toMap()))
     var wallet by mutableStateOf(store.get("wallet"))
     var metadata by mutableStateOf(JSONObject())
     var studies by mutableStateOf(emptyList<JSONObject>())
     var traits by mutableStateOf(emptyList<String>())
-    var results by mutableStateOf(emptyList<JSONObject>())
+    // Results stay in the encrypted store; screens page through them with resultsPage.
+    var resultCount by mutableIntStateOf(0)
+        private set
+    /** Changes whenever the stored results change, so screens reload their pages. */
+    var resultsVersion by mutableIntStateOf(0)
+        private set
     var selectedStudy by mutableStateOf<JSONObject?>(null)
     var subscription by mutableStateOf<JSONObject?>(null)
     var busy by mutableStateOf(false)
@@ -54,6 +59,12 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var reportTitle by mutableStateOf("")
     var reportQuestions by mutableStateOf(emptyList<String>())
     var shareResultsWithLLM by mutableStateOf(false)
+    /** A question started on Home that the Chat tab picks up. */
+    var chatDraft by mutableStateOf("")
+    var personalizeSkipped by mutableStateOf(store.get("personalize-skipped")=="true")
+        private set
+    fun skipPersonalization(){store.put("personalize-skipped","true");personalizeSkipped=true}
+    val personalized get()=profile.isNotBlank()||profileFields.values.any{it.isNotBlank()}
     var acceptedDisclaimer by mutableStateOf(false)
     val messages = mutableStateListOf<Pair<String, String>>()
     private val http = OkHttpClient.Builder().connectTimeout(20,TimeUnit.SECONDS).readTimeout(180,TimeUnit.SECONDS).build()
@@ -63,166 +74,180 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         private set
     var storageMessage by mutableStateOf("Your saved data is locked.")
         private set
+    var syncEnabled by mutableStateOf(false)
+        private set
     var syncing by mutableStateOf(false)
         private set
-    private var dataDirty=false
-    private var dataVersion=0L
-    private var autosave:Job?=null
+    var syncMessage by mutableStateOf("")
+        private set
+    /** Why a new device couldn't restore this user's data yet, for example no Google account. Separate from sync errors. */
+    var restoreWarning by mutableStateOf("")
+        private set
+    /** This device has no saved data, but Block Store holds this user's sync key: their data can be restored. */
+    var restorable by mutableStateOf(false)
+        private set
     private var lockJob:Job?=null
     private var syncJob:Job?=null
     private var syncAgain=false
+    private var customizationJob:Job?=null
+    private var loadingCustomization=false
     var locking by mutableStateOf(false)
         private set
-    private var lastCustomization=""
-    private fun customization()=json("fields" to JSONObject(profileFields.toMap()),"context" to profile)
     init {
         viewModelScope.launch {
-            snapshotFlow { profile to profileFields.toMap() }.collect {
-                if(dataUnlocked && customization().toString()!=lastCustomization) markDataChanged()
-            }
+            snapshotFlow { profile to profileFields.toMap() }.collect { if(dataUnlocked && !loadingCustomization) saveCustomizationSoon() }
         }
+        viewModelScope.launch { if(!dataVault.exists) restorable=runCatching{syncKeys.get()!=null}.getOrDefault(false) }
     }
+    private fun handle()=requireNotNull(storeHandle){"Unlock your saved data first."}
+    private fun storeInput(vararg values: Pair<String,Any?>)=json("store" to handle(),*values)
     private fun restoreCustomization(value:JSONObject) {
+        loadingCustomization=true
         profile=value.optString("context")
         val fields=value.optJSONObject("fields") ?: JSONObject()
         profileFields.clear();profileSchema.forEach{field->profileFields[field.getString("key")]=fields.optString(field.getString("key"))}
-        lastCustomization=customization().toString()
+        loadingCustomization=false
+    }
+    // Personalization edits are written shortly after typing stops; only changed fields are stamped for sync.
+    private fun saveCustomizationSoon() {
+        customizationJob?.cancel()
+        customizationJob=viewModelScope.launch { delay(500); saveCustomization() }
+    }
+    private suspend fun saveCustomization() {
+        if(!dataUnlocked)return
+        val changed=withContext(Dispatchers.Default){Core.call("store_set_customization",storeInput("customization" to json("fields" to JSONObject(profileFields.toMap()),"context" to profile)))}==true
+        if(changed)queueSync()
     }
     suspend fun unlockData() {
         lockJob?.join()
         if(dataUnlocked)return
-        val hadData=dataVault.exists
-        val restored=dataVault.unlock(session){requireNotNull(authenticate){"Open the app to unlock your saved data."}.invoke()}
-        restoreCustomization(restored)
-        metadata=Core.obj("session_metadata",json("session" to session));refreshResults()
-        dataUnlocked=true;storageMessage="Saved securely on this device"
-        if(!hadData) {
-            val legacy=store.get("profile-fields").ifBlank{"{}"}
-            restoreCustomization(json("fields" to JSONObject(legacy),"context" to store.get("profile")))
-            dataDirty=true;flushData()
-            store.remove("profile");store.remove("profile-fields")
-        }
-        queueSync()
+        val opened=dataVault.unlock{requireNotNull(authenticate){"Open the app to unlock your saved data."}.invoke()}
+        storeHandle=opened.getLong("handle");metadata=opened.getJSONObject("metadata")
+        restoreCustomization(Core.obj("store_customization",storeInput()))
+        refreshResults()
+        dataUnlocked=true;restorable=false;storageMessage="Saved securely on this device"
+        setUpSync()
     }
     fun unlockSavedData()=run("Unlocking saved data"){unlockData()}
-    private fun markDataChanged() {
-        dataDirty=true;dataVersion++;storageMessage="Saving securely…"
-        autosave?.cancel()
-        autosave=viewModelScope.launch{delay(500);while(busy)delay(100);try{flushData()}catch(e:Exception){if(dataUnlocked)storageMessage="Changes not saved. ${e.message ?: "Please retry."}"}}
-    }
-    suspend fun flushData() {
-        if(!dataUnlocked || !dataDirty)return
-        val version=dataVersion;val custom=customization()
-        dataVault.save(session,custom)
-        lastCustomization=custom.toString()
-        if(version==dataVersion)dataDirty=false
-        storageMessage=if(dataDirty)"Saving securely…" else "Saved securely on this device"
-        queueSync()
-    }
     private fun wipeMemory() {
-        Core.call("session_close",json("session" to session));session=(Core.call("session_create") as Number).toLong()
-        metadata=JSONObject();results=emptyList();messages.clear();report="";reportQuestions=emptyList();selectedStudy=null
-        profile="";profileFields.clear();dataUnlocked=false;dataDirty=false;lastCustomization=""
+        storeHandle=null
+        metadata=JSONObject();resultCount=0;resultsVersion++;messages.clear();report="";reportQuestions=emptyList();selectedStudy=null
+        restoreCustomization(JSONObject());dataUnlocked=false;syncEnabled=false
     }
     fun lockData() {
         if(lockJob?.isActive==true)return
         val running=task
         locking=true
         lockJob=viewModelScope.launch {
-            running?.cancelAndJoin();autosave?.cancelAndJoin();syncJob?.cancelAndJoin()
-            try{flushData()}catch(e:Exception){error="Latest changes could not be saved. The previous encrypted copy is intact."}
-            dataVault.lock();wipeMemory();storageMessage="Your saved data is locked.";locking=false
+            running?.cancelAndJoin();syncJob?.cancelAndJoin()
+            customizationJob?.cancelAndJoin();runCatching{saveCustomization()}
+            storeHandle?.let{dataVault.lock(it)};wipeMemory();storageMessage="Your saved data is locked.";locking=false
         }
     }
     fun backgroundLock(){if(dataUnlocked&&!pickingFile)lockData()}
+
+    // Sync (docs/native-data-store.md): on by default, end-to-end encrypted, same-platform for now.
+    private suspend fun setUpSync() {
+        if(Core.obj("store_sync_status",storeInput()).optBoolean("enabled")){syncEnabled=true;queueSync();return}
+        if(store.get("sync-off")=="true")return
+        // Reuse this user's key from Block Store (a new device restoring) or create one for this account.
+        val existing=runCatching{syncKeys.get()}.getOrNull()
+        val enabled=Core.obj("store_sync_enable",storeInput("syncKey" to existing))
+        restoreWarning=if(existing==null)runCatching{syncKeys.put(enabled.getString("syncKey"))}.exceptionOrNull()?.let{"A new phone can't restore your data yet. ${it.message}"}.orEmpty() else ""
+        syncEnabled=true;queueSync()
+    }
+    fun setSync(on: Boolean)=run(if(on)"Turning on sync" else "Turning off sync and deleting the cloud copy"){
+        unlockData()
+        if(on){store.remove("sync-off");setUpSync();return@run}
+        syncJob?.cancelAndJoin()
+        if(syncEnabled)syncRequest(json("action" to "delete"))
+        Core.call("store_sync_disable",storeInput());runCatching{syncKeys.delete()}
+        store.put("sync-off","true");syncEnabled=false;syncMessage="";notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
+    }
     private fun queueSync() {
-        if(!dataUnlocked || locking)return
+        if(!syncEnabled || !dataUnlocked || locking)return
         if(syncJob?.isActive==true){syncAgain=true;return}
         syncJob=viewModelScope.launch {
-            if(dataVault.syncConfiguration()?.optBoolean("enabled")!=true)return@launch
-            while(busy)delay(100)
-            delay(1000)
-            syncing=true
-            try{do{syncAgain=false;syncOnce()}while(syncAgain)}catch(e:Exception){storageMessage="Saved on device. Sync needs attention: ${e.message ?: "please retry"}"}
-            finally{syncing=false}
+            var delayMs=2000L
+            while(isActive) {
+                while(busy)delay(200)
+                syncing=true
+                try{do{syncAgain=false;syncOnce()}while(syncAgain);syncMessage="";break}
+                catch(e:CancellationException){throw e}
+                catch(e:Exception){syncMessage="Sync will retry: ${e.message ?: "connection problem"}"}
+                finally{syncing=false}
+                delay(delayMs);delayMs=(delayMs*2).coerceAtMost(300000)
+            }
+            // Synced results that don't match this device's catalog are recomputed here.
+            if(dataUnlocked && !busy && Core.call("store_needs_match",storeInput("catalogVersion" to catalogInfo?.optString("version")))==true)runAll()
         }
     }
+    private class SyncConflict: Exception()
     private suspend fun syncOnce() {
-        val config=dataVault.syncConfiguration() ?: return
-        if(!config.optBoolean("enabled"))return
-        require(wallet.isNotBlank() && wallet.equals(config.optString("wallet"),true)){"Sign in to the account used to enable sync."}
-        val syncWallet=wallet
-        val observedVersion=dataVersion
-        val remote=api("/api/vault-sync",json("walletAddress" to syncWallet,"action" to "read","knownRevision" to config.optLong("revision"),"knownGenotype" to dataVault.genotypeDigest()))
-        val revision=remote.getLong("revision");val base=config.optLong("revision")
-        val latest=dataVault.syncConfiguration() ?: return
-        if(!wallet.equals(syncWallet,true) || !latest.optBoolean("enabled") || latest.optString("wallet")!=config.optString("wallet"))return
-        if(revision==base) {
-            if(config.optBoolean("dirty")) {
-                val archive=dataVault.archive()
-                val uploaded=archive.getJSONObject("envelope").getLong("revision")
-                if(archive.getJSONObject("envelope").optString("genotypeDigest")==remote.optString("genotypeDigest")) archive.getJSONObject("envelope").remove("genotype")
-                val response=api("/api/vault-sync",json("walletAddress" to syncWallet,"action" to "write","baseRevision" to base,"archive" to archive))
-                dataVault.synced(response.getLong("revision"),uploaded)
+        val catalogVersion=catalogInfo?.optString("version")
+        repeat(3) {
+            // Pull first: a write must be based on the server's current revision.
+            val list=syncRequest(json("action" to "list")).getJSONArray("records")
+            val wanted=Core.arr("store_sync_wanted",storeInput("records" to list))
+            if(wanted.length()>0){
+                var changed=false
+                for(record in syncRequest(json("action" to "read","records" to wanted)).getJSONArray("records").objects()){
+                    val applied=withContext(Dispatchers.Default){Core.obj("store_sync_apply",storeInput("record" to record.getString("record"),"revision" to record.getLong("revision"),"ciphertext" to record.getString("ciphertext"),"catalogVersion" to catalogVersion))}
+                    if(applied.optBoolean("changed"))changed=true
+                    if(applied.optBoolean("replacedLocal"))notice="Your DNA file was replaced by one imported on another device."
+                }
+                if(changed){metadata=Core.obj("store_metadata",storeInput());restoreCustomization(Core.obj("store_customization",storeInput()));refreshResults()}
             }
-        } else {
-            val cloud=remote.optJSONObject("archive")
-            if(cloud!=null && cloud.optString("mac")==dataVault.archive().optString("mac")) {
-                dataVault.synced(revision,dataVault.archive().getJSONObject("envelope").getLong("revision"));return
+            var conflict=false
+            for(out in withContext(Dispatchers.Default){Core.arr("store_sync_outgoing",storeInput())}.objects()){
+                try {
+                    val revision=syncRequest(json("action" to "write","record" to out.getString("record"),"baseRevision" to out.getLong("baseRevision"),"ciphertext" to out.getString("ciphertext"))).getLong("revision")
+                    Core.call("store_sync_pushed",storeInput("record" to out.getString("record"),"revision" to revision,"version" to out.getLong("version"),"hash" to out.getString("hash")))
+                } catch(_:SyncConflict){conflict=true}
             }
-            require(!dataDirty && observedVersion==dataVersion && !busy && !latest.optBoolean("dirty")){"Another device has changes. Choose Restore cloud copy to replace this device's data, or export a backup before resolving the conflict."}
-            require(!remote.isNull("archive")){"The cloud copy was removed. Disable sync or set it up again explicitly."}
-            val restored=dataVault.acceptCloud(session,remote.getJSONObject("archive"),revision)
-            restoreCustomization(restored);metadata=Core.obj("session_metadata",json("session" to session));refreshResults()
+            if(!conflict)return
         }
-        storageMessage="Saved on device and encrypted sync is up to date."
+        error("Another device keeps changing your data; sync will retry")
     }
-    fun syncNow()=run("Syncing encrypted data"){unlockData();flushData();queueSync()}
-    fun enableSync(password:String)=run("Setting up encrypted sync"){
-        require(wallet.isNotBlank()){ "Sign in before enabling sync." };unlockData();flushData();dataVault.enableSync(wallet,password);queueSync()
+    /** Signs the exact request body with the account key; the server checks it before reading the body. */
+    private suspend fun syncRequest(body: JSONObject): JSONObject {
+        val text=body.toString()
+        val signed=Core.obj("store_sync_sign",storeInput("body" to text))
+        val request=Request.Builder().url(checkedBackend()+"/api/vault-sync").header("Accept","application/json")
+            .header("X-Sync-Account",signed.getString("account")).header("X-Sync-Public-Key",signed.getString("publicKey"))
+            .header("X-Sync-Timestamp",signed.getString("timestamp")).header("X-Sync-Nonce",signed.getString("nonce")).header("X-Sync-Signature",signed.getString("signature"))
+            .post(text.toRequestBody("application/json".toMediaType())).build()
+        return suspendCancellableCoroutine { continuation ->
+            val call=http.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object: Callback {
+                override fun onFailure(call: Call, exception: IOException) { if(continuation.isActive) continuation.resumeWithException(exception) }
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        val data=response.use { val payload=runCatching{JSONObject(it.body?.string().orEmpty())}.getOrDefault(JSONObject())
+                            if(it.code==409) throw SyncConflict()
+                            if(!it.isSuccessful) throw IllegalStateException(payload.optString("error","Sync failed (HTTP ${it.code})"))
+                            payload }
+                        if(continuation.isActive) continuation.resume(data)
+                    } catch(exception: Exception) { if(continuation.isActive) continuation.resumeWithException(exception) }
+                }
+            })
+        }
     }
-    fun disableSync()=run("Disabling sync on this device"){dataVault.disableSync();storageMessage="Saved on device. Sync is disabled on this device."}
-    private suspend fun prepareRecovery() {
-        if(!dataUnlocked)return
-        autosave?.cancelAndJoin();syncJob?.cancelAndJoin();flushData()
-        dataVault.lock();wipeMemory()
-        currentCoroutineContext().ensureActive()
-    }
-    fun restoreCloud(password:String)=run("Restoring encrypted cloud data"){
-        require(wallet.isNotBlank()){ "Sign in to restore cloud data." }
-        val remote=api("/api/vault-sync",json("walletAddress" to wallet,"action" to "read"))
-        require(!remote.isNull("archive")){"No encrypted cloud copy exists for this account."}
-        prepareRecovery()
-        val custom=dataVault.restore(session,remote.getJSONObject("archive"),password,{requireNotNull(authenticate).invoke()},true)
-        restoreCustomization(custom);dataUnlocked=true;dataDirty=false;metadata=Core.obj("session_metadata",json("session" to session));refreshResults()
-        dataVault.enableExistingSync(wallet,remote.getLong("revision"));storageMessage="Restored encrypted cloud data and enabled sync."
-    }
-    fun deleteCloud()=run("Deleting cloud copy"){
-        require(wallet.isNotBlank()){ "Sign in first." }
-        requireNotNull(dataVault.syncConfiguration()) {"Unlock your saved data first."}
-        val response=api("/api/vault-sync",json("walletAddress" to wallet,"action" to "read"))
-        api("/api/vault-sync",json("walletAddress" to wallet,"action" to "delete","baseRevision" to response.getLong("revision")))
-        dataVault.disableSync();storageMessage="Cloud copy deleted. The encrypted device copy is retained."
-    }
-
 
     fun run(label: String, block: suspend () -> Unit) {
         if (busy) return
-        if(syncing){error="Encrypted sync is in progress. Please retry in a moment.";return}
         task = viewModelScope.launch {
             busy=true; status=label; error=null; notice=null; progress=null
-            try { block(); status="Saving securely…" }
-            catch (cancelled: CancellationException) { status="Cancelled. Saving what was completed…"; throw cancelled }
+            // Every change is already written to the encrypted store, so nothing remains to save afterwards.
+            try { block(); status="Complete" }
+            catch (cancelled: CancellationException) { status="Cancelled"; throw cancelled }
             catch (e: Exception) { error=e.message ?: "Operation failed" }
-            finally {
-                try{if(dataUnlocked && dataDirty)withContext(NonCancellable){flushData()}}catch(e:Exception){storageMessage="Changes not saved. Please retry.";error=e.message}
-                busy=false; progress=null
-            }
+            finally { busy=false; progress=null }
         }
     }
     fun cancel() { task?.cancel() }
-    // Once the operation has finished or was cancelled, only the final save remains.
-    val cancellable get()=task?.isActive==true&&!status.startsWith("Cancelled")&&status!="Saving securely…"
+    val cancellable get()=task?.isActive==true&&!status.startsWith("Cancelled")
     private fun checkedBackend(): String {
         val uri=Uri.parse(backend)
         require(uri.scheme=="https" || (BuildConfig.DEBUG && uri.scheme=="http" && uri.host in listOf("localhost","127.0.0.1","10.0.2.2"))) { "Use an HTTPS backend (debug builds also allow the local emulator host)." }
@@ -256,7 +281,6 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun settingsSaved() {
         checkedBackend()
         profileData()
-        if(dataUnlocked)markDataChanged()
         listOf("backend" to backend,"provider" to provider,"model" to model,"api-key-$provider" to apiKey,"ollama-address" to ollamaAddress,"ollama-port" to ollamaPort).forEach{store.put(it.first,it.second)}
     }
     fun selectProvider(next: String) { try { store.put("api-key-$provider",apiKey);provider=next;apiKey=store.get("api-key-$next") } catch(e:Exception){error="Unable to switch secure provider settings"} }
@@ -271,57 +295,68 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun importGenotype(bytes: ByteArray, name: String) = run("Reading DNA locally") { importGenotypeData(bytes, name) }
     suspend fun importGenotypeData(bytes: ByteArray, name: String) {
         require(acceptedDisclaimer) { "Accept the educational-use disclaimer before importing DNA." }
-        unlockData();markDataChanged()
-        val importSession=session
-        metadata=withContext(Dispatchers.Default) { Core.importGenotype(importSession,bytes,name) }
-        results=emptyList();markDataChanged()
+        unlockData()
+        val opened=handle()
+        metadata=withContext(Dispatchers.Default) { Core.storeImportGenotype(opened,bytes,name) }
+        resultCount=0;resultsVersion++
         val format=formatNames[metadata.optString("detectedFormat")]?.let{" from $it"}.orEmpty()
-        notice="Imported ${metadata.optInt("count").grouped()} variants$format. Open Results and choose Run all studies to match them against the research catalog."
+        // Matching the bundled catalog takes seconds, so it follows the import directly.
+        val matches=runAllData()
+        // Sync is on by default; say so once.
+        val explain=syncEnabled && store.get("sync-explained")!="true"
+        if(explain)store.put("sync-explained","true")
+        notice="Imported ${metadata.optInt("count").grouped()} variants$format and found ${matches.grouped()} research matches."+
+            if(explain)" An end-to-end encrypted copy is kept so a new device fills in automatically. You can turn this off in Vault." else ""
     }
-    suspend fun refreshResults() { results=withContext(Dispatchers.Default) { Core.arr("session_results",json("session" to session)).objects() } }
+    suspend fun refreshResults() { resultCount=(Core.call("store_result_count",storeInput()) as Number).toInt();resultsVersion++ }
+    suspend fun resultsPage(filter: String, direction: String, sort: String, offset: Int, limit: Int=100): JSONObject=withContext(Dispatchers.Default){
+        // Screens can ask while locked; there is nothing to show until the store is open.
+        if(storeHandle==null) json("total" to 0,"count" to 0,"rows" to JSONArray())
+        else Core.obj("store_results_page",storeInput("filter" to filter,"direction" to direction,"sort" to sort,"offset" to offset,"limit" to limit))
+    }
+    fun resultFor(studyId: Int): JSONObject?=storeHandle?.let{Core.call("store_result",storeInput("studyId" to studyId)) as JSONObject?}
     fun analyze(study: JSONObject) = run("Analyzing on device") {
         require(dataUnlocked && metadata.optInt("count")>0) { "Unlock or import your DNA first." }
-        markDataChanged()
-        withContext(Dispatchers.Default) { Core.arr("session_analyze",json("session" to session,"studies" to JSONArray().put(study),"now" to Instant.now().toString())) }
-        markDataChanged();refreshResults()
-        notice=if(results.none { it.optInt("studyId")==study.optInt("id") }) "Your DNA has no called genotype for this study's risk variant." else "Match saved to Results."
+        withContext(Dispatchers.Default) { Core.arr("store_analyze",storeInput("studies" to JSONArray().put(study),"now" to Instant.now().toString())) }
+        refreshResults();queueSync()
+        notice=if(resultFor(study.optInt("id"))==null) "Your DNA has no called genotype for this study's risk variant." else "Match saved to Results."
     }
     /** The catalog snapshot bundled with this release, from assets/catalog.json. */
     val catalogInfo: JSONObject? = runCatching{JSONObject(app.assets.open("catalog.json").bufferedReader().use{it.readText()})}.getOrNull()
     fun runAll() = run("Opening the research catalog") {
+        val started=System.currentTimeMillis()
+        val matches=runAllData()
+        val elapsed=(System.currentTimeMillis()-started)/1000
+        notice="Run all finished in ${elapsed/60}:${"%02d".format(elapsed%60)} and saved ${matches.grouped()} matches from research catalog ${catalogInfo?.optString("version").orEmpty()}."
+    }
+    /** Matches the bundled catalog into the store and returns the number of saved matches. */
+    private suspend fun runAllData(): Int {
         require(dataUnlocked && metadata.optInt("count")>0) { "Unlock or import your DNA first." }
-        markDataChanged()
         val now=Instant.now().toString()
         val started=System.currentTimeMillis();var refreshed=started
         val timing=RunTiming()
+        val opened=handle()
         val catalog=withContext(Dispatchers.Default){Core.catalogOpen(catalogFile().path)}
-        val handle=catalog.getLong("handle");val total=catalog.getInt("rows")
-        // Merge each chunk's matches by study ID; re-reading every saved result per chunk exhausts memory.
-        val merged=LinkedHashMap<Int,JSONObject>().apply{results.forEach{put(it.optInt("studyId"),it)}}
-        val matched=HashSet<Int>()
-        var processed=0;var complete=false
+        val catalogHandle=catalog.getLong("handle");val total=catalog.getInt("rows")
+        var processed=0
         try {
             while(true) {
                 ensureActiveTask()
                 val mark=System.nanoTime()
-                val chunk=withContext(Dispatchers.Default){Core.catalogAnalyzeNext(handle,session,CATALOG_CHUNK,now)}
+                val chunk=withContext(Dispatchers.Default){Core.catalogAnalyzeNext(catalogHandle,opened,CATALOG_CHUNK,now)}
                 timing.core+=System.nanoTime()-mark
-                chunk.getJSONArray("matches").objects().forEach{val id=it.optInt("studyId");merged[id]=it;matched+=id}
-                markDataChanged();processed+=chunk.getInt("rows")
+                processed+=chunk.getInt("rows");resultCount=chunk.getInt("saved")
                 val elapsed=(System.currentTimeMillis()-started)/1000
                 progress=if(total>0)processed.toFloat()/total else null
                 status="Analyzed ${processed.grouped()} of ${total.grouped()} studies (${if(total>0)processed*100/total else 0}%) • ${chunk.getInt("saved").grouped()} matches • ${elapsed/60}:${"%02d".format(elapsed%60)} elapsed"
                 if(BuildConfig.DEBUG)android.util.Log.d("RunAll",timing.line(processed,System.currentTimeMillis()-started))
-                // Publishing copies references only, so matches appear while the run continues.
-                if(System.currentTimeMillis()-refreshed>3000){results=merged.values.toList();refreshed=System.currentTimeMillis()}
-                if(chunk.getBoolean("done")){complete=true;break}
+                // Matches appear while the run continues; the core drops stale results when a run completes.
+                if(System.currentTimeMillis()-refreshed>3000){resultsVersion++;refreshed=System.currentTimeMillis()}
+                if(chunk.getBoolean("done"))break
             }
-        } finally { Core.catalogClose(handle) }
-        // Same order and last-write-wins semantics as the session, without a second full copy.
-        // A complete run also drops results the bundled catalog no longer produces, as the core did.
-        results=merged.values.filter{!complete||it.optInt("studyId") in matched}
-        val seconds=(System.currentTimeMillis()-started)/1000
-        notice="Run all finished in ${seconds/60}:${"%02d".format(seconds%60)}. Analyzed ${processed.grouped()} studies from research catalog ${catalog.getString("version")} and saved ${results.size.grouped()} matches."
+        } finally { Core.catalogClose(catalogHandle) }
+        refreshResults();queueSync()
+        return resultCount
     }
     private suspend fun ensureActiveTask() { currentCoroutineContext().ensureActive() }
     // Rust streams the snapshot from a real file, so the asset is copied out of the APK once per catalog version.
@@ -338,28 +373,18 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         file
     }
     fun clear(){lockData()}
-    fun exportResults(): String = Core.call("session_export",json("session" to session)) as String
+    fun exportResults(): String = Core.call("store_export",storeInput()) as String
     fun importResults(content: String, name: String) = run("Importing results") { importResultsData(content, name) }
-    suspend fun importResultsData(content: String, name: String) { unlockData();markDataChanged();withContext(Dispatchers.Default){Core.call("session_import_results",json("session" to session,"content" to content,"fileName" to name,"now" to Instant.now().toString()))};markDataChanged();refreshResults() }
-    suspend fun sealedVault(password:String):String {unlockData();flushData();return dataVault.backup(password)}
-    fun saveVault(password:String)=run("Saving data securely"){unlockData();dataDirty=true;flushData()}
-    fun openVault(password:String,imported:String?=null)=run("Unlocking saved data"){openVaultData(password,imported)}
-    suspend fun openVaultData(password:String,imported:String?=null) {
-        val legacy=imported ?: getApplication<Application>().openFileInput("vault.json").bufferedReader().use{it.readText()}
-        val archive=JSONObject(legacy)
-        if(archive.optInt("version")==2) {
-            prepareRecovery()
-            val custom=dataVault.restore(session,archive,password,{requireNotNull(authenticate).invoke()})
-            restoreCustomization(custom);dataUnlocked=true;dataDirty=false
-        } else {
-            unlockData()
-            val snapshot=withContext(Dispatchers.Default){Core.call("open",archive.put("password",password)) as String}
-            Core.call("session_restore",json("session" to session,"snapshot" to snapshot));markDataChanged();flushData()
-        }
-        metadata=Core.obj("session_metadata",json("session" to session));refreshResults();storageMessage="Saved securely on this device"
+    suspend fun importResultsData(content: String, name: String) {
+        unlockData()
+        withContext(Dispatchers.Default){Core.call("store_import_results",storeInput("content" to content,"fileName" to name,"now" to Instant.now().toString()))}
+        refreshResults();queueSync()
     }
+    /** Deletes this device's data. The cloud copy stays, so this device or another can restore it. */
     fun deleteVault()=run("Deleting saved data"){
-        autosave?.cancelAndJoin();syncJob?.cancelAndJoin();dataVault.delete();getApplication<Application>().deleteFile("vault.json");dataDirty=false;wipeMemory();storageMessage="Local saved data deleted."
+        lockJob?.join();syncJob?.cancelAndJoin();customizationJob?.cancelAndJoin()
+        storeHandle?.let{dataVault.lock(it)};dataVault.delete();wipeMemory();storageMessage="Local saved data deleted."
+        restorable=syncEnabled||runCatching{syncKeys.get()!=null}.getOrDefault(false)
     }
     fun beginAuth(): String {
         val pair=Core.obj("auth_keypair",json("entropy" to DeviceStore.entropy(32)))
@@ -380,7 +405,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         subscription=api("/api/check-subscription",json("walletAddress" to wallet))
     }
     val billing = PlayBilling(app, viewModelScope, { wallet }, { path, body -> api(path,body) }, ::refreshSubscription)
-    override fun onCleared() { autosave?.cancel();syncJob?.cancel();billing.close(); Core.call("session_close",json("session" to session)); super.onCleared() }
+    override fun onCleared() { syncJob?.cancel();billing.close(); storeHandle?.let{Core.storeClose(it)}; super.onCleared() }
     fun signOut(){store.remove("auth-token");store.remove("wallet");store.remove("pending-auth");wallet="";subscription=null}
     fun refreshSubscription() = run("Checking subscription") { require(wallet.isNotBlank()){ "Sign in first" };subscription=api("/api/check-subscription",json("walletAddress" to wallet)) }
     private suspend fun requireAccess(kind: String) {
@@ -424,32 +449,36 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val response=request("$endpoint/chat/completions",json("model" to config.getString("identifier"),"messages" to messages,"stream" to false),bearer)
         return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
     }
+    private suspend fun reportPrompt(kind: String)=withContext(Dispatchers.Default){
+        Core.obj("store_report_prompt",storeInput("kind" to kind,"customization" to profileData(),"context" to profile)).getJSONArray("messages")
+    }
     fun sendChat(message: String) = run("Asking selected provider") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         require(message.isNotBlank()){"Enter a message"}
         requireAccess("Chat")
-        val prompt=Core.obj("report_prompt",json("kind" to "DNA chat","results" to JSONArray(results),"customization" to profileData(),"context" to profile)).getJSONArray("messages")
+        val prompt=reportPrompt("DNA chat")
         messages.forEach{prompt.put(json("role" to it.first,"content" to it.second))};prompt.put(json("role" to "user","content" to message))
         val reply=complete(prompt);messages.add("user" to message);messages.add("assistant" to reply)
     }
     fun generateReport(kind: String) = run("Generating $kind report") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
-        require(results.isNotEmpty()){ "Analyze studies or import results first" }
+        require(resultCount>0){ "Add your DNA file first so there are matches to report on." }
         requireAccess(kind)
         if(kind!="Overview") {
-            val prompt=Core.obj("report_prompt",json("kind" to kind,"results" to JSONArray(results),"customization" to profileData(),"context" to profile)).getJSONArray("messages")
+            val prompt=reportPrompt(kind)
             val parsed=Core.obj("extract_report",complete(prompt))
             reportTitle=kind;report=parsed.getString("report")
             reportQuestions=(0 until parsed.getJSONArray("questions").length()).map{parsed.getJSONArray("questions").getString(it)}
             return@run
         }
-        val groups=Core.arr("partition_results",json("results" to JSONArray(results),"groups" to ((results.size+249)/250)))
+        // Groups arrive formatted from the store, so the full result set never reaches Kotlin.
+        val groups=withContext(Dispatchers.Default){Core.arr("store_report_groups",storeInput("groups" to ((resultCount+249)/250)))}
         val summaries=mutableListOf<String>()
         val userContext=(Core.call("user_context",profileData()) as String)+"\n"+profile
         for(i in 0 until groups.length()){
             ensureActiveTask();status="Analyzing report group ${i+1}/${groups.length()}"
-            val batch=groups.getJSONArray(i)
-            val prompt=Core.call("render_prompt",json("name" to "generateMapPrompt","values" to json("groupNumber" to (i+1),"totalGroups" to groups.length(),"resultsInGroup" to batch.length(),"totalResults" to results.size,"compactResults" to Core.call("format_results",batch),"userContext" to userContext))) as String
+            val batch=groups.getJSONObject(i)
+            val prompt=Core.call("render_prompt",json("name" to "generateMapPrompt","values" to json("groupNumber" to (i+1),"totalGroups" to groups.length(),"resultsInGroup" to batch.getInt("count"),"totalResults" to resultCount,"compactResults" to batch.getString("text"),"userContext" to userContext))) as String
             summaries.add(complete(JSONArray().put(json("role" to "user","content" to prompt))))
         }
         reportTitle=kind

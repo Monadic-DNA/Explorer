@@ -1,56 +1,88 @@
-import { createHash } from 'node:crypto';
+// End-to-end encrypted sync storage for the native apps (docs/native-data-store.md).
+// The server stores ciphertext only. Requests are signed with a key derived from the user's
+// sync key; the account is the SHA-256 of that key's public half, so no sign-in is needed.
 import { getDb } from './db';
-export class VaultSyncError extends Error { constructor(message: string, public status=400) { super(message); } }
-export const MAX_SYNC_BYTES=40*1024*1024;
-type Cipher = { version:2; vaultId:string; nonce:string; ciphertext:string };
-type Genotype = Cipher & {revision:number;encoding:'gzip'};
-export type VaultArchive = { version:2; mac:string; envelope:Cipher & {revision:number;encoding:'gzip';genotype:Genotype;genotypeDigest:string}; wrappedKey:Cipher & {kdf:'Argon2id-64MiB-3';salt:string} };
-function base64(value:unknown, length?:number): value is string {
-  return typeof value==='string' && value.length<=MAX_SYNC_BYTES && /^[A-Za-z0-9+/]*={0,2}$/.test(value) && (length===undefined ? value.length>=24 : Buffer.from(value,'base64').length===length) && Buffer.from(value,'base64').toString('base64')===value;
+import { coreCall } from './core';
+
+export class VaultSyncError extends Error { constructor(message: string, public status = 400) { super(message); } }
+export const RECORDS = ['genotype', 'results', 'customization', 'imported-results'] as const;
+export type SyncRecord = typeof RECORDS[number];
+/** Request bodies carry base64 ciphertext; the genotype record is the largest at about 8 MB encoded. */
+export const MAX_REQUEST_BYTES = 32 * 1024 * 1024;
+export const MAX_RECORD_BYTES = 24 * 1024 * 1024;
+export const MAX_ACCOUNT_BYTES = 64 * 1024 * 1024;
+export const REQUEST_WINDOW_SECONDS = 300;
+
+export type SignedHeaders = { account: string; publicKey: string; timestamp: string; nonce: string; signature: string };
+
+/** Verifies a signed request and registers the account on first use. Returns the account ID. */
+export async function authenticate(headers: SignedHeaders, body: string, now = Date.now()): Promise<string> {
+  const { account, publicKey, timestamp, nonce, signature } = headers;
+  if (!/^[0-9a-f]{64}$/.test(account) || !/^0[23][0-9a-f]{64}$/.test(publicKey) || !/^\d{1,12}$/.test(timestamp) || !/^[0-9a-f]{32}$/.test(nonce) || !/^[0-9a-f]{128}$/.test(signature)) {
+    throw new VaultSyncError('Invalid sync request signature', 401);
+  }
+  if (Math.abs(now / 1000 - Number(timestamp)) > REQUEST_WINDOW_SECONDS) throw new VaultSyncError('Sync request expired; check the device clock', 401);
+  let verified: { valid: boolean; account: string };
+  try { verified = coreCall('sync_verify', { publicKey, timestamp, nonce, signature, body }) as { valid: boolean; account: string }; }
+  catch { throw new VaultSyncError('Invalid sync request signature', 401); }
+  if (!verified.valid || verified.account !== account) throw new VaultSyncError('Invalid sync request signature', 401);
+  const db = getDb();
+  await db.query("DELETE FROM sync_nonces WHERE seen_at < now() - interval '10 minutes'");
+  const fresh = await db.query('INSERT INTO sync_nonces(account,nonce) VALUES($1,$2) ON CONFLICT DO NOTHING', [account, nonce]);
+  if (fresh.rowCount !== 1) throw new VaultSyncError('Sync request was already used', 401);
+  await db.query('INSERT INTO sync_accounts(account,public_key) VALUES($1,$2) ON CONFLICT (account) DO NOTHING', [account, publicKey]);
+  return account;
 }
-export function validateArchive(value:unknown): VaultArchive {
-  if (!value || typeof value!=='object') throw new VaultSyncError('Invalid encrypted archive');
-  const {version,mac,envelope:e,wrappedKey:k}=value as VaultArchive;
-  if(!base64(mac,32) || version!==2 || !e || !k || e.version!==2 || k.version!==2 || e.vaultId!==k.vaultId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.vaultId)
-    || !e.genotype || e.genotype.version!==2 || e.genotype.vaultId!==e.vaultId || e.genotype.revision!==1 || e.genotype.encoding!=='gzip' || !base64(e.genotype.nonce,12) || !base64(e.genotype.ciphertext) || !/^[0-9a-f]{64}$/.test(e.genotypeDigest)
-    || !Number.isSafeInteger(e.revision) || e.revision<1 || e.encoding!=='gzip' || k.kdf!=='Argon2id-64MiB-3' || !base64(e.nonce,12) || !base64(k.nonce,12) || !base64(k.salt,16) || !base64(k.ciphertext,48) || !base64(e.ciphertext)) throw new VaultSyncError('Invalid encrypted archive');
-  const genotype:Genotype={ciphertext:e.genotype.ciphertext,encoding:'gzip',nonce:e.genotype.nonce,revision:1,vaultId:e.vaultId,version:2};
-  if(createHash('sha256').update(JSON.stringify(genotype)).digest('hex')!==e.genotypeDigest) throw new VaultSyncError('Invalid genotype reference');
-  // Reconstruct the supported ciphertext-only schema, discarding unrelated fields.
-  return {version:2,mac,envelope:{version:2,vaultId:e.vaultId,revision:e.revision,encoding:'gzip',nonce:e.nonce,ciphertext:e.ciphertext,genotype,genotypeDigest:e.genotypeDigest},wrappedKey:{version:2,vaultId:k.vaultId,kdf:'Argon2id-64MiB-3',salt:k.salt,nonce:k.nonce,ciphertext:k.ciphertext}};
+
+function recordName(value: unknown): SyncRecord {
+  if (typeof value !== 'string' || !(RECORDS as readonly string[]).includes(value)) throw new VaultSyncError('Unknown sync record');
+  return value as SyncRecord;
 }
-export async function readSyncedVault(wallet:string,knownRevision?:number,knownGenotype?:string) {
-  const result=await getDb().query<{revision:string;archive:VaultArchive}>('SELECT revision,archive FROM encrypted_user_vaults WHERE wallet=$1',[wallet]);
-  if(!result.rows.length)return {revision:0,archive:null,genotypeDigest:null};
-  const row=result.rows[0], revision=Number(row.revision), hash=row.archive.envelope.genotypeDigest;
-  if(revision===knownRevision)return {revision,archive:null,genotypeDigest:hash};
-  const archive=JSON.parse(JSON.stringify(row.archive));
-  if(hash===knownGenotype)delete archive.envelope.genotype;
-  return {revision,archive,genotypeDigest:hash};
+
+export async function listRecords(account: string) {
+  const result = await getDb().query<{ record: string; revision: string; updated_at: Date }>('SELECT record,revision,updated_at FROM sync_records WHERE account=$1', [account]);
+  return result.rows.map(r => ({ record: r.record, revision: Number(r.revision), updatedAt: r.updated_at.toISOString() }));
 }
-export async function writeSyncedVault(wallet:string,base:number,input:unknown) {
-  if(!Number.isSafeInteger(base) || base<0) throw new VaultSyncError('Invalid sync revision');
-  const client=await getDb().connect();
+
+export async function readRecords(account: string, names: unknown) {
+  if (!Array.isArray(names) || names.length > RECORDS.length) throw new VaultSyncError('Invalid sync records');
+  const wanted = names.map(recordName);
+  const result = await getDb().query<{ record: string; revision: string; ciphertext: Buffer }>('SELECT record,revision,ciphertext FROM sync_records WHERE account=$1 AND record=ANY($2)', [account, wanted]);
+  return result.rows.map(r => ({ record: r.record, revision: Number(r.revision), ciphertext: r.ciphertext.toString('base64') }));
+}
+
+/** Compare-and-set: succeeds only if `baseRevision` is still current, then increments the revision. */
+export async function writeRecord(account: string, name: unknown, baseRevision: unknown, ciphertext: unknown) {
+  const record = recordName(name);
+  if (!Number.isSafeInteger(baseRevision) || (baseRevision as number) < 0) throw new VaultSyncError('Invalid sync revision');
+  if (typeof ciphertext !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(ciphertext)) throw new VaultSyncError('Invalid encrypted record');
+  const bytes = Buffer.from(ciphertext, 'base64');
+  if (bytes.length < 28 || bytes.length > MAX_RECORD_BYTES) throw new VaultSyncError('Encrypted record is too large', 413);
+  const client = await getDb().connect();
   try {
     await client.query('BEGIN');
-    const current=await client.query<{revision:string;vault_id:string;archive:VaultArchive}>('SELECT revision,vault_id,archive FROM encrypted_user_vaults WHERE wallet=$1 FOR UPDATE',[wallet]);
-    if(!input || typeof input!=="object") throw new VaultSyncError("Invalid encrypted archive");
-    const archive=JSON.parse(JSON.stringify(input));
-    if(!archive?.envelope?.genotype && current.rows[0]?.archive.envelope.genotypeDigest===archive?.envelope?.genotypeDigest)archive.envelope.genotype=current.rows[0].archive.envelope.genotype;
-    const validated=validateArchive(archive);
-    if(current.rows.length) {
-      if(Number(current.rows[0].revision)!==base || current.rows[0].vault_id.toLowerCase()!==validated.envelope.vaultId.toLowerCase()) throw new VaultSyncError('Another device changed this vault. Download its latest version before uploading.',409);
-      await client.query('UPDATE encrypted_user_vaults SET revision=revision+1,archive=$2,updated_at=now() WHERE wallet=$1',[wallet,validated]);
-    } else {
-      if(base!==0) throw new VaultSyncError('The cloud copy was removed. Re-enable sync explicitly before creating a new copy.',409);
-      const created=await client.query('INSERT INTO encrypted_user_vaults(wallet,vault_id,revision,archive) VALUES($1,$2,1,$3) ON CONFLICT DO NOTHING RETURNING revision',[wallet,validated.envelope.vaultId,validated]);
-      if(!created.rowCount) throw new VaultSyncError('Another device created a cloud vault. Download it before uploading.',409);
+    // Serialize writes per account so the storage limit holds under concurrent uploads.
+    await client.query('SELECT account FROM sync_accounts WHERE account=$1 FOR UPDATE', [account]);
+    const others = await client.query<{ total: string | null }>('SELECT sum(octet_length(ciphertext)) AS total FROM sync_records WHERE account=$1 AND record<>$2', [account, record]);
+    if (Number(others.rows[0]?.total ?? 0) + bytes.length > MAX_ACCOUNT_BYTES) throw new VaultSyncError('Encrypted sync storage is full', 413);
+    const base = baseRevision as number;
+    const written = base === 0
+      ? await client.query<{ revision: string }>('INSERT INTO sync_records(account,record,revision,ciphertext) VALUES($1,$2,1,$3) ON CONFLICT DO NOTHING RETURNING revision', [account, record, bytes])
+      : await client.query<{ revision: string }>('UPDATE sync_records SET revision=revision+1,ciphertext=$4,updated_at=now() WHERE account=$1 AND record=$2 AND revision=$3 RETURNING revision', [account, record, base, bytes]);
+    if (!written.rows.length) {
+      const current = await client.query<{ revision: string }>('SELECT revision FROM sync_records WHERE account=$1 AND record=$2', [account, record]);
+      throw Object.assign(new VaultSyncError('Another device changed this record; sync again', 409), { revision: Number(current.rows[0]?.revision ?? 0) });
     }
-    await client.query('COMMIT');return base+1;
-  } catch(error) {await client.query('ROLLBACK');throw error;} finally {client.release();}
+    await client.query('COMMIT');
+    return Number(written.rows[0].revision);
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+  finally { client.release(); }
 }
-export async function deleteSyncedVault(wallet:string,base:number) {
-  if(!Number.isSafeInteger(base) || base<1) throw new VaultSyncError('Invalid sync revision');
-  const result=await getDb().query('DELETE FROM encrypted_user_vaults WHERE wallet=$1 AND revision=$2',[wallet,base]);
-  if(!result.rowCount) throw new VaultSyncError('Cloud data changed. Refresh before deleting.',409);
+
+/** Deletes the account's cloud copy: every record, the registered key and pending nonces. */
+export async function deleteAccount(account: string) {
+  const db = getDb();
+  await db.query('DELETE FROM sync_accounts WHERE account=$1', [account]);
+  await db.query('DELETE FROM sync_nonces WHERE account=$1', [account]);
 }
+

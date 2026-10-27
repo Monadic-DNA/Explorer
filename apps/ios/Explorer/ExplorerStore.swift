@@ -20,7 +20,15 @@ import UIKit
     @Published var wallet=DeviceStore.get("wallet")
     @Published var metadata:[String:Any]=[:]
     @Published var studies:[Record]=[]
-    @Published var results:[Record]=[]
+    // Results stay in the encrypted store; screens page through them with resultsPage.
+    @Published private(set) var resultCount=0
+    /// Changes whenever the stored results change, so screens reload their pages.
+    @Published private(set) var resultsVersion=0
+    /// A question started on Home that the Chat tab picks up.
+    @Published var chatDraft=""
+    @Published private(set) var personalizeSkipped=DeviceStore.get("personalize-skipped")=="true"
+    var personalized:Bool{!profile.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || profileFields.values.contains{!$0.isEmpty}}
+    func skipPersonalization(){try? DeviceStore.put("personalize-skipped","true");personalizeSkipped=true}
     @Published var selectedStudy:Record?
     @Published var subscription:[String:Any]?
     @Published var busy=false
@@ -38,163 +46,171 @@ import UIKit
     private var authSession:ASWebAuthenticationSession?
     private var task:Task<Void,Never>?
     let billing = StoreBilling()
-    private(set) var session:Int
     let dataVault:SecureDataVault
+    private let syncKeys:SyncKeyStore
+    /// Handle of the open encrypted store (docs/native-data-store.md); nil while locked.
+    private(set) var storeHandle:Int?
     @Published private(set) var dataUnlocked=false
+    /// Whether an encrypted store exists on this device; a first-time user has none to unlock.
+    @Published private(set) var vaultExists=false
     @Published private(set) var storageMessage="Your saved data is locked."
+    @Published private(set) var syncEnabled=false
     @Published private(set) var syncing=false
-    private var dataDirty=false
-    private var dataVersion=0
-    private var lastCustomization=Data()
-    private var restoring=false
+    @Published private(set) var syncMessage=""
+    /// This device has no saved data, but iCloud Keychain holds this user's sync key: their data can be restored.
+    @Published private(set) var restorable=false
+    private var loadingCustomization=false
     @Published private(set) var locking=false
-    private var autosave:Task<Void,Never>?
+    private var customizationTask:Task<Void,Never>?
     private var lockTask:Task<Void,Never>?
     private var syncTask:Task<Void,Never>?
     private var syncAgain=false
-    init(dataVault:SecureDataVault){
-        self.dataVault=dataVault;session=(try? Core.call("session_create") as? Int) ?? 0
+    init(dataVault:SecureDataVault,syncKeys:SyncKeyStore=KeychainSyncKeys()){
+        self.dataVault=dataVault;self.syncKeys=syncKeys
         super.init();billing.attach(self);Task {try? await billing.recover()}
+        Task {vaultExists=await dataVault.exists;if !vaultExists{restorable=(try? syncKeys.get()) != nil}}
     }
     override convenience init(){self.init(dataVault:SecureDataVault())}
-    private func customization()->[String:Any]{["fields":profileFields,"context":profile]}
-    private func customizationChanged(){if dataUnlocked && !restoring {markDataChanged()}}
+    private func handle() throws -> Int {guard let storeHandle else{throw Core.Failure(message:"Unlock your saved data first")};return storeHandle}
+    private func storeInput(_ values:[String:Any]=[:]) throws -> [String:Any] {values.merging(["store":try handle()]){$1}}
+    // Personalization edits are written shortly after typing stops; only changed fields are stamped for sync.
+    private func customizationChanged(){
+        guard dataUnlocked && !loadingCustomization else{return}
+        customizationTask?.cancel()
+        customizationTask=Task{try? await Task.sleep(nanoseconds:500_000_000);if !Task.isCancelled{saveCustomization()}}
+    }
+    private func saveCustomization(){
+        guard dataUnlocked,let input=try? storeInput(["customization":["fields":profileFields,"context":profile]]) else{return}
+        if (try? Core.call("store_set_customization",input)) as? Bool==true{queueSync()}
+    }
     private func restoreCustomization(_ value:[String:Any]) {
-        restoring=true
+        loadingCustomization=true
         profile=value["context"] as? String ?? "";profileFields=value["fields"] as? [String:String] ?? [:]
-        lastCustomization=(try? JSONSerialization.data(withJSONObject:customization(),options:.sortedKeys)) ?? Data()
-        restoring=false
+        loadingCustomization=false
     }
     func unlockData() async throws {
         if let lockTask {await lockTask.value}
         if dataUnlocked{return}
-        let existed=await dataVault.exists
-        restoreCustomization(try await dataVault.unlock(session))
-        metadata=try Core.object("session_metadata",["session":session]);try refreshResults()
-        dataUnlocked=true;storageMessage="Saved securely on this device";protection=await dataVault.protection
-        if !existed {
-            let fields=(try? JSONSerialization.jsonObject(with:Data(DeviceStore.get("profile-fields").utf8))) as? [String:Any] ?? [:]
-            restoreCustomization(["fields":fields,"context":DeviceStore.get("profile")])
-            dataDirty=true;try await flushData();try DeviceStore.put("profile","");try DeviceStore.put("profile-fields","")
-        }
-        queueSync()
+        let opened=try await dataVault.unlock()
+        storeHandle=opened["handle"] as? Int;metadata=opened["metadata"] as? [String:Any] ?? [:]
+        restoreCustomization(try Core.object("store_customization",try storeInput()))
+        try refreshResults()
+        dataUnlocked=true;vaultExists=true;restorable=false;storageMessage="Saved securely on this device";protection=await dataVault.protection
+        try setUpSync()
     }
     func unlockSavedData(){work("Unlocking saved data"){try await self.unlockData()}}
-    private func markDataChanged(){
-        dataDirty=true;dataVersion+=1;storageMessage="Saving securely…"
-        autosave?.cancel()
-        autosave=Task {
-            do {try await Task.sleep(nanoseconds:500_000_000);while busy {try await Task.sleep(nanoseconds:100_000_000)};try Task.checkCancellation();try await flushData()}
-            catch is CancellationError {} catch {if dataUnlocked{storageMessage="Changes not saved. Please retry.";self.error=error.localizedDescription}}
-        }
-    }
-    func flushData() async throws {
-        guard dataUnlocked && dataDirty else{return}
-        let version=dataVersion;let custom=customization()
-        try await dataVault.save(session,custom)
-        lastCustomization=try JSONSerialization.data(withJSONObject:custom,options:.sortedKeys)
-        if version==dataVersion{dataDirty=false}
-        storageMessage=dataDirty ? "Saving securely…" : "Saved securely on this device"
-        queueSync()
-    }
     private func wipeMemory(){
-        _=try? Core.call("session_close",["session":session]);session=(try? Core.call("session_create") as? Int) ?? 0
-        dataUnlocked=false;dataDirty=false;metadata=[:];results=[];messages=[];report="";reportQuestions=[];selectedStudy=nil
+        storeHandle=nil;dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];report="";reportQuestions=[];selectedStudy=nil
         restoreCustomization(["fields":[:],"context":""])
     }
     func lockData(){
         guard !locking else{return};locking=true
-        let running=task;let pendingSave=autosave;let pendingSync=syncTask
+        let running=task;let pendingSync=syncTask;let pendingSave=customizationTask
         lockTask=Task {
-            running?.cancel();await running?.value;pendingSave?.cancel();await pendingSave?.value;pendingSync?.cancel();await pendingSync?.value
-            do{try await flushData()}catch{self.error="Latest changes could not be saved. The previous encrypted copy is intact."}
-            await dataVault.lock();wipeMemory();storageMessage="Your saved data is locked.";locking=false
+            running?.cancel();await running?.value;pendingSync?.cancel();await pendingSync?.value
+            pendingSave?.cancel();saveCustomization()
+            if let storeHandle{await dataVault.lock(storeHandle)}
+            wipeMemory();storageMessage="Your saved data is locked.";locking=false
         }
     }
     func backgroundLock(){if dataUnlocked{lockData()}}
+
+    // Sync (docs/native-data-store.md): on by default, end-to-end encrypted, same-platform for now.
+    private func setUpSync() throws {
+        if try Core.object("store_sync_status",try storeInput())["enabled"] as? Bool==true{syncEnabled=true;queueSync();return}
+        if DeviceStore.get("sync-off")=="true"{return}
+        // Reuse this user's key from iCloud Keychain (a new device restoring) or create one for this account.
+        let existing=try? syncKeys.get()
+        let enabled=try Core.object("store_sync_enable",try storeInput(existing.map{["syncKey":$0]} ?? [:]))
+        if existing==nil,let key=enabled["syncKey"] as? String{
+            do{try syncKeys.put(key)}catch{syncMessage="Sync is on, but a new device can't restore it yet: \(error.localizedDescription)"}
+        }
+        syncEnabled=true;queueSync()
+    }
+    func setSync(_ on:Bool){work(on ? "Turning on sync" : "Turning off sync and deleting the cloud copy"){
+        try await self.unlockData()
+        if on{try DeviceStore.put("sync-off","");try self.setUpSync();return}
+        self.syncTask?.cancel();await self.syncTask?.value
+        if self.syncEnabled{_=try await self.syncRequest(["action":"delete"])}
+        _=try Core.call("store_sync_disable",try self.storeInput());try? self.syncKeys.delete()
+        try DeviceStore.put("sync-off","true");self.syncEnabled=false;self.syncMessage=""
+        self.notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
+    }}
     private func queueSync(){
-        guard dataUnlocked && !locking else{return}
-        if syncing{syncAgain=true;return}
-        if syncTask != nil {syncAgain=true;return}
+        guard syncEnabled && dataUnlocked && !locking else{return}
+        if syncTask != nil{syncAgain=true;return}
         syncTask=Task {
-            defer{syncing=false;syncTask=nil}
-            guard let config=await dataVault.configuration(),config["enabled"] as? Bool==true else{return}
-            do {while busy {try await Task.sleep(nanoseconds:100_000_000)};try await Task.sleep(nanoseconds:1_000_000_000)} catch{return}
-            syncing=true
-            do{repeat{syncAgain=false;try await syncOnce()}while syncAgain}
-            catch is CancellationError {} catch{storageMessage="Saved on device. Sync needs attention.";self.error=error.localizedDescription}
+            defer{syncTask=nil}
+            var delay:UInt64=2_000_000_000
+            while !Task.isCancelled {
+                while busy{try? await Task.sleep(nanoseconds:200_000_000)}
+                syncing=true
+                do{repeat{syncAgain=false;try await syncOnce()}while syncAgain;syncMessage="";syncing=false;break}
+                catch is CancellationError{syncing=false;return}
+                catch{syncMessage="Sync will retry: \(error.localizedDescription)"}
+                syncing=false
+                try? await Task.sleep(nanoseconds:delay);delay=min(delay*2,300_000_000_000)
+            }
+            // Synced results that don't match this device's catalog are recomputed here.
+            if dataUnlocked && !busy,let input=try? storeInput(["catalogVersion":catalogInfo?["version"] as? String ?? ""]),(try? Core.call("store_needs_match",input)) as? Bool==true{runAll()}
         }
     }
+    private struct SyncConflict:Error{}
     private func syncOnce() async throws {
-        guard let config=await dataVault.configuration(),config["enabled"] as? Bool==true else{return}
-        guard !wallet.isEmpty,wallet.lowercased()==config["wallet"] as? String else{throw Core.Failure(message:"Sign in to the account used to enable sync")}
-        let syncWallet=wallet
-        let observedVersion=dataVersion
-        let response=try await api("/api/vault-sync",["walletAddress":syncWallet,"action":"read","knownRevision":config["revision"] ?? 0,"knownGenotype":await dataVault.genotypeDigest() ?? ""])
-        let revision=response["revision"] as? Int ?? 0;let base=config["revision"] as? Int ?? 0
-        guard wallet.lowercased()==syncWallet.lowercased(),let latest=await dataVault.configuration(),latest["enabled"] as? Bool==true,latest["wallet"] as? String==config["wallet"] as? String else{return}
-        if revision==base {
-            if config["dirty"] as? Bool==true {
-                var archive=try await dataVault.archive();var envelope=archive["envelope"] as! [String:Any]
-                let uploaded=envelope["revision"] as! Int
-                if envelope["genotypeDigest"] as? String==response["genotypeDigest"] as? String {envelope.removeValue(forKey:"genotype");archive["envelope"]=envelope}
-                let result=try await api("/api/vault-sync",["walletAddress":syncWallet,"action":"write","baseRevision":base,"archive":archive])
-                try await dataVault.synced(result["revision"] as! Int,uploaded)
-            }
-        } else {
-            if let cloud=response["archive"] as? [String:Any] {
-                let local=try await dataVault.archive()
-                if cloud["mac"] as? String==local["mac"] as? String {
-                    try await dataVault.synced(revision,(local["envelope"] as! [String:Any])["revision"] as! Int);return
+        let catalogVersion=catalogInfo?["version"] as? String ?? ""
+        for _ in 0..<3 {
+            // Pull first: a write must be based on the server's current revision.
+            let list=try await syncRequest(["action":"list"])["records"] as? [[String:Any]] ?? []
+            let wanted=try Core.call("store_sync_wanted",try storeInput(["records":list])) as? [String] ?? []
+            if !wanted.isEmpty {
+                var changed=false
+                for record in try await syncRequest(["action":"read","records":wanted])["records"] as? [[String:Any]] ?? [] {
+                    let input=try storeInput(["record":record["record"] ?? "","revision":record["revision"] ?? 0,"ciphertext":record["ciphertext"] ?? "","catalogVersion":catalogVersion])
+                    let applied=try await Task.detached{try Core.object("store_sync_apply",input)}.value
+                    if applied["changed"] as? Bool==true{changed=true}
+                    if applied["replacedLocal"] as? Bool==true{notice="Your DNA file was replaced by one imported on another device."}
                 }
+                if changed{metadata=try Core.object("store_metadata",try storeInput());restoreCustomization(try Core.object("store_customization",try storeInput()));try refreshResults()}
             }
-            guard !dataDirty,observedVersion==dataVersion,!busy,latest["dirty"] as? Bool != true else{throw Core.Failure(message:"Another device has changes. Restore the cloud copy to replace device data, or export a backup before resolving this conflict.")}
-            guard let archive=response["archive"] as? [String:Any] else{throw Core.Failure(message:"The cloud copy was removed. Disable sync or set it up again explicitly.")}
-            restoreCustomization(try await dataVault.acceptCloud(session,archive,revision))
-            metadata=try Core.object("session_metadata",["session":session]);try refreshResults()
+            var conflict=false
+            let outgoingInput=try storeInput()
+            for out in try await Task.detached{try Core.array("store_sync_outgoing",outgoingInput)}.value {
+                do {
+                    let written=try await syncRequest(["action":"write","record":out["record"] ?? "","baseRevision":out["baseRevision"] ?? 0,"ciphertext":out["ciphertext"] ?? ""])
+                    _=try Core.call("store_sync_pushed",try storeInput(["record":out["record"] ?? "","revision":written["revision"] ?? 0,"version":out["version"] ?? 0,"hash":out["hash"] ?? ""]))
+                } catch is SyncConflict {conflict=true}
+            }
+            if !conflict{return}
         }
-        storageMessage="Saved on device and encrypted sync is up to date."
+        throw Core.Failure(message:"Another device keeps changing your data; sync will retry")
     }
-    func syncNow(){work("Syncing encrypted data"){try await self.unlockData();try await self.flushData();self.queueSync()}}
-    func enableSync(_ password:String){work("Setting up encrypted sync"){
-        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in before enabling sync")}
-        try await self.unlockData();try await self.flushData();try await self.dataVault.enableSync(self.wallet,password);self.queueSync()
-    }}
-    func disableSync(){work("Disabling sync on this device"){try await self.dataVault.disableSync();self.storageMessage="Saved on device. Sync is disabled on this device."}}
-    private func prepareRecovery() async throws {
-        guard dataUnlocked else{return}
-        autosave?.cancel();await autosave?.value;syncTask?.cancel();await syncTask?.value
-        try await flushData();await dataVault.lock();wipeMemory();try Task.checkCancellation()
+    /// Signs the exact request body with the account key; the server checks it before reading the body.
+    private func syncRequest(_ body:[String:Any]) async throws -> [String:Any] {
+        let data=try JSONSerialization.data(withJSONObject:body)
+        let signed=try Core.object("store_sync_sign",try storeInput(["body":String(decoding:data,as:UTF8.self)]))
+        guard let url=URL(string:try origin()+"/api/vault-sync") else{throw Core.Failure(message:"Invalid backend URL")}
+        var request=URLRequest(url:url);request.httpMethod="POST";request.timeoutInterval=180;request.httpBody=data
+        request.setValue("application/json",forHTTPHeaderField:"Content-Type");request.setValue("application/json",forHTTPHeaderField:"Accept")
+        for (header,key) in [("X-Sync-Account","account"),("X-Sync-Public-Key","publicKey"),("X-Sync-Timestamp","timestamp"),("X-Sync-Nonce","nonce"),("X-Sync-Signature","signature")]{request.setValue(signed[key] as? String,forHTTPHeaderField:header)}
+        let (payload,response)=try await URLSession.shared.data(for:request)
+        let object=(try? JSONSerialization.jsonObject(with:payload) as? [String:Any]) ?? [:]
+        guard let http=response as? HTTPURLResponse else{throw Core.Failure(message:"Sync failed")}
+        if http.statusCode==409{throw SyncConflict()}
+        guard (200..<300).contains(http.statusCode) else{throw Core.Failure(message:object["error"] as? String ?? "Sync failed (HTTP \(http.statusCode))")}
+        return object
     }
-    func restoreCloud(_ password:String){work("Restoring encrypted cloud data"){
-        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in to restore cloud data")}
-        let response=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"read"])
-        guard let archive=response["archive"] as? [String:Any],let revision=response["revision"] as? Int else{throw Core.Failure(message:"No encrypted cloud copy exists for this account")}
-        try await self.prepareRecovery()
-        self.restoreCustomization(try await self.dataVault.restore(self.session,archive,password,allowOlder:true))
-        self.dataUnlocked=true;self.dataDirty=false;self.metadata=try Core.object("session_metadata",["session":self.session]);try self.refreshResults()
-        try await self.dataVault.enableExistingSync(self.wallet,revision);self.storageMessage="Restored encrypted cloud data and enabled sync."
-    }}
-    func deleteCloud(){work("Deleting cloud copy"){
-        guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in first")}
-        let response=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"read"])
-        _=try await self.api("/api/vault-sync",["walletAddress":self.wallet,"action":"delete","baseRevision":response["revision"] ?? 0])
-        try await self.dataVault.disableSync();self.storageMessage="Cloud copy deleted. The encrypted device copy is retained."
-    }}
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
         guard !busy else{return}
-        guard !syncing else{error="Encrypted sync is in progress. Please retry in a moment.";return}
         busy=true;status=label;error=nil;notice=nil;progress=nil
         task=Task {
             defer{busy=false;progress=nil}
-            do{try await operation();status="Saving securely…"}catch is CancellationError{status="Cancelled. Saving what was completed…"}catch{self.error=error.localizedDescription}
-            do{try await flushData()}catch{storageMessage="Changes not saved. Please retry.";self.error=error.localizedDescription}
+            // Every change is already written to the encrypted store, so nothing remains to save afterwards.
+            do{try await operation();status="Complete"}catch is CancellationError{status="Cancelled"}catch{self.error=error.localizedDescription}
         }
     }
     func cancel(){task?.cancel()}
-    // Once the operation has finished or was cancelled, only the final save remains.
-    var cancellable:Bool{busy && !status.hasPrefix("Cancelled") && status != "Saving securely…"}
+    var cancellable:Bool{busy && !status.hasPrefix("Cancelled")}
     func origin() throws -> String {
         guard let url=URL(string:backend),url.user==nil,url.password==nil,url.query==nil,url.fragment==nil else{throw Core.Failure(message:"Enter an HTTPS backend origin")}
         var allowed=url.scheme=="https"
@@ -220,7 +236,6 @@ import UIKit
     func saveSettings() throws {
         _=try origin()
         _=try profileData()
-        if dataUnlocked{markDataChanged()}
         for (key,value) in [("backend",backend),("provider",provider),("model",model),("api-key-"+provider,apiKey),("ollama-address",ollamaAddress),("ollama-port",ollamaPort)]{try DeviceStore.put(key,value)}
     }
     func selectProvider(_ next:String){do{try DeviceStore.put("api-key-"+provider,apiKey);provider=next;apiKey=DeviceStore.get("api-key-"+next)}catch{self.error="Unable to switch secure provider settings"}}
@@ -237,23 +252,35 @@ import UIKit
     }
     func importDNA(_ url:URL){work("Importing DNA on device"){
         guard self.acceptedDisclaimer else{throw Core.Failure(message:"Accept the educational-use disclaimer first")}
-        try await self.unlockData();self.markDataChanged()
-        let data=try self.readFile(url);let session=self.session;let name=url.lastPathComponent
-        let metadata=try await Task.detached{try Core.importFile(session,data,name)}.value
+        try await self.unlockData()
+        let data=try self.readFile(url);let handle=try self.handle();let name=url.lastPathComponent
+        let metadata=try await Task.detached{try Core.importToStore(handle,data,name)}.value
         try Task.checkCancellation();self.metadata=metadata
-        self.results=[];self.markDataChanged()
+        self.resultCount=0;self.resultsVersion+=1
         let names=["23andme":"23andMe","ancestrydna":"AncestryDNA","myheritage":"MyHeritage","ftdna":"FamilyTreeDNA","livingdna":"LivingDNA","mapmygenome":"Mapmygenome","monadic":"Monadic DNA"]
         let format=(metadata["detectedFormat"] as? String).flatMap{names[$0]}.map{" from \($0)"} ?? ""
-        self.notice="Imported \(self.variantCount.formatted()) variants\(format). Open Results and choose Run all studies to match them against the research catalog."
+        // Matching the bundled catalog takes seconds, so it follows the import directly.
+        let matches=try await self.runAllData()
+        // Sync is on by default; say so once.
+        let explain=self.syncEnabled && DeviceStore.get("sync-explained") != "true"
+        if explain{try? DeviceStore.put("sync-explained","true")}
+        self.notice="Imported \(self.variantCount.formatted()) variants\(format) and found \(matches.formatted()) research matches."+(explain ? " An end-to-end encrypted copy is kept so a new device fills in automatically. You can turn this off in Vault." : "")
     }}
-    func refreshResults() throws{results=try Core.array("session_results",["session":session]).map(Record.init)}
+    func refreshResults() throws{resultCount=try Core.call("store_result_count",try storeInput()) as? Int ?? 0;resultsVersion+=1}
+    func resultsPage(filter:String,direction:String,sort:String,offset:Int,limit:Int=100) async throws -> (rows:[Record],total:Int) {
+        // Screens can ask while locked; there is nothing to show until the store is open.
+        guard storeHandle != nil else{return ([],0)}
+        let input=try storeInput(["filter":filter,"direction":direction,"sort":sort,"offset":offset,"limit":limit])
+        let page=try await Task.detached{try Core.object("store_results_page",input)}.value
+        return ((page["rows"] as? [[String:Any]] ?? []).map(Record.init),page["total"] as? Int ?? 0)
+    }
+    func resultFor(_ studyId:Int)->Record?{guard let input=try? storeInput(["studyId":studyId]) else{return nil};return (try? Core.call("store_result",input) as? [String:Any]).map(Record.init)}
     func analyze(_ record:Record){work("Matching DNA on device"){
         guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
-        self.markDataChanged()
-        let session=self.session;let input:[String:Any]=["session":session,"studies":[record.raw],"now":ISO8601DateFormatter().string(from:Date())]
-        _=try await Task.detached{try Core.call("session_analyze",input)}.value
-        self.markDataChanged();try self.refreshResults()
-        self.notice=self.results.contains{$0.id==record.id} ? "Match saved to Results." : "Your DNA has no called genotype for this study's risk variant."
+        let input=try self.storeInput(["studies":[record.raw],"now":ISO8601DateFormatter().string(from:Date())])
+        _=try await Task.detached{try Core.call("store_analyze",input)}.value
+        try self.refreshResults();self.queueSync()
+        self.notice=self.resultFor(record.id) != nil ? "Match saved to Results." : "Your DNA has no called genotype for this study's risk variant."
     }}
     func loadStudy(_ id:Int){work("Loading study"){
         let data=try await self.api("/api/studies?id=\(id)")
@@ -263,72 +290,54 @@ import UIKit
     let catalogInfo:[String:Any]?=Bundle.main.url(forResource:"catalog",withExtension:"json").flatMap{try? Data(contentsOf:$0)}.flatMap{try? JSONSerialization.jsonObject(with:$0) as? [String:Any]}
     private static let catalogChunk=50000
     func runAll(){work("Opening the research catalog"){
-        guard self.dataUnlocked && self.variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
+        let started=Date()
+        let matches=try await self.runAllData()
+        let seconds=Int(Date().timeIntervalSince(started))
+        self.notice="Run all finished in \(seconds/60):\(String(format:"%02d",seconds%60)) and saved \(matches.formatted()) matches from research catalog \(self.catalogInfo?["version"] as? String ?? "")."
+    }}
+    /// Matches the bundled catalog and returns the number of saved matches.
+    private func runAllData() async throws -> Int {
+        guard dataUnlocked && variantCount>0 else{throw Core.Failure(message:"Unlock or import your DNA first")}
         // Rust streams the bundled snapshot straight from the app bundle.
         guard let path=Bundle.main.path(forResource:"catalog",ofType:"zst") else{throw Core.Failure(message:"The research catalog is missing from this build")}
-        self.markDataChanged()
         let now=ISO8601DateFormatter().string(from:Date())
         let started=Date();var refreshed=started
         let catalog=try await Task.detached{try Core.catalogOpen(path)}.value
         let handle=catalog["handle"] as? Int ?? 0;let total=catalog["rows"] as? Int ?? 0
         defer{Core.catalogClose(handle)}
-        // Merge each chunk's matches by study ID; re-reading every saved result per chunk wastes memory.
-        var merged=self.results;var positions=Dictionary(uniqueKeysWithValues:merged.enumerated().map{($1.id,$0)})
-        var matched=Set<Int>();var processed=0;var complete=false
+        var processed=0
         while true {
             try Task.checkCancellation()
-            let session=self.session
-            let size=Self.catalogChunk
-            let chunk=try await Task.detached{try Core.catalogAnalyzeNext(handle,session,size,now)}.value
-            for raw in chunk["matches"] as? [[String:Any]] ?? []{
-                let record=Record(raw:raw);matched.insert(record.id)
-                if let index=positions[record.id]{merged[index]=record}else{positions[record.id]=merged.count;merged.append(record)}
-            }
-            self.markDataChanged();processed+=chunk["rows"] as? Int ?? 0
+            let store=try self.handle();let size=Self.catalogChunk
+            let chunk=try await Task.detached{try Core.catalogAnalyzeNext(handle,store,size,now)}.value
+            processed+=chunk["rows"] as? Int ?? 0;resultCount=chunk["saved"] as? Int ?? resultCount
             let elapsed=Int(Date().timeIntervalSince(started))
-            self.progress=total>0 ? Double(processed)/Double(total) : nil
-            self.status="Analyzed \(processed.formatted()) of \(total.formatted()) studies (\(total>0 ? processed*100/total : 0)%) • \((chunk["saved"] as? Int ?? merged.count).formatted()) matches • \(elapsed/60):\(String(format:"%02d",elapsed%60)) elapsed"
-            // Matches appear while the run continues.
-            if Date().timeIntervalSince(refreshed)>3{self.results=merged;refreshed=Date()}
-            if chunk["done"] as? Bool==true{complete=true;break}
+            progress=total>0 ? Double(processed)/Double(total) : nil
+            status="Analyzed \(processed.formatted()) of \(total.formatted()) studies (\(total>0 ? processed*100/total : 0)%) • \(resultCount.formatted()) matches • \(elapsed/60):\(String(format:"%02d",elapsed%60)) elapsed"
+            // Matches appear while the run continues; the core drops stale results when a run completes.
+            if Date().timeIntervalSince(refreshed)>3{resultsVersion+=1;refreshed=Date()}
+            if chunk["done"] as? Bool==true{break}
         }
-        // A complete run also drops results the bundled catalog no longer produces, as the core did.
-        self.results=complete ? merged.filter{matched.contains($0.id)} : merged
-        let seconds=Int(Date().timeIntervalSince(started))
-        self.notice="Run all finished in \(seconds/60):\(String(format:"%02d",seconds%60)). Analyzed \(processed.formatted()) studies from research catalog \(catalog["version"] as? String ?? "") and saved \(self.results.count.formatted()) matches."
-    }}
-    func clear(){lockData()}
-    func exportResults() throws -> String{try Core.string("session_export",["session":session])}
-    func importResults(_ url:URL){work("Importing results"){
-        try await self.unlockData();self.markDataChanged()
-        let data=try self.readFile(url)
-        _=try Core.call("session_import_results",["session":self.session,"content":String(decoding:data,as:UTF8.self),"fileName":url.lastPathComponent,"now":ISO8601DateFormatter().string(from:Date())]);try self.refreshResults()
-    }}
-    private var vaultURL:URL { FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("monadic-vault.json") }
-    func encryptedVault(_ password:String) async throws -> String {
-        try await unlockData();try await flushData()
-        return String(decoding:try JSONSerialization.data(withJSONObject:await dataVault.backup(password)),as:UTF8.self)
+        try refreshResults();queueSync()
+        return resultCount
     }
-    func saveVault(_ password:String){work("Saving data securely"){try await self.unlockData();self.dataDirty=true;try await self.flushData()}}
-    func unlockVault(_ password:String,file:URL?=nil){work("Restoring encrypted data"){
-        let data=try file.map(self.readFile) ?? Data(contentsOf:self.vaultURL)
-        guard var encrypted=try JSONSerialization.jsonObject(with:data) as? [String:Any] else{throw Core.Failure(message:"Invalid encrypted vault")}
-        if encrypted["version"] as? Int==2 {
-            try await self.prepareRecovery()
-            self.restoreCustomization(try await self.dataVault.restore(self.session,encrypted,password))
-            self.dataUnlocked=true;self.dataDirty=false
-        } else {
-            try await self.unlockData();encrypted["password"]=password
-            let snapshot=try Core.string("open",encrypted);_=try Core.call("session_restore",["session":self.session,"snapshot":snapshot]);self.markDataChanged();try await self.flushData()
-        }
-        self.metadata=try Core.object("session_metadata",["session":self.session]);try self.refreshResults()
-        self.storageMessage="Saved securely on this device";self.protection=await self.dataVault.protection
+    func clear(){lockData()}
+    func exportResults() throws -> String{try Core.string("store_export",try storeInput())}
+    func importResults(_ url:URL){work("Importing results"){
+        try await self.unlockData()
+        let data=try self.readFile(url)
+        _=try Core.call("store_import_results",try self.storeInput(["content":String(decoding:data,as:UTF8.self),"fileName":url.lastPathComponent,"now":ISO8601DateFormatter().string(from:Date())]))
+        try self.refreshResults();self.queueSync()
     }}
+    /// Deletes this device's data. The cloud copy stays, so this device or another can restore it.
     func deleteVault(){work("Deleting saved data"){
-        self.autosave?.cancel();await self.autosave?.value;self.syncTask?.cancel();await self.syncTask?.value
+        if let lockTask=self.lockTask{await lockTask.value}
+        self.syncTask?.cancel();await self.syncTask?.value
+        if let storeHandle=self.storeHandle{await self.dataVault.lock(storeHandle)}
         try await self.dataVault.delete()
-        if FileManager.default.fileExists(atPath:self.vaultURL.path){try FileManager.default.removeItem(at:self.vaultURL)}
-        self.dataDirty=false;self.wipeMemory();self.storageMessage="Local saved data deleted."
+        let synced=self.syncEnabled
+        self.wipeMemory();self.vaultExists=false;self.storageMessage="Local saved data deleted."
+        self.restorable=synced || (try? self.syncKeys.get()) != nil
     }}
     func beginAuth() throws {
         let pair=try Core.object("auth_keypair",["entropy":DeviceStore.entropy(32)])
@@ -402,32 +411,36 @@ import UIKit
         }
         return try Core.string("nilai_invocation",input)
     }
+    private func reportPrompt(_ kind:String) async throws -> [[String:Any]] {
+        let input=try storeInput(["kind":kind,"customization":try profileData(),"context":profile])
+        let prompt=try await Task.detached{try Core.object("store_report_prompt",input)}.value
+        return prompt["messages"] as? [[String:Any]] ?? []
+    }
     func sendChat(_ message:String){work("Asking selected provider"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         try await self.requireAccess("Chat")
-        let prompt=try Core.object("report_prompt",["kind":"DNA chat","results":self.results.map(\.raw),"customization":try self.profileData(),"context":self.profile])
-        var messages=prompt["messages"] as? [[String:Any]] ?? []
+        var messages=try await self.reportPrompt("DNA chat")
         messages+=self.messages.map{["role":$0.0,"content":$0.1]};messages.append(["role":"user","content":message])
         let response=try await self.complete(messages);self.messages.append(("user",message));self.messages.append(("assistant",response))
     }}
     func generateReport(_ kind:String){work("Generating report"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing results with the selected provider first")}
-        guard !self.results.isEmpty else{throw Core.Failure(message:"Analyze studies or import results first")}
+        guard self.resultCount>0 else{throw Core.Failure(message:"Add your DNA file first so there are matches to report on")}
         try await self.requireAccess(kind)
         if kind != "Overview" {
-            let prompt=try Core.object("report_prompt",["kind":kind,"results":self.results.map(\.raw),"customization":try self.profileData(),"context":self.profile])
-            let content=try await self.complete(prompt["messages"] as? [[String:Any]] ?? [])
+            let content=try await self.complete(try await self.reportPrompt(kind))
             let parsed=try Core.object("extract_report",content)
             self.reportTitle=kind;self.report=parsed["report"] as? String ?? content;self.reportQuestions=parsed["questions"] as? [String] ?? []
             return
         }
-        let groups=try Core.call("partition_results",["results":self.results.map(\.raw),"groups":(self.results.count+249)/250]) as? [[[String:Any]]] ?? []
+        // Groups arrive formatted from the store, so the full result set never reaches Swift.
+        let input=try self.storeInput(["groups":(self.resultCount+249)/250])
+        let groups=try await Task.detached{try Core.array("store_report_groups",input)}.value
         let userContext=try Core.string("user_context",self.profileData())+"\n"+self.profile
         var summaries:[String]=[]
         for (index,group) in groups.enumerated(){
             try Task.checkCancellation();self.status="Report group \(index+1)/\(groups.count)"
-            let compact=try Core.string("format_results",group)
-            let prompt=try Core.string("render_prompt",["name":"generateMapPrompt","values":["groupNumber":index+1,"totalGroups":groups.count,"resultsInGroup":group.count,"totalResults":self.results.count,"compactResults":compact,"userContext":userContext]])
+            let prompt=try Core.string("render_prompt",["name":"generateMapPrompt","values":["groupNumber":index+1,"totalGroups":groups.count,"resultsInGroup":group["count"] as? Int ?? 0,"totalResults":self.resultCount,"compactResults":group["text"] as? String ?? "","userContext":userContext]])
             summaries.append(try await self.complete([["role":"user","content":prompt]]))
         }
         let reduce=try Core.string("render_prompt",["name":"generateReducePrompt","values":["groupSummaries":summaries,"userContext":userContext]])

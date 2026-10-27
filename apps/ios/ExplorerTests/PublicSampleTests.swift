@@ -9,8 +9,8 @@ final class PublicSampleTests:XCTestCase {
         let studies=try XCTUnwrap(JSONSerialization.jsonObject(with:Data(contentsOf:folder.appendingPathComponent("studies.json"))) as? [[String:Any]])
         let study=try XCTUnwrap(studies.first{($0["id"] as? Int)==(wanted["studyId"] as? Int)})
         let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let store=ExplorerStore(dataVault:SecureDataVault(protector:TestVaultProtector(),directory:directory))
-        defer{_ = try? Core.call("session_close",["session":store.session]);try? FileManager.default.removeItem(at:directory)}
+        let store=ExplorerStore(dataVault:SecureDataVault(protector:TestVaultProtector(),directory:directory),syncKeys:TestSyncKeys())
+        defer{try? FileManager.default.removeItem(at:directory)}
         store.acceptedDisclaimer=true
         store.importDNA(folder.appendingPathComponent("23andme-public.txt"))
         let deadline=Date().addingTimeInterval(180)
@@ -20,10 +20,10 @@ final class PublicSampleTests:XCTestCase {
         store.analyze(Record(raw:study))
         while store.busy && Date()<deadline{try await Task.sleep(nanoseconds:50_000_000)}
         XCTAssertNil(store.error)
-        let result=try XCTUnwrap(store.results.first)
+        let result=try XCTUnwrap(store.resultFor(try XCTUnwrap(wanted["studyId"] as? Int)))
         XCTAssertEqual(result.text("userGenotype"),wanted["userGenotype"] as? String)
         XCTAssertEqual(result.number("riskScore"),try XCTUnwrap(wanted["riskScore"] as? Double),accuracy:1e-12)
-        await store.dataVault.lock()
+        if let handle=store.storeHandle{await store.dataVault.lock(handle)}
     }
     func testFullPublic23andMeSample() throws {
         guard let folder=Bundle(for:Self.self).url(forResource:"TestData",withExtension:nil) else{throw XCTSkip("Run python scripts/prepare-public-sample.py before generating the Xcode project")}
