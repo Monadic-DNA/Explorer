@@ -96,6 +96,13 @@ struct HomeView<Results:View>:View{
     @State private var question=""
     private var ready:Bool{store.resultCount>0 && (store.personalized||store.personalizeSkipped)}
     var body:some View{ScrollView{VStack(alignment:.leading,spacing:18){
+        if store.syncOffered {
+            VStack(alignment:.leading,spacing:8){
+                Text("Keep your data on a new iPhone").font(.headline)
+                Text("Explorer can keep an end-to-end encrypted copy in your own iCloud, so a new iPhone or iPad fills in automatically. Monadic DNA never stores your data.").font(.footnote)
+                HStack{Button("Turn on"){store.setSync(true)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy);Button("Not now",action:store.declineSync)}
+            }.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:20).stroke(.secondary.opacity(0.5)))
+        }
         if !store.dataUnlocked && !store.vaultExists && store.restorable {
             VaultHero()
             Text("Your data is ready to restore").font(VaultStyle.heading(28))
@@ -356,9 +363,9 @@ struct VaultView:View{
             Button(store.dataUnlocked ? "Lock" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
         Section("Sync across your devices"){
-            Text("An end-to-end encrypted copy is kept in your own iCloud, so a new iPhone or iPad signed in to your Apple ID fills in automatically. Monadic DNA never stores your data.")
+            Text("Keep an end-to-end encrypted copy in your own iCloud, so a new iPhone or iPad signed in to your Apple ID fills in automatically. Monadic DNA never stores your data.")
             Toggle("Sync",isOn:syncBinding).disabled(!store.dataUnlocked||store.busy)
-            Text(!store.dataUnlocked ? "Unlock to change sync." : store.syncing ? "Syncing…" : !store.syncMessage.isEmpty ? store.syncMessage : store.syncEnabled ? "Up to date." : "Turning sync off deleted the cloud copy. Data on this device is unchanged.").font(.footnote)
+            Text(!store.dataUnlocked ? "Unlock to change sync." : store.syncing ? "Syncing…" : !store.syncMessage.isEmpty ? store.syncMessage : store.syncEnabled ? "Up to date." : "Off. Data stays only on this device.").font(.footnote)
         }
         Button("Delete data from this device",role:.destructive){confirmDelete=true}.disabled(store.busy||(!store.dataUnlocked && !store.vaultExists))
     }.vaultScreen().navigationTitle("Private vault")

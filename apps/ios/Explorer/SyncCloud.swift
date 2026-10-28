@@ -8,6 +8,8 @@ struct SyncConflict:Error{}
 /// Where a user's encrypted sync records live. Always the user's own cloud account (iCloud on iOS);
 /// never the Monadic DNA backend. The core encrypts every record before it gets here.
 protocol SyncCloud: AnyObject {
+    /// Checks the user can sync, for example that they are signed in to iCloud. Called when the user turns sync on.
+    func authorize() async throws
     func list() async throws -> [CloudRecord]
     func read(_ records:[String]) async throws -> [CloudRecord]
     /// Writes `record` if the cloud is still at `baseRevision`; returns the new revision or throws `SyncConflict`.
@@ -20,6 +22,10 @@ protocol SyncCloud: AnyObject {
 final class CloudKitSyncCloud: SyncCloud {
     private let database=CKContainer.default().privateCloudDatabase
     private static let type="SyncRecord"
+    func authorize() async throws {
+        let status=try await CKContainer.default().accountStatus()
+        guard status == .available else{throw Core.Failure(message:status == .restricted ? "iCloud is restricted on this device, so sync can't be turned on." : "Sign in to iCloud in Settings, with iCloud Drive turned on, to keep your data on a new iPhone.")}
+    }
     private func id(_ record:String)->CKRecord.ID{CKRecord.ID(recordName:record)}
     private func fetch(_ names:[String]) async throws -> [String:CKRecord] {
         var out:[String:CKRecord]=[:]

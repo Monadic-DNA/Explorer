@@ -91,6 +91,8 @@ import UIKit
     func unlockData() async throws {
         if let lockTask {await lockTask.value}
         if dataUnlocked{return}
+        // Tapping "Restore my data" on a new device is the user's choice to sync.
+        if restorable{try? DeviceStore.put("sync-on","true")}
         let opened=try await dataVault.unlock()
         storeHandle=opened["handle"] as? Int;metadata=opened["metadata"] as? [String:Any] ?? [:]
         restoreCustomization(try Core.object("store_customization",try storeInput()))
@@ -118,9 +120,14 @@ import UIKit
     func backgroundLock(){if dataUnlocked{lockData()}}
 
     // Sync (docs/native-data-store.md): on by default, end-to-end encrypted, same-platform for now.
+    /// Home offers sync once after the first import.
+    @Published private(set) var syncDecided=DeviceStore.get("sync-decided")=="true"
+    var syncOffered:Bool{dataUnlocked && !syncEnabled && resultCount>0 && !syncDecided}
+    func declineSync(){try? DeviceStore.put("sync-decided","true");syncDecided=true}
     private func setUpSync() throws {
         if try Core.object("store_sync_status",try storeInput())["enabled"] as? Bool==true{syncEnabled=true;queueSync();return}
-        if DeviceStore.get("sync-off")=="true"{return}
+        // Sync is opt-in, as on Android: Home offers it once and it starts only if the user accepts.
+        if DeviceStore.get("sync-on") != "true"{return}
         // Reuse this user's key from iCloud Keychain (a new device restoring) or create one for this account.
         let existing=try? syncKeys.get()
         let enabled=try Core.object("store_sync_enable",try storeInput(existing.map{["syncKey":$0]} ?? [:]))
@@ -131,11 +138,17 @@ import UIKit
     }
     func setSync(_ on:Bool){work(on ? "Turning on sync" : "Turning off sync and deleting the cloud copy"){
         try await self.unlockData()
-        if on{try DeviceStore.put("sync-off","");try self.setUpSync();return}
+        try DeviceStore.put("sync-decided","true");self.syncDecided=true
+        if on{
+            try await self.cloud.authorize()
+            try DeviceStore.put("sync-on","true");try self.setUpSync()
+            self.notice="Sync is on. An end-to-end encrypted copy is kept in your own iCloud so a new iPhone fills in automatically."
+            return
+        }
         self.syncTask?.cancel();await self.syncTask?.value
         if self.syncEnabled{try await self.cloud.deleteAll()}
         _=try Core.call("store_sync_disable",try self.storeInput());try? self.syncKeys.delete()
-        try DeviceStore.put("sync-off","true");self.syncEnabled=false;self.syncMessage=""
+        try DeviceStore.put("sync-on","false");self.syncEnabled=false;self.syncMessage=""
         self.notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
     }}
     private func queueSync(){
@@ -247,10 +260,7 @@ import UIKit
         let format=(metadata["detectedFormat"] as? String).flatMap{names[$0]}.map{" from \($0)"} ?? ""
         // Matching the bundled catalog takes seconds, so it follows the import directly.
         let matches=try await self.runAllData()
-        // Sync is on by default; say so once.
-        let explain=self.syncEnabled && DeviceStore.get("sync-explained") != "true"
-        if explain{try? DeviceStore.put("sync-explained","true")}
-        self.notice="Imported \(self.variantCount.formatted()) variants\(format) and found \(matches.formatted()) research matches."+(explain ? " An end-to-end encrypted copy is kept in your own iCloud so a new device fills in automatically. You can turn this off in Vault." : "")
+        self.notice="Imported \(self.variantCount.formatted()) variants\(format) and found \(matches.formatted()) research matches."
     }}
     func refreshResults() throws{resultCount=try Core.call("store_result_count",try storeInput()) as? Int ?? 0;resultsVersion+=1}
     func resultsPage(filter:String,direction:String,sort:String,offset:Int,limit:Int=100) async throws -> (rows:[Record],total:Int) {

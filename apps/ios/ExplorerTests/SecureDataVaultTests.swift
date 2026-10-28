@@ -32,6 +32,7 @@ final class TestSyncCloud:SyncCloud {
         guard (records[record]?.0 ?? 0)==baseRevision else{throw SyncConflict()}
         records[record]=(baseRevision+1,ciphertext);return baseRevision+1
     }
+    func authorize()async throws{}
     func deleteAll()async throws{records=[:]}
 }
 final class SecureDataVaultTests:XCTestCase {
