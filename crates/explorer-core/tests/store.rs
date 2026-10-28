@@ -114,7 +114,7 @@ fn the_store_is_encrypted_and_rejects_the_wrong_key() {
     }
 }
 
-/// An in-memory stand-in for /api/vault-sync: compare-and-set on revision per record.
+/// An in-memory stand-in for the user's cloud storage (iCloud or Google Drive): compare-and-set on revision per record.
 #[derive(Default)]
 struct Server { records: HashMap<String, (i64, String)> }
 impl Server {
@@ -194,17 +194,29 @@ fn a_new_device_fills_in_from_sync_and_edits_merge() {
 }
 
 #[test]
-fn sync_requests_are_signed_by_the_account_key() {
-    let dir = temp("sign");
-    let store = open(&dir, 4);
-    let account = call("store_sync_enable", json!({"store":store})).unwrap()["account"].clone();
-    let body = r#"{"action":"list"}"#;
-    let signed = call("store_sync_sign", json!({"store":store,"body":body})).unwrap();
-    let check = |body: &str, signature: &Value| dispatch("sync_verify", json!({"publicKey":signed["publicKey"],"timestamp":signed["timestamp"],"nonce":signed["nonce"],"signature":signature,"body":body})).unwrap();
-    let valid = check(body, &signed["signature"]);
-    assert_eq!((valid["valid"].as_bool(), &valid["account"]), (Some(true), &account));
-    assert_eq!(check(r#"{"action":"delete"}"#, &signed["signature"])["valid"], false);
-    let mut forged = signed["signature"].as_str().unwrap().to_string(); forged.replace_range(0..2, if &forged[0..2] == "00" { "01" } else { "00" });
-    assert_eq!(check(body, &json!(forged))["valid"], false);
-    store_close(store);
+fn report_passes_sync_without_losing_credits_or_uses() {
+    let (one, two) = (temp("passes-one"), temp("passes-two"));
+    let mut server = Server::default();
+    let a = open(&one, 5);
+    let key = call("store_sync_enable", json!({"store":a})).unwrap()["syncKey"].clone();
+    let credit = |store: u64, id: &str| call("store_pass_credit", json!({"store":store,"transactionId":id,"reportType":"healthspan"})).unwrap();
+    assert_eq!(credit(a, "t1"), true);
+    assert_eq!(credit(a, "t1"), false, "a transaction is credited once");
+    credit(a, "t2");
+    server.sync(a, "v1");
+    // A new device sees both passes.
+    let b = open(&two, 6);
+    call("store_sync_enable", json!({"store":b,"syncKey":key})).unwrap();
+    server.sync(b, "v1");
+    assert_eq!(call("store_passes", json!({"store":b})).unwrap(), json!({"healthspan":2}));
+    // Each device uses a pass and one buys another, before either syncs.
+    assert_eq!(call("store_pass_use", json!({"store":a,"reportType":"healthspan"})).unwrap(), true);
+    assert_eq!(call("store_pass_use", json!({"store":b,"reportType":"healthspan"})).unwrap(), true);
+    credit(b, "t3");
+    server.sync(a, "v1"); server.sync(b, "v1"); server.sync(a, "v1");
+    // Both uses count once each, so t1 and t2 are spent and only t3 remains everywhere.
+    for device in [a, b] { assert_eq!(call("store_passes", json!({"store":device})).unwrap(), json!({"healthspan":1})); }
+    assert_eq!(call("store_pass_use", json!({"store":a,"reportType":"overview"})).unwrap(), false);
+    assert!(call("store_pass_credit", json!({"store":a,"transactionId":"t9","reportType":"chat"})).is_err());
+    for handle in [a, b] { store_close(handle); }
 }

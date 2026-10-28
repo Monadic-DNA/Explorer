@@ -1,22 +1,22 @@
 //! End-to-end encrypted sync of the native store (docs/native-data-store.md).
-//! The core builds signed requests and encrypted records; hosts do the HTTP.
-use crate::store::{self, hex, meta, now_ms, random, set_meta, sql, Store};
+//! The core builds and merges encrypted records; hosts store them in the user's own iCloud or Google Drive.
+use crate::store::{self, hex, meta, random, set_meta, sql, Store};
 use crate::text;
 use aes_gcm::{aead::{Aead, KeyInit, Payload}, Aes256Gcm, Nonce};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
-use crate::sync_auth::{account_id, message};
-use k256::ecdsa::{signature::Signer, Signature, SigningKey};
+use crate::sync_auth::account_id;
+use k256::ecdsa::SigningKey;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::io::{BufRead, BufReader, Read, Write};
 use zeroize::Zeroizing;
 
-pub const RECORDS: [&str; 4] = ["genotype", "results", "customization", "imported-results"];
+pub const RECORDS: [&str; 5] = ["genotype", "results", "customization", "imported-results", "report-passes"];
 const MAX_PLAINTEXT: u64 = 256 * 1024 * 1024;
 
-struct Keys { records: Zeroizing<Vec<u8>>, signing: SigningKey, account: String, public_key: String }
+struct Keys { records: Zeroizing<Vec<u8>>, account: String, public_key: String }
 fn keys(conn: &Connection) -> Result<Keys, String> {
     let encoded = Zeroizing::new(meta(conn, "syncKey")?.ok_or("Sync is not set up")?);
     let key = Zeroizing::new(STANDARD.decode(encoded.as_bytes()).map_err(|_| "Invalid sync key")?);
@@ -24,7 +24,7 @@ fn keys(conn: &Connection) -> Result<Keys, String> {
     let auth = crate::vault::domain_key(&key, b"monadic-dna/explorer/sync/auth/v1")?;
     let signing = SigningKey::from_slice(&auth).map_err(|_| "Invalid sync key")?;
     let public = signing.verifying_key().to_encoded_point(true);
-    Ok(Keys { records, account: account_id(public.as_bytes()), public_key: hex(public.as_bytes()), signing })
+    Ok(Keys { records, account: account_id(public.as_bytes()), public_key: hex(public.as_bytes()) })
 }
 fn aad(account: &str, record: &str, revision: i64) -> String { format!("monadic-dna/explorer/sync/record/v1|{account}|{record}|{revision}") }
 
@@ -68,20 +68,13 @@ fn has_local(conn: &Connection, record: &str) -> Result<bool, String> {
         "genotype" => "SELECT EXISTS(SELECT 1 FROM genotypes)",
         "results" => "SELECT EXISTS(SELECT 1 FROM results WHERE source='catalog')",
         "customization" => "SELECT EXISTS(SELECT 1 FROM customization)",
+        "report-passes" => "SELECT EXISTS(SELECT 1 FROM report_passes) OR EXISTS(SELECT 1 FROM report_pass_uses)",
         _ => "SELECT EXISTS(SELECT 1 FROM results WHERE source='imported')",
     };
     conn.query_row(query, [], |r| r.get(0)).map_err(sql)
 }
 
-/// Signs a request body. The server rebuilds the message and checks it with `sync_verify`.
-fn sign(store: &Store, input: &Value) -> Result<Value, String> {
-    let keys = keys(&store.conn)?;
-    let timestamp = (now_ms() / 1000).to_string();
-    let nonce = hex(&random::<16>()?);
-    let signature: Signature = keys.signing.sign(message(&timestamp, &nonce, text(input, "body")).as_bytes());
-    Ok(json!({"account":keys.account,"publicKey":keys.public_key,"timestamp":timestamp,"nonce":nonce,"signature":hex(&signature.to_bytes())}))
-}
-/// Server records newer than what this device has applied, in `RECORDS` order: genotypes come
+/// Cloud records newer than what this device has applied, in `RECORDS` order: genotypes come
 /// first because synced results are only used when they match the device's DNA file.
 fn wanted(store: &Store, input: &Value) -> Result<Value, String> {
     let entries = crate::array(&input["records"]);
@@ -121,6 +114,16 @@ fn payload(conn: &Connection, record: &str) -> Result<(Zeroizing<Vec<u8>>, Strin
             let mut statement = conn.prepare("SELECT row FROM results WHERE source=?1 ORDER BY study_id").map_err(sql)?;
             let mut cursor = statement.query([source]).map_err(sql)?;
             while let Some(row) = cursor.next().map_err(sql)? { line(&mut gz, &Zeroizing::new(row.get::<_, String>(0).map_err(sql)?))?; }
+        }
+        "report-passes" => {
+            line(&mut gz, &json!({"kind":"report-passes"}).to_string())?;
+            for (query, kind) in [("SELECT transaction_id,report_type FROM report_passes ORDER BY transaction_id", "credit"), ("SELECT use_id,report_type FROM report_pass_uses ORDER BY use_id", "use")] {
+                let mut statement = conn.prepare(query).map_err(sql)?;
+                let mut cursor = statement.query([]).map_err(sql)?;
+                while let Some(row) = cursor.next().map_err(sql)? {
+                    line(&mut gz, &json!({"entry":kind,"id":row.get::<_, String>(0).map_err(sql)?,"type":row.get::<_, String>(1).map_err(sql)?}).to_string())?;
+                }
+            }
         }
         _ => {
             line(&mut gz, &json!({"kind":"customization"}).to_string())?;
@@ -251,6 +254,21 @@ fn apply(store: &mut Store, input: &Value) -> Result<Value, String> {
             set_revision(&tx, record, revision, if local_newer || local_only > 0 { None } else { Some(version) }, None)?;
             if (local_newer || local_only > 0) && !local_changed { store::touch(&tx, record)?; }
         }
+        "report-passes" => {
+            // Union merge of credits and uses: none is lost, so passes can't be spent twice or vanish.
+            let mut remote = std::collections::HashSet::new();
+            for item in &lines[1..] {
+                let entry: Value = serde_json::from_str(item).map_err(|_| "Invalid sync data")?;
+                let table = if text(&entry, "entry") == "use" { "report_pass_uses(use_id,report_type)" } else { "report_passes(transaction_id,report_type)" };
+                if tx.execute(&format!("INSERT OR IGNORE INTO {table} VALUES(?1,?2)"), [text(&entry, "id"), text(&entry, "type")]).map_err(sql)? > 0 { changed = true; }
+                remote.insert(text(&entry, "id").to_string());
+            }
+            // Local credits or uses the server lacks must be uploaded.
+            let local: i64 = tx.query_row("SELECT (SELECT count(*) FROM report_passes) + (SELECT count(*) FROM report_pass_uses)", [], |r| r.get(0)).map_err(sql)?;
+            let ahead = local as usize > remote.len();
+            set_revision(&tx, record, revision, if ahead { None } else { Some(version) }, None)?;
+            if ahead && !local_changed { store::touch(&tx, record)?; }
+        }
         _ => {
             if !local_changed {
                 tx.execute("DELETE FROM results WHERE source='imported'", []).map_err(sql)?;
@@ -281,7 +299,6 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
         "store_sync_status" => status(store),
         "store_sync_enable" => enable(store, input),
         "store_sync_disable" => disable(store),
-        "store_sync_sign" => sign(store, input),
         "store_sync_wanted" => wanted(store, input),
         "store_sync_outgoing" => outgoing(store),
         "store_sync_pushed" => pushed(store, input),

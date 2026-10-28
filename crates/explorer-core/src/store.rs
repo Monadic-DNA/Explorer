@@ -24,6 +24,10 @@ CREATE INDEX IF NOT EXISTS results_level ON results(risk_level);
 CREATE INDEX IF NOT EXISTS results_effect ON results(effect_rank DESC);
 CREATE INDEX IF NOT EXISTS results_p ON results(p_mlog DESC);
 CREATE TABLE IF NOT EXISTS customization (field TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL, device TEXT NOT NULL);
+-- App Store report passes (iOS): a credit per verified purchase and a separate row per use, so merging
+-- devices that each used a pass offline keeps both uses. Unused passes = credits - uses per report type.
+CREATE TABLE IF NOT EXISTS report_passes (transaction_id TEXT PRIMARY KEY, report_type TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS report_pass_uses (use_id TEXT PRIMARY KEY, report_type TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sync_state (record TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 0, synced_version INTEGER NOT NULL DEFAULT 0, hash TEXT);
 ";
 // The `context` customization entry is stored as a field under this name.
@@ -260,6 +264,30 @@ fn import_results(store: &Store, input: &Value) -> Result<Value, String> {
     Ok(json!(rows.len()))
 }
 
+/// Unused report passes per report type.
+pub(crate) fn passes(conn: &Connection) -> Result<Value, String> {
+    let mut statement = conn.prepare("SELECT report_type, count(*) - (SELECT count(*) FROM report_pass_uses u WHERE u.report_type=p.report_type) FROM report_passes p GROUP BY report_type").map_err(sql)?;
+    let mut out = Map::new();
+    for row in statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))).map_err(sql)? { let (t, n) = row.map_err(sql)?; if n > 0 { out.insert(t, json!(n)); } }
+    Ok(Value::Object(out))
+}
+/// Credits a store transaction once. Returns whether it was new.
+fn credit_pass(conn: &Connection, input: &Value) -> Result<Value, String> {
+    let (id, kind) = (text(input, "transactionId"), text(input, "reportType"));
+    if id.is_empty() || !["overview", "healthspan", "top_traits"].contains(&kind) { return Err("Invalid report pass".into()); }
+    let added = conn.execute("INSERT OR IGNORE INTO report_passes(transaction_id,report_type) VALUES(?1,?2)", [id, kind]).map_err(sql)? > 0;
+    if added { touch(conn, "report-passes")?; }
+    Ok(json!(added))
+}
+/// Records one use of a pass for a report type. Returns whether one was available.
+fn use_pass(conn: &Connection, input: &Value) -> Result<Value, String> {
+    let kind = text(input, "reportType");
+    if passes(conn)?[kind].as_i64().unwrap_or(0) <= 0 { return Ok(json!(false)); }
+    conn.execute("INSERT INTO report_pass_uses(use_id,report_type) VALUES(?1,?2)", [hex(&random::<16>()?).as_str(), kind]).map_err(sql)?;
+    touch(conn, "report-passes")?;
+    Ok(json!(true))
+}
+
 pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
     let handle = input["store"].as_u64().ok_or("Invalid store")?;
     with(handle, |store| match op {
@@ -274,6 +302,9 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
         "store_export" => Ok(json!(results::export(&all_rows(&store.conn)?))),
         "store_import_results" => import_results(store, input),
         "store_customization" => customization(&store.conn),
+        "store_passes" => passes(&store.conn),
+        "store_pass_credit" => credit_pass(&store.conn, input),
+        "store_pass_use" => use_pass(&store.conn, input),
         "store_set_customization" => set_customization(store, &input["customization"]),
         _ => Err("Unknown store operation".into()),
     })

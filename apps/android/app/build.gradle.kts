@@ -35,6 +35,8 @@ dependencies {
     implementation("com.android.billingclient:billing-ktx:8.0.0")
     // Carries the sync key to a new device, end-to-end encrypted (docs/native-data-store.md).
     implementation("com.google.android.gms:play-services-auth-blockstore:16.4.0")
+    // Access to the user's own Google Drive app-data folder, where encrypted sync records are stored.
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
     val composeBom = platform("androidx.compose:compose-bom:2025.04.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)

@@ -18,7 +18,11 @@ import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:SecureDataVault=SecureDataVault(app), private val syncKeys:SyncKeyStore=BlockStoreSyncKeys(app)) : AndroidViewModel(app) {
+class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:SecureDataVault=SecureDataVault(app), private val syncKeys:SyncKeyStore=BlockStoreSyncKeys(app), cloud:SyncCloud?=null) : AndroidViewModel(app) {
+    /** Returns a Google Drive app-data access token, asking the user once; set by the activity. */
+    var driveToken:(suspend()->String)?=null
+    // Encrypted sync records live in the user's own Google Drive, never on the Monadic DNA backend.
+    private val cloud:SyncCloud=cloud ?: DriveSyncCloud{requireNotNull(driveToken){"Open the app to sync."}.invoke()}
     val store = DeviceStore(app)
     /** Handle of the open encrypted store (docs/native-data-store.md); null while locked. */
     var storeHandle: Long? = null
@@ -35,7 +39,6 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         profileSchema.forEach { put(it.getString("key"),"") }
     }
     private fun profileData() = Core.obj("parse_profile",JSONObject(profileFields.toMap()))
-    var wallet by mutableStateOf(store.get("wallet"))
     var metadata by mutableStateOf(JSONObject())
     var studies by mutableStateOf(emptyList<JSONObject>())
     var traits by mutableStateOf(emptyList<String>())
@@ -46,7 +49,6 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var resultsVersion by mutableIntStateOf(0)
         private set
     var selectedStudy by mutableStateOf<JSONObject?>(null)
-    var subscription by mutableStateOf<JSONObject?>(null)
     var busy by mutableStateOf(false)
     var status by mutableStateOf("")
     var error by mutableStateOf<String?>(null)
@@ -59,7 +61,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var reportTitle by mutableStateOf("")
     var reportQuestions by mutableStateOf(emptyList<String>())
     var shareResultsWithLLM by mutableStateOf(false)
-    /** What Chat or a premium report needs before it can run: "sign-in" or "premium". Cleared by the next operation. */
+    /** Set to "premium" when Chat or a report needs Premium or a pass. Cleared by the next operation. */
     var accessNeeded by mutableStateOf<String?>(null)
         private set
     fun dismissAccessNeeded(){accessNeeded=null}
@@ -164,7 +166,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         unlockData()
         if(on){store.remove("sync-off");setUpSync();return@run}
         syncJob?.cancelAndJoin()
-        if(syncEnabled)syncRequest(json("action" to "delete"))
+        if(syncEnabled)cloud.deleteAll()
         Core.call("store_sync_disable",storeInput());runCatching{syncKeys.delete()}
         store.put("sync-off","true");syncEnabled=false;syncMessage="";notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
     }
@@ -186,17 +188,16 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             if(dataUnlocked && !busy && Core.call("store_needs_match",storeInput("catalogVersion" to catalogInfo?.optString("version")))==true)runAll()
         }
     }
-    private class SyncConflict: Exception()
     private suspend fun syncOnce() {
         val catalogVersion=catalogInfo?.optString("version")
         repeat(3) {
-            // Pull first: a write must be based on the server's current revision.
-            val list=syncRequest(json("action" to "list")).getJSONArray("records")
+            // Pull first: a write must be based on the cloud's current revision.
+            val list=JSONArray(cloud.list().map{json("record" to it.record,"revision" to it.revision)})
             val wanted=Core.arr("store_sync_wanted",storeInput("records" to list))
             if(wanted.length()>0){
                 var changed=false
-                for(record in syncRequest(json("action" to "read","records" to wanted)).getJSONArray("records").objects()){
-                    val applied=withContext(Dispatchers.Default){Core.obj("store_sync_apply",storeInput("record" to record.getString("record"),"revision" to record.getLong("revision"),"ciphertext" to record.getString("ciphertext"),"catalogVersion" to catalogVersion))}
+                for(record in cloud.read((0 until wanted.length()).map{wanted.getString(it)})){
+                    val applied=withContext(Dispatchers.Default){Core.obj("store_sync_apply",storeInput("record" to record.record,"revision" to record.revision,"ciphertext" to record.ciphertext,"catalogVersion" to catalogVersion))}
                     if(applied.optBoolean("changed"))changed=true
                     if(applied.optBoolean("replacedLocal"))notice="Your DNA file was replaced by one imported on another device."
                 }
@@ -205,38 +206,13 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             var conflict=false
             for(out in withContext(Dispatchers.Default){Core.arr("store_sync_outgoing",storeInput())}.objects()){
                 try {
-                    val revision=syncRequest(json("action" to "write","record" to out.getString("record"),"baseRevision" to out.getLong("baseRevision"),"ciphertext" to out.getString("ciphertext"))).getLong("revision")
+                    val revision=cloud.write(out.getString("record"),out.getLong("baseRevision"),out.getString("ciphertext"))
                     Core.call("store_sync_pushed",storeInput("record" to out.getString("record"),"revision" to revision,"version" to out.getLong("version"),"hash" to out.getString("hash")))
                 } catch(_:SyncConflict){conflict=true}
             }
             if(!conflict)return
         }
         error("Another device keeps changing your data; sync will retry")
-    }
-    /** Signs the exact request body with the account key; the server checks it before reading the body. */
-    private suspend fun syncRequest(body: JSONObject): JSONObject {
-        val text=body.toString()
-        val signed=Core.obj("store_sync_sign",storeInput("body" to text))
-        val request=Request.Builder().url(checkedBackend()+"/api/vault-sync").header("Accept","application/json")
-            .header("X-Sync-Account",signed.getString("account")).header("X-Sync-Public-Key",signed.getString("publicKey"))
-            .header("X-Sync-Timestamp",signed.getString("timestamp")).header("X-Sync-Nonce",signed.getString("nonce")).header("X-Sync-Signature",signed.getString("signature"))
-            .post(text.toRequestBody("application/json".toMediaType())).build()
-        return suspendCancellableCoroutine { continuation ->
-            val call=http.newCall(request)
-            continuation.invokeOnCancellation { call.cancel() }
-            call.enqueue(object: Callback {
-                override fun onFailure(call: Call, exception: IOException) { if(continuation.isActive) continuation.resumeWithException(exception) }
-                override fun onResponse(call: Call, response: Response) {
-                    try {
-                        val data=response.use { val payload=runCatching{JSONObject(it.body?.string().orEmpty())}.getOrDefault(JSONObject())
-                            if(it.code==409) throw SyncConflict()
-                            if(!it.isSuccessful) throw IllegalStateException(payload.optString("error","Sync failed (HTTP ${it.code})"))
-                            payload }
-                        if(continuation.isActive) continuation.resume(data)
-                    } catch(exception: Exception) { if(continuation.isActive) continuation.resumeWithException(exception) }
-                }
-            })
-        }
     }
 
     fun run(label: String, block: suspend () -> Unit) {
@@ -260,7 +236,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     }
     suspend fun api(path: String, body: JSONObject? = null): JSONObject {
         val origin=checkedBackend()
-        return request(origin+path,body,store.get("auth-token"))
+        return request(origin+path,body)
     }
     private suspend fun request(url: String, body: JSONObject?, bearer: String = "", origin: String? = null): JSONObject = suspendCancellableCoroutine { continuation ->
         val builder=Request.Builder().url(url).header("Accept","application/json")
@@ -310,7 +286,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val explain=syncEnabled && store.get("sync-explained")!="true"
         if(explain)store.put("sync-explained","true")
         notice="Imported ${metadata.optInt("count").grouped()} variants$format and found ${matches.grouped()} research matches."+
-            if(explain)" An end-to-end encrypted copy is kept so a new device fills in automatically. You can turn this off in Vault." else ""
+            if(explain)" An end-to-end encrypted copy is kept in your own Google Drive so a new device fills in automatically. You can turn this off in Vault." else ""
     }
     suspend fun refreshResults() { resultCount=(Core.call("store_result_count",storeInput()) as Number).toInt();resultsVersion++ }
     suspend fun resultsPage(filter: String, direction: String, sort: String, offset: Int, limit: Int=100): JSONObject=withContext(Dispatchers.Default){
@@ -390,40 +366,18 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         storeHandle?.let{dataVault.lock(it)};dataVault.delete();wipeMemory();storageMessage="Local saved data deleted."
         restorable=syncEnabled||runCatching{syncKeys.get()!=null}.getOrDefault(false)
     }
-    fun beginAuth(): String {
-        val pair=Core.obj("auth_keypair",json("entropy" to DeviceStore.entropy(32)))
-        val state=DeviceStore.entropy(32).replace("+","-").replace("/","_").trimEnd('=')
-        store.put("pending-auth",json("privateKey" to pair.getString("privateKey"),"state" to state,"expires" to (System.currentTimeMillis()+300000)).toString())
-        return Uri.parse(checkedBackend()+"/mobile-auth").buildUpon().appendQueryParameter("state",state).appendQueryParameter("publicKey",pair.getString("publicKey")).build().toString()
-    }
-    fun receiveAuth(uri: Uri) = run("Completing sign-in") {
-        require(uri.scheme=="monadicexplorer"&&uri.host=="auth") { "Invalid sign-in callback" }
-        val pending=JSONObject(store.get("pending-auth"))
-        require(pending.getLong("expires")>=System.currentTimeMillis()&&uri.getQueryParameter("state")==pending.getString("state")) { "Sign-in expired or state did not match" }
-        val encoded=Uri.parse("https://callback/?"+uri.fragment.orEmpty()).getQueryParameter("payload") ?: kotlin.error("Missing encrypted sign-in response")
-        val sealed=JSONObject(Base64.decode(encoded,Base64.URL_SAFE or Base64.NO_WRAP).toString(Charsets.UTF_8))
-        sealed.put("privateKey",pending.getString("privateKey")).put("state",pending.getString("state"))
-        val auth=JSONObject(Core.call("auth_open",sealed) as String)
-        require(auth.getLong("expiresAt")>=System.currentTimeMillis()&&Regex("^0x[a-fA-F0-9]{40}$").matches(auth.getString("walletAddress"))) { "Invalid or expired sign-in response" }
-        store.put("auth-token",auth.getString("token"));wallet=auth.getString("walletAddress");store.put("wallet",wallet);store.remove("pending-auth")
-        subscription=api("/api/check-subscription",json("walletAddress" to wallet))
-    }
-    val billing = PlayBilling(app, viewModelScope, { wallet }, { path, body -> api(path,body) }, ::refreshSubscription)
+    val billing = PlayBilling(app, viewModelScope)
     override fun onCleared() { syncJob?.cancel();billing.close(); storeHandle?.let{Core.storeClose(it)}; super.onCleared() }
-    fun signOut(){store.remove("auth-token");store.remove("wallet");store.remove("pending-auth");wallet="";subscription=null}
-    fun refreshSubscription() = run("Checking subscription") { require(wallet.isNotBlank()){ "Sign in first" };subscription=api("/api/check-subscription",json("walletAddress" to wallet)) }
-    private suspend fun requireAccess(kind: String) {
-        var access=Core.obj("feature_access",json("kind" to kind))
-        if(access.getBoolean("allowed"))return
-        if(wallet.isBlank()){accessNeeded="sign-in";error(if(kind=="Chat")"Chat is part of Premium. Sign in to your Explorer account to continue." else "The $kind report is part of Premium. Sign in to your Explorer account to continue.")}
-        subscription=api("/api/check-subscription",json("walletAddress" to wallet))
-        access=Core.obj("feature_access",json("kind" to kind,"activeSubscription" to subscription?.optJSONObject("subscription")?.optBoolean("isActive")))
-        if(access.getBoolean("allowed"))return
-        if(access.isNull("reportType")){accessNeeded="premium";error("Chat needs an active Premium subscription.")}
+    /** Premium status and report passes come from Google Play; Monadic DNA keeps no purchase records. Returns the pass to use, if any. */
+    private suspend fun requireAccess(kind: String): String? {
+        if(Core.obj("feature_access",json("kind" to kind)).getBoolean("allowed"))return null
+        billing.current()
+        val access=Core.obj("feature_access",json("kind" to kind,"activeSubscription" to billing.premium))
+        if(access.getBoolean("allowed"))return null
+        if(access.isNull("reportType")){accessNeeded="premium";error("Chat is part of Premium. Subscribe in Account to continue.")}
         val type=access.getString("reportType")
-        val passes=api("/api/report-access",json("walletAddress" to wallet))
-        if(passes.getJSONObject("availableReports").optInt(type)<=0){accessNeeded="premium";error("The $kind report needs Premium or a report pass.")}
-        api("/api/report-access",json("walletAddress" to wallet,"reportType" to type,"action" to "consume"))
+        if(billing.passes[type]==null){accessNeeded="premium";error("The $kind report is part of Premium. Subscribe, or buy a pass for this report, in Account.")}
+        return type
     }
     private fun llmConfig()=json("provider" to provider,"model" to model,"huggingfaceApiKey" to apiKey,"ollamaAddress" to ollamaAddress,"ollamaPort" to (ollamaPort.toIntOrNull()?:11434))
     private suspend fun nilaiAuthorization(endpoint: String): String {
@@ -469,12 +423,13 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun generateReport(kind: String) = run("Generating $kind report") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         require(resultCount>0){ "Add your DNA file first so there are matches to report on." }
-        requireAccess(kind)
+        val pass=requireAccess(kind)
         if(kind!="Overview") {
             val prompt=reportPrompt(kind)
             val parsed=Core.obj("extract_report",complete(prompt))
             reportTitle=kind;report=parsed.getString("report")
             reportQuestions=(0 until parsed.getJSONArray("questions").length()).map{parsed.getJSONArray("questions").getString(it)}
+            pass?.let{billing.consumePass(it)}
             return@run
         }
         // Groups arrive formatted from the store, so the full result set never reaches Kotlin.
@@ -490,6 +445,8 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         reportTitle=kind
         val reduce=Core.call("render_prompt",json("name" to "generateReducePrompt","values" to json("groupSummaries" to JSONArray(summaries),"userContext" to userContext))) as String
         report=complete(JSONArray().put(json("role" to "user","content" to reduce)))
+        // A pass is used only once the report exists, so a failed run keeps it.
+        pass?.let{billing.consumePass(it)}
     }
 
 }

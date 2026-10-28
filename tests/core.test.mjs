@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { webcrypto, randomBytes, generateKeyPairSync, createHash, sign } from 'node:crypto';
+import { webcrypto, randomBytes } from 'node:crypto';
 import ts from 'typescript';
 
 // Exercise the real TS adapter (not a reimplementation of its WASM ABI).
@@ -195,24 +195,4 @@ test('batch Run All matches session results exactly and keeps order and overwrit
     assert.deepEqual(stored.map(row=>row.studyId),[...new Set(expected.map(row=>row.studyId))]);
     assert.ok(expected.every(row=>row.riskScore===-0.25));
   }finally{coreCall('session_close',{session});}
-});
-
-test('sync request signatures from an independent secp256k1 signer verify in the web core', () => {
-  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'secp256k1' });
-  const jwk = publicKey.export({ format: 'jwk' });
-  const x = Buffer.from(jwk.x, 'base64url'), y = Buffer.from(jwk.y, 'base64url');
-  const compressed = Buffer.concat([Buffer.from([y[31] & 1 ? 3 : 2]), x]).toString('hex');
-  const body = '{"action":"list"}', timestamp = '1761523200', nonce = '0f'.repeat(16);
-  const message = `monadic-dna/explorer/sync/v1\n${timestamp}\n${nonce}\n${createHash('sha256').update(body).digest('hex')}`;
-  const der = sign('sha256', Buffer.from(message), { key: privateKey, dsaEncoding: 'ieee-p1363' });
-  // Normalize to low-S, as the native signer produces.
-  const n = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
-  let s = BigInt('0x' + der.subarray(32).toString('hex')); if (s > n / 2n) s = n - s;
-  const signature = der.subarray(0, 32).toString('hex') + s.toString(16).padStart(64, '0');
-  const verify = (b) => coreCall('sync_verify', { publicKey: compressed, timestamp, nonce, signature, body: b });
-  const valid = verify(body);
-  assert.equal(valid.valid, true);
-  assert.equal(valid.account, createHash('sha256').update(Buffer.from(compressed, 'hex')).digest('hex'));
-  assert.equal(verify('{"action":"delete"}').valid, false);
-  assert.throws(() => coreCall('sync_verify', { publicKey: '02' + '00'.repeat(32), timestamp, nonce, signature, body }));
 });

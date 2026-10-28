@@ -3,28 +3,37 @@ import Combine
 import StoreKit
 import UIKit
 
+/// The App Store is the only record of purchases; Monadic DNA keeps none.
+/// - Premium is an active, verified subscription in `Transaction.currentEntitlements`.
+/// - A report pass is a consumable. Each verified transaction is credited once in the encrypted store,
+///   which syncs to the user's other devices, then finished. Generating the report records a use.
 @MainActor final class StoreBilling: ObservableObject {
     @Published var products: [Product] = []
     @Published var loading = false
     @Published var message = ""
-    private weak var store: ExplorerStore?
+    @Published private(set) var premium = false
+    /// Unused report passes by report type (overview, healthspan, top_traits).
+    @Published private(set) var passes: [String:Int] = [:]
     private var updates: Task<Void, Never>?
-    private var submitting: Set<UInt64> = []
-    private var ids: Set<String> {
-        Set(((try? Core.array("billing_catalog")) ?? []).compactMap { $0["id"] as? String })
-    }
-    func attach(_ store: ExplorerStore) {
-        self.store = store
-        guard updates == nil else { return }
+    /// The encrypted store's handle while unlocked. Purchases that arrive while locked stay unfinished;
+    /// StoreKit delivers them again and they are credited after unlock.
+    var store: () -> Int? = { nil }
+    private var catalog: [[String:Any]] { (try? Core.array("billing_catalog")) ?? [] }
+    private var ids: Set<String> { Set(catalog.compactMap { $0["id"] as? String }) }
+    private func reportType(_ productID:String) -> String? { catalog.first { $0["id"] as? String == productID }?["reportType"] as? String }
+    init() {
         updates = Task { [weak self] in
-            for await result in Transaction.updates {
-                guard !Task.isCancelled else { return }
-                do { try await self?.deliver(result) }
-                catch { self?.message = "Purchase verification is pending. Sign in to the original Explorer account and restore purchases to retry." }
-            }
+            for await result in Transaction.updates { await self?.handle(result) }
         }
     }
     deinit { updates?.cancel() }
+
+    /// Re-reads unused passes from the encrypted store.
+    func refreshPasses() {
+        guard let handle = store(), let value = try? Core.object("store_passes", ["store":handle]) else { passes = [:]; return }
+        passes = value.compactMapValues { $0 as? Int }
+    }
+
     func load() async {
         loading = true
         defer { loading = false }
@@ -37,50 +46,53 @@ import UIKit
             }.sorted { $0.id < $1.id }
             if products.isEmpty { message = "Purchases are not available yet. Please try again later." }
         } catch { message = "Unable to connect to the App Store. Please try again." }
+        await current()
     }
     func purchase(_ product: Product) async {
-        guard let store, !store.wallet.isEmpty else { message = "Sign in before purchasing."; return }
         loading = true; message = ""
         defer { loading = false }
         do {
-            let response = try await store.api("/api/mobile-billing/account", ["walletAddress":store.wallet,"store":"apple"])
-            guard let id = response["accountId"] as? String, let token = UUID(uuidString:id) else { throw Core.Failure(message:"Unable to prepare purchase") }
-            switch try await product.purchase(options:[.appAccountToken(token)]) {
-            case .success(let result): try await deliver(result)
-            case .pending: message = "Purchase pending approval. Access will appear after approval and verification."
+            switch try await product.purchase() {
+            case .success(let result): await handle(result); message = "Purchase complete."
+            case .pending: message = "Purchase pending approval. Access appears once the App Store approves it."
             case .userCancelled: message = "Purchase cancelled."
             @unknown default: message = "Purchase is not complete."
             }
         } catch { message = error.localizedDescription }
     }
-    private func deliver(_ result: VerificationResult<Transaction>) async throws {
-        guard case .verified(let transaction) = result else { throw Core.Failure(message:"The App Store could not verify this purchase") }
-        guard ids.contains(transaction.productID), !submitting.contains(transaction.id) else { return }
-        guard let store, !store.wallet.isEmpty else { throw Core.Failure(message:"Sign in to restore this purchase") }
-        submitting.insert(transaction.id)
-        defer { submitting.remove(transaction.id) }
-        let response = try await store.api("/api/mobile-billing/verify", ["walletAddress":store.wallet,"store":"apple","productId":transaction.productID,"proof":String(transaction.id)])
-        guard response["accepted"] as? Bool == true else { throw Core.Failure(message:"Purchase verification has not completed") }
-        // Only finish after the backend durably records the purchase. Unfinished transactions retry on restore/relaunch.
+    /// Credits a verified consumable once, then finishes the transaction. Subscriptions are read from entitlements.
+    private func handle(_ result: VerificationResult<Transaction>) async {
+        guard case .verified(let transaction) = result, ids.contains(transaction.productID) else { return }
+        if let type = reportType(transaction.productID), transaction.revocationDate == nil {
+            guard let handle = store() else { message = "Unlock your saved data to add your report pass."; return }
+            do { _ = try Core.call("store_pass_credit", ["store":handle,"transactionId":String(transaction.id),"reportType":type]) }
+            catch { message = "Your report pass could not be saved yet. It will be added the next time you unlock."; return }
+            refreshPasses()
+        }
         await transaction.finish()
-        store.refreshSubscription()
-        message = "Purchase verified. Your account access has been updated."
+        await current()
+    }
+    /// Refreshes Premium from the App Store; call before a premium check so a renewal or cancellation is seen.
+    func current() async {
+        for await result in Transaction.unfinished { await handle(result) }
+        var active = false
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result, transaction.productType == .autoRenewable, transaction.revocationDate == nil, ids.contains(transaction.productID) { active = true }
+        }
+        premium = active
+        refreshPasses()
+    }
+    /// Uses one pass for `reportType`. Call only after the report was generated successfully.
+    func consumePass(_ reportType:String) {
+        guard let handle = store() else { return }
+        _ = try? Core.call("store_pass_use", ["store":handle,"reportType":reportType])
+        refreshPasses()
     }
     func restore() async {
-        guard let store, !store.wallet.isEmpty else { message = "Sign in to restore purchases."; return }
         loading = true; message = ""
         defer { loading = false }
-        do {
-            try await AppStore.sync()
-            try await recover()
-            store.refreshSubscription()
-            message = "Purchases restored. Remaining report passes are attached to your Explorer account."
-        } catch { message = error.localizedDescription }
-    }
-    func recover() async throws {
-        guard let store, !store.wallet.isEmpty else { return }
-        for await result in Transaction.unfinished { try await deliver(result) }
-        for await result in Transaction.currentEntitlements { try await deliver(result) }
+        do { try await AppStore.sync(); await current(); message = premium || !passes.isEmpty ? "Purchases restored from the App Store." : "No active purchases found for this Apple ID." }
+        catch { message = error.localizedDescription }
     }
     func manage() async {
         guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene else { return }

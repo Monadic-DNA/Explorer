@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
     @StateObject private var store=ExplorerStore()
     @Environment(\.scenePhase) private var scenePhase
     init() { VaultStyle.configure() }
-    var body: some Scene { WindowGroup { ExplorerView().font(VaultStyle.body()).tint(VaultStyle.ink).preferredColorScheme(.light).environmentObject(store).onOpenURL{store.receiveAuth($0)}
+    var body: some Scene { WindowGroup { ExplorerView().font(VaultStyle.body()).tint(VaultStyle.ink).preferredColorScheme(.light).environmentObject(store)
         .overlay { if scenePhase != .active || store.locking { ZStack { Color("vault_offTone").ignoresSafeArea(); Label("Your data is protected",systemImage:"lock.shield").font(.headline) } } }
         .onChange(of:scenePhase) { _, phase in if phase == .background { store.backgroundLock() } } } }
 }
@@ -17,8 +17,8 @@ struct ExplorerMessages: ViewModifier {
     func body(content:Content)->some View {
         content
             // Access requirements get a button to Account instead of a bare error.
-            .alert(store.accessNeeded=="sign-in" ? "Sign in to use Premium features" : store.accessNeeded != nil ? "Premium needed" : "Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){
-                if store.accessNeeded != nil{Button(store.accessNeeded=="sign-in" ? "Sign in" : "See Premium options"){store.error=nil;store.accessNeeded=nil;openAccount()};Button("Not now",role:.cancel){store.error=nil;store.accessNeeded=nil}}
+            .alert(store.accessNeeded != nil ? "Premium needed" : "Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){
+                if store.accessNeeded != nil{Button("See Premium options"){store.error=nil;store.accessNeeded=nil;openAccount()};Button("Not now",role:.cancel){store.error=nil;store.accessNeeded=nil}}
                 else{Button("OK"){store.error=nil}}
             }message:{Text(store.error ?? "")}
             .alert("Done",isPresented:Binding(get:{store.notice != nil && store.error == nil},set:{if !$0{store.notice=nil}})){Button("OK"){store.notice=nil}}message:{Text(store.notice ?? "")}
@@ -157,7 +157,7 @@ struct Step<Content:View>:View{
 struct ReportCards:View{
     @EnvironmentObject var store:ExplorerStore
     var open:(String)->Void
-    private var premium:Bool{(store.subscription?["subscription"] as? [String:Any])?["isActive"] as? Bool == true}
+    private var premium:Bool{store.billing.premium}
     var body:some View{ForEach(reportKinds,id:\.0){kind,description in
         Button{open(kind)}label:{HStack{VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).foregroundStyle(.secondary)};Spacer();Text(kind=="Health" ? "Free" : premium ? "" : "Premium").font(.caption)}.padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary.opacity(0.5)))}.tint(.primary)
     }}
@@ -356,7 +356,7 @@ struct VaultView:View{
             Button(store.dataUnlocked ? "Lock" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
         Section("Sync across your devices"){
-            Text("An end-to-end encrypted copy is kept so a new iPhone or iPad signed in to your Apple ID fills in automatically. The server can't read it, and no sign-in is needed.")
+            Text("An end-to-end encrypted copy is kept in your own iCloud, so a new iPhone or iPad signed in to your Apple ID fills in automatically. Monadic DNA never stores your data.")
             Toggle("Sync",isOn:syncBinding).disabled(!store.dataUnlocked||store.busy)
             Text(!store.dataUnlocked ? "Unlock to change sync." : store.syncing ? "Syncing…" : !store.syncMessage.isEmpty ? store.syncMessage : store.syncEnabled ? "Up to date." : "Turning sync off deleted the cloud copy. Data on this device is unchanged.").font(.footnote)
         }
@@ -387,43 +387,38 @@ struct SettingsView:View{
 struct AccountView: View {
     @EnvironmentObject var store: ExplorerStore
     @ObservedObject var billing: StoreBilling
+    private let names=["overview":"Overview","healthspan":"Healthspan","top_traits":"Top traits"]
     var body: some View {
         Form {
-            Section("Account") {
-                Text(store.wallet.isEmpty ? "Not signed in" : store.wallet).font(.caption).textSelection(.enabled)
-                Button("Sign in with Dynamic") { do { try store.beginAuth() } catch { store.error = error.localizedDescription } }
-                Button("Refresh access", action:store.refreshSubscription).disabled(store.wallet.isEmpty || store.busy)
-                if let subscription = store.subscription?["subscription"] as? [String:Any] {
-                    Text(subscription["isActive"] as? Bool == true ? "Premium access is active" : "No active subscription")
-                }
+            Section("Premium") {
+                Text(billing.premium ? "Premium is active." : "Chat and the Healthspan, Top traits and Overview reports are part of Premium. The Health report is free.")
+                if !billing.passes.isEmpty{Text("Unused report passes: "+billing.passes.map{"\(names[$0.key] ?? $0.key) (\($0.value))"}.sorted().joined(separator:", "))}
+                Text("Purchases are handled by the App Store and tied to your Apple ID. Monadic DNA does not keep customer or purchase records, and no sign-in is needed.").font(.footnote)
             }
             Section("App Store purchases") {
-                Text("Sign in to associate purchases with your Explorer account. Prices and payment confirmation are provided by the App Store.")
                 ForEach(billing.products) { product in
                     VStack(alignment:.leading, spacing:8) {
                         Text(product.displayName).font(.headline)
                         Text(product.description).font(.subheadline)
-                        Button(product.type == .autoRenewable ? "Subscribe — \(product.displayPrice) / month" : "Buy — \(product.displayPrice)") {
+                        let subscription=product.type == .autoRenewable
+                        Button(subscription ? (billing.premium ? "Subscribed" : "Subscribe for \(product.displayPrice) / month") : "Buy for \(product.displayPrice)") {
                             Task { await billing.purchase(product) }
-                        }.disabled(billing.loading || store.wallet.isEmpty)
+                        }.disabled(billing.loading || (subscription && billing.premium))
                     }
                 }
-                Button("Reload products") { Task { await billing.load() } }.disabled(billing.loading)
-                Button("Restore purchases") { Task { await billing.restore() } }.disabled(billing.loading || store.wallet.isEmpty)
+                Button("Restore purchases") { Task { await billing.restore() } }.disabled(billing.loading)
                 Button("Manage Apple subscriptions") { Task { await billing.manage() } }
                 if !billing.message.isEmpty { Text(billing.message).font(.footnote) }
                 if billing.loading { ProgressView() }
-                Text("The monthly subscription renews automatically unless cancelled in your App Store subscription settings. One-time report purchases each provide one report run.").font(.footnote)
+                Text("The monthly subscription renews automatically unless cancelled in your App Store subscription settings. Each report pass covers one run of that report. Unused passes sync to your other devices with your data.").font(.footnote)
                 Link("Privacy policy", destination:URL(string:"https://github.com/Monadic-DNA/Explorer/blob/main/privacy_policy.md")!)
                 Link("Terms of use", destination:URL(string:"https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
             }
             Section("Stablecoin payments") {
                 Text("Stablecoin payments are available only on Web. They are not available in the iOS app.")
             }
-            Button("Sign out") { do { try store.signOut() } catch { store.error = error.localizedDescription } }
         }
-        .vaultScreen().navigationTitle("Account and premium")
-        .task { billing.attach(store); await billing.load(); try? await billing.recover() }
-        .onChange(of:store.wallet) { _, _ in Task { try? await billing.recover() } }
+        .vaultScreen().navigationTitle("Premium")
+        .task { await billing.load() }
     }
 }

@@ -5,5 +5,19 @@
 	<!-- Every file the app creates, including SQLite's journal files, is unreadable while the device is locked. -->
 	<key>com.apple.developer.default-data-protection</key>
 	<string>NSFileProtectionComplete</string>
+	<!-- Encrypted sync records live in the user's own iCloud private database. -->
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.monadicdna.explorer</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<!-- The sync key is a synchronizable iCloud Keychain item. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.monadicdna.explorer</string>
+	</array>
 </dict>
 </plist>

@@ -18,10 +18,6 @@
     "test:public-sample:prepare": "python3 scripts/prepare-public-sample.py",
     "test:public-sample:web": "node tests/e2e/public-sample-web.mjs",
     "test:public-sample:api": "node tests/e2e/public-sample-api.mjs",
-    "test:billing": "tsx --test tests/store-billing*.test.ts",
-    "billing:migrate": "node scripts/migrate-mobile-billing.mjs",
-    "vault:migrate": "node scripts/migrate-vault-sync.mjs",
-    "test:vault-sync": "tsx --test tests/vault-sync.test.ts",
     "test:run-all": "tsx --test tests/run-all.test.ts"
   },
   "keywords": [],

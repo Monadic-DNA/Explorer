@@ -1,9 +1,8 @@
 import Foundation
 import SwiftUI
-import AuthenticationServices
 import UIKit
 
-@MainActor final class ExplorerStore: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
+@MainActor final class ExplorerStore: NSObject, ObservableObject {
     @Published var backend=DeviceStore.get("backend").isEmpty ? "https://explorer.monadicdna.com" : DeviceStore.get("backend")
     @Published var provider=DeviceStore.get("provider").isEmpty ? "nilai" : DeviceStore.get("provider")
     @Published var model=DeviceStore.get("model").isEmpty ? "gemma-4-26B-A4B-it" : DeviceStore.get("model")
@@ -17,14 +16,13 @@ import UIKit
         return (try? JSONDecoder().decode([ProfileField].self,from:data)) ?? []
     }
     private func profileData()throws->[String:Any]{try Core.object("parse_profile",profileFields)}
-    @Published var wallet=DeviceStore.get("wallet")
     @Published var metadata:[String:Any]=[:]
     @Published var studies:[Record]=[]
     // Results stay in the encrypted store; screens page through them with resultsPage.
     @Published private(set) var resultCount=0
     /// Changes whenever the stored results change, so screens reload their pages.
     @Published private(set) var resultsVersion=0
-    /// What Chat or a premium report needs before it can run: "sign-in" or "premium". Cleared by the next operation.
+    /// Set to "premium" when Chat or a report needs Premium or a pass. Cleared by the next operation.
     @Published var accessNeeded:String?
     /// A question started on Home that the Chat tab picks up.
     @Published var chatDraft=""
@@ -32,7 +30,6 @@ import UIKit
     var personalized:Bool{!profile.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || profileFields.values.contains{!$0.isEmpty}}
     func skipPersonalization(){try? DeviceStore.put("personalize-skipped","true");personalizeSkipped=true}
     @Published var selectedStudy:Record?
-    @Published var subscription:[String:Any]?
     @Published var busy=false
     @Published var status=""
     @Published var error:String?
@@ -45,11 +42,12 @@ import UIKit
     @Published var messages:[(String,String)]=[]
     @Published var acceptedDisclaimer=false
     @Published var shareResultsWithLLM=false
-    private var authSession:ASWebAuthenticationSession?
     private var task:Task<Void,Never>?
     let billing = StoreBilling()
     let dataVault:SecureDataVault
     private let syncKeys:SyncKeyStore
+    // Encrypted sync records live in the user's own iCloud, never on the Monadic DNA backend.
+    private let cloud:SyncCloud
     /// Handle of the open encrypted store (docs/native-data-store.md); nil while locked.
     private(set) var storeHandle:Int?
     @Published private(set) var dataUnlocked=false
@@ -67,9 +65,9 @@ import UIKit
     private var lockTask:Task<Void,Never>?
     private var syncTask:Task<Void,Never>?
     private var syncAgain=false
-    init(dataVault:SecureDataVault,syncKeys:SyncKeyStore=KeychainSyncKeys()){
-        self.dataVault=dataVault;self.syncKeys=syncKeys
-        super.init();billing.attach(self);Task {try? await billing.recover()}
+    init(dataVault:SecureDataVault,syncKeys:SyncKeyStore=KeychainSyncKeys(),cloud:SyncCloud=CloudKitSyncCloud()){
+        self.dataVault=dataVault;self.syncKeys=syncKeys;self.cloud=cloud
+        super.init();billing.store={[weak self] in self?.storeHandle};Task {await billing.current()}
         Task {vaultExists=await dataVault.exists;if !vaultExists{restorable=(try? syncKeys.get()) != nil}}
     }
     override convenience init(){self.init(dataVault:SecureDataVault())}
@@ -99,10 +97,12 @@ import UIKit
         try refreshResults()
         dataUnlocked=true;vaultExists=true;restorable=false;storageMessage="Saved securely on this device";protection=await dataVault.protection
         try setUpSync()
+        // Credit any App Store passes that arrived while locked.
+        await billing.current()
     }
     func unlockSavedData(){work("Unlocking saved data"){try await self.unlockData()}}
     private func wipeMemory(){
-        storeHandle=nil;dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];report="";reportQuestions=[];selectedStudy=nil
+        storeHandle=nil;billing.refreshPasses();dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];report="";reportQuestions=[];selectedStudy=nil
         restoreCustomization(["fields":[:],"context":""])
     }
     func lockData(){
@@ -133,7 +133,7 @@ import UIKit
         try await self.unlockData()
         if on{try DeviceStore.put("sync-off","");try self.setUpSync();return}
         self.syncTask?.cancel();await self.syncTask?.value
-        if self.syncEnabled{_=try await self.syncRequest(["action":"delete"])}
+        if self.syncEnabled{try await self.cloud.deleteAll()}
         _=try Core.call("store_sync_disable",try self.storeInput());try? self.syncKeys.delete()
         try DeviceStore.put("sync-off","true");self.syncEnabled=false;self.syncMessage=""
         self.notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
@@ -157,49 +157,33 @@ import UIKit
             if dataUnlocked && !busy,let input=try? storeInput(["catalogVersion":catalogInfo?["version"] as? String ?? ""]),(try? Core.call("store_needs_match",input)) as? Bool==true{runAll()}
         }
     }
-    private struct SyncConflict:Error{}
     private func syncOnce() async throws {
         let catalogVersion=catalogInfo?["version"] as? String ?? ""
         for _ in 0..<3 {
-            // Pull first: a write must be based on the server's current revision.
-            let list=try await syncRequest(["action":"list"])["records"] as? [[String:Any]] ?? []
+            // Pull first: a write must be based on the cloud's current revision.
+            let list=try await cloud.list().map{["record":$0.record,"revision":$0.revision] as [String:Any]}
             let wanted=try Core.call("store_sync_wanted",try storeInput(["records":list])) as? [String] ?? []
             if !wanted.isEmpty {
                 var changed=false
-                for record in try await syncRequest(["action":"read","records":wanted])["records"] as? [[String:Any]] ?? [] {
-                    let input=try storeInput(["record":record["record"] ?? "","revision":record["revision"] ?? 0,"ciphertext":record["ciphertext"] ?? "","catalogVersion":catalogVersion])
+                for record in try await cloud.read(wanted) {
+                    let input=try storeInput(["record":record.record,"revision":record.revision,"ciphertext":record.ciphertext,"catalogVersion":catalogVersion])
                     let applied=try await Task.detached{try Core.object("store_sync_apply",input)}.value
                     if applied["changed"] as? Bool==true{changed=true}
                     if applied["replacedLocal"] as? Bool==true{notice="Your DNA file was replaced by one imported on another device."}
                 }
-                if changed{metadata=try Core.object("store_metadata",try storeInput());restoreCustomization(try Core.object("store_customization",try storeInput()));try refreshResults()}
+                if changed{metadata=try Core.object("store_metadata",try storeInput());restoreCustomization(try Core.object("store_customization",try storeInput()));try refreshResults();billing.refreshPasses()}
             }
             var conflict=false
             let outgoingInput=try storeInput()
             for out in try await Task.detached{try Core.array("store_sync_outgoing",outgoingInput)}.value {
                 do {
-                    let written=try await syncRequest(["action":"write","record":out["record"] ?? "","baseRevision":out["baseRevision"] ?? 0,"ciphertext":out["ciphertext"] ?? ""])
-                    _=try Core.call("store_sync_pushed",try storeInput(["record":out["record"] ?? "","revision":written["revision"] ?? 0,"version":out["version"] ?? 0,"hash":out["hash"] ?? ""]))
+                    let revision=try await cloud.write(out["record"] as? String ?? "",baseRevision:out["baseRevision"] as? Int ?? 0,ciphertext:out["ciphertext"] as? String ?? "")
+                    _=try Core.call("store_sync_pushed",try storeInput(["record":out["record"] ?? "","revision":revision,"version":out["version"] ?? 0,"hash":out["hash"] ?? ""]))
                 } catch is SyncConflict {conflict=true}
             }
             if !conflict{return}
         }
         throw Core.Failure(message:"Another device keeps changing your data; sync will retry")
-    }
-    /// Signs the exact request body with the account key; the server checks it before reading the body.
-    private func syncRequest(_ body:[String:Any]) async throws -> [String:Any] {
-        let data=try JSONSerialization.data(withJSONObject:body)
-        let signed=try Core.object("store_sync_sign",try storeInput(["body":String(decoding:data,as:UTF8.self)]))
-        guard let url=URL(string:try origin()+"/api/vault-sync") else{throw Core.Failure(message:"Invalid backend URL")}
-        var request=URLRequest(url:url);request.httpMethod="POST";request.timeoutInterval=180;request.httpBody=data
-        request.setValue("application/json",forHTTPHeaderField:"Content-Type");request.setValue("application/json",forHTTPHeaderField:"Accept")
-        for (header,key) in [("X-Sync-Account","account"),("X-Sync-Public-Key","publicKey"),("X-Sync-Timestamp","timestamp"),("X-Sync-Nonce","nonce"),("X-Sync-Signature","signature")]{request.setValue(signed[key] as? String,forHTTPHeaderField:header)}
-        let (payload,response)=try await URLSession.shared.data(for:request)
-        let object=(try? JSONSerialization.jsonObject(with:payload) as? [String:Any]) ?? [:]
-        guard let http=response as? HTTPURLResponse else{throw Core.Failure(message:"Sync failed")}
-        if http.statusCode==409{throw SyncConflict()}
-        guard (200..<300).contains(http.statusCode) else{throw Core.Failure(message:object["error"] as? String ?? "Sync failed (HTTP \(http.statusCode))")}
-        return object
     }
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
     func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
@@ -233,7 +217,7 @@ import UIKit
     }
     func api(_ path:String,_ body:[String:Any]?=nil) async throws -> [String:Any] {
         let base=try origin();guard let url=URL(string:base+path) else{throw Core.Failure(message:"Invalid backend URL")}
-        return try await request(url,body,bearer:DeviceStore.get("auth-token"))
+        return try await request(url,body)
     }
     func saveSettings() throws {
         _=try origin()
@@ -266,7 +250,7 @@ import UIKit
         // Sync is on by default; say so once.
         let explain=self.syncEnabled && DeviceStore.get("sync-explained") != "true"
         if explain{try? DeviceStore.put("sync-explained","true")}
-        self.notice="Imported \(self.variantCount.formatted()) variants\(format) and found \(matches.formatted()) research matches."+(explain ? " An end-to-end encrypted copy is kept so a new device fills in automatically. You can turn this off in Vault." : "")
+        self.notice="Imported \(self.variantCount.formatted()) variants\(format) and found \(matches.formatted()) research matches."+(explain ? " An end-to-end encrypted copy is kept in your own iCloud so a new device fills in automatically. You can turn this off in Vault." : "")
     }}
     func refreshResults() throws{resultCount=try Core.call("store_result_count",try storeInput()) as? Int ?? 0;resultsVersion+=1}
     func resultsPage(filter:String,direction:String,sort:String,offset:Int,limit:Int=100) async throws -> (rows:[Record],total:Int) {
@@ -341,50 +325,15 @@ import UIKit
         self.wipeMemory();self.vaultExists=false;self.storageMessage="Local saved data deleted."
         self.restorable=synced || (try? self.syncKeys.get()) != nil
     }}
-    func beginAuth() throws {
-        let pair=try Core.object("auth_keypair",["entropy":DeviceStore.entropy(32)])
-        let state=try DeviceStore.entropy(32).replacingOccurrences(of:"+",with:"-").replacingOccurrences(of:"/",with:"_").replacingOccurrences(of:"=",with:"")
-        let pending:[String:Any]=["privateKey":pair["privateKey"]!,"state":state,"expires":Date().timeIntervalSince1970*1000+300000]
-        try DeviceStore.put("pending-auth",String(decoding:try JSONSerialization.data(withJSONObject:pending),as:UTF8.self))
-        var components=URLComponents(string:try origin()+"/mobile-auth")!;components.queryItems=[URLQueryItem(name:"state",value:state),URLQueryItem(name:"publicKey",value:pair["publicKey"] as? String)]
-        guard let url=components.url else{throw Core.Failure(message:"Invalid sign-in request")}
-        let session=ASWebAuthenticationSession(url:url,callbackURLScheme:"monadicexplorer"){[weak self] callback,error in
-            Task{@MainActor in if let callback{self?.receiveAuth(callback)}else if let error{self?.error=error.localizedDescription};self?.authSession=nil}
-        }
-        session.presentationContextProvider=self;authSession=session
-        guard session.start() else{throw Core.Failure(message:"Unable to open system sign-in")}
-    }
-    func presentationAnchor(for session:ASWebAuthenticationSession)->ASPresentationAnchor{
-        UIApplication.shared.connectedScenes.compactMap{$0 as? UIWindowScene}.flatMap(\.windows).first(where:{$0.isKeyWindow}) ?? ASPresentationAnchor()
-    }
-    func receiveAuth(_ url:URL){work("Completing sign-in"){
-        guard url.scheme=="monadicexplorer",url.host=="auth",let pending=try JSONSerialization.jsonObject(with:Data(DeviceStore.get("pending-auth").utf8)) as? [String:Any],let state=pending["state"] as? String else{throw Core.Failure(message:"Invalid sign-in callback")}
-        let query=URLComponents(url:url,resolvingAgainstBaseURL:false)
-        guard query?.queryItems?.first(where:{$0.name=="state"})?.value==state,(pending["expires"] as? Double ?? 0)>=Date().timeIntervalSince1970*1000 else{throw Core.Failure(message:"Expired or mismatched sign-in response")}
-        let fragment=URLComponents(string:"https://callback/?"+(query?.fragment ?? ""))
-        guard var encoded=fragment?.queryItems?.first(where:{$0.name=="payload"})?.value else{throw Core.Failure(message:"Missing encrypted sign-in response")}
-        encoded=encoded.replacingOccurrences(of:"-",with:"+").replacingOccurrences(of:"_",with:"/");encoded+=String(repeating:"=",count:(4-encoded.count%4)%4)
-        guard let data=Data(base64Encoded:encoded),var sealed=try JSONSerialization.jsonObject(with:data) as? [String:Any] else{throw Core.Failure(message:"Invalid encrypted sign-in response")}
-        sealed["privateKey"]=pending["privateKey"];sealed["state"]=state
-        let plaintext=try Core.string("auth_open",sealed)
-        guard let auth=try JSONSerialization.jsonObject(with:Data(plaintext.utf8)) as? [String:Any],let wallet=auth["walletAddress"] as? String,wallet.range(of:"^0x[a-fA-F0-9]{40}$",options:.regularExpression) != nil,let token=auth["token"] as? String,(auth["expiresAt"] as? Double ?? 0)>=Date().timeIntervalSince1970*1000 else{throw Core.Failure(message:"Invalid or expired account response")}
-        try DeviceStore.put("auth-token",token);try DeviceStore.put("wallet",wallet);try DeviceStore.put("pending-auth","");self.wallet=wallet
-        self.subscription=try await self.api("/api/check-subscription",["walletAddress":wallet])
-    }}
-    func signOut() throws {for key in ["auth-token","wallet","pending-auth"]{try DeviceStore.put(key,"")};wallet="";subscription=nil}
-    func refreshSubscription(){work("Refreshing subscription"){guard !self.wallet.isEmpty else{throw Core.Failure(message:"Sign in first")};self.subscription=try await self.api("/api/check-subscription",["walletAddress":self.wallet])}}
-    private func requireAccess(_ kind:String) async throws {
-        var access=try Core.object("feature_access",["kind":kind])
-        if access["allowed"] as? Bool == true{return}
-        guard !wallet.isEmpty else{accessNeeded="sign-in";throw Core.Failure(message:kind=="Chat" ? "Chat is part of Premium. Sign in to your Explorer account to continue. The Health report is free." : "The \(kind) report is part of Premium. Sign in to your Explorer account to continue. The Health report is free.")}
-        subscription=try await api("/api/check-subscription",["walletAddress":wallet])
-        let active=(subscription?["subscription"] as? [String:Any])?["isActive"] as? Bool ?? false
-        access=try Core.object("feature_access",["kind":kind,"activeSubscription":active])
-        if access["allowed"] as? Bool == true{return}
-        guard let type=access["reportType"] as? String else{accessNeeded="premium";throw Core.Failure(message:"Chat needs an active Premium subscription.")}
-        let passes=try await api("/api/report-access",["walletAddress":wallet])
-        guard ((passes["availableReports"] as? [String:Any])?[type] as? Int ?? 0)>0 else{accessNeeded="premium";throw Core.Failure(message:"The \(kind) report needs Premium or a report pass.")}
-        _=try await api("/api/report-access",["walletAddress":wallet,"reportType":type,"action":"consume"])
+    /// Premium status and report passes come from the App Store; Monadic DNA keeps no purchase records. Returns the pass to use, if any.
+    private func requireAccess(_ kind:String) async throws -> String? {
+        if try Core.object("feature_access",["kind":kind])["allowed"] as? Bool == true{return nil}
+        await billing.current()
+        let access=try Core.object("feature_access",["kind":kind,"activeSubscription":billing.premium])
+        if access["allowed"] as? Bool == true{return nil}
+        guard let type=access["reportType"] as? String else{accessNeeded="premium";throw Core.Failure(message:"Chat is part of Premium. Subscribe in Account to continue. The Health report is free.")}
+        guard billing.passes[type, default:0]>0 else{accessNeeded="premium";throw Core.Failure(message:"The \(kind) report is part of Premium. Subscribe, or buy a pass for this report, in Account.")}
+        return type
     }
     private func complete(_ messages:[[String:Any]]) async throws -> String {
         let config=try Core.object("llm_config",["provider":provider,"model":model,"huggingfaceApiKey":apiKey,"ollamaAddress":ollamaAddress,"ollamaPort":Int(ollamaPort) ?? 11434])
@@ -421,7 +370,7 @@ import UIKit
     /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
     func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
-        try await self.requireAccess("Chat")
+        _=try await self.requireAccess("Chat")
         var messages=try await self.reportPrompt("DNA chat")
         messages+=self.messages.map{["role":$0.0,"content":$0.1]};messages.append(["role":"user","content":message])
         let response=try await self.complete(messages);self.messages.append(("user",message));self.messages.append(("assistant",response));onSent()
@@ -429,11 +378,13 @@ import UIKit
     func generateReport(_ kind:String){work("Generating report"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing results with the selected provider first")}
         guard self.resultCount>0 else{throw Core.Failure(message:"Add your DNA file first so there are matches to report on")}
-        try await self.requireAccess(kind)
+        let pass=try await self.requireAccess(kind)
         if kind != "Overview" {
             let content=try await self.complete(try await self.reportPrompt(kind))
             let parsed=try Core.object("extract_report",content)
             self.reportTitle=kind;self.report=parsed["report"] as? String ?? content;self.reportQuestions=parsed["questions"] as? [String] ?? []
+            // A pass is used only once the report exists, so a failed run keeps it.
+            if let pass{self.billing.consumePass(pass)}
             return
         }
         // Groups arrive formatted from the store, so the full result set never reaches Swift.
@@ -448,5 +399,6 @@ import UIKit
         }
         let reduce=try Core.string("render_prompt",["name":"generateReducePrompt","values":["groupSummaries":summaries,"userContext":userContext]])
         self.reportTitle=kind;self.report=try await self.complete([["role":"user","content":reduce]])
+        if let pass{self.billing.consumePass(pass)}
     }}
 }

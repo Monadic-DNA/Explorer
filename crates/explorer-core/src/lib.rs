@@ -105,7 +105,6 @@ pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
         "auth_keypair" => crypto::auth_keypair(&input),
         "auth_seal" => crypto::auth_seal(&input),
         "auth_open" => crypto::auth_open(&input),
-        "sync_verify" => sync_auth::verify(&input),
         #[cfg(not(target_arch = "wasm32"))]
         op if op.starts_with("store_sync_") || op == "store_needs_match" => sync::dispatch(op, &input),
         #[cfg(not(target_arch = "wasm32"))]

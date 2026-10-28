@@ -37,20 +37,22 @@ import java.io.ByteArrayOutputStream
 
 class MainActivity: FragmentActivity() {
     private lateinit var deviceAuthentication:DeviceAuthentication
+    private lateinit var driveAuthorization:DriveAuthorization
     private val model by lazy { ViewModelProvider(this)[ExplorerModel::class.java] }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if(!BuildConfig.DEBUG)window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         deviceAuthentication=DeviceAuthentication(this)
+        driveAuthorization=DriveAuthorization(this)
         val weak=java.lang.ref.WeakReference(deviceAuthentication)
         model.authenticate={requireNotNull(weak.get()){ "Open the app to unlock saved data." }.authenticate()}
-        intent?.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth)
+        val drive=java.lang.ref.WeakReference(driveAuthorization)
+        model.driveToken={requireNotNull(drive.get()){ "Open the app to sync." }.token()}
         androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).isAppearanceLightStatusBars=true
         setContent { VaultTheme { ExplorerApp(model) } }
     }
     override fun onStop() { super.onStop(); if(!isChangingConfigurations) model.backgroundLock() }
-    override fun onResume() { super.onResume(); if(model.wallet.isNotBlank()) model.billing.restore() }
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent);setIntent(intent);intent.data?.takeIf{it.scheme=="monadicexplorer"&&it.host=="auth"}?.let(model::receiveAuth) }
+    override fun onResume() { super.onResume(); model.billing.restore() }
 }
 
 private fun openBrowser(context: android.content.Context, url: String) { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url))) }
@@ -208,12 +210,12 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 @Composable private fun Consent(model: ExplorerModel){CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},"Allow matched results and profile context to be sent to my selected LLM provider.")}
 /** Explains what Chat or a premium report needs and links to Account, instead of a bare error. */
 @Composable private fun AccessNeeded(model: ExplorerModel, openAccount: ()->Unit){
-    val needed=model.accessNeeded ?: return
+    model.accessNeeded ?: return
     OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-        Text(if(needed=="sign-in")"Sign in to use Premium features" else "Premium needed",style=MaterialTheme.typography.titleMedium)
+        Text("Premium needed",style=MaterialTheme.typography.titleMedium)
         Text(model.error ?: "",style=MaterialTheme.typography.bodyMedium)
-        Text(if(needed=="sign-in")"Chat and the Healthspan, Top traits and Overview reports are part of Premium. The Health report is free." else "Subscribe, or buy a pass for a single report, in Account.",style=MaterialTheme.typography.bodySmall)
-        Button(onClick=openAccount){Text(if(needed=="sign-in")"Sign in" else "See Premium options")}
+        Text("The Health report is free.",style=MaterialTheme.typography.bodySmall)
+        Button(onClick=openAccount){Text("See Premium options")}
     }}
 }
 @Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit){
@@ -262,7 +264,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock")}
         Text("Sync across your devices",style=MaterialTheme.typography.titleLarge)
-        Text("An end-to-end encrypted copy is kept so a new Android device signed in to your Google account fills in automatically. The server can't read it, and no sign-in is needed.")
+        Text("An end-to-end encrypted copy is kept in your own Google Drive, in a hidden folder only Explorer can see, so a new Android device signed in to your Google account fills in automatically. Monadic DNA never stores your data.")
         Row(Modifier.fillMaxWidth().toggleable(value=model.syncEnabled,enabled=model.dataUnlocked&&!model.busy,role=Role.Switch,onValueChange={model.setSync(it)}),verticalAlignment=Alignment.CenterVertically){
             Text(if(model.syncEnabled)"On" else "Off",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Switch(checked=model.syncEnabled,onCheckedChange=null,enabled=model.dataUnlocked&&!model.busy)
         }
@@ -292,34 +294,30 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     val billing=model.billing
     LaunchedEffect(Unit) { billing.load() }
     ScreenColumn{
-        Text("Account and premium",style=MaterialTheme.typography.headlineMedium)
-        Text(model.wallet.ifBlank{"Not signed in"})
-        Button(onClick={model.run("Opening secure sign-in"){openBrowser(context,model.beginAuth())}},enabled=!model.busy){Text("Sign in with Dynamic")}
-        OutlinedButton(onClick=model::refreshSubscription,enabled=!model.busy&&model.wallet.isNotBlank()){Text("Refresh access")}
-        model.subscription?.optJSONObject("subscription")?.let { Text(if(it.optBoolean("isActive")) "Premium access is active" else "No active subscription") }
-        Text("Google Play purchases",style=MaterialTheme.typography.titleLarge)
-        Text("Sign in to associate purchases with your Explorer account. Prices and payment confirmation are provided by Google Play.")
+        Text("Premium",style=MaterialTheme.typography.headlineMedium)
+        Text(if(billing.premium)"Premium is active." else "Chat and the Healthspan, Top traits and Overview reports are part of Premium. The Health report is free.")
+        if(billing.passes.isNotEmpty())Text("Unused report passes: ${billing.passes.keys.joinToString{REPORT_NAMES[it]?:it}}",style=MaterialTheme.typography.bodyMedium)
+        Text("Purchases are handled by Google Play and tied to your Google account. Monadic DNA does not keep customer or purchase records, and no sign-in is needed.",style=MaterialTheme.typography.bodySmall)
         billing.products.forEach { product ->
             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Text(product.name,style=MaterialTheme.typography.titleMedium)
                 Text(product.description)
                 val price=billing.price(product)
-                Button(onClick={billing.purchase(context as android.app.Activity,product)},enabled=!billing.busy&&model.wallet.isNotBlank()&&price!=null) {
-                    Text(if(product.productType==com.android.billingclient.api.BillingClient.ProductType.SUBS) "Subscribe — $price / month" else "Buy — $price")
+                val subscription=product.productType==com.android.billingclient.api.BillingClient.ProductType.SUBS
+                Button(onClick={billing.purchase(context as android.app.Activity,product)},enabled=!billing.busy&&price!=null&&!(subscription&&billing.premium)) {
+                    Text(if(subscription) (if(billing.premium)"Subscribed" else "Subscribe for $price / month") else "Buy for $price")
                 }
             } }
         }
-        OutlinedButton(onClick=billing::load,enabled=!billing.busy){Text("Reload products")}
-        OutlinedButton(onClick=billing::restore,enabled=!billing.busy&&model.wallet.isNotBlank()){Text("Restore purchases")}
+        OutlinedButton(onClick=billing::restore,enabled=!billing.busy){Text("Restore purchases")}
         TextButton(onClick={openBrowser(context,"https://play.google.com/store/account/subscriptions?package=com.monadicdna.explorer")}){Text("Manage Google Play subscriptions")}
         if(billing.busy) CircularProgressIndicator()
         if(billing.message.isNotBlank()) Text(billing.message)
-        Text("The monthly subscription renews automatically unless cancelled in Google Play. One-time report purchases each provide one report run.",style=MaterialTheme.typography.bodySmall)
-        Text("Stablecoin payments",style=MaterialTheme.typography.titleLarge)
-        Text("Stablecoin payments are available only on Web. They are not available in the Android app.")
-        TextButton(onClick=model::signOut){Text("Sign out")}
+        Text("The monthly subscription renews automatically unless cancelled in Google Play. Each report pass covers one run of that report.",style=MaterialTheme.typography.bodySmall)
+        Text("Stablecoin payments are available only on Web. They are not available in the Android app.",style=MaterialTheme.typography.bodySmall)
     }
 }
+private val REPORT_NAMES=mapOf("overview" to "Overview","healthspan" to "Healthspan","top_traits" to "Top traits")
 private val REPORTS=listOf(
     "Health" to "Health findings with the strongest research evidence.",
     "Healthspan" to "What your matches suggest about healthy aging.",
@@ -398,7 +396,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
 }
 
 @Composable private fun ReportCards(model: ExplorerModel, onClick: (String)->Unit){
-    val premium=model.subscription?.optJSONObject("subscription")?.optBoolean("isActive")==true
+    val premium=model.billing.premium
     REPORTS.forEach{(kind,description)->
         OutlinedCard(onClick={onClick(kind)},modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){
             Column(Modifier.weight(1f)){Text("$kind report",style=MaterialTheme.typography.titleMedium);Text(description,style=MaterialTheme.typography.bodySmall)}

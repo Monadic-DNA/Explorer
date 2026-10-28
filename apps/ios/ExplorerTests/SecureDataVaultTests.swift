@@ -23,6 +23,17 @@ final class TestSyncKeys:SyncKeyStore {
     func put(_ key:String)throws{self.key=key}
     func delete()throws{key=nil}
 }
+/// An in-memory stand-in for the user's iCloud private database.
+final class TestSyncCloud:SyncCloud {
+    var records:[String:(Int,String)]=[:]
+    func list()async throws->[CloudRecord]{records.map{CloudRecord(record:$0.key,revision:$0.value.0)}}
+    func read(_ names:[String])async throws->[CloudRecord]{names.compactMap{name in records[name].map{CloudRecord(record:name,revision:$0.0,ciphertext:$0.1)}}}
+    func write(_ record:String,baseRevision:Int,ciphertext:String)async throws->Int{
+        guard (records[record]?.0 ?? 0)==baseRevision else{throw SyncConflict()}
+        records[record]=(baseRevision+1,ciphertext);return baseRevision+1
+    }
+    func deleteAll()async throws{records=[:]}
+}
 final class SecureDataVaultTests:XCTestCase {
     func testStorePersistsIsEncryptedRejectsOtherKeysAndDeletes() async throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

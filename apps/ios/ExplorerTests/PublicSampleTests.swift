@@ -9,7 +9,7 @@ final class PublicSampleTests:XCTestCase {
         let studies=try XCTUnwrap(JSONSerialization.jsonObject(with:Data(contentsOf:folder.appendingPathComponent("studies.json"))) as? [[String:Any]])
         let study=try XCTUnwrap(studies.first{($0["id"] as? Int)==(wanted["studyId"] as? Int)})
         let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let store=ExplorerStore(dataVault:SecureDataVault(protector:TestVaultProtector(),directory:directory),syncKeys:TestSyncKeys())
+        let store=ExplorerStore(dataVault:SecureDataVault(protector:TestVaultProtector(),directory:directory),syncKeys:TestSyncKeys(),cloud:TestSyncCloud())
         defer{try? FileManager.default.removeItem(at:directory)}
         store.acceptedDisclaimer=true
         store.importDNA(folder.appendingPathComponent("23andme-public.txt"))

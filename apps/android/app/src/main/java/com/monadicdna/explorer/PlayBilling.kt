@@ -5,25 +5,27 @@ import android.app.Application
 import androidx.compose.runtime.*
 import com.android.billingclient.api.*
 import kotlinx.coroutines.*
-import org.json.JSONObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** Play owns the payment UI; the backend verifies and records each token before acknowledgement. */
-class PlayBilling(
-    app: Application,
-    private val scope: CoroutineScope,
-    private val wallet: () -> String,
-    private val api: suspend (String, JSONObject) -> JSONObject,
-    private val refresh: () -> Unit
-) : PurchasesUpdatedListener {
+/**
+ * Google Play is the only record of purchases; Monadic DNA keeps none.
+ * - Premium is an active, purchased subscription in Play's purchase list.
+ * - A report pass is a one-time product the user owns until it is consumed. It is consumed when the
+ *   report is generated, so Play tracks which passes remain and restores them on a new device.
+ */
+class PlayBilling(app: Application, private val scope: CoroutineScope) : PurchasesUpdatedListener {
     var products by mutableStateOf(emptyList<ProductDetails>())
         private set
     var busy by mutableStateOf(false)
         private set
     var message by mutableStateOf("")
         private set
-    private val inFlight = mutableSetOf<String>()
+    var premium by mutableStateOf(false)
+        private set
+    /** Unused report passes by report type (overview, healthspan, top_traits). */
+    var passes by mutableStateOf(emptyMap<String,Purchase>())
+        private set
     private val catalog get() = Core.arr("billing_catalog").objects()
     private val client = BillingClient.newBuilder(app).setListener(this)
         .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
@@ -63,63 +65,68 @@ class PlayBilling(
         }
         products=found.sortedBy { it.productId }
         if (products.isEmpty()) message="Purchases are not available yet. Please try again later."
+        refreshOwned()
     }
     fun price(product: ProductDetails): String? = if (product.productType==BillingClient.ProductType.SUBS)
         offer(product)?.pricingPhases?.pricingPhaseList?.lastOrNull()?.formattedPrice
         else product.oneTimePurchaseOfferDetails?.formattedPrice
     private fun offer(product: ProductDetails) = product.subscriptionOfferDetails?.firstOrNull { it.offerId==null && it.pricingPhases.pricingPhaseList.lastOrNull()?.billingPeriod=="P1M" }
     fun purchase(activity: Activity, product: ProductDetails) = run {
-        require(wallet().isNotBlank()) { "Sign in before purchasing." }
-        val response=api("/api/mobile-billing/account",json("walletAddress" to wallet(),"store" to "google"))
+        if(product.productType==BillingClient.ProductType.INAPP) {
+            val type=catalog.firstOrNull{it.getString("id")==product.productId}?.optString("reportType")
+            require(type==null || passes[type]==null) { "You already have an unused pass for this report." }
+        }
         val details=BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(product)
         if(product.productType==BillingClient.ProductType.SUBS) details.setOfferToken(requireNotNull(offer(product)?.offerToken) { "Monthly subscription is not available." })
-        val params=BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(details.build()))
-            .setObfuscatedAccountId(response.getString("accountId")).build()
-        val result=client.launchBillingFlow(activity,params)
+        val result=client.launchBillingFlow(activity,BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(details.build())).build())
         require(result.responseCode==BillingClient.BillingResponseCode.OK) { "Unable to open Google Play checkout." }
     }
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
         when(result.responseCode) {
-            BillingClient.BillingResponseCode.OK -> scope.launch { purchases.orEmpty().forEach { deliverSafely(it) } }
+            BillingClient.BillingResponseCode.OK -> scope.launch { runCatching{refreshOwned()};message=if(purchases.orEmpty().any{it.purchaseState==Purchase.PurchaseState.PENDING})"Purchase pending approval. Access appears once Google Play approves it." else "Purchase complete." }
             BillingClient.BillingResponseCode.USER_CANCELED -> message="Purchase cancelled."
             BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> restore()
             else -> message="Google Play could not complete the purchase. Please try again."
         }
     }
-    private suspend fun deliverSafely(purchase: Purchase) {
-        try { deliver(purchase) } catch(e:Exception) { message=e.message ?: "Verification is pending. Restore purchases to retry." }
-    }
-    private suspend fun deliver(purchase: Purchase) {
-        if(purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
-            message="Purchase pending approval. Access will appear after approval and verification."; return
+    private suspend fun owned(type: String)=suspendCancellableCoroutine<List<Purchase>> { continuation ->
+        client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(type).build()) { result, list ->
+            if (!continuation.isActive) return@queryPurchasesAsync
+            if(result.responseCode==BillingClient.BillingResponseCode.OK) continuation.resume(list)
+            else continuation.resumeWithException(IllegalStateException("Unable to read your Google Play purchases."))
         }
-        if (!inFlight.add(purchase.purchaseToken)) return
-        try {
-            require(wallet().isNotBlank()) { "Sign in to the original Explorer account, then restore purchases." }
-            require(purchase.products.size==1) { "Unexpected purchase contents." }
-            val id=purchase.products.single()
-            require(catalog.any { it.getString("id")==id }) { "Unknown product." }
-            val response=api("/api/mobile-billing/verify",json("walletAddress" to wallet(),"store" to "google","productId" to id,"proof" to purchase.purchaseToken))
-            require(response.optBoolean("accepted")) { "Purchase verification is pending. Please retry." }
-            // The backend acknowledges subscriptions / consumes products only after committing this account credit.
-            message="Purchase verified. Your account access has been updated."
-            refresh()
-        } finally { inFlight.remove(purchase.purchaseToken) }
     }
-    fun restore() = run {
-        require(wallet().isNotBlank()) { "Sign in to restore purchases." }
-        for(type in listOf(BillingClient.ProductType.SUBS,BillingClient.ProductType.INAPP)) {
-            val purchases=suspendCancellableCoroutine<List<Purchase>> { continuation ->
-                client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(type).build()) { result, list ->
-                    if (!continuation.isActive) return@queryPurchasesAsync
-                    if(result.responseCode==BillingClient.BillingResponseCode.OK) continuation.resume(list)
-                    else continuation.resumeWithException(IllegalStateException("Unable to restore Google Play purchases."))
-                }
+    /** Reads entitlements from Play. Purchases must be acknowledged within three days or Play refunds them. */
+    private suspend fun refreshOwned() {
+        connect()
+        val ids=catalog.associateBy{it.getString("id")}
+        val subscriptions=owned(BillingClient.ProductType.SUBS).filter{it.purchaseState==Purchase.PurchaseState.PURCHASED && it.products.any{id->ids[id]?.getString("kind")=="subscription"}}
+        val oneTime=owned(BillingClient.ProductType.INAPP).filter{it.purchaseState==Purchase.PurchaseState.PURCHASED}
+        for(purchase in subscriptions+oneTime) if(!purchase.isAcknowledged) acknowledge(purchase)
+        premium=subscriptions.isNotEmpty()
+        passes=oneTime.mapNotNull{purchase->purchase.products.firstNotNullOfOrNull{ids[it]?.optString("reportType")?.takeIf{t->t.isNotEmpty()}}?.let{it to purchase}}.toMap()
+    }
+    private suspend fun acknowledge(purchase: Purchase)=suspendCancellableCoroutine<Unit> { continuation ->
+        client.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()) { result ->
+            if(!continuation.isActive) return@acknowledgePurchase
+            if(result.responseCode==BillingClient.BillingResponseCode.OK) continuation.resume(Unit)
+            else continuation.resumeWithException(IllegalStateException("Google Play could not confirm the purchase. Please retry."))
+        }
+    }
+    /** Refreshes from Play; call before a premium check so a renewal or cancellation is seen. */
+    suspend fun current(){ refreshOwned() }
+    /** Uses the report pass for [reportType]. Call only after the report was generated successfully. */
+    suspend fun consumePass(reportType: String) {
+        val purchase=passes[reportType] ?: return
+        suspendCancellableCoroutine<Unit> { continuation ->
+            client.consumeAsync(ConsumeParams.newBuilder().setPurchaseToken(purchase.purchaseToken).build()) { result, _ ->
+                if(!continuation.isActive) return@consumeAsync
+                if(result.responseCode==BillingClient.BillingResponseCode.OK) continuation.resume(Unit)
+                else continuation.resumeWithException(IllegalStateException("The report was generated, but Google Play could not mark the pass as used."))
             }
-            for(purchase in purchases) deliver(purchase)
         }
-        refresh()
-        message="Purchases restored. Remaining report passes are attached to your Explorer account."
+        passes=passes-reportType
     }
+    fun restore() = run { refreshOwned(); message=if(premium||passes.isNotEmpty())"Purchases restored from Google Play." else "No active purchases found for this Google account." }
     fun close() { client.endConnection() }
 }
