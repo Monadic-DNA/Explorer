@@ -33,6 +33,8 @@ class SyncTest {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val app=context.applicationContext as android.app.Application
         val sync=FakeCloud()
+        // Start from a first-time user, whatever earlier runs left behind.
+        DeviceStore(context).apply{remove("sync-on");remove("sync-decided")}
         val keys=TestSyncKeys()
         val dirs=listOf(File(context.cacheDir,"sync-a-${UUID.randomUUID()}"),File(context.cacheDir,"sync-b-${UUID.randomUUID()}"))
         fun device(dir:File):ExplorerModel{lateinit var model:ExplorerModel;onMain{model=ExplorerModel(app,SecureDataVault(context,TestVaultProtector(),dir),keys,sync).apply{authenticate={};acceptedDisclaimer=true}};return model}
@@ -41,6 +43,10 @@ class SyncTest {
             onMain{a.run("Import"){a.importGenotypeData("# 23andMe\nrs4129267 2 100 TT\nrs7298766 12 100 AG\nrs2281727 17 100 GG\n".toByteArray(),"genome.txt")}}
             waitFor(120000){!a.busy}
             assertNull(a.error);assertTrue("the bundled catalog matched",a.resultCount>0)
+            // Android sync is opt-in; the user accepts the Home offer.
+            assertTrue(a.syncOffered)
+            onMain{a.setSync(true)};waitFor(30000){!a.busy}
+            assertNull(a.error);assertTrue(a.syncEnabled)
             edit{a.profileFields["age"]="40"}
             waitFor(60000,{"records=${sync.records.keys} syncing=${a.syncing} enabled=${a.syncEnabled} message=${a.syncMessage} error=${a.error} age=${a.profileFields["age"]}"}){!a.syncing && sync.records.keys.containsAll(listOf("genotype","results","customization"))}
 
@@ -63,7 +69,7 @@ class SyncTest {
             onMain{a.setSync(false)};waitFor(30000){!a.busy}
             assertTrue(sync.records.isEmpty());assertNull(keys.key);assertEquals(3,a.metadata.optInt("count"))
             onMain{a.lockData();b.lockData()};waitFor(30000){!a.dataUnlocked&&!b.dataUnlocked}
-        } finally { dirs.forEach{it.deleteRecursively()};DeviceStore(context).remove("sync-off") }
+        } finally { dirs.forEach{it.deleteRecursively()};DeviceStore(context).apply{remove("sync-on");remove("sync-decided")} }
     }
 
 }

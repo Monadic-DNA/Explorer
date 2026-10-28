@@ -19,6 +19,8 @@ data class CloudRecord(val record: String, val revision: Long, val ciphertext: S
  * on Android); never the Monadic DNA backend. The core encrypts every record before it gets here.
  */
 interface SyncCloud {
+    /** Asks the user for access if needed. Called only when the user turns sync on. */
+    suspend fun authorize() {}
     suspend fun list(): List<CloudRecord>
     suspend fun read(records: List<String>): List<CloudRecord>
     /** Writes [record] if the cloud is still at [baseRevision]; returns the new revision or throws [SyncConflict]. */
@@ -33,6 +35,7 @@ class SyncConflict: Exception("Another device changed this record; sync again")
  */
 class DriveSyncCloud(private val token: suspend () -> String): SyncCloud {
     private val http=OkHttpClient.Builder().connectTimeout(20,TimeUnit.SECONDS).readTimeout(180,TimeUnit.SECONDS).build()
+    override suspend fun authorize() { token() }
     private data class DriveFile(val id: String, val record: String, val revision: Long)
     private suspend fun call(request: Request.Builder): String = withContext(Dispatchers.IO) {
         http.newCall(request.header("Authorization","Bearer ${token()}").build()).execute().use {

@@ -127,6 +127,8 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     suspend fun unlockData() {
         lockJob?.join()
         if(dataUnlocked)return
+        // Tapping "Restore my data" on a new device is the user's choice to sync.
+        if(restorable)store.put("sync-on","true")
         val opened=dataVault.unlock{requireNotNull(authenticate){"Open the app to unlock your saved data."}.invoke()}
         storeHandle=opened.getLong("handle");metadata=opened.getJSONObject("metadata")
         restoreCustomization(Core.obj("store_customization",storeInput()))
@@ -153,9 +155,14 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun backgroundLock(){if(dataUnlocked&&!pickingFile)lockData()}
 
     // Sync (docs/native-data-store.md): on by default, end-to-end encrypted, same-platform for now.
+    /** Home offers sync once after the first import; Google's consent screen appears only if the user accepts. */
+    private var syncDecided by mutableStateOf(store.get("sync-decided")=="true")
+    val syncOffered get()=dataUnlocked && !syncEnabled && resultCount>0 && !syncDecided
+    fun declineSync(){store.put("sync-decided","true");syncDecided=true}
+    // Android sync is opt-in: Google Drive access needs the user's consent, so it is never requested unprompted.
     private suspend fun setUpSync() {
         if(Core.obj("store_sync_status",storeInput()).optBoolean("enabled")){syncEnabled=true;queueSync();return}
-        if(store.get("sync-off")=="true")return
+        if(store.get("sync-on")!="true")return
         // Reuse this user's key from Block Store (a new device restoring) or create one for this account.
         val existing=runCatching{syncKeys.get()}.getOrNull()
         val enabled=Core.obj("store_sync_enable",storeInput("syncKey" to existing))
@@ -164,11 +171,17 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     }
     fun setSync(on: Boolean)=run(if(on)"Turning on sync" else "Turning off sync and deleting the cloud copy"){
         unlockData()
-        if(on){store.remove("sync-off");setUpSync();return@run}
+        store.put("sync-decided","true");syncDecided=true
+        if(on){
+            try{cloud.authorize()}catch(e:CancellationException){throw e}catch(e:Exception){error("Sync needs a Google account with access to its hidden Explorer folder in Google Drive. Add a Google account in your device settings and try again.")}
+            store.put("sync-on","true");setUpSync()
+            notice="Sync is on. An end-to-end encrypted copy is kept in your own Google Drive so a new phone fills in automatically."
+            return@run
+        }
         syncJob?.cancelAndJoin()
         if(syncEnabled)cloud.deleteAll()
         Core.call("store_sync_disable",storeInput());runCatching{syncKeys.delete()}
-        store.put("sync-off","true");syncEnabled=false;syncMessage="";notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
+        store.put("sync-on","false");syncEnabled=false;syncMessage="";notice="Sync is off and the cloud copy is deleted. Your data stays on this device."
     }
     private fun queueSync() {
         if(!syncEnabled || !dataUnlocked || locking)return
@@ -282,11 +295,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val format=formatNames[metadata.optString("detectedFormat")]?.let{" from $it"}.orEmpty()
         // Matching the bundled catalog takes seconds, so it follows the import directly.
         val matches=runAllData()
-        // Sync is on by default; say so once.
-        val explain=syncEnabled && store.get("sync-explained")!="true"
-        if(explain)store.put("sync-explained","true")
-        notice="Imported ${metadata.optInt("count").grouped()} variants$format and found ${matches.grouped()} research matches."+
-            if(explain)" An end-to-end encrypted copy is kept in your own Google Drive so a new device fills in automatically. You can turn this off in Vault." else ""
+        notice="Imported ${metadata.optInt("count").grouped()} variants$format and found ${matches.grouped()} research matches."
     }
     suspend fun refreshResults() { resultCount=(Core.call("store_result_count",storeInput()) as Number).toInt();resultsVersion++ }
     suspend fun resultsPage(filter: String, direction: String, sort: String, offset: Int, limit: Int=100): JSONObject=withContext(Dispatchers.Default){

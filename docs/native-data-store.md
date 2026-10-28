@@ -70,7 +70,7 @@ Keeping the full result JSON in `row` preserves the current result shape, so the
 
 One sync feature, per platform for now: a user who installs the app on a new iPhone or Android phone finds their data already there, without signing in, entering a passphrase or approving from another device. Compatibility between iOS, Android and Web is a later step.
 
-Sync is on by default. When DNA is first saved, the app explains once that it keeps an end-to-end encrypted copy so a new device fills in automatically. Turning sync off in Vault stops syncing and deletes the cloud copy; local data stays.
+On iOS, sync is on by default because iCloud needs no prompt. On Android it is opt-in: after the first import, Home offers to keep an encrypted copy in the user's Google Drive, and Google's consent screen appears only if the user accepts. "Restore my data" on a new phone also turns it on. Turning sync off in Vault stops syncing and deletes the cloud copy; local data stays.
 
 ### What syncs
 

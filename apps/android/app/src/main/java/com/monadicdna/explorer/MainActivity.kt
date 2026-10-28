@@ -47,7 +47,8 @@ class MainActivity: FragmentActivity() {
         val weak=java.lang.ref.WeakReference(deviceAuthentication)
         model.authenticate={requireNotNull(weak.get()){ "Open the app to unlock saved data." }.authenticate()}
         val drive=java.lang.ref.WeakReference(driveAuthorization)
-        model.driveToken={requireNotNull(drive.get()){ "Open the app to sync." }.token()}
+        // Google's consent sheet is another activity; like the file picker, it must not lock the data.
+        model.driveToken={model.pickingFile=true;try{requireNotNull(drive.get()){ "Open the app to sync." }.token()}finally{model.pickingFile=false}}
         androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).isAppearanceLightStatusBars=true
         setContent { VaultTheme { ExplorerApp(model) } }
     }
@@ -264,11 +265,11 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock")}
         Text("Sync across your devices",style=MaterialTheme.typography.titleLarge)
-        Text("An end-to-end encrypted copy is kept in your own Google Drive, in a hidden folder only Explorer can see, so a new Android device signed in to your Google account fills in automatically. Monadic DNA never stores your data.")
+        Text("Keep an end-to-end encrypted copy in your own Google Drive, in a hidden folder only Explorer can see, so a new Android device signed in to your Google account fills in automatically. Google asks for permission the first time. Monadic DNA never stores your data.")
         Row(Modifier.fillMaxWidth().toggleable(value=model.syncEnabled,enabled=model.dataUnlocked&&!model.busy,role=Role.Switch,onValueChange={model.setSync(it)}),verticalAlignment=Alignment.CenterVertically){
             Text(if(model.syncEnabled)"On" else "Off",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Switch(checked=model.syncEnabled,onCheckedChange=null,enabled=model.dataUnlocked&&!model.busy)
         }
-        Text(when{!model.dataUnlocked->"Unlock to change sync.";model.syncing->"Syncing…";model.syncMessage.isNotBlank()->model.syncMessage;model.syncEnabled->"Up to date.";else->"Turning sync off deleted the cloud copy. Data on this device is unchanged."},style=MaterialTheme.typography.bodySmall)
+        Text(when{!model.dataUnlocked->"Unlock to change sync.";model.syncing->"Syncing…";model.syncMessage.isNotBlank()->model.syncMessage;model.syncEnabled->"Up to date.";else->"Off. Data stays only on this device."},style=MaterialTheme.typography.bodySmall)
         if(model.syncEnabled&&model.restoreWarning.isNotBlank())Text(model.restoreWarning,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error)
         TextButton(onClick={confirm=true},enabled=!model.busy&&(model.dataUnlocked||model.dataVault.exists)){Text("Delete data from this device")}
     }
@@ -331,6 +332,11 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     val variants=model.metadata.optInt("count")
     val ready=(model.resultCount>0)&&(model.personalized||model.personalizeSkipped)
     ScreenColumn{
+        if(model.syncOffered)OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+            Text("Keep your data on a new phone",style=MaterialTheme.typography.titleMedium)
+            Text("Explorer can keep an end-to-end encrypted copy in a hidden folder in your own Google Drive, so a new Android phone fills in automatically. Monadic DNA never stores your data.",style=MaterialTheme.typography.bodySmall)
+            Row{Button(onClick={model.setSync(true)},enabled=!model.busy){Text("Turn on")};Spacer(Modifier.width(8.dp));TextButton(onClick=model::declineSync){Text("Not now")}}
+        }}
         if(!model.dataUnlocked&&!model.dataVault.exists&&model.restorable){
             VaultHero()
             Text("Your data is ready to restore",style=MaterialTheme.typography.headlineMedium)
