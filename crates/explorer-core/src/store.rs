@@ -313,6 +313,21 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
         "store_results_page" => page(store, input),
         "store_result" => rows(&store.conn, "SELECT row FROM results WHERE study_id=?1", [input["studyId"].as_i64().unwrap_or(-1)]).map(|mut r| r.pop().unwrap_or(Value::Null)),
         "store_result_count" => result_count(&store.conn).map(|n| json!(n)),
+        // The Home dashboard: category counts plus the highlight insight over every saved result.
+        "store_preview" => {
+            let rows = all_rows(&store.conn)?;
+            Ok(json!({"categories":crate::preview::category_counts(&rows),"insight":crate::preview::insight(&Value::Array(rows))}))
+        }
+        // AI commentary on one matched result, with the user's most related results as context.
+        "store_commentary_prompt" => {
+            let id = input["studyId"].as_i64().unwrap_or(-1);
+            let current = rows(&store.conn, "SELECT row FROM results WHERE study_id=?1", [id])?.pop().ok_or("Match this study with your DNA first.")?;
+            let related = relevant_results(&store.conn, input, 499)?;
+            let mut prompt = input.clone();
+            prompt["result"] = current;
+            prompt["results"] = json!(related);
+            Ok(crate::research::commentary_prompt(&prompt))
+        }
         // Reports read every result once while building the prompt; nothing stays loaded afterwards.
         "store_report_prompt" => Ok(crate::reports::prompt(&json!({"kind":input["kind"],"customization":input["customization"],"context":input["context"],"results":all_rows(&store.conn)?}))),
         "store_report_groups" => report_groups(store, input["groups"].as_u64().unwrap_or(1) as usize),

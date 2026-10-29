@@ -143,6 +143,21 @@ pub fn select(v: &Value) -> Value {
     });
     json!(selected)
 }
+/// The Home dashboard: every category with its match count, most frequent first.
+pub fn category_counts(rows: &[Value]) -> Value {
+    let mut counts: Vec<(&str, &str, usize)> = Vec::new();
+    for r in rows {
+        let (id, label) = category(r);
+        if let Some(entry) = counts.iter_mut().find(|(i, _, _)| *i == id) {
+            entry.2 += 1;
+        } else {
+            counts.push((id, label, 1));
+        }
+    }
+    // The uncategorized bucket is a fallback, never the headline: it sorts last regardless of size.
+    counts.sort_by(|a, b| (a.0 == "other").cmp(&(b.0 == "other")).then_with(|| b.2.cmp(&a.2)));
+    json!(counts.into_iter().map(|(id, label, count)| json!({"id":id,"label":label,"count":count})).collect::<Vec<_>>())
+}
 pub fn insight(v: &Value) -> Value {
     let rows = array(v);
     let mut counts: Vec<(&str, usize)> = Vec::new();

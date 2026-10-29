@@ -119,6 +119,78 @@ pub fn description(v: &Value) -> Value {
 /// Regular DNA Chat, as in LLMChatInline.tsx on the web. The first question gets the detailed prompt with the
 /// user's most relevant results; follow-ups get the conversational prompt and the conversation so far.
 pub const CHAT_RESULTS: usize = 500;
+/// Explains one matched result in plain language, with the user's most related results as context.
+/// Web parity: app/components/LLMCommentaryModal.tsx builds the same counselor prompt.
+pub fn commentary_prompt(v: &Value) -> Value {
+    let current = &v["result"];
+    let beta = text(current, "effectType") == "beta";
+    // Study quality from the stored row, so the interpretation is tempered by the evidence.
+    let sample = text(current, "sampleSize");
+    let replication = text(current, "replicationSampleSize");
+    let pvalue = text(current, "pValue");
+    let size_note = match crate::quality::sample_size(sample) {
+        Some(n) if n < 5000.0 => " (SMALL STUDY - interpret with caution)",
+        Some(n) if n < 50000.0 => " (medium study)",
+        Some(_) => " (large, well-powered study)",
+        None => "",
+    };
+    let p_note = match crate::quality::p_value(pvalue) {
+        Some(p) if p > 5e-8 => " (NOT genome-wide significant - findings are suggestive only)",
+        Some(_) => " (genome-wide significant)",
+        None => "",
+    };
+    let ancestry_note = if sample.to_lowercase().contains("european") { " (mostly European ancestry participants - may not generalize to other ancestries)" } else { "" };
+    let quality = format!(
+        "STUDY QUALITY (USE THESE TO TEMPER YOUR INTERPRETATION):\n- Sample size: {}{sample}{size_note}{ancestry_note}\n- Replication: {}\n- P-value: {}{pvalue}{p_note}\n- Mapped gene(s): {}\n\nCRITICAL: You MUST acknowledge these study limitations in your commentary. If the sample size is small, ancestry is limited, or replication is lacking, explicitly say this reduces confidence in the findings.",
+        if sample.is_empty() { "Not reported" } else { "" },
+        if replication.is_empty() { "No independent replication (interpret with caution)" } else { replication },
+        if pvalue.is_empty() { "Not reported" } else { "" },
+        text(current, "mappedGene"),
+    );
+    let customization = context(v);
+    json!({"maxTokens":1800,"temperature":0.7,"reasoningEffort":"low","messages":[
+        {"role":"system","content":"You are a knowledgeable genetic counselor who explains GWAS results clearly and responsibly, always emphasizing appropriate disclaimers and limitations."},
+        {"role":"user","content":format!("You are a genetic counselor providing educational commentary on GWAS (Genome-Wide Association Study) results.
+
+IMPORTANT DISCLAIMERS TO INCLUDE:
+1. This is for educational purposes only
+2. This is NOT medical advice and should not be used for medical decisions
+3. GWAS results show statistical associations, not deterministic outcomes
+4. Genetic risk is just one factor among many (lifestyle, environment, other genes)
+5. Always consult healthcare professionals for medical interpretation
+
+{quality}
+
+USER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION; be specific about ancestry-related limitations if the study population does not match the user's background):
+{customization}
+
+CURRENT RESULT TO ANALYZE:
+Trait: {}
+Study: {}
+Your genotype: {}
+Risk allele: {}
+Effect size: {}
+Risk score: {} ({})
+Matched SNP: {}
+
+OTHER SAVED RESULTS MOST RELATED TO THIS TRAIT, FOR CONTEXT:
+{}
+
+Please provide:
+1. A brief, plain-language summary of what this research study found
+2. A clear explanation of what this result means for the user specifically
+3. Context about the trait that anyone can understand
+4. Interpretation of the risk level in practical terms
+5. How this relates to their other results, if applicable
+6. Appropriate disclaimers and next steps
+
+Keep your response concise (400-600 words), educational, and reassuring where appropriate. Use clear, accessible language suitable for someone with no scientific background. Avoid jargon, and when technical terms are necessary, explain them simply.",
+            text(current, "traitName"), text(current, "studyTitle"), text(current, "userGenotype"), text(current, "riskAllele"),
+            text(current, "effectSize"), risk(current["riskScore"].as_f64().unwrap_or(1.0), level_of(current), beta), level_of(current), text(current, "matchedSnp"),
+            format_results(array(&v["results"])))}
+    ]})
+}
+fn level_of(r: &Value) -> &str { text(r, "riskLevel") }
 pub fn chat_prompt(v: &Value) -> Value {
     static TEMPLATES: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
     let t = TEMPLATES.get_or_init(|| serde_json::from_str(include_str!("../data/chat-prompts.json")).unwrap());

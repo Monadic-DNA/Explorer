@@ -114,7 +114,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
             }
         }
     }
-    if(model.selectedStudy!=null) ModalBottomSheet(onDismissRequest={model.selectedStudy=null}){Column(Modifier.navigationBarsPadding()){Messages(model);StudyScreen(model,model.selectedStudy!!)}}
+    if(model.selectedStudy!=null) ModalBottomSheet(onDismissRequest={model.selectedStudy=null;model.commentary=""}){Column(Modifier.navigationBarsPadding()){Messages(model);StudyScreen(model,model.selectedStudy!!)}}
 }
 
 @Composable private fun Messages(model: ExplorerModel){
@@ -156,7 +156,18 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         val hasDNA=model.dataUnlocked&&model.metadata.optInt("count")>0
         Button(onClick={model.analyze(study)},enabled=!model.busy&&hasDNA){Text("Match my DNA on device")}
         if(!hasDNA)Text(if(model.dataUnlocked)"Import your DNA in More → Vault to match this study." else "Unlock your saved data to match this study.",style=MaterialTheme.typography.bodySmall)
-        remember(model.resultsVersion,study.optInt("id")){model.resultFor(study.optInt("id"))}?.let{result->ResultCard(result)}
+        remember(model.resultsVersion,study.optInt("id")){model.resultFor(study.optInt("id"))}?.let{result->
+            ResultCard(result)
+            // AI commentary needs a stored result and consent to send matches to the provider.
+            if(!model.shareResultsWithLLM)Consent(model)
+            Button(onClick={model.commentary(study)},enabled=!model.busy&&model.shareResultsWithLLM){Text("Explain with AI")}
+            // The global busy bar sits behind this sheet, so progress is repeated here.
+            if(model.busy)Text(model.status,style=MaterialTheme.typography.bodySmall)
+            if(model.commentaryStudyId==study.optInt("id")&&model.commentary.isNotEmpty()){
+                Text("AI commentary",style=MaterialTheme.typography.titleMedium)
+                MarkdownText(model.commentary)
+            }
+        }
         val pmid=study.optString("pubmedid");if(pmid.matches(Regex("^[0-9]+$")))TextButton(onClick={openBrowser(context,"https://pubmed.ncbi.nlm.nih.gov/$pmid/")}){Text("Read original publication")}
         Text("An association does not establish causation or predict an individual's health outcome.",style=MaterialTheme.typography.bodySmall)
     }
@@ -376,6 +387,24 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             Text("Welcome back. Unlock your saved data to continue.",style=MaterialTheme.typography.titleMedium)
             Button(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         } else if(ready){
+            // Results at a glance, as on the web's /explore dashboard.
+            model.dashboard?.let{p->
+                val insight=p.optJSONObject("insight")
+                Text("Your results at a glance",style=MaterialTheme.typography.titleLarge)
+                insight?.let{i->Text("${i.optInt("elevatedCount").grouped()} elevated • ${i.optInt("protectiveCount").grouped()} protective",style=MaterialTheme.typography.bodySmall)}
+                p.optJSONArray("categories")?.takeIf{it.length()>0}?.let{categories->
+                    Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                        (0 until minOf(categories.length(),8)).forEach{index->
+                            val c=categories.getJSONObject(index);val palette=vaultCardPalette(c.optString("id"))
+                            Card(onClick={go("Results")},colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)){Column(Modifier.padding(horizontal=16.dp,vertical=12.dp)){Text(c.optString("label"),style=MaterialTheme.typography.titleSmall);Text("${c.optInt("count").grouped()} matches",style=MaterialTheme.typography.bodySmall)}}
+                        }
+                    }
+                }
+                insight?.optJSONObject("standout")?.let{standout->
+                    Text("Strongest signal",style=MaterialTheme.typography.titleMedium)
+                    ResultCard(standout){model.loadStudy(standout.optInt("studyId"))}
+                }
+            }
             Text("Ask about your DNA",style=MaterialTheme.typography.headlineMedium)
             Text("Chat answers questions using your ${model.resultCount.grouped()} research matches${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
             var question by remember{mutableStateOf("")}

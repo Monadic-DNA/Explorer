@@ -126,7 +126,7 @@ import UIKit
     }
     func unlockSavedData(){work("Unlocking saved data"){try await self.unlockData()}}
     private func wipeMemory(){
-        storeHandle=nil;billing.refreshPasses();dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];researchAngles=[:];chatFollowups=[];report="";reportQuestions=[];selectedStudy=nil
+        storeHandle=nil;billing.refreshPasses();dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];researchAngles=[:];chatFollowups=[];report="";reportQuestions=[];selectedStudy=nil;commentary="";commentaryStudyId=0
         restoreCustomization(["fields":[:],"context":""])
     }
     func lockData(){
@@ -287,6 +287,23 @@ import UIKit
         self.notice="Imported \(self.variantCount.formatted()) variants\(format) and found \(matches.formatted()) research matches."
     }}
     func refreshResults() throws{resultCount=try Core.call("store_result_count",try storeInput()) as? Int ?? 0;resultsVersion+=1}
+    /// Home dashboard payload from the store: per-category match counts and the highlight insight.
+    func preview() async throws -> [String:Any] {
+        guard storeHandle != nil,resultCount>0 else{return [:]}
+        let input=try storeInput()
+        return try await Task.detached{try Core.object("store_preview",input)}.value
+    }
+    /// AI commentary on one matched result, as in the web's LLMCommentaryModal.
+    @Published var commentary=""
+    @Published var commentaryStudyId=0
+    func commentary(_ record:Record){work("Explaining with AI"){
+        guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
+        _=try await self.requireAccess("Chat")
+        let accessions=await self.similarStudies(record.text("disease_trait"),limit:5000)
+        let input=try self.storeInput(["studyId":record.id,"customization":try Core.string("user_context",self.profileData()),"accessions":accessions])
+        let prompt=try await Task.detached{try Core.object("store_commentary_prompt",input)}.value
+        self.commentaryStudyId=record.id;self.commentary=try await self.complete(prompt)
+    }}
     func resultsPage(filter:String,direction:String,sort:String,offset:Int,limit:Int=100) async throws -> (rows:[Record],total:Int) {
         // Screens can ask while locked; there is nothing to show until the store is open.
         guard storeHandle != nil else{return ([],0)}

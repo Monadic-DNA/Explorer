@@ -112,6 +112,8 @@ struct HomeView<Results:View>:View{
             VaultHero()
             Text("Welcome back. Unlock your saved data to continue.").font(VaultStyle.heading(20))
         } else if ready {
+            // Results at a glance, as on the web's /explore dashboard.
+            ResultsAtAGlance(results:{results()})
             Text("Ask about your DNA").font(VaultStyle.heading(28))
             Text("Chat answers questions using your \(store.resultCount.formatted()) research matches\(store.personalized ? " and what you told us about yourself" : "").")
             TextField("What would you like to know?",text:$question,axis:.vertical).textFieldStyle(.roundedBorder)
@@ -156,6 +158,31 @@ struct HomeView<Results:View>:View{
     }.padding()}.vaultScreen().navigationTitle("Explorer").navigationBarTitleDisplayMode(.inline)}
 }
 
+/// The Home dashboard: category cards plus the strongest-signal highlight, loaded from the store.
+struct ResultsAtAGlance<Results:View>:View{
+    @EnvironmentObject var store:ExplorerStore
+    @ViewBuilder var results:()->Results
+    @State private var preview:[String:Any]=[:]
+    private var insight:[String:Any]{preview["insight"] as? [String:Any] ?? [:]}
+    var body:some View{Group{
+        if !preview.isEmpty{
+            Text("Your results at a glance").font(VaultStyle.heading(22))
+            Text("\((insight["elevatedCount"] as? Int ?? 0).formatted()) elevated • \((insight["protectiveCount"] as? Int ?? 0).formatted()) protective").font(.footnote)
+            if let categories=preview["categories"] as? [[String:Any]],!categories.isEmpty{
+                ScrollView(.horizontal,showsIndicators:false){HStack(spacing:8){ForEach(Array(categories.prefix(8).enumerated()),id:\.offset){_,category in
+                    let palette=VaultStyle.cardPalette(category["id"] as? String ?? "other")
+                    NavigationLink{results()}label:{VStack(alignment:.leading,spacing:2){Text(category["label"] as? String ?? "").font(.headline);Text("\((category["count"] as? Int ?? 0).formatted()) matches").font(.footnote)}.padding(.horizontal,16).padding(.vertical,12).background(palette.background,in:RoundedRectangle(cornerRadius:20)).foregroundStyle(palette.foreground)}
+                }}.padding(.vertical,2)}
+            }
+            if let standout=insight["standout"] as? [String:Any]{
+                let record=Record(raw:standout)
+                Text("Strongest signal").font(.headline)
+                Button{store.loadStudy(record.id)}label:{ResultView(record:record)}.buttonStyle(.plain)
+            }
+        }
+    // Reloads whenever the stored results change.
+    }.task(id:store.resultsVersion){preview=(try? await store.preview()) ?? [:]}}
+}
 struct Step<Content:View>:View{
     let number:Int;let title:String;let done:Bool;let enabled:Bool
     @ViewBuilder var content:()->Content
@@ -212,7 +239,16 @@ struct StudyView:View{
             Button("Match my DNA on device"){store.analyze(record)}.disabled(store.busy || !hasDNA)
             if !hasDNA{Text(store.dataUnlocked ? "Add your DNA file on Home to match this study." : "Unlock your saved data to match this study.").font(.footnote).foregroundStyle(.secondary)}
         }
-        if let result=store.resultFor(record.id){Section("Your match"){ResultView(record:result)}}
+        if let result=store.resultFor(record.id){
+            Section("Your match"){ResultView(record:result)}
+            // AI commentary needs a stored result and consent to send matches to the provider.
+            Section("AI commentary"){
+                if !store.shareResultsWithLLM{ProviderConsent()}
+                Button("Explain with AI"){store.commentary(record)}.disabled(store.busy || !store.shareResultsWithLLM)
+                if store.busy{Text(store.status).font(.footnote)}
+                if store.commentaryStudyId==record.id && !store.commentary.isEmpty{Text(.init(store.commentary)).textSelection(.enabled)}
+            }
+        }
         Section("Research details"){
             ForEach([("study_accession","Accession"),("mapped_gene","Genes"),("snps","Variants"),("strongest_snp_risk_allele","Risk allele"),("or_or_beta",effectLabel),("ci_text","Effect interval"),("p_value","P-value"),("initial_sample_size","Discovery sample"),("replication_sample_size","Replication sample"),("first_author","Author"),("journal","Journal"),("date","Publication date")],id:\.0){key,label in
                 if !record.text(key).isEmpty{LabeledContent(label,value:record.text(key))}

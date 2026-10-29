@@ -137,14 +137,14 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val opened=dataVault.unlock{requireNotNull(authenticate){"Open the app to unlock your saved data."}.invoke()}
         storeHandle=opened.getLong("handle");metadata=opened.getJSONObject("metadata")
         restoreCustomization(Core.obj("store_customization",storeInput()))
-        refreshResults()
+        refreshResults();refreshDashboard()
         dataUnlocked=true;restorable=false;storageMessage="Saved securely on this device"
         setUpSync()
     }
     fun unlockSavedData()=run("Unlocking saved data"){unlockData()}
     private fun wipeMemory() {
         storeHandle=null
-        metadata=JSONObject();resultCount=0;resultsVersion++;messages.clear();report="";reportQuestions=emptyList();selectedStudy=null
+        metadata=JSONObject();resultCount=0;resultsVersion++;messages.clear();report="";reportQuestions=emptyList();selectedStudy=null;dashboard=null
         restoreCustomization(JSONObject());dataUnlocked=false;syncEnabled=false
     }
     fun lockData() {
@@ -219,7 +219,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
                     if(applied.optBoolean("changed"))changed=true
                     if(applied.optBoolean("replacedLocal"))notice="Your DNA file was replaced by one imported on another device."
                 }
-                if(changed){metadata=Core.obj("store_metadata",storeInput());restoreCustomization(Core.obj("store_customization",storeInput()));refreshResults()}
+                if(changed){metadata=Core.obj("store_metadata",storeInput());restoreCustomization(Core.obj("store_customization",storeInput()));refreshResults();refreshDashboard()}
             }
             var conflict=false
             for(out in withContext(Dispatchers.Default){Core.arr("store_sync_outgoing",storeInput())}.objects()){
@@ -304,6 +304,23 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         notice="Imported ${metadata.optInt("count").grouped()} variants$format and found ${matches.grouped()} research matches."
     }
     suspend fun refreshResults() { resultCount=(Core.call("store_result_count",storeInput()) as Number).toInt();resultsVersion++ }
+    /** Home dashboard payload from the store: per-category match counts and the highlight insight. */
+    var dashboard by mutableStateOf<JSONObject?>(null)
+        private set
+    /** Called after result set changes settle; recomputing mid-run would parse the full result set for nothing. */
+    suspend fun refreshDashboard() { dashboard=withContext(Dispatchers.Default) {
+        if(storeHandle==null||resultCount==0) null else runCatching{Core.obj("store_preview",storeInput())}.getOrNull()
+    } }
+    /** AI commentary on one matched result, as in the web's LLMCommentaryModal. */
+    var commentary by mutableStateOf("")
+    var commentaryStudyId by mutableIntStateOf(-1)
+    fun commentary(study: JSONObject) = run("Explaining with AI") {
+        require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
+        requireAccess("Chat")
+        val accessions=similarStudies(study.optString("disease_trait"),5000)
+        val prompt=withContext(Dispatchers.Default){Core.obj("store_commentary_prompt",storeInput("studyId" to study.optInt("id"),"customization" to Core.call("user_context",profileData()),"accessions" to accessions))}
+        commentaryStudyId=study.optInt("id");commentary=complete(prompt)
+    }
     suspend fun resultsPage(filter: String, direction: String, sort: String, offset: Int, limit: Int=100): JSONObject=withContext(Dispatchers.Default){
         // Screens can ask while locked; there is nothing to show until the store is open.
         if(storeHandle==null) json("total" to 0,"count" to 0,"rows" to JSONArray())
@@ -313,7 +330,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun analyze(study: JSONObject) = run("Analyzing on device") {
         require(dataUnlocked && metadata.optInt("count")>0) { "Unlock or import your DNA first." }
         withContext(Dispatchers.Default) { Core.arr("store_analyze",storeInput("studies" to JSONArray().put(study),"now" to Instant.now().toString())) }
-        refreshResults();queueSync()
+        refreshResults();refreshDashboard();queueSync()
         notice=if(resultFor(study.optInt("id"))==null) "Your DNA has no called genotype for this study's risk variant." else "Match saved to Results."
     }
     /** The catalog snapshot bundled with this release, from assets/catalog.json. */
@@ -350,7 +367,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
                 if(chunk.getBoolean("done"))break
             }
         } finally { Core.catalogClose(catalogHandle) }
-        refreshResults();queueSync()
+        refreshResults();refreshDashboard();queueSync()
         return resultCount
     }
     private suspend fun ensureActiveTask() { currentCoroutineContext().ensureActive() }
