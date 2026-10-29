@@ -55,7 +55,11 @@ struct ExplorerView: View {
         VStack(spacing:0){
             // A first-time user has no vault yet, so there is nothing to lock or unlock.
             if store.dataUnlocked || store.vaultExists{storageStatus}
-            if store.busy{HStack{if let progress=store.progress{ProgressView(value:progress).frame(width:60)}else{ProgressView()};Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();if store.cancellable{Button("Cancel",action:store.cancel)}}.padding()}
+            // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader.
+            if store.busy{
+                if store.progress == nil{HStack{Spacer();VaultStarLoader();Spacer()}}
+                HStack{if let progress=store.progress{ProgressView(value:progress).frame(width:60)};Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();if store.cancellable{Button("Cancel",action:store.cancel)}}.padding()
+            }
             TabView(selection:$selectedTab){
                 NavigationStack{HomeView(importDNA:{startImport("dna")},go:{selectedTab=$0},results:{ResultsView(export:export,importResults:{startImport("results")})})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
                 NavigationStack{ChatView(personalize:{selectedTab=3})}.tabItem{Label("Chat",systemImage:"bubble.left.and.bubble.right")}.tag(1)
@@ -156,6 +160,29 @@ struct HomeView<Results:View>:View{
         }
         Text("Associations are not diagnoses or individual health predictions. Odds ratios are relative, not absolute risk; beta values describe trait changes.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote)).foregroundStyle(.secondary)
     }.padding()}.vaultScreen().navigationTitle("Explorer").navigationBarTitleDisplayMode(.inline)}
+}
+
+/// Vault's StarLoaderView: colored stars spin and pulse around the brand mark while the app works.
+/// The brand mark is white-on-dark art, so the dark star anchors the loader on the light canvas.
+struct VaultStarLoader:View{
+    @State private var rotation:Double=0
+    @State private var scale:CGFloat=1
+    private let stars=["vault_star_orange","vault_star_blue","vault_star_purple","vault_star_yellow"]
+    var body:some View{
+        ZStack{
+            Image("vault_star").resizable().scaledToFit().frame(width:56,height:56)
+            ForEach(0..<stars.count,id:\.self){index in
+                Image(stars[index]).resizable().scaledToFit().frame(width:20,height:20)
+                    .offset(offset(for:index))
+                    .rotationEffect(.degrees(rotation))
+                    .animation(.linear(duration:4).repeatForever(autoreverses:false),value:rotation)
+                    .scaleEffect(scale)
+                    .animation(.spring(response:0.6,dampingFraction:0.4,blendDuration:0.5).repeatForever(autoreverses:true).delay(Double(index)*0.2),value:scale)
+            }
+        }.frame(width:120,height:120)
+        .onAppear{rotation=360;scale=0.8}
+    }
+    private func offset(for index:Int)->CGSize{let angle=CGFloat(index)*.pi/2;return CGSize(width:50*cos(angle),height:50*sin(angle))}
 }
 
 /// The Home dashboard: category cards plus the strongest-signal highlight, loaded from the store.

@@ -1,14 +1,18 @@
 package com.monadicdna.explorer
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -52,9 +56,32 @@ val Garamond = FontFamily(Font(R.font.eb_garamond_medium, FontWeight.Medium))
     Image(painterResource(resource), contentDescription=null, modifier=modifier.height(120.dp).fillMaxWidth())
 }
 
+// Vault's StarLoaderView: colored stars spin and pulse around the brand mark while the app works.
+// The brand mark is white-on-dark art, so the dark star anchors the loader on the light canvas.
+@Composable fun VaultStarLoader(modifier: Modifier = Modifier, central: Int = R.drawable.vault_star) {
+    val infinite = androidx.compose.animation.core.rememberInfiniteTransition(label="vault-stars")
+    val spin by infinite.animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(4000, easing=androidx.compose.animation.core.LinearEasing)), label="spin")
+    val stars = listOf(R.drawable.vault_star_orange, R.drawable.vault_star_blue, R.drawable.vault_star_purple, R.drawable.vault_star_yellow)
+    Box(modifier.size(120.dp), contentAlignment=Alignment.Center) {
+        Image(painterResource(central), contentDescription=null, modifier=Modifier.size(56.dp))
+        stars.forEachIndexed { index, resource ->
+            val pulse by infinite.animateFloat(1f, 0.8f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1200), androidx.compose.animation.core.RepeatMode.Reverse, initialStartOffset=androidx.compose.animation.core.StartOffset(index*200)), label="pulse$index")
+            val angle = index * Math.PI / 2
+            Image(painterResource(resource), contentDescription=null, modifier=Modifier
+                .offset(x=(kotlin.math.cos(angle)*50).dp, y=(kotlin.math.sin(angle)*50).dp)
+                .size(20.dp)
+                .rotate(spin)
+                .graphicsLayer { scaleX=pulse; scaleY=pulse })
+        }
+    }
+}
+
 @Composable fun VaultHero() {
+    // Like Vault's splash screen, the brand mark turns once when the hero appears.
+    val spin = androidx.compose.animation.core.Animatable(0f)
+    androidx.compose.runtime.LaunchedEffect(Unit){ spin.animateTo(360f, androidx.compose.animation.core.tween(3000, easing=androidx.compose.animation.core.CubicBezierEasing(0.8f,0.2f,0.5f,1f))) }
     Column(Modifier.fillMaxWidth().background(VaultColors.darkMain, RoundedCornerShape(32.dp)).padding(24.dp), horizontalAlignment=Alignment.CenterHorizontally, verticalArrangement=Arrangement.spacedBy(20.dp)) {
-        Image(painterResource(R.drawable.vault_brand_mark), contentDescription=null, modifier=Modifier.size(64.dp))
+        Image(painterResource(R.drawable.vault_brand_mark), contentDescription=null, modifier=Modifier.size(64.dp).rotate(spin.value))
         Image(painterResource(R.drawable.vault_wordmark), contentDescription="Monadic DNA", modifier=Modifier.fillMaxWidth().height(36.dp))
         Text("EXPLORER", color=Color.White, style=MaterialTheme.typography.labelMedium, letterSpacing=4.sp)
         Text("Your DNA. Your discoveries.", color=Color.White, style=MaterialTheme.typography.headlineLarge)

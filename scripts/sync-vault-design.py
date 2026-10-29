@@ -41,8 +41,11 @@ for name, data in colors.items():
     color = data['colors'][0]['color']
     comp = color['components']
     rgb = [int(comp[c], 16) / 255 if comp[c].startswith('0x') else float(comp[c]) for c in ['red','green','blue']]
+    alpha = comp.get('alpha', '1.000')
+    alpha = int(alpha, 16) / 255 if alpha.startswith('0x') else float(alpha)
     space = 'DisplayP3' if color['color-space']=='display-p3' else 'Srgb'
-    kotlin.append(f'    val {name} = Color({rgb[0]:.8f}f, {rgb[1]:.8f}f, {rgb[2]:.8f}f, colorSpace = ColorSpaces.{space})')
+    # Color(...) defaults to opaque; the sources carry real alpha (for example border at 0.5).
+    kotlin.append(f'    val {name} = Color({rgb[0]:.8f}f, {rgb[1]:.8f}f, {rgb[2]:.8f}f, {alpha:.8f}f, ColorSpaces.{space})')
 kotlin += ['}', '']
 (ROOT / 'apps/android/app/src/main/java/com/monadicdna/explorer/VaultColors.kt').write_text('\n'.join(kotlin))
 

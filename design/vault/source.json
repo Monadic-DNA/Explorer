@@ -41,6 +41,22 @@
     "app-icon.png": {
       "path": "Assets.xcassets/AppIcon.appiconset/AppIcon-1024px.png",
       "sha256": "b4667d40bae61305a258b1a6280468d4aaa6e5df40416fcc516906ca426bc348"
+    },
+    "art/star-orange.svg": {
+      "path": "Assets.xcassets/images/star-orange.imageset/star-orange.svg",
+      "sha256": "c4383ebbc723dd33234749dc91c968797a4796851ccbb7d568b148158ec6477d"
+    },
+    "art/star-blue.svg": {
+      "path": "Assets.xcassets/images/star-blue.imageset/star-blue.svg",
+      "sha256": "9963fb3d028a4525dd65c66b71d0b0ba55b42959efc8ac30db3ac1278e607bc3"
+    },
+    "art/star-purple.svg": {
+      "path": "Assets.xcassets/images/star-purple.imageset/star-purple.svg",
+      "sha256": "8743dd8d29a091d3f3e9141548dcd4f983f2139ec1347c70af44c871de4d61f8"
+    },
+    "art/star-yellow.svg": {
+      "path": "Assets.xcassets/images/star-yellow.imageset/star-yellow.svg",
+      "sha256": "43d533dddaecaa073d149cc83d7d7f96f5259d87c9e70d9ebcdf933be533bae4"
     }
   }
 }

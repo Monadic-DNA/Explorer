@@ -53,9 +53,13 @@ struct VaultArt: View {
 }
 
 struct VaultHero: View {
+    // Like Vault's splash screen, the brand mark turns once when the hero appears.
+    @State private var spin:Double=0
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Image("vault_brand_mark").resizable().scaledToFit().frame(height: 64).frame(maxWidth: .infinity).accessibilityHidden(true)
+                .rotationEffect(.degrees(spin))
+                .onAppear{withAnimation(.timingCurve(0.8,0.2,0.5,1,duration:3)){spin=360}}
             Image("vault_wordmark").resizable().scaledToFit().frame(height: 36).frame(maxWidth: .infinity).accessibilityLabel("Monadic DNA")
             Text("EXPLORER").font(.custom("SpaceGrotesk-Regular", size: 12, relativeTo: .caption)).tracking(4).frame(maxWidth: .infinity)
             Text("Your DNA. Your discoveries.").font(VaultStyle.heading()).fixedSize(horizontal:false, vertical:true)

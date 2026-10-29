@@ -98,7 +98,11 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lock data")}
                 else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Unlock data")}
             }
-            if(model.busy){model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:LinearProgressIndicator(Modifier.fillMaxWidth());Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}}
+            if(model.busy){
+                // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader.
+                model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center){VaultStarLoader(Modifier.padding(top=8.dp))}
+                Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}
+            }
             Messages(model)
             if(model.locking){Text("Your data is protected",Modifier.padding(24.dp))} else when(tab){
                 "Home"->HomeScreen(model,::selectTab){model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}
@@ -122,6 +126,9 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     model.error?.takeIf{model.accessNeeded==null}?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
     model.notice?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer)){Column(Modifier.padding(12.dp)){Text(message);TextButton(onClick={model.notice=null}){Text("Dismiss")}}}}
 }
+
+// M3 chip borders ignore the theme outline and render dark; Vault borders are always the soft token.
+@Composable private fun vaultChipBorder()=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outline)
 
 // The whole row toggles the checkbox, so the label is a tap target too.
 @Composable private fun CheckRow(checked: Boolean, onChange: (Boolean)->Unit, label: String, small: Boolean=true){
@@ -202,8 +209,8 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         } else {
             OutlinedTextField(value=filter,onValueChange={filter=it},label={Text("Filter saved traits")},modifier=Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)})}
-                listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)})}
+                listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)},border=vaultChipBorder())}
+                listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)},border=vaultChipBorder())}
             }
             if(total!=model.resultCount)Text("Showing ${total.grouped()} of ${model.resultCount.grouped()}",style=MaterialTheme.typography.bodySmall)
             LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=16.dp)){
@@ -313,7 +320,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     Text("Connection and AI provider",style=MaterialTheme.typography.headlineMedium)
     OutlinedTextField(value=model.backend,onValueChange={model.backend=it},label={Text("Explorer backend HTTPS origin")},modifier=Modifier.fillMaxWidth())
     Text("The backend hosts the research catalog and account services. Your raw DNA stays on device.")
-    Row{listOf("huggingface","ollama","nilai").forEach{provider->FilterChip(selected=model.provider==provider,onClick={model.selectProvider(provider)},label={Text(provider)})}}
+    Row{listOf("huggingface","ollama","nilai").forEach{provider->FilterChip(selected=model.provider==provider,onClick={model.selectProvider(provider)},label={Text(provider)},border=vaultChipBorder())}}
     OutlinedTextField(value=model.model,onValueChange={model.model=it},label={Text("Model")},modifier=Modifier.fillMaxWidth())
     OutlinedTextField(value=model.apiKey,onValueChange={model.apiKey=it},label={Text("Your provider API key")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
     if(model.provider=="ollama"){OutlinedTextField(value=model.ollamaAddress,onValueChange={model.ollamaAddress=it},label={Text("Ollama hostname")});OutlinedTextField(value=model.ollamaPort,onValueChange={model.ollamaPort=it},label={Text("Ollama port")})}
@@ -487,7 +494,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             if(field.getString("type")=="select") {
                 Text(field.getString("label"),style=MaterialTheme.typography.labelLarge)
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { field.getJSONArray("options").objects().forEach { option ->
-                    FilterChip(enabled=!model.syncing && !model.locking,selected=model.profileFields[key].orEmpty()==option.getString("value"),onClick={model.profileFields[key]=option.getString("value")},label={Text(option.getString("label"))})
+                    FilterChip(enabled=!model.syncing && !model.locking,selected=model.profileFields[key].orEmpty()==option.getString("value"),onClick={model.profileFields[key]=option.getString("value")},label={Text(option.getString("label"))},border=vaultChipBorder())
                 } }
             } else {
                 // Schema labels carry the input hint; show it as supporting text so labels stay short.
