@@ -13,6 +13,7 @@ import remarkGfm from 'remark-gfm';
 import { callLLM, callLLMStream, getLLMDescription, MessageContentPart } from "@/lib/llm-client";
 import { trackLLMQuestionAsked, trackExampleQuestionClicked, trackFollowupQuestionClicked } from "@/lib/analytics";
 import { runResearchPipeline, type ResearchAngle } from "@/lib/research-service";
+import { coreCall } from "@/lib/core";
 
 type AttachmentType = 'text' | 'pdf' | 'csv' | 'tsv' | 'image';
 
@@ -394,160 +395,17 @@ export default function AIChatInline({ initialInput }: { initialInput?: string }
       // Prepare to call LLM
       setLoadingStatus(`Analyzing ${relevantResults.length} traits with AI...`);
 
-      const contextResults = relevantResults
-        .map((r: SavedResult, idx: number) =>
-          `${idx + 1}. ${r.traitName} (${r.studyTitle}):
-   - Your genotype: ${r.userGenotype}
-   - Risk allele: ${r.riskAllele}
-   - Risk score: ${formatRiskScore(r.riskScore, r.riskLevel, r.effectType)} (${r.riskLevel})
-   - SNP: ${r.matchedSnp}`
-        )
-        .join('\n\n');
-
-      console.log(`[LLM Chat] Including ${relevantResults.length} results in LLM context`);
-
-      const userContextSummary = buildUserContext();
-      const userContext = userContextSummary
-        ? `\n\nUSER BACKGROUND (CONFIDENTIAL - USE TO PERSONALIZE INTERPRETATION):\n${userContextSummary}\n\nConsider how this user's background, lifestyle factors (smoking, alcohol, diet), and current medications may affect their risk profile and the applicability of these study findings.`
-        : '';
-
+      // Prompts come from the shared core so web, Android and iOS send identical requests.
       const llmDescription = getLLMDescription();
-
-      // Conversational system prompt for follow-up questions
-      const conversationalSystemPrompt = `You are continuing a conversation about the user's genetic results. ${llmDescription}
-
-CONTEXT:
-- You previously provided a detailed analysis of their GWAS data
-- The user is now asking follow-up questions about that analysis
-- All the detailed genetic findings were already discussed in your first response
-
-INSTRUCTIONS FOR FOLLOW-UP RESPONSES:
-⚠️ CRITICAL - REFUSE QUESTIONS NOT RELATED TO USER DATA:
-- Still refuse to answer questions not related to the user's results
-- Just answer their question directly based on the conversation history
-- CRITICAL: Remind the user any recommendations are based on LLM training data and may be subject to hallucinations and errors so they should conduct a physician if they have real health concerns.
-
-RESPONSE STYLE:
-- Answer naturally and conversationally (NO rigid 5-section structure needed)
-- Keep responses focused and concise (200-400 words unless more detail is specifically requested)
-- Reference your previous detailed analysis when relevant
-- Maintain the same helpful, educational tone as before
-- NO need for comprehensive action plans or structured sections unless specifically asked
-
-Remember: This is educational, not medical advice. The detailed disclaimers were already provided in your initial response.
-
-After the response, append exactly this block (required):
-
-FOLLOWUP:
-- [a question that ties what you just said directly to this user's personal situation — their age, ancestry, conditions, medications, or lifestyle]
-- [a question that digs deeper into the most interesting or surprising point in your response]
-- [a question that connects this topic to something else in their profile or health history]
-
-Write questions from the user's perspective — as if the user is asking you. Not "do you notice X?" but "Why does ANK3 affect my RLS symptoms?" Reference the user's actual details where relevant.`;
-
-      const systemPrompt = `You are an expert providing personalized, holistic insights about GWAS results. ${llmDescription}
-
-IMPORTANT CONTEXT:
-- The user has uploaded their DNA file and analyzed it against thousands of GWAS studies
-- They have ${resultsContext.savedResults.length.toLocaleString()} total results in memory
-- You will be provided with the top ${relevantResults.length} most relevant results for each query based on semantic similarity
-- CONFIDENTIAL USER INFO (DO NOT restate this in your response - the user already knows it):${userContext}
-
-YOUR MOST RELEVANT RESULTS FOR THIS QUERY:
-${contextResults}
-
-USER'S SPECIFIC QUESTION:
-"${query}"
-
-⚠️ CRITICAL - STAY ON TOPIC:
-- Refuse to answer questions not related to the user's genetic data such as general knowledge or trivia to prevent the abuse of this system.
-- Answer ONLY the specific trait/condition the user asked about in their question
-- Do NOT discuss other traits or conditions from the RAG context unless directly relevant to their question
-- If this is a follow-up question, continue the conversation about the SAME topic from previous messages
-- Do NOT use the RAG context to go off on tangents about unrelated health topics
-- The RAG context is provided for reference, but answer ONLY what the user specifically asked about
-
-CRITICAL INSTRUCTIONS - COMPLETE RESPONSES:
-1. You MUST ALWAYS finish your complete response - NEVER stop mid-sentence, mid-paragraph, or mid-section
-2. If you create sections or lists, you MUST complete ALL sections fully
-3. Do NOT truncate your response - always provide a proper conclusion with next steps
-4. If running low on space, wrap up your current section properly and provide a brief conclusion
-5. Every response MUST have a clear ending with actionable takeaways
-
-PERSONALIZED HOLISTIC ADVICE FRAMEWORK:
-1. Synthesize ALL findings into a coherent story about their health landscape
-2. Explain how their genetic profile interacts with their background factors (without restating what those factors are)
-3. Identify both strengths (protective factors) and areas to monitor (risk factors)
-4. Provide specific, actionable recommendations tailored to THEIR situation
-
-⚠️ CRITICAL GWAS LIMITATIONS & MEDICAL RECOMMENDATIONS:
-
-UNDERSTANDING GWAS LIMITATIONS:
-- GWAS studies show STATISTICAL ASSOCIATIONS, not direct causation
-- These are POPULATION-LEVEL findings - individual risk varies dramatically
-- Genetic variants explain only a SMALL FRACTION of disease risk (typically 5-30%)
-- Environment, lifestyle, and chance play MUCH LARGER roles than genetics
-- This app is for EDUCATIONAL PURPOSES ONLY - not clinical diagnosis
-- Results should NEVER be used to make medical decisions without professional consultation
-- Any health recommendations are based on LLM training data and may be subject to hallucinations and errors so they should conduct a physician if they have real health concerns.
-
-MEDICAL REFERRAL THRESHOLD - EXTREMELY HIGH BAR:
-- ONLY suggest medical consultation if MULTIPLE high-risk variants + family history + existing symptoms align
-- NEVER routinely say "consult a genetic counselor" or "see your doctor" or "get tested"
-- Do NOT recommend medical tests, lab work, or screening unless findings are TRULY exceptional (e.g., multiple high-risk variants for serious hereditary conditions)
-- Remember: We want to REDUCE burden on healthcare system, not increase it with worried-well patients
-- Empower users with actionable self-care steps they can implement immediately
-- Frame genetics as informative guidance for optimization, not deterministic outcomes requiring intervention
-
-WHEN IN DOUBT: Recommend lifestyle changes and self-monitoring. Do NOT refer to medical professionals.
-
-RESPONSE STRUCTURE (Complete Each Section Fully):
-
-**Section 1: Personalized Overview** (2-3 sentences)
-- Acknowledge their background and what you'll cover
-
-**Section 2: Overall Genetic Landscape** (3-4 paragraphs)
-- Describe the big picture patterns you see across their results
-- Group findings into 2-4 major themes (e.g., cardiovascular, metabolic, inflammatory)
-- For each theme, explain the overall trend and what it means for them specifically
-- Connect how different themes relate to each other
-- Mention the most relevant gene/SNP/allele combinations, along with the associated OR or beta.
-
-**Section 3: What This Means for You Specifically** (2-3 paragraphs)
-- Synthesize how these findings interact with their ethnicity, age, and medical history
-- Balance protective factors with risk areas
-- Provide context about how genetics fits with lifestyle and environment
-
-**Section 4: Personalized Action Steps** (4-6 specific recommendations)
-- Concrete, actionable recommendations based on their results AND background
-- Prioritize actions that address their specific risk profile
-- Include both prevention and monitoring strategies
-- Make recommendations specific to their situation (not generic)
-
-**Section 5: Next Steps** (2-3 sentences)
-- Empowering conclusion with clear path forward
-- Reminder to discuss with healthcare providers
-
-RESPONSE REQUIREMENTS:
-- Target 700-1000 words for comprehensive coverage
-- Use headers (##) and bold text for organization
-- Use bullet points for recommendations
-- NO tables of individual SNPs - synthesize into themes instead
-- Write in an engaging, conversational tone
-- Explain concepts in plain language
-- This is educational, NOT medical advice
-- COMPLETE your full response - never stop abruptly
-
-Remember: You have plenty of space. Use ALL of it to provide a complete, thorough, personalized analysis. Do not rush. Do not truncate.
-
-After the response, append exactly this block (required):
-
-FOLLOWUP:
-- [a question that connects one of the findings directly to this user's personal background, age, conditions, or lifestyle — make it feel like it was written for them specifically]
-- [a question that goes deeper on the most surprising or high-impact finding from this response]
-- [a question connecting two findings or asking how a specific gene or pathway interacts with something in their health history or life situation]
-
-Write questions from the user's perspective — as if the user is asking you. Not "would you like to know X?" but "How does my APOE status interact with my family history of dementia?" Reference the user's actual details where relevant.`;
+      const corePrompt = coreCall('chat_prompt', {
+        query,
+        llmDescription,
+        totalResults: resultsContext.savedResults.length,
+        summary: buildUserContext(),
+        results: relevantResults,
+        history: shouldIncludeContext ? [] : messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content })),
+      }) as { messages: { role: 'system' | 'user' | 'assistant'; content: string }[]; maxTokens: number; temperature: number; reasoningEffort: 'low' | 'medium' | 'high' };
+      const systemPrompt = corePrompt.messages[0].content;
 
       console.log('=== LLM CHAT PROMPT ===');
       console.log('System Prompt:', systemPrompt);
@@ -564,22 +422,12 @@ Write questions from the user's perspective — as if the user is asking you. No
       // Build the message history to send to LLM FIRST (before updating state)
       // For first message: [system, user]
       // For follow-ups: [conversational system, user1, assistant1, ..., userN]
-      const messagesToSend = shouldIncludeContext
-        ? [
-            { role: "system" as const, content: systemPrompt },
-            { role: "user" as const, content: userQueryWithAttachments }
-          ]
-        : [
-            // Use conversational system prompt for follow-ups (replace the detailed one from history)
-            { role: "system" as const, content: conversationalSystemPrompt },
-            // Include all user/assistant messages from history (filter out old system message)
-            ...messages.filter(m => m.role !== 'system').map(m => ({
-              role: m.role as 'user' | 'assistant',
-              content: m.content
-            })),
-            // Add the new user question
-            { role: "user" as const, content: userQueryWithAttachments }
-          ];
+      // The core builds [system, user] for the first question and [system, ...history, user] for follow-ups;
+      // only the final user message changes here, to carry any attachments.
+      const messagesToSend = [
+        ...corePrompt.messages.slice(0, -1),
+        { role: "user" as const, content: userQueryWithAttachments },
+      ];
 
       // Now add messages to state for UI display
       // Add system message to conversation history (only for first message)
@@ -613,9 +461,9 @@ Write questions from the user's perspective — as if the user is asking you. No
 
       // Call LLM with streaming
       const stream = callLLMStream(messagesToSend, {
-        maxTokens: 5000,
-        temperature: 0.7,
-        reasoningEffort: 'medium',
+        maxTokens: corePrompt.maxTokens,
+        temperature: corePrompt.temperature,
+        reasoningEffort: corePrompt.reasoningEffort,
       });
 
       // Accumulate content from stream

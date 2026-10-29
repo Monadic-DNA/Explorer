@@ -133,6 +133,10 @@ test('native premium policy distinguishes free reports, subscriptions and report
   assert.equal(coreCall('feature_access',{kind:'Health'}).allowed,true);
   assert.deepEqual(coreCall('feature_access',{kind:'Overview'}),{allowed:false,reportType:'overview'});
   assert.deepEqual(coreCall('feature_access',{kind:'Chat',activeSubscription:true}),{allowed:true,reportType:null});
+  // Regular Chat is free; Research in Chat is the premium Chat feature.
+  assert.deepEqual(coreCall('feature_access',{kind:'Chat'}),{allowed:true,reportType:null});
+  assert.deepEqual(coreCall('feature_access',{kind:'Research'}),{allowed:false,reportType:null});
+  assert.equal(coreCall('feature_access',{kind:'Research',activeSubscription:true}).allowed,true);
   assert.equal(coreCall('feature_access',{kind:'Healthspan',promo:'invalid'}).allowed,false);
   const session=coreCall('session_create');
   try { const snapshot=coreCall('session_snapshot',{session});assert.deepEqual(coreCall('session_restore',{session,snapshot}),{count:0}); }
@@ -196,3 +200,21 @@ test('batch Run All matches session results exactly and keeps order and overwrit
     assert.ok(expected.every(row=>row.riskScore===-0.25));
   }finally{coreCall('session_close',{session});}
 });
+
+test('research prompts: keyword parsing, model description and prompt contents', () => {
+  assert.deepEqual(coreCall('research_parse_keywords',{content:'  Taste receptors \n\nOlfaction\n',query:'q'}),['Taste receptors','Olfaction']);
+  assert.deepEqual(coreCall('research_parse_keywords',{content:'\n  \n',query:'What foods will I like?'}),['What foods will I like?']);
+  assert.equal(coreCall('research_parse_keywords',{content:Array.from({length:14},(_,i)=>`k${i}`).join('\n'),query:'q'}).length,10);
+  assert.deepEqual(coreCall('research_extract',{content:'Answer text\n\nFOLLOWUP:\n- One?\n- Two?\nnot a question'}),{answer:'Answer text',questions:['One?','Two?']});
+  assert.deepEqual(coreCall('research_extract',{content:'  Only an answer '}),{answer:'Only an answer',questions:[]});
+  assert.equal(coreCall('llm_description',{provider:'nilai'}),'🛡️ Powered by Nillion nilAI using google/gemma-4-26B-A4B-it in TEE (Trusted Execution Environment)');
+  assert.equal(coreCall('llm_description',{provider:'ollama',model:'llama3',ollamaAddress:'10.0.0.2',ollamaPort:1234}),'🖥️ Using local Ollama (llama3) at 10.0.0.2:1234');
+  const synthesis=coreCall('research_synthesis_prompt',{query:'Q',customization:'',llmDescription:'D',totalResults:86859,analyses:[{keyword:'k',analysis:'a',resultsCount:3}]});
+  assert.equal(synthesis.maxTokens,3000);assert.equal(synthesis.reasoningEffort,'medium');
+  assert.match(synthesis.messages[0].content,/Total results in user profile: 86,859[\s\S]*No personalization set|No personalization set[\s\S]*86,859/);
+  assert.match(synthesis.messages[0].content,/\*\*Angle: k\*\* \(3 studies\)\na/);
+  assert.equal(synthesis.messages[1].content,'Q');
+  const angle=coreCall('research_angle_prompt',{query:'Q',keyword:'k',llmDescription:'D',results:[{traitName:'T',studyTitle:'S',userGenotype:'AG',riskAllele:'rs1-A',riskScore:-0.0456,riskLevel:'decreased',effectType:'beta',matchedSnp:'rs1'}]});
+  assert.match(angle.messages[0].content,/1\. T \(S\):\n   - Your genotype: AG\n   - Risk allele: rs1-A\n   - Risk score: β=-0\.046 units \(decreased\)\n   - SNP: rs1/);
+});
+

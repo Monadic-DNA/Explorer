@@ -87,7 +87,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     // Screens opened from More return there; other tabs return Home before Back leaves the app.
     BackHandler(enabled=tab!="Home"){selectTab(if(tab in tabs)"Home" else "More")}
     Scaffold(
-        topBar={TopAppBar(title={Text("Explorer",style=MaterialTheme.typography.titleLarge)})},
+        topBar={TopAppBar(title={Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)})},
         bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { tabs.forEachIndexed{index,name->NavigationBarItem(selected=tab==name||(name=="More"&&tab !in tabs),onClick={selectTab(name)},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.AutoMirrored.Filled.Chat;2->Icons.Default.Description;3->Icons.Default.Person;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
@@ -95,14 +95,14 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
             if(model.dataUnlocked||model.dataVault.exists)Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
                 val variants=model.metadata.optInt("count")
                 Text(if(variants>0&&model.dataUnlocked)"${variants.grouped()} variants • ${model.storageMessage}" else model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-                if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}
-                else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock data")}
+                if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lock data")}
+                else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Unlock data")}
             }
             if(model.busy){model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:LinearProgressIndicator(Modifier.fillMaxWidth());Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}}
             Messages(model)
             if(model.locking){Text("Your data is protected",Modifier.padding(24.dp))} else when(tab){
                 "Home"->HomeScreen(model,::selectTab){model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}
-                "You"->YouScreen(model,{selectTab("Home")}){selectTab("Vault")}
+                "You"->YouScreen(model,{selectTab("Home");if(model.personalized)model.notice="Saved. Chat and reports will use what you told us about yourself."}){selectTab("Vault")}
                 "Browse"->BrowseScreen(model)
                 "Results"->ResultsScreen(model,{selectTab("Vault")},{name,content->exportText(name,content)},{model.pickingFile=true;importResults.launch(arrayOf("text/*","application/json","application/octet-stream"))})
                 "Chat"->ChatScreen(model,{selectTab("Settings")},{selectTab("You")}){selectTab("Account")}
@@ -142,7 +142,8 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){CheckRow(semantic,{semantic=it},"Semantic search",small=false)};Button(onClick={offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
         if(model.studies.isEmpty())Text("Search the catalog to discover studies.")
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)){items(model.studies,key={it.optInt("id")}){study->Card(onClick={model.showStudy(study)},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(study.optString("disease_trait","Unknown trait"),fontWeight=FontWeight.Bold);Text(study.optString("study"),maxLines=3);Text(listOf(study.optString("strongest_snp_risk_allele"),study.optString("study_accession"),study.optString("confidenceBand","Research finding")).filter{it.isNotBlank()&&it!="null"}.joinToString(" • "),style=MaterialTheme.typography.labelSmall)}}}}
-        Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()){TextButton(onClick={offset=(offset-50).coerceAtLeast(0);model.browse(query,trait,semantic,offset)},enabled=offset>0&&!model.busy){Text("Previous")};TextButton(onClick={offset+=50;model.browse(query,trait,semantic,offset)},enabled=model.studies.isNotEmpty()&&!model.busy){Text("Next")}}
+        // Pagination is useful only once there are results to page through.
+        if(model.studies.isNotEmpty())Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()){TextButton(onClick={offset=(offset-50).coerceAtLeast(0);model.browse(query,trait,semantic,offset)},enabled=offset>0&&!model.busy){Text("Previous")};TextButton(onClick={offset+=50;model.browse(query,trait,semantic,offset)},enabled=!model.busy){Text("Next")}}
     }
 }
 
@@ -182,18 +183,19 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         Text("${model.resultCount.grouped()} saved study matches",style=MaterialTheme.typography.titleLarge)
         Row(verticalAlignment=Alignment.CenterVertically){Button(onClick={model.runAll()},enabled=!model.busy&&hasDNA){Text("Run all studies")};Spacer(Modifier.width(8.dp));TextButton(onClick={export("monadic-results.tsv",model.exportResults())},enabled=model.resultCount>0){Text("Export")};TextButton(onClick=importResults){Text("Import")}}
-        model.catalogInfo?.let{Text("Research catalog ${it.optString("version")} • ${it.optInt("rows").grouped()} studies • bundled with this app",style=MaterialTheme.typography.bodySmall)}
+        // The version carries a build hash after the date; users need the date only.
+        model.catalogInfo?.let{Text("Research catalog ${it.optString("version").take(10)} • ${it.optInt("rows").grouped()} studies • bundled with this app",style=MaterialTheme.typography.bodySmall)}
         if(model.resultCount==0){
             Text(when{!model.dataUnlocked->"Unlock your saved data to see saved matches.";!hasDNA->"Import a raw DNA file first. Then Run all studies compares it with the research catalog on this device.";else->"Choose Run all studies to compare your DNA with the research catalog bundled with this app. Matching runs on this device and takes under a minute."})
             if(!hasDNA)OutlinedButton(onClick=openVault){Text("Go to Vault")}
         } else {
             OutlinedTextField(value=filter,onValueChange={filter=it},label={Text("Filter saved traits")},modifier=Modifier.fillMaxWidth())
-            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)})}
                 listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)})}
             }
             if(total!=model.resultCount)Text("Showing ${total.grouped()} of ${model.resultCount.grouped()}",style=MaterialTheme.typography.bodySmall)
-            LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)){
+            LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=16.dp)){
                 itemsIndexed(rows,key={_,row->row.optInt("studyId")}){index,result->
                     ResultCard(result){model.loadStudy(result.optInt("studyId"))}
                     // Load the next page as the list nears its end.
@@ -209,13 +211,18 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 }
 
 @Composable private fun Consent(model: ExplorerModel){CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},"Allow matched results and profile context to be sent to my selected LLM provider.")}
+/** The angles a Research answer looked at, collapsed by default as on the web. */
+@Composable private fun ResearchAngles(angles: List<Pair<String,Int>>){
+    var open by remember{mutableStateOf(false)}
+    TextButton(onClick={open=!open},contentPadding=PaddingValues(0.dp)){Text((if(open)"▼ " else "▶ ")+"Researched ${angles.size} angles",style=MaterialTheme.typography.labelLarge)}
+    if(open)angles.forEach{(keyword,count)->Text("• $keyword (${count.grouped()} ${if(count==1)"study" else "studies"})",style=MaterialTheme.typography.bodySmall)}
+}
 /** Explains what Chat or a premium report needs and links to Account, instead of a bare error. */
 @Composable private fun AccessNeeded(model: ExplorerModel, openAccount: ()->Unit){
     model.accessNeeded ?: return
     OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         Text("Premium needed",style=MaterialTheme.typography.titleMedium)
         Text(model.error ?: "",style=MaterialTheme.typography.bodyMedium)
-        Text("The Health report is free.",style=MaterialTheme.typography.bodySmall)
         Button(onClick=openAccount){Text("See Premium options")}
     }}
 }
@@ -224,18 +231,31 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     LaunchedEffect(Unit){model.chatDraft=""}
     Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
-        Row(verticalAlignment=Alignment.CenterVertically){Text("Provider: $providerName • ${model.model}",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);TextButton(onClick=openSettings){Text("Change")}}
+        // The raw model identifier lives in Settings; consumers need the provider name only.
+        Row(verticalAlignment=Alignment.CenterVertically){Text("Provider: $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);TextButton(onClick=openSettings){Text("Change")}}
         Consent(model)
         // While an access requirement is shown, it takes the place of the intro so its button stays visible.
         if(model.messages.isEmpty()&&model.accessNeeded==null){
-            Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion."},style=MaterialTheme.typography.bodyMedium)
+            Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)
             if((model.resultCount>0))CHAT_SUGGESTIONS.forEach{SuggestionChip(onClick={message=it},label={Text(it)})}
             if((model.resultCount>0)&&!model.personalized)TextButton(onClick=personalize){Text("Personalize answers")}
         }
-        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){items(model.messages.toList()){(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(if(role=="user")"You" else "Explorer",fontWeight=FontWeight.Bold);if(role=="user")Text(text) else MarkdownText(text)}}}}
-        OutlinedTextField(value=message,onValueChange={message=it},label={Text("Ask about your matched findings")},modifier=Modifier.fillMaxWidth())
+        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){
+            itemsIndexed(model.messages.toList()){index,(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){
+                Text(if(role=="user")"You" else "Explorer",fontWeight=FontWeight.Bold);if(role=="user")Text(text) else MarkdownText(text)
+                model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
+            }}}
+            if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
+        }
+        // The composer stays disabled until sharing is allowed, matching the intro's instruction.
+        OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM,label={Text("Ask about your matched findings")},modifier=Modifier.fillMaxWidth())
         AccessNeeded(model,openAccount)
-        Button(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&message.isNotBlank()){Text("Send")}
+        Row(verticalAlignment=Alignment.CenterVertically){
+            Button(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.shareResultsWithLLM){Text("Send")}
+            Spacer(Modifier.width(8.dp))
+            // Research is the premium Chat feature; regular chat is free.
+            OutlinedButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM){Text(if(model.premiumActive)"Research" else "Research • Premium")}
+        }
     }
 }
 @Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,openAccount: ()->Unit,export: ()->Unit){ScreenColumn{
@@ -263,7 +283,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=model.acceptedDisclaimer&&!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
         if(!model.acceptedDisclaimer)Text("Tick the box above to enable import.",style=MaterialTheme.typography.bodySmall)
         if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
-        else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock")}
+        else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}
         Text("Sync across your devices",style=MaterialTheme.typography.titleLarge)
         Text("Keep an end-to-end encrypted copy in your own Google Drive, in a hidden folder only Explorer can see, so a new Android device signed in to your Google account fills in automatically. Google asks for permission the first time. Monadic DNA never stores your data.")
         Row(Modifier.fillMaxWidth().toggleable(value=model.syncEnabled,enabled=model.dataUnlocked&&!model.busy,role=Role.Switch,onValueChange={model.setSync(it)}),verticalAlignment=Alignment.CenterVertically){
@@ -288,6 +308,15 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     if(model.provider=="ollama"){OutlinedTextField(value=model.ollamaAddress,onValueChange={model.ollamaAddress=it},label={Text("Ollama hostname")});OutlinedTextField(value=model.ollamaPort,onValueChange={model.ollamaPort=it},label={Text("Ollama port")})}
     if(model.provider=="nilai")Text("Leave the key blank to use one-use backend delegation. Prompts go directly from this device to nilAI; only your public key visits the backend.",style=MaterialTheme.typography.bodySmall)
     Button(onClick={model.run("Saving settings"){model.settingsSaved()}},enabled=!model.busy){Text("Save securely")}
+    // Debug builds only: lets developers test premium features without a Google Play purchase.
+    if(BuildConfig.DEBUG){
+        Text("Developer",style=MaterialTheme.typography.titleLarge)
+        Row(Modifier.fillMaxWidth().toggleable(value=model.debugPremium,role=Role.Switch,onValueChange=model::changeDebugPremium),verticalAlignment=Alignment.CenterVertically){
+            Column(Modifier.weight(1f)){Text("Treat this device as Premium");Text("Debug builds only. Unlocks Research and premium reports without a purchase.",style=MaterialTheme.typography.bodySmall)}
+            // Neutral off-state colors: the default tinted track read as "on" with the thumb left.
+            Switch(checked=model.debugPremium,onCheckedChange=null,colors=SwitchDefaults.colors(uncheckedThumbColor=MaterialTheme.colorScheme.outline,uncheckedTrackColor=MaterialTheme.colorScheme.surfaceContainer,uncheckedBorderColor=MaterialTheme.colorScheme.outline))
+        }
+    }
 }}
 
 @Composable private fun AccountScreen(model: ExplorerModel){
@@ -296,7 +325,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     LaunchedEffect(Unit) { billing.load() }
     ScreenColumn{
         Text("Premium",style=MaterialTheme.typography.headlineMedium)
-        Text(if(billing.premium)"Premium is active." else "Chat and the Healthspan, Top traits and Overview reports are part of Premium. The Health report is free.")
+        Text(if(model.premiumActive)"Premium is active." else "Research in Chat and the Healthspan, Top traits and Overview reports are part of Premium. Chat and the Health report are free.")
         if(billing.passes.isNotEmpty())Text("Unused report passes: ${billing.passes.keys.joinToString{REPORT_NAMES[it]?:it}}",style=MaterialTheme.typography.bodyMedium)
         Text("Purchases are handled by Google Play and tied to your Google account. Monadic DNA does not keep customer or purchase records, and no sign-in is needed.",style=MaterialTheme.typography.bodySmall)
         billing.products.forEach { product ->
@@ -376,13 +405,19 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                     Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=model.acceptedDisclaimer&&!model.busy){Text("Choose DNA file")}
                 }
             }
+            // Right after the match count lands, offer the fastest payoff before asking for profile details.
+            if(variants>0&&!ready&&model.reportTitle!="Health")OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                Text("See your results in 15 seconds",style=MaterialTheme.typography.titleMedium)
+                Text("Your free Health report reads your ${model.resultCount.grouped()} research matches and summarizes the findings with the strongest evidence.",style=MaterialTheme.typography.bodySmall)
+                Button(onClick={go("Reports")},enabled=!model.busy){Text("Get my free Health report")}
+            }}
             Step(2,"Tell us about you",done=model.personalized,enabled=variants>0){
-                Text("Age, ancestry and health history make Chat and Reports specific to you. Everything you enter is optional and stays encrypted on this device.",style=MaterialTheme.typography.bodySmall)
+                Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.",style=MaterialTheme.typography.bodySmall)
                 if(variants>0&&!model.personalized)Row{Button(onClick={go("You")}){Text("Personalize")};TextButton(onClick=model::skipPersonalization){Text("Skip for now")}}
             }
             // Home switches to Chat and Reports once steps 1 and 2 are done, so step 3 is a preview here.
             Step(3,"Ask and read",done=false,enabled=false){
-                Text("Chat about your results, or read a report such as the free Health report.",style=MaterialTheme.typography.bodySmall)
+                Text("Read your free Health report in about 15 seconds, or chat about your matches.",style=MaterialTheme.typography.bodySmall)
             }
             TextButton(onClick={go("Browse")}){Text("Browse research without your DNA")}
         }
@@ -402,11 +437,13 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
 }
 
 @Composable private fun ReportCards(model: ExplorerModel, onClick: (String)->Unit){
-    val premium=model.billing.premium
+    val premium=model.premiumActive
     REPORTS.forEach{(kind,description)->
         OutlinedCard(onClick={onClick(kind)},modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){
             Column(Modifier.weight(1f)){Text("$kind report",style=MaterialTheme.typography.titleMedium);Text(description,style=MaterialTheme.typography.bodySmall)}
-            Text(if(kind=="Health")"Free" else if(premium)"" else "Premium",style=MaterialTheme.typography.labelMedium)
+            // Tier as a filled chip: the price tier should be scannable before tapping.
+            val tier=if(kind=="Health")"Free" else if(premium)"" else "Premium"
+            if(tier.isNotEmpty())Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(50),color=if(tier=="Free")MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant){Text(tier,Modifier.padding(horizontal=10.dp,vertical=4.dp),style=MaterialTheme.typography.labelMedium)}
         }}
     }
 }
@@ -423,7 +460,12 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) { field.getJSONArray("options").objects().forEach { option ->
                     FilterChip(enabled=!model.syncing && !model.locking,selected=model.profileFields[key].orEmpty()==option.getString("value"),onClick={model.profileFields[key]=option.getString("value")},label={Text(option.getString("label"))})
                 } }
-            } else OutlinedTextField(value=model.profileFields[key].orEmpty(),onValueChange={model.profileFields[key]=it},enabled=!model.syncing && !model.locking,label={Text(field.getString("label"))},modifier=Modifier.fillMaxWidth())
+            } else {
+                // Schema labels carry the input hint; show it as supporting text so labels stay short.
+                val label=field.getString("label")
+                val short=label.removeSuffix(" (comma separated)")
+                OutlinedTextField(value=model.profileFields[key].orEmpty(),onValueChange={model.profileFields[key]=it},enabled=!model.syncing && !model.locking,label={Text(short)},supportingText=if(short!=label){{Text("Separate entries with commas.")}} else null,modifier=Modifier.fillMaxWidth())
+            }
         }
         OutlinedTextField(value=model.profile,onValueChange={model.profile=it},enabled=!model.syncing && !model.locking,label={Text("Anything else for your reports (optional)")},modifier=Modifier.fillMaxWidth())
         Text("Saved automatically.",style=MaterialTheme.typography.bodySmall)
@@ -432,5 +474,5 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     Text("Your data",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
     val variants=model.metadata.optInt("count")
     Text(if(variants>0)"${variants.grouped()} variants • ${model.resultCount.grouped()} research matches" else "No DNA file imported yet.",style=MaterialTheme.typography.bodyMedium)
-    Row{OutlinedButton(onClick=openVault){Text("Vault and backups")};Spacer(Modifier.width(8.dp));if(model.dataUnlocked)TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock")}}
+    Row{OutlinedButton(onClick=openVault){Text("Vault and backups")};Spacer(Modifier.width(8.dp));if(model.dataUnlocked)TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}}
 }}

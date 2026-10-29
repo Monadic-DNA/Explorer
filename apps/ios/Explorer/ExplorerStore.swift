@@ -40,10 +40,29 @@ import UIKit
     @Published var reportTitle=""
     @Published var reportQuestions:[String]=[]
     @Published var messages:[(String,String)]=[]
+    /// For Research replies, keyed by message index: each angle researched and how many results it used.
+    @Published var researchAngles:[Int:[(String,Int)]]=[:]
+    /// Follow-up questions suggested by the latest reply.
+    @Published var chatFollowups:[String]=[]
     @Published var acceptedDisclaimer=false
     @Published var shareResultsWithLLM=false
     private var task:Task<Void,Never>?
     let billing = StoreBilling()
+    /// Debug builds only: treat this device as Premium to test premium features without a purchase.
+    @Published private(set) var debugPremium=false
+    func setDebugPremium(_ on:Bool){
+        #if DEBUG
+        try? DeviceStore.put("debug-premium",on ? "true" : "");debugPremium=on
+        #endif
+    }
+    /// Premium from the App Store, or the debug override. Release builds always use the App Store alone.
+    var premiumActive:Bool{
+        #if DEBUG
+        return billing.premium || debugPremium
+        #else
+        return billing.premium
+        #endif
+    }
     let dataVault:SecureDataVault
     private let syncKeys:SyncKeyStore
     // Encrypted sync records live in the user's own iCloud, never on the Monadic DNA backend.
@@ -68,6 +87,9 @@ import UIKit
     init(dataVault:SecureDataVault,syncKeys:SyncKeyStore=KeychainSyncKeys(),cloud:SyncCloud=CloudKitSyncCloud()){
         self.dataVault=dataVault;self.syncKeys=syncKeys;self.cloud=cloud
         super.init();billing.store={[weak self] in self?.storeHandle};Task {await billing.current()}
+        #if DEBUG
+        debugPremium=DeviceStore.get("debug-premium")=="true"
+        #endif
         Task {vaultExists=await dataVault.exists;if !vaultExists{restorable=(try? syncKeys.get()) != nil}}
     }
     override convenience init(){self.init(dataVault:SecureDataVault())}
@@ -104,7 +126,7 @@ import UIKit
     }
     func unlockSavedData(){work("Unlocking saved data"){try await self.unlockData()}}
     private func wipeMemory(){
-        storeHandle=nil;billing.refreshPasses();dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];report="";reportQuestions=[];selectedStudy=nil
+        storeHandle=nil;billing.refreshPasses();dataUnlocked=false;syncEnabled=false;metadata=[:];resultCount=0;resultsVersion+=1;messages=[];researchAngles=[:];chatFollowups=[];report="";reportQuestions=[];selectedStudy=nil
         restoreCustomization(["fields":[:],"context":""])
     }
     func lockData(){
@@ -225,7 +247,9 @@ import UIKit
         if let origin{request.setValue(origin,forHTTPHeaderField:"Origin")}
         if let body{request.httpMethod="POST";request.setValue("application/json",forHTTPHeaderField:"Content-Type");request.httpBody=try JSONSerialization.data(withJSONObject:body)}
         let (data,response)=try await URLSession.shared.data(for:request)
-        guard let http=response as? HTTPURLResponse,(200..<300).contains(http.statusCode) else{throw Core.Failure(message:"Request failed. Check connection, account and provider settings.")}
+        guard let http=response as? HTTPURLResponse else{throw Core.Failure(message:"Request failed. Check your connection.")}
+        if http.statusCode==429{throw RateLimited()}
+        guard (200..<300).contains(http.statusCode) else{throw Core.Failure(message:"Request failed (HTTP \(http.statusCode)). Check your connection and AI provider settings.")}
         guard let object=try JSONSerialization.jsonObject(with:data) as? [String:Any] else{throw Core.Failure(message:"Invalid server response")};return object
     }
     func api(_ path:String,_ body:[String:Any]?=nil) async throws -> [String:Any] {
@@ -339,23 +363,40 @@ import UIKit
     private func requireAccess(_ kind:String) async throws -> String? {
         if try Core.object("feature_access",["kind":kind])["allowed"] as? Bool == true{return nil}
         await billing.current()
-        let access=try Core.object("feature_access",["kind":kind,"activeSubscription":billing.premium])
+        let access=try Core.object("feature_access",["kind":kind,"activeSubscription":premiumActive])
         if access["allowed"] as? Bool == true{return nil}
-        guard let type=access["reportType"] as? String else{accessNeeded="premium";throw Core.Failure(message:"Chat is part of Premium. Subscribe in Account to continue. The Health report is free.")}
+        guard let type=access["reportType"] as? String else{accessNeeded="premium";throw Core.Failure(message:"Research is part of Premium. It looks at your question from 10 angles and writes a detailed answer. Regular chat is free.")}
         guard billing.passes[type, default:0]>0 else{accessNeeded="premium";throw Core.Failure(message:"The \(kind) report is part of Premium. Subscribe, or buy a pass for this report, in Account.")}
         return type
     }
-    private func complete(_ messages:[[String:Any]]) async throws -> String {
-        let config=try Core.object("llm_config",["provider":provider,"model":model,"huggingfaceApiKey":apiKey,"ollamaAddress":ollamaAddress,"ollamaPort":Int(ollamaPort) ?? 11434])
+    private var llmConfig:[String:Any]{["provider":provider,"model":model,"huggingfaceApiKey":apiKey,"ollamaAddress":ollamaAddress,"ollamaPort":Int(ollamaPort) ?? 11434]}
+    /// Runs a prompt built by the core, which carries its own token and temperature limits.
+    private func complete(_ prompt:[String:Any]) async throws -> String {
+        var options:[String:Any]=["max_tokens":prompt["maxTokens"] ?? 0,"temperature":prompt["temperature"] ?? 0.7]
+        if let effort=prompt["reasoningEffort"] as? String{options["reasoning_effort"]=effort}
+        return try await complete(prompt["messages"] as? [[String:Any]] ?? [],options:options)
+    }
+    struct RateLimited:Error{}
+    /// AI providers rate-limit bursts (Research makes about 12 calls), so wait and retry before giving up.
+    private func complete(_ messages:[[String:Any]],options:[String:Any]=[:]) async throws -> String {
+        for wait:UInt64 in [5,15,30] {
+            do{return try await completeOnce(messages,options:options)}
+            catch is RateLimited{status="The AI provider is busy; retrying…";try await Task.sleep(nanoseconds:wait*1_000_000_000)}
+        }
+        do{return try await completeOnce(messages,options:options)}
+        catch is RateLimited{throw Core.Failure(message:"The AI provider is busy. Please try again in a minute.")}
+    }
+    private func completeOnce(_ messages:[[String:Any]],options:[String:Any]) async throws -> String {
+        let config=try Core.object("llm_config",llmConfig)
         let endpoint=(config["endpoint"] as? String ?? "").trimmingCharacters(in:CharacterSet(charactersIn:"/"));let identifier=config["identifier"] as? String ?? model
         if provider=="ollama"{
-            let data=try await request(URL(string:endpoint+"/api/chat")!,["model":identifier,"messages":messages,"stream":false])
+            let data=try await request(URL(string:endpoint+"/api/chat")!,["model":identifier,"messages":messages,"stream":false,"options":["temperature":options["temperature"] ?? 0.7,"num_predict":options["max_tokens"] ?? 0]])
             guard let message=data["message"] as? [String:Any],let content=message["content"] as? String else{throw Core.Failure(message:"Invalid Ollama response")};return content
         }
         if provider=="huggingface" && apiKey.isEmpty{throw Core.Failure(message:"Enter your own provider API key in Settings")}
         let bearer:String
         if provider=="nilai"{bearer=try await nilaiAuthorization(endpoint)}else{bearer=apiKey}
-        let data=try await request(URL(string:endpoint+"/chat/completions")!,["model":identifier,"messages":messages,"stream":false],bearer:bearer)
+        let data=try await request(URL(string:endpoint+"/chat/completions")!,["model":identifier,"messages":messages,"stream":false].merging(options){$1},bearer:bearer)
         guard let choices=data["choices"] as? [[String:Any]],let message=choices.first?["message"] as? [String:Any],let content=message["content"] as? String else{throw Core.Failure(message:"Invalid provider response")};return content
     }
     private func nilaiAuthorization(_ endpoint:String)async throws->String{
@@ -381,9 +422,51 @@ import UIKit
     func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         _=try await self.requireAccess("Chat")
-        var messages=try await self.reportPrompt("DNA chat")
-        messages+=self.messages.map{["role":$0.0,"content":$0.1]};messages.append(["role":"user","content":message])
-        let response=try await self.complete(messages);self.messages.append(("user",message));self.messages.append(("assistant",response));onSent()
+        // As on the web, the first question includes the user's 500 most relevant results; follow-ups use the conversation.
+        let first=self.messages.isEmpty
+        if first{self.status="Finding your most relevant results…"}
+        let accessions=first ? await self.similarStudies(message,limit:5000) : []
+        self.status="Asking the AI provider…"
+        let input=try self.storeInput(["query":message,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":try Core.string("user_context",self.profileData()),"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
+        let prompt=try await Task.detached{try Core.object("store_chat_prompt",input)}.value
+        let reply=try Core.object("research_extract",["content":try await self.complete(prompt)])
+        self.messages.append(("user",message));self.messages.append(("assistant",reply["answer"] as? String ?? ""))
+        self.chatFollowups=reply["questions"] as? [String] ?? []
+        onSent()
+    }}
+    /// Studies most similar to the text, from the stateless semantic search; empty when unavailable.
+    private func similarStudies(_ text:String,limit:Int) async -> [String] {
+        let found=(try? await api("/api/similar-studies",["query":text,"limit":limit]))?["studies"] as? [[String:Any]] ?? []
+        return found.compactMap{$0["study_accession"] as? String}
+    }
+    /// Research in Chat (premium): the shared core's multi-angle pipeline, identical to the web.
+    func research(_ question:String,onSent:@escaping @MainActor ()->Void={}){work("Researching"){
+        guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
+        guard self.resultCount>0 else{throw Core.Failure(message:"Add your DNA file first so there are matches to research")}
+        _=try await self.requireAccess("Research")
+        let customization=try Core.string("user_context",self.profileData()),description=try Core.string("llm_description",self.llmConfig)
+        self.status="Finding research angles…"
+        let keywordPrompt=try Core.object("research_keywords_prompt",["query":question,"customization":customization])
+        let keywords=try Core.call("research_parse_keywords",["content":try await self.complete(keywordPrompt),"query":question]) as? [String] ?? [question]
+        var analyses:[[String:Any]]=[];var angles:[(String,Int)]=[]
+        for (index,keyword) in keywords.enumerated() {
+            try Task.checkCancellation()
+            self.status="Angle \(index+1) of \(keywords.count): \(keyword)";self.progress=Double(index)/Double(keywords.count+1)
+            let accessions=await self.similarStudies(keyword,limit:1000)
+            let input=try self.storeInput(["query":question,"keyword":keyword,"customization":customization,"llmDescription":description,"accessions":accessions])
+            let prompt=try await Task.detached{try Core.object("store_research_angle_prompt",input)}.value
+            let count=prompt["resultsCount"] as? Int ?? 0
+            // Sequential, as on the web, to stay within nilAI's rate limits.
+            let analysis=count==0 ? "No relevant findings for this angle." : try await self.complete(prompt)
+            analyses.append(["keyword":keyword,"analysis":analysis,"resultsCount":count]);angles.append((keyword,count))
+        }
+        self.status="Writing your answer…";self.progress=Double(keywords.count)/Double(keywords.count+1)
+        let synthesis=try Core.object("research_synthesis_prompt",["query":question,"customization":customization,"llmDescription":description,"totalResults":self.resultCount,"analyses":analyses])
+        let reply=try Core.object("research_extract",["content":try await self.complete(synthesis)])
+        self.messages.append(("user",question));self.messages.append(("assistant",reply["answer"] as? String ?? ""))
+        self.researchAngles[self.messages.count-1]=angles
+        self.chatFollowups=reply["questions"] as? [String] ?? []
+        onSent()
     }}
     func generateReport(_ kind:String){work("Generating report"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing results with the selected provider first")}

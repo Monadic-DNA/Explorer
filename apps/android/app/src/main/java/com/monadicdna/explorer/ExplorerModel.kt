@@ -73,6 +73,11 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     val personalized get()=profile.isNotBlank()||profileFields.values.any{it.isNotBlank()}
     var acceptedDisclaimer by mutableStateOf(false)
     val messages = mutableStateListOf<Pair<String, String>>()
+    /** For Research replies, keyed by message index: each angle researched and how many results it used. */
+    val researchAngles = mutableStateMapOf<Int, List<Pair<String,Int>>>()
+    /** Follow-up questions suggested by the latest Research reply. */
+    var chatFollowups by mutableStateOf(emptyList<String>())
+        private set
     private val http = OkHttpClient.Builder().connectTimeout(20,TimeUnit.SECONDS).readTimeout(180,TimeUnit.SECONDS).build()
     private var task: Job? = null
     var authenticate:(suspend()->Unit)?=null
@@ -263,7 +268,8 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             override fun onResponse(call: Call, response: Response) {
                 try {
                     val data=response.use {
-                        if(!it.isSuccessful) throw IllegalStateException("Request failed (HTTP ${it.code}). Check connection, sign-in and provider settings.")
+                        if(it.code==429) throw RateLimited()
+                        if(!it.isSuccessful) throw IllegalStateException("Request failed (HTTP ${it.code}). Check your connection and AI provider settings.")
                         JSONObject(it.body?.string().orEmpty())
                     }
                     if(continuation.isActive) continuation.resume(data)
@@ -376,14 +382,21 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         restorable=syncEnabled||runCatching{syncKeys.get()!=null}.getOrDefault(false)
     }
     val billing = PlayBilling(app, viewModelScope)
+    /** Debug builds only: treat this device as Premium to test premium features without a purchase. */
+    var debugPremium by mutableStateOf(BuildConfig.DEBUG && store.get("debug-premium")=="true")
+        private set
+    fun changeDebugPremium(on: Boolean){ if(!BuildConfig.DEBUG)return; store.put("debug-premium",on.toString());debugPremium=on }
+    /** Premium from Google Play, or the debug override. Release builds always use Google Play alone. */
+    val premiumActive get()=billing.premium || (BuildConfig.DEBUG && debugPremium)
     override fun onCleared() { syncJob?.cancel();billing.close(); storeHandle?.let{Core.storeClose(it)}; super.onCleared() }
     /** Premium status and report passes come from Google Play; Monadic DNA keeps no purchase records. Returns the pass to use, if any. */
     private suspend fun requireAccess(kind: String): String? {
         if(Core.obj("feature_access",json("kind" to kind)).getBoolean("allowed"))return null
-        billing.current()
-        val access=Core.obj("feature_access",json("kind" to kind,"activeSubscription" to billing.premium))
+        // If Google Play can't be reached, fall back to the last status read from it.
+        runCatching{billing.current()}
+        val access=Core.obj("feature_access",json("kind" to kind,"activeSubscription" to premiumActive))
         if(access.getBoolean("allowed"))return null
-        if(access.isNull("reportType")){accessNeeded="premium";error("Chat is part of Premium. Subscribe in Account to continue.")}
+        if(access.isNull("reportType")){accessNeeded="premium";error("Research is part of Premium. It looks at your question from 10 angles and writes a detailed answer. Regular chat is free.")}
         val type=access.getString("reportType")
         if(billing.passes[type]==null){accessNeeded="premium";error("The $kind report is part of Premium. Subscribe, or buy a pass for this report, in Account.")}
         return type
@@ -405,15 +418,27 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         }
         return Core.call("nilai_invocation",input) as String
     }
-    private suspend fun complete(messages: JSONArray): String {
+    /** Runs a prompt built by the core, which carries its own token and temperature limits. */
+    private suspend fun complete(prompt: JSONObject): String=complete(prompt.getJSONArray("messages"),json("max_tokens" to prompt.optInt("maxTokens"),"temperature" to prompt.optDouble("temperature")).also{o->prompt.optString("reasoningEffort").takeIf{it.isNotEmpty()}?.let{o.put("reasoning_effort",it)}})
+    private class RateLimited: Exception("The AI provider is busy. Please try again in a minute.")
+    /** AI providers rate-limit bursts (Research makes about 12 calls), so wait and retry before giving up. */
+    private suspend fun complete(messages: JSONArray, options: JSONObject=JSONObject()): String {
+        for(wait in listOf(5_000L,15_000L,30_000L)) {
+            try { return completeOnce(messages,options) } catch(_:RateLimited) { status="The AI provider is busy; retrying…"; delay(wait) }
+        }
+        return completeOnce(messages,options)
+    }
+    private suspend fun completeOnce(messages: JSONArray, options: JSONObject): String {
         val config=Core.obj("llm_config",llmConfig());val endpoint=config.getString("endpoint").trimEnd('/')
         if(provider=="huggingface")require(apiKey.isNotBlank()){"Enter your provider API key in Settings. Keys stay on this device."}
         if(provider=="ollama"){
-            val data=request("$endpoint/api/chat",json("model" to config.getString("identifier"),"messages" to messages,"stream" to false))
+            val data=request("$endpoint/api/chat",json("model" to config.getString("identifier"),"messages" to messages,"stream" to false,"options" to json("temperature" to options.opt("temperature"),"num_predict" to options.opt("max_tokens"))))
             return data.getJSONObject("message").getString("content")
         }
         val bearer=if(provider=="nilai")nilaiAuthorization(endpoint)else apiKey
-        val response=request("$endpoint/chat/completions",json("model" to config.getString("identifier"),"messages" to messages,"stream" to false),bearer)
+        val body=json("model" to config.getString("identifier"),"messages" to messages,"stream" to false)
+        for(key in options.keys())body.put(key,options.get(key))
+        val response=request("$endpoint/chat/completions",body,bearer)
         return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
     }
     private suspend fun reportPrompt(kind: String)=withContext(Dispatchers.Default){
@@ -424,9 +449,54 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         require(message.isNotBlank()){"Enter a message"}
         requireAccess("Chat")
-        val prompt=reportPrompt("DNA chat")
-        messages.forEach{prompt.put(json("role" to it.first,"content" to it.second))};prompt.put(json("role" to "user","content" to message))
-        val reply=complete(prompt);messages.add("user" to message);messages.add("assistant" to reply)
+        val first=messages.isEmpty()
+        // As on the web, the first question includes the user's 500 most relevant results; follow-ups use the conversation.
+        val accessions=if(first){status="Finding your most relevant results…";similarStudies(message,5000)}else JSONArray()
+        status="Asking ${mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[provider]?:provider}…"
+        val history=JSONArray(messages.map{json("role" to it.first,"content" to it.second)})
+        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to message,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to Core.call("user_context",profileData()),"accessions" to accessions,"history" to history))}
+        val reply=Core.obj("research_extract",json("content" to complete(prompt)))
+        messages.add("user" to message);messages.add("assistant" to reply.getString("answer"))
+        chatFollowups=(0 until reply.getJSONArray("questions").length()).map{reply.getJSONArray("questions").getString(it)}
+        onSent()
+    }
+    /**
+     * Research in Chat (premium): the shared core's multi-angle pipeline, identical to the web. For each angle,
+     * the stateless /api/similar-studies search ranks studies; matching the user's results happens on device.
+     */
+    /** Studies most similar to the text, from the stateless semantic search; empty when unavailable. */
+    private suspend fun similarStudies(text: String, limit: Int): JSONArray {
+        val found=runCatching{api("/api/similar-studies",json("query" to text,"limit" to limit)).getJSONArray("studies")}.getOrDefault(JSONArray())
+        return JSONArray((0 until found.length()).map{found.getJSONObject(it).optString("study_accession")})
+    }
+    fun research(question: String, onSent: ()->Unit={}) = run("Researching") {
+        require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
+        require(question.isNotBlank()){"Enter a question"}
+        require(resultCount>0){"Add your DNA file first so there are matches to research."}
+        requireAccess("Research")
+        val customization=Core.call("user_context",profileData()) as String
+        val description=Core.call("llm_description",llmConfig()) as String
+        status="Finding research angles…"
+        val keywordPrompt=Core.obj("research_keywords_prompt",json("query" to question,"customization" to customization))
+        val keywords=Core.arr("research_parse_keywords",json("content" to complete(keywordPrompt),"query" to question))
+        val analyses=JSONArray();val angles=mutableListOf<Pair<String,Int>>()
+        for(i in 0 until keywords.length()){
+            ensureActiveTask()
+            val keyword=keywords.getString(i)
+            status="Angle ${i+1} of ${keywords.length()}: $keyword"
+            progress=i.toFloat()/(keywords.length()+1)
+            val accessions=similarStudies(keyword,1000)
+            val prompt=withContext(Dispatchers.Default){Core.obj("store_research_angle_prompt",storeInput("query" to question,"keyword" to keyword,"customization" to customization,"llmDescription" to description,"accessions" to accessions))}
+            val count=prompt.getInt("resultsCount")
+            // Sequential, as on the web, to stay within nilAI's rate limits.
+            val analysis=if(count==0)"No relevant findings for this angle." else complete(prompt)
+            analyses.put(json("keyword" to keyword,"analysis" to analysis,"resultsCount" to count));angles.add(keyword to count)
+        }
+        status="Writing your answer…";progress=keywords.length().toFloat()/(keywords.length()+1)
+        val reply=Core.obj("research_extract",json("content" to complete(Core.obj("research_synthesis_prompt",json("query" to question,"customization" to customization,"llmDescription" to description,"totalResults" to resultCount,"analyses" to analyses)))))
+        messages.add("user" to question);messages.add("assistant" to reply.getString("answer"))
+        researchAngles[messages.size-1]=angles
+        chatFollowups=(0 until reply.getJSONArray("questions").length()).map{reply.getJSONArray("questions").getString(it)}
         onSent()
     }
     fun generateReport(kind: String) = run("Generating $kind report") {

@@ -47,8 +47,8 @@ struct ExplorerView: View {
     func startImport(_ kind:String){importKind=kind;importing=true}
     func export(_ name:String,_ text:String){exportName=name;exportDocument=TextExport(text);exporting=true}
     private var storageStatus:some View { HStack { Text(store.variantCount>0 && store.dataUnlocked ? "\(store.variantCount.formatted()) variants • \(store.storageMessage)" : store.storageMessage).font(.caption); Spacer();
-                if store.dataUnlocked { Button("Lock data",action:store.lockData).disabled(store.busy) }
-                else { Button("Unlock data",action:store.unlockSavedData).disabled(store.busy) }
+                if store.dataUnlocked { Button{store.lockData()}label:{Label("Lock data",systemImage:"lock")}.disabled(store.busy) }
+                else { Button{store.unlockSavedData()}label:{Label("Unlock data",systemImage:"lock.open")}.disabled(store.busy) }
             }.padding(.horizontal).padding(.vertical,8) }
     private var vault:some View{VaultView(importDNA:{startImport("dna")})}
     var body: some View {
@@ -60,7 +60,7 @@ struct ExplorerView: View {
                 NavigationStack{HomeView(importDNA:{startImport("dna")},go:{selectedTab=$0},results:{ResultsView(export:export,importResults:{startImport("results")})})}.tabItem{Label("Home",systemImage:"house")}.tag(0)
                 NavigationStack{ChatView(personalize:{selectedTab=3})}.tabItem{Label("Chat",systemImage:"bubble.left.and.bubble.right")}.tag(1)
                 NavigationStack{ReportsView(openChat:{selectedTab=1},export:export)}.tabItem{Label("Reports",systemImage:"doc.text")}.tag(2)
-                NavigationStack{YouView(done:{selectedTab=0},vault:{vault})}.tabItem{Label("You",systemImage:"person")}.tag(3)
+                NavigationStack{YouView(done:{selectedTab=0;if store.personalized{store.notice="Saved. Chat and reports will use what you told us about yourself."}},vault:{vault})}.tabItem{Label("You",systemImage:"person")}.tag(3)
                 NavigationStack{List{
                     NavigationLink("Your matches"){ResultsView(export:export,importResults:{startImport("results")})}
                     NavigationLink("Browse research"){BrowseView()}
@@ -136,12 +136,20 @@ struct HomeView<Results:View>:View{
                     Button("Choose DNA file",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!store.acceptedDisclaimer||store.busy)
                 }
             }
+            // Right after the match count lands, offer the fastest payoff before asking for profile details.
+            if store.variantCount>0 && !ready && store.reportTitle != "Health" {
+                VStack(alignment:.leading,spacing:8){
+                    Text("See your results in 15 seconds").font(.headline)
+                    Text("Your free Health report reads your \(store.resultCount.formatted()) research matches and summarizes the findings with the strongest evidence.").font(.footnote)
+                    Button("Get my free Health report"){go(2)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
+                }.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:20).stroke(.secondary.opacity(0.5)))
+            }
             Step(number:2,title:"Tell us about you",done:store.personalized,enabled:store.variantCount>0){
-                Text("Age, ancestry and health history make Chat and Reports specific to you. Everything you enter is optional and stays encrypted on this device.").font(.footnote)
+                Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.").font(.footnote)
                 if store.variantCount>0 && !store.personalized{HStack{Button("Personalize"){go(3)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule);Button("Skip for now",action:store.skipPersonalization)}}
             }
             // Home switches to Chat and Reports once steps 1 and 2 are done, so step 3 is a preview here.
-            Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Chat about your results, or read a report such as the free Health report.").font(.footnote)}
+            Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Read your free Health report in about 15 seconds, or chat about your matches.").font(.footnote)}
             NavigationLink("Browse research without your DNA"){BrowseView()}
         }
         Text("Associations are not diagnoses or individual health predictions. Odds ratios are relative, not absolute risk; beta values describe trait changes.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote)).foregroundStyle(.secondary)
@@ -164,9 +172,13 @@ struct Step<Content:View>:View{
 struct ReportCards:View{
     @EnvironmentObject var store:ExplorerStore
     var open:(String)->Void
-    private var premium:Bool{store.billing.premium}
+    private var premium:Bool{store.premiumActive}
     var body:some View{ForEach(reportKinds,id:\.0){kind,description in
-        Button{open(kind)}label:{HStack{VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).foregroundStyle(.secondary)};Spacer();Text(kind=="Health" ? "Free" : premium ? "" : "Premium").font(.caption)}.padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary.opacity(0.5)))}.tint(.primary)
+        Button{open(kind)}label:{HStack{VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).foregroundStyle(.secondary)};Spacer();
+            // Tier as a filled chip: the price tier should be scannable before tapping.
+            let tier=kind=="Health" ? "Free" : premium ? "" : "Premium"
+            if !tier.isEmpty{Text(tier).font(.caption).padding(.horizontal,10).padding(.vertical,4).background(kind=="Health" ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.15),in:Capsule())}
+        }.padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary.opacity(0.5)))}.tint(.primary)
     }}
 }
 
@@ -184,7 +196,8 @@ struct BrowseView:View{
             Button("Search"){offset=0;store.browse(query,trait,semantic:semantic)}.disabled(store.busy)
         }.frame(height:230)
         List(store.studies){study in Button{store.selectedStudy=study}label:{VStack(alignment:.leading,spacing:6){Text(study.text("disease_trait")).font(.custom("SpaceGrotesk-Bold",size:17,relativeTo:.headline));Text(study.text("study")).font(.custom("SpaceGrotesk-Regular",size:15,relativeTo:.subheadline)).foregroundStyle(.secondary);Text([study.text("strongest_snp_risk_allele"),study.text("study_accession"),study.text("confidenceBand","Research finding")].filter{!$0.isEmpty}.joined(separator:" • ")).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))}}.tint(.primary)}
-        HStack{Button("Previous"){offset=max(0,offset-50);store.browse(query,trait,semantic:semantic,offset:offset)}.disabled(offset==0||store.busy);Spacer();Button("Next"){offset+=50;store.browse(query,trait,semantic:semantic,offset:offset)}.disabled(store.studies.isEmpty||store.busy)}.padding()
+        // Pagination is useful only once there are results to page through.
+        if !store.studies.isEmpty{HStack{Button("Previous"){offset=max(0,offset-50);store.browse(query,trait,semantic:semantic,offset:offset)}.disabled(offset==0||store.busy);Spacer();Button("Next"){offset+=50;store.browse(query,trait,semantic:semantic,offset:offset)}.disabled(store.busy)}.padding()}
     }.vaultScreen().navigationTitle("Browse research")}
 }
 
@@ -252,7 +265,8 @@ struct ResultsView:View{
             Button("Run all studies",action:store.runAll).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy||store.variantCount==0)
             Button("Export results as TSV"){do{export("monadic-results.tsv",try store.exportResults())}catch{store.error=error.localizedDescription}}.disabled(store.resultCount==0)
             Button("Import saved results",action:importResults)
-            if let info=store.catalogInfo{Text("Research catalog \(info["version"] as? String ?? "") • \((info["rows"] as? Int ?? 0).formatted()) studies • bundled with this app").font(.footnote)}
+            // The version carries a build hash after the date; users need the date only.
+            if let info=store.catalogInfo{Text("Research catalog \(String((info["version"] as? String ?? "").prefix(10))) • \((info["rows"] as? Int ?? 0).formatted()) studies • bundled with this app").font(.footnote)}
             if store.resultCount==0 {
                 Text(!store.dataUnlocked ? "Unlock your saved data to see saved matches." : store.variantCount==0 ? "Add your DNA file on Home first. Then Run all studies compares it with the research catalog on this device." : "Choose Run all studies to compare your DNA with the research catalog bundled with this app. Matching runs on this device and takes under a minute.").foregroundStyle(.secondary)
             } else {
@@ -281,15 +295,26 @@ struct ChatView:View{
     @State private var message=""
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
-        HStack{Text("Provider: \(providerName) • \(store.model)").font(.footnote);Spacer();NavigationLink("Change"){SettingsView()}}.padding(.horizontal)
+        // The raw model identifier lives in Settings; consumers need the provider name only.
+        HStack{Text("Provider: \(providerName)").font(.footnote);Spacer();NavigationLink("Change"){SettingsView()}}.padding(.horizontal)
         ProviderConsent().padding(.horizontal)
         if store.messages.isEmpty{
-            Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion.").foregroundStyle(.secondary).padding(.horizontal)
+            Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary).padding(.horizontal)
             if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}.padding(.horizontal)}
             if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize).padding(.horizontal)}
         }
-        List(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){Text(item.element.0).font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)}}
-        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder);Button("Send"){store.sendChat(message){message=""}}.disabled(store.busy||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
+        List{
+            ForEach(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){
+                Text(item.element.0=="user" ? "You" : "Explorer").font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)
+                // The angles a Research answer looked at, collapsed by default as on the web.
+                if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
+            }}
+            if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
+        }
+        // The composer stays disabled until sharing is allowed, matching the intro's instruction.
+        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder).disabled(!store.shareResultsWithLLM);Button("Send"){store.sendChat(message){message=""}}.disabled(store.busy||!store.shareResultsWithLLM||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
+            // Research is the premium Chat feature; regular chat is free.
+            Button(store.premiumActive ? "Research" : "Research • Premium"){store.research(message){message=""}}.buttonStyle(.bordered).disabled(store.busy||!store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
     }.vaultScreen().navigationTitle("Chat")
     // A question started on Home arrives as a draft.
     .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}
@@ -328,21 +353,23 @@ struct YouView<Vault:View>:View{
         Section{Text("Optional details make Chat and Reports specific to you. They are encrypted on this device and only shared with your AI provider when you allow it.")}
         if !store.dataUnlocked{Button("Unlock to edit",action:store.unlockSavedData).disabled(store.busy)}
         else {
-            Section("About you"){
+            Section(content:{
                 ForEach(store.profileSchema){field in
                     let value=Binding<String>(get:{store.profileFields[field.key] ?? ""},set:{store.profileFields[field.key]=$0})
-                    if let options=field.options{Picker(field.label,selection:value){ForEach(options){Text($0.label).tag($0.value)}}.disabled(store.syncing || store.locking)}
-                    else{TextField(field.label,text:value,axis:.vertical).disabled(store.syncing || store.locking)}
+                    // Schema labels carry the input hint; the section footer says it once instead.
+                    let short=field.label.replacingOccurrences(of:" (comma separated)",with:"")
+                    if let options=field.options{Picker(short,selection:value){ForEach(options){Text($0.label).tag($0.value)}}.disabled(store.syncing || store.locking)}
+                    else{TextField(short,text:value,axis:.vertical).disabled(store.syncing || store.locking)}
                 }
                 TextField("Anything else for your reports (optional)",text:$store.profile,axis:.vertical).disabled(store.syncing || store.locking)
                 Text("Saved automatically.").font(.footnote)
-            }
+            },header:{Text("About you")},footer:{Text("Separate multiple entries with commas.")})
             Button("Done",action:done)
         }
         Section("Your data"){
             Text(store.variantCount>0 ? "\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) research matches" : "No DNA file imported yet.")
             NavigationLink("Vault and backups"){vault()}
-            if store.dataUnlocked{Button("Lock",action:store.lockData).disabled(store.busy)}
+            if store.dataUnlocked{Button("Lock data",action:store.lockData).disabled(store.busy)}
         }
     }.vaultScreen().navigationTitle("You")}
 }
@@ -360,7 +387,7 @@ struct VaultView:View{
             Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
             Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(!store.acceptedDisclaimer||store.busy)
             if !store.acceptedDisclaimer{Text("Turn on the switch above to enable import.").font(.footnote).foregroundStyle(.secondary)}
-            Button(store.dataUnlocked ? "Lock" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
+            Button(store.dataUnlocked ? "Lock data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
         Section("Sync across your devices"){
             Text("Keep an end-to-end encrypted copy in your own iCloud, so a new iPhone or iPad signed in to your Apple ID fills in automatically. Monadic DNA never stores your data.")
@@ -388,6 +415,13 @@ struct SettingsView:View{
             if store.provider=="nilai"{Text("Leave the key blank for one-use backend delegation. Prompts go directly to nilAI; only your public key visits the backend.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))}
         }
         Button("Save securely in Keychain"){do{try store.saveSettings()}catch{store.error=error.localizedDescription}}
+        #if DEBUG
+        // Debug builds only: lets developers test premium features without an App Store purchase.
+        Section("Developer"){
+            Toggle("Treat this device as Premium",isOn:Binding(get:{store.debugPremium},set:{store.setDebugPremium($0)}))
+            Text("Debug builds only. Unlocks Research and premium reports without a purchase.").font(.footnote)
+        }
+        #endif
     }.vaultScreen().navigationTitle("Settings")}
 }
 
@@ -398,7 +432,7 @@ struct AccountView: View {
     var body: some View {
         Form {
             Section("Premium") {
-                Text(billing.premium ? "Premium is active." : "Chat and the Healthspan, Top traits and Overview reports are part of Premium. The Health report is free.")
+                Text(store.premiumActive ? "Premium is active." : "Research in Chat and the Healthspan, Top traits and Overview reports are part of Premium. Chat and the Health report are free.")
                 if !billing.passes.isEmpty{Text("Unused report passes: "+billing.passes.map{"\(names[$0.key] ?? $0.key) (\($0.value))"}.sorted().joined(separator:", "))}
                 Text("Purchases are handled by the App Store and tied to your Apple ID. Monadic DNA does not keep customer or purchase records, and no sign-in is needed.").font(.footnote)
             }

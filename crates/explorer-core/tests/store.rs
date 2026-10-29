@@ -220,3 +220,25 @@ fn report_passes_sync_without_losing_credits_or_uses() {
     assert!(call("store_pass_credit", json!({"store":a,"transactionId":"t9","reportType":"chat"})).is_err());
     for handle in [a, b] { store_close(handle); }
 }
+
+#[test]
+fn research_angles_use_results_from_similar_studies_in_order() {
+    let dir = temp("research");
+    let catalog = catalog_file(&dir, "v1");
+    let store = open(&dir, 9);
+    ok(store_import_genotype(store, DNA.as_bytes().to_vec(), "genome.txt".into()));
+    run_all(store, &catalog);
+    let angle = |accessions: Value| call("store_research_angle_prompt", json!({"store":store,"query":"Q","keyword":"heart","llmDescription":"D","accessions":accessions})).unwrap();
+    // GCST2 is more similar than GCST1, so its result comes first; unknown studies are ignored.
+    let prompt = angle(json!(["GCST9","GCST2","GCST1"]));
+    assert_eq!(prompt["resultsCount"], 3);
+    let content = prompt["messages"][0]["content"].as_str().unwrap();
+    assert!(content.find("1. Heart failure").unwrap() < content.find("2. Heart rate").unwrap(), "{content}");
+    assert_eq!(angle(json!(["GCST1"]))["resultsCount"], 2);
+    // No similar studies: fall back to the scores furthest from neutral (OR 3.0 squared first).
+    let fallback = angle(json!([]));
+    assert_eq!(fallback["resultsCount"], 3);
+    assert!(fallback["messages"][0]["content"].as_str().unwrap().contains("1. Heart failure"));
+    store_close(store);
+}
+

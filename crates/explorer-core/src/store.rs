@@ -288,6 +288,23 @@ fn use_pass(conn: &Connection, input: &Value) -> Result<Value, String> {
     Ok(json!(true))
 }
 
+/// The user's results for a chat question or research angle: those from the studies `accessions` lists, in that order
+/// (most similar first), as on the web. Without any matches, it falls back to the scores furthest
+/// from neutral, like getTopResultsByEffect in lib/results-database.ts.
+fn relevant_results(conn: &Connection, input: &Value, limit: usize) -> Result<Vec<Value>, String> {
+    let limit = limit as i64;
+    let tx = conn.unchecked_transaction().map_err(sql)?;
+    tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS angle_studies(accession TEXT PRIMARY KEY, rank INTEGER NOT NULL); DELETE FROM angle_studies;").map_err(sql)?;
+    {
+        let mut insert = tx.prepare("INSERT OR IGNORE INTO angle_studies(accession,rank) VALUES(?1,?2)").map_err(sql)?;
+        for (rank, accession) in array(&input["accessions"]).iter().filter_map(Value::as_str).enumerate() { insert.execute(params![accession, rank as i64]).map_err(sql)?; }
+    }
+    let mut found = rows(&tx, "SELECT r.row FROM results r JOIN angle_studies a ON a.accession=json_extract(r.row,'$.gwasId') ORDER BY a.rank, r.study_id LIMIT ?1", [limit])?;
+    if found.is_empty() { found = rows(&tx, "SELECT row FROM results ORDER BY abs(risk_score-1.0) DESC, study_id LIMIT ?1", [limit])?; }
+    tx.commit().map_err(sql)?;
+    Ok(found)
+}
+
 pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
     let handle = input["store"].as_u64().ok_or("Invalid store")?;
     with(handle, |store| match op {
@@ -303,6 +320,20 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
         "store_import_results" => import_results(store, input),
         "store_customization" => customization(&store.conn),
         "store_passes" => passes(&store.conn),
+        // The first question includes the user's results most relevant to it; follow-ups don't.
+        "store_chat_prompt" => {
+            let mut prompt = input.clone();
+            if crate::array(&input["history"]).is_empty() { prompt["results"] = json!(relevant_results(&store.conn, input, crate::research::CHAT_RESULTS)?); }
+            prompt["totalResults"] = json!(result_count(&store.conn)?);
+            Ok(crate::research::chat_prompt(&prompt))
+        }
+        "store_research_angle_prompt" => {
+            let results = relevant_results(&store.conn, input, crate::research::RESULTS_PER_ANGLE)?;
+            let count = results.len();
+            let mut prompt = input.clone(); prompt["results"] = json!(results);
+            let mut out = crate::research::angle_prompt(&prompt); out["resultsCount"] = json!(count);
+            Ok(out)
+        }
         "store_pass_credit" => credit_pass(&store.conn, input),
         "store_pass_use" => use_pass(&store.conn, input),
         "store_set_customization" => set_customization(store, &input["customization"]),

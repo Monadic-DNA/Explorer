@@ -17,6 +17,7 @@ mod nilai;
 mod preview;
 mod quality;
 mod reports;
+mod research;
 mod results;
 mod risk;
 mod session;
@@ -77,7 +78,8 @@ pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
                 "Top traits" => Some("top_traits"),
                 _ => None,
             };
-            Ok(json!({"allowed":kind == "Health" || premium,"reportType":report_type}))
+            // Free: the Health report and regular Chat. Premium: Research in Chat and the other reports.
+            Ok(json!({"allowed":kind == "Health" || kind == "Chat" || premium,"reportType":report_type}))
         }
         "file_hash" => Ok(json!(crypto::file_hash(input.as_str().unwrap_or("")))),
         "export_results" => Ok(json!(results::export(array(&input)))),
@@ -89,6 +91,13 @@ pub fn dispatch(operation: &str, input: Value) -> Result<Value, String> {
         "select_report" => Ok(reports::select(&input)),
         "report_rules" => Ok(reports::rules().clone()),
         "user_context" => Ok(json!(reports::context(&input))),
+        "research_keywords_prompt" => Ok(research::keywords_prompt(&input)),
+        "research_parse_keywords" => Ok(research::parse_keywords(&input)),
+        "research_angle_prompt" => Ok(research::angle_prompt(&input)),
+        "research_synthesis_prompt" => Ok(research::synthesis_prompt(&input)),
+        "research_extract" => Ok(research::extract(&input)),
+        "chat_prompt" => Ok(research::chat_prompt(&input)),
+        "llm_description" => Ok(research::description(&input)),
         "profile_schema" => Ok(reports::profile_schema()),
         "parse_profile" => reports::parse_profile(&input),
         "preview_category" => Ok(preview::classify(&input)),
