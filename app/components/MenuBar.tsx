@@ -13,7 +13,6 @@ import { DNAIcon, FolderIcon, MicroscopeIcon, SparklesIcon, CacheIcon, HelpCircl
 import GuidedTour, { hasCompletedTour } from "./GuidedTour";
 import { menuBarTour } from "./tours/tourContent";
 import { getLLMConfig, getProviderDisplayName } from "@/lib/llm-config";
-import NillionModal from "./NillionModal";
 import DisclaimerModal from "./DisclaimerModal";
 import RunAllModal from "./RunAllModal";
 import SaveToDeviceButton from "./SaveToDeviceButton";
@@ -54,7 +53,6 @@ export default function MenuBar() {
   const [showResultsDropdown, setShowResultsDropdown] = useState(false);
   const [showCacheDropdown, setShowCacheDropdown] = useState(false);
   const [showHelpDropdown, setShowHelpDropdown] = useState(false);
-  const [showNillionModal, setShowNillionModal] = useState(false);
   const [showRunAllDisclaimer, setShowRunAllDisclaimer] = useState(false);
   const [showRunAllModal, setShowRunAllModal] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
@@ -400,10 +398,6 @@ export default function MenuBar() {
 
           router.push("/?onboarding=1");
         }}
-      />
-      <NillionModal
-        isOpen={showNillionModal}
-        onClose={() => setShowNillionModal(false)}
       />
       <DisclaimerModal
         isOpen={showRunAllDisclaimer}
