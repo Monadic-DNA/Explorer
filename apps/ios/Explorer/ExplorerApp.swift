@@ -455,22 +455,27 @@ struct ChatView:View{
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
         // The raw model identifier lives in Settings; consumers need the provider name only.
-        HStack{Text("Provider: \(providerName)").font(.footnote);Spacer();NavigationLink("Change"){SettingsView()}}.padding(.horizontal)
-        // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
-        if !store.messages.isEmpty{
-            HStack(spacing:12){
-                Button{sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}label:{Label("Share PDF",systemImage:"square.and.arrow.up")}.buttonStyle(.bordered)
-                Button{chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}label:{Label("Save as PDF",systemImage:"square.and.arrow.down")}}.buttonStyle(.bordered)
-            }.padding(.horizontal)
-            .sheet(isPresented:Binding(get:{chatExportURL != nil},set:{if !$0{chatExportURL=nil}})){if let url=chatExportURL{DocumentExporter(url:url)}}
-        }
-        ProviderConsent().padding(.horizontal)
-        if store.messages.isEmpty{
-            Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary).padding(.horizontal)
-            if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}.padding(.horizontal)}
-            if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize).padding(.horizontal)}
-        }
+        HStack{
+            Text("Provider: \(providerName)").font(.footnote)
+            NavigationLink("Change"){SettingsView()}.font(.footnote)
+            Spacer()
+            // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
+            if !store.messages.isEmpty{
+                Button("Share PDF"){sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}.font(.footnote)
+                Button("Save"){chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}.font(.footnote)
+            }
+        }.padding(.horizontal)
+        .sheet(isPresented:Binding(get:{chatExportURL != nil},set:{if !$0{chatExportURL=nil}})){if let url=chatExportURL{DocumentExporter(url:url)}}
+        // Consent collapses to a single line once granted; the full toggle remains the gate while it is off.
+        if store.shareResultsWithLLM{HStack{Text("Sharing matched results with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}.padding(.horizontal)}
+        else{ProviderConsent().padding(.horizontal)}
+        // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
         List{
+            if store.messages.isEmpty{
+                Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary)
+                if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
+                if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize)}
+            }
             ForEach(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){
                 Text(item.element.0=="user" ? "You" : "Explorer").font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)
                 // The angles a Research answer looked at, collapsed by default as on the web.
@@ -478,10 +483,10 @@ struct ChatView:View{
             }}
             if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
         }
-        // The composer stays disabled until sharing is allowed, matching the intro's instruction.
-        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder).disabled(!store.shareResultsWithLLM);Button("Send"){store.sendChat(message){message=""}}.disabled(store.busy||!store.shareResultsWithLLM||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
-            // Research is the premium Chat feature; regular chat is free.
-            Button(store.premiumActive ? "Research" : "Research • Premium"){store.research(message){message=""}}.buttonStyle(.bordered).disabled(store.busy||!store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding()
+        // Standard chat composer: growing field with an inline send button, disabled until sharing is allowed.
+        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder).disabled(!store.shareResultsWithLLM);Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy||!store.shareResultsWithLLM||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal)
+        // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
+        HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy||!store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)
     }.vaultScreen().navigationTitle("Chat")
     // A question started on Home arrives as a draft.
     .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}

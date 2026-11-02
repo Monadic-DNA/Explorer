@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -281,41 +282,47 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 @Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit,savePdf: (String,String)->Unit){
     var message by remember{mutableStateOf(model.chatDraft)}
     LaunchedEffect(Unit){model.chatDraft=""}
-    Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+    Column(Modifier.fillMaxSize().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
-        // The raw model identifier lives in Settings; consumers need the provider name only.
-        Row(verticalAlignment=Alignment.CenterVertically){Text("Provider: $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);TextButton(onClick=openSettings){Text("Change")}}
-        // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
-        if(model.messages.isNotEmpty()){
-            val context=LocalContext.current
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                OutlinedButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))}){Text("Share PDF")}
-                OutlinedButton(onClick={savePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))}){Text("Save as PDF")}
+        // One compact row: provider on the left, transcript actions on the right once a conversation exists.
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+            Text("Provider: $providerName",style=MaterialTheme.typography.bodySmall)
+            TextButton(onClick=openSettings,contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Change",style=MaterialTheme.typography.bodySmall)}
+            Spacer(Modifier.weight(1f))
+            if(model.messages.isNotEmpty()){
+                val context=LocalContext.current
+                TextButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Share PDF",style=MaterialTheme.typography.bodySmall)}
+                TextButton(onClick={savePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Save",style=MaterialTheme.typography.bodySmall)}
             }
         }
-        Consent(model)
-        // While an access requirement is shown, it takes the place of the intro so its button stays visible.
-        if(model.messages.isEmpty()&&model.accessNeeded==null){
-            Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)
-            if((model.resultCount>0))CHAT_SUGGESTIONS.forEach{SuggestionChip(onClick={message=it},label={Text(it)})}
-            if((model.resultCount>0)&&!model.personalized)TextButton(onClick=personalize){Text("Personalize answers")}
-        }
+        // Consent collapses to a single line once granted; the full checkbox remains the gate while it is off.
+        if(model.shareResultsWithLLM)Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+            Text("Sharing matched results with $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+            TextButton(onClick={model.shareResultsWithLLM=false},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Revoke",style=MaterialTheme.typography.bodySmall)}
+        } else Consent(model)
+        // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){
+            // While an access requirement is shown, it takes the place of the intro so its button stays visible.
+            if(model.messages.isEmpty()&&model.accessNeeded==null){
+                item{Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)}
+                if((model.resultCount>0))items(CHAT_SUGGESTIONS){suggestion->SuggestionChip(onClick={message=suggestion},label={Text(suggestion)})}
+                if((model.resultCount>0)&&!model.personalized)item{TextButton(onClick=personalize){Text("Personalize answers")}}
+            }
             itemsIndexed(model.messages.toList()){index,(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){
                 Text(if(role=="user")"You" else "Explorer",fontWeight=FontWeight.Bold);if(role=="user")Text(text) else MarkdownText(text)
                 model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
             }}}
             if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
         }
-        // The composer stays disabled until sharing is allowed, matching the intro's instruction.
-        OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM,label={Text("Ask about your matched findings")},modifier=Modifier.fillMaxWidth())
         AccessNeeded(model,openAccount)
+        // Standard chat composer: growing field with an inline send button, disabled until sharing is allowed.
         Row(verticalAlignment=Alignment.CenterVertically){
-            Button(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.shareResultsWithLLM){Text("Send")}
+            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM,label={Text("Ask about your findings")},maxLines=3,modifier=Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
-            // Research is the premium Chat feature; regular chat is free.
-            OutlinedButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM){Text(if(model.premiumActive)"Research" else "Research • Premium")}
+            FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
         }
+        // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
+        TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End),contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.bodySmall)}
     }
 }
 // Fresh reports open in a full sheet; the inline copy on the Reports tab remains for revisiting.
