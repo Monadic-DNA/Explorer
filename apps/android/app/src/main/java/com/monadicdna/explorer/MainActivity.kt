@@ -3,11 +3,17 @@ package com.monadicdna.explorer
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.print.PrintAttributes
+import android.print.PrintManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,8 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -82,6 +97,10 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         model.importResultsData(content,name)
     }}
     fun exportText(name: String, content: String){exportContent=content;model.pickingFile=true;export.launch(name)}
+    // "Save as PDF": render silently, then the system save-to-files picker places the file.
+    var pendingPdf by remember{mutableStateOf<java.io.File?>(null)}
+    val exportPdf=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")){uri->model.pickingFile=false;val pending=pendingPdf;pendingPdf=null;if(uri!=null&&pending!=null)model.run("Saving PDF"){kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.contentResolver.openOutputStream(uri)!!.use{out->pending.inputStream().use{it.copyTo(out)}}};model.notice="PDF saved."}}
+    fun savePdf(title: String, html: String){model.pickingFile=true;renderPdf(context,title,html){file->if(file!=null){pendingPdf=file;exportPdf.launch(title.replace(Regex("[^A-Za-z0-9]+"),"-").trim('-')+".pdf")}else{model.pickingFile=false;model.error="Unable to create the PDF."}}}
     fun selectTab(name: String){tab=name;model.error=null;model.notice=null;model.dismissAccessNeeded()}
     val tabs=listOf("Home","Chat","Reports","You","More")
     // Screens opened from More return there; other tabs return Home before Back leaves the app.
@@ -109,7 +128,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 "You"->YouScreen(model,{selectTab("Home");if(model.personalized)model.notice="Saved. Chat and reports will use what you told us about yourself."}){selectTab("Vault")}
                 "Browse"->BrowseScreen(model)
                 "Results"->ResultsScreen(model,{selectTab("Vault")},{name,content->exportText(name,content)},{model.pickingFile=true;importResults.launch(arrayOf("text/*","application/json","application/octet-stream"))})
-                "Chat"->ChatScreen(model,{selectTab("Settings")},{selectTab("You")}){selectTab("Account")}
+                "Chat"->ChatScreen(model,{selectTab("Settings")},{selectTab("You")},{selectTab("Account")}){title,html->savePdf(title,html)}
                 "Reports"->ReportScreen(model,{selectTab("Chat")},{selectTab("Account")}){exportText("monadic-report.md",model.report)}
                 "Vault"->VaultScreen(model){model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}
                 "Settings"->SettingsScreen(model)
@@ -119,6 +138,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
         }
     }
     if(model.selectedStudy!=null) ModalBottomSheet(onDismissRequest={model.selectedStudy=null;model.commentary=""}){Column(Modifier.navigationBarsPadding()){Messages(model);StudyScreen(model,model.selectedStudy!!)}}
+    if(model.reportSheetOpen&&model.report.isNotEmpty())ReportSheet(model,{selectTab("Chat")}){title,html->savePdf(title,html)}
 }
 
 @Composable private fun Messages(model: ExplorerModel){
@@ -129,6 +149,20 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 
 // M3 chip borders ignore the theme outline and render dark; Vault borders are always the soft token.
 @Composable private fun vaultChipBorder()=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outline)
+
+/** One-time explicit agreement with tappable full policy documents; agreeing covers the educational-use note. */
+@Composable private fun TermsAgreement(onAgree: ()->Unit){
+    Text("This app shares educational research findings, not medical advice.",style=MaterialTheme.typography.bodySmall)
+    val link=SpanStyle(color=MaterialTheme.colorScheme.primary)
+    Text(buildAnnotatedString{
+        append("By continuing you agree to the ")
+        withLink(LinkAnnotation.Url("https://github.com/Monadic-DNA/Explorer/blob/main/terms_and_conditions.md")){withStyle(link){append("Terms of Service")}}
+        append(" and ")
+        withLink(LinkAnnotation.Url("https://github.com/Monadic-DNA/Explorer/blob/main/privacy_policy.md")){withStyle(link){append("Privacy Policy")}}
+        append(".")
+    },style=MaterialTheme.typography.bodySmall)
+    Button(onClick=onAgree){Text("Agree and continue")}
+}
 
 // The whole row toggles the checkbox, so the label is a tap target too.
 @Composable private fun CheckRow(checked: Boolean, onChange: (Boolean)->Unit, label: String, small: Boolean=true){
@@ -244,13 +278,21 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         Button(onClick=openAccount){Text("See Premium options")}
     }}
 }
-@Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit){
+@Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit,savePdf: (String,String)->Unit){
     var message by remember{mutableStateOf(model.chatDraft)}
     LaunchedEffect(Unit){model.chatDraft=""}
     Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
         // The raw model identifier lives in Settings; consumers need the provider name only.
         Row(verticalAlignment=Alignment.CenterVertically){Text("Provider: $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall);TextButton(onClick=openSettings){Text("Change")}}
+        // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
+        if(model.messages.isNotEmpty()){
+            val context=LocalContext.current
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                OutlinedButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))}){Text("Share PDF")}
+                OutlinedButton(onClick={savePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))}){Text("Save as PDF")}
+            }
+        }
         Consent(model)
         // While an access requirement is shown, it takes the place of the intro so its button stays visible.
         if(model.messages.isEmpty()&&model.accessNeeded==null){
@@ -276,6 +318,107 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         }
     }
 }
+// Fresh reports open in a full sheet; the inline copy on the Reports tab remains for revisiting.
+@Composable private fun ReportSheet(model: ExplorerModel, openChat: ()->Unit, savePdf: (String,String)->Unit){
+    val context=LocalContext.current
+    Dialog(onDismissRequest={model.reportSheetOpen=false},properties=DialogProperties(usePlatformDefaultWidth=false)){
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState()).padding(24.dp).navigationBarsPadding(),verticalArrangement=Arrangement.spacedBy(14.dp)){
+            Column(Modifier.fillMaxWidth().background(VaultColors.darkMain,androidx.compose.foundation.shape.RoundedCornerShape(24.dp)).padding(24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(10.dp)){
+                Image(painterResource(R.drawable.vault_brand_mark),contentDescription=null,modifier=Modifier.size(40.dp))
+                Text(model.reportTitle,color=androidx.compose.ui.graphics.Color.White,fontFamily=Garamond,fontSize=30.sp,textAlign=TextAlign.Center)
+                Text("Monadic DNA Explorer",color=androidx.compose.ui.graphics.Color.White.copy(alpha=0.7f),style=MaterialTheme.typography.labelMedium)
+            }
+            MarkdownText(model.report)
+            if(model.reportQuestions.isNotEmpty()){
+                Text("Ask a follow-up",style=MaterialTheme.typography.titleMedium)
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){model.reportQuestions.forEach{question->SuggestionChip(onClick={model.chatDraft=question;model.reportSheetOpen=false;openChat()},label={Text(question)})}}
+            }
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                Button(onClick={sharePdf(context,model.reportTitle,reportHtml(model.reportTitle,model.report))}){Text("Share PDF")}
+                OutlinedButton(onClick={savePdf(model.reportTitle,reportHtml(model.reportTitle,model.report))}){Text("Save as PDF")}
+                TextButton(onClick={model.reportSheetOpen=false}){Text("Close")}
+            }
+        }
+    }
+}
+
+/** The conversation as markdown, labeled by speaker, for share and PDF export. */
+private fun chatTranscript(model: ExplorerModel)=buildString{
+    model.messages.forEach{(role,text)->append(if(role=="user")"**You:** " else "**Explorer:** ");append(text);append("\n\n")}
+}.trim()
+
+/** Renders the print HTML into a real PDF silently. The WebView only renders when attached to a window, so it is parked offscreen in the activity, drawn page by page, then removed. */
+private fun renderPdf(context: android.content.Context, title: String, html: String, done: (java.io.File?)->Unit){
+    val activity=context as? android.app.Activity ?: run{done(null);return}
+    val root=activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+    val name=title.replace(Regex("[^A-Za-z0-9]+"),"-").trim('-').ifBlank{"monadic-report"}
+    val out=java.io.File(java.io.File(context.cacheDir,"reports").apply{mkdirs()},"$name.pdf")
+    val view=WebView(context)
+    val pageW=794;val pageH=1123 // A4 at 96dpi
+    view.translationX=-(pageW*3f)
+    root.addView(view,pageW,pageH)
+    fun cleanup(result: java.io.File?){root.removeView(view);done(result)}
+    view.webViewClient=object: WebViewClient(){
+        override fun onPageFinished(web: WebView, url: String){
+            // Drawing right after load yields a blank page; the renderer needs a beat after onPageFinished.
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            try {
+                web.measure(android.view.View.MeasureSpec.makeMeasureSpec(pageW,android.view.View.MeasureSpec.EXACTLY),android.view.View.MeasureSpec.makeMeasureSpec(0,android.view.View.MeasureSpec.UNSPECIFIED))
+                web.layout(0,0,pageW,web.measuredHeight)
+                if(BuildConfig.DEBUG)android.util.Log.d("PDF","render $name: contentHeight=${web.measuredHeight}")
+                if(web.measuredHeight<pageH/2){cleanup(null);return@postDelayed}
+                val pages=maxOf(1,Math.ceil(web.measuredHeight.toDouble()/pageH).toInt())
+                val doc=android.graphics.pdf.PdfDocument()
+                for(p in 0 until pages){
+                    val page=doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(pageW,pageH,p+1).create())
+                    page.canvas.save();page.canvas.translate(0f,-(p*pageH).toFloat());web.draw(page.canvas);page.canvas.restore()
+                    doc.finishPage(page)
+                }
+                java.io.FileOutputStream(out).use{doc.writeTo(it)};doc.close()
+                cleanup(out)
+            } catch(e: Exception){cleanup(null)}
+            },600)
+        }
+    }
+    view.loadDataWithBaseURL(null,html,"text/html","UTF-8",null)
+}
+
+/** Shares the actual PDF through the native sheet. */
+private fun sharePdf(context: android.content.Context, title: String, html: String){
+    renderPdf(context,title,html){file->
+        if(file==null)return@renderPdf
+        val uri=androidx.core.content.FileProvider.getUriForFile(context,"com.monadicdna.explorer.fileprovider",file)
+        val send=Intent(Intent.ACTION_SEND).setType("application/pdf").putExtra(Intent.EXTRA_SUBJECT,title).putExtra(Intent.EXTRA_STREAM,uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(send,"Share PDF"))
+    }
+}
+
+/** Small markdown-to-HTML pass for the print view: headings, bold, bullets, paragraphs. */
+private fun reportHtml(title: String, markdown: String): String{
+    fun esc(s: String)=s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    fun inline(s: String)=esc(s).replace(Regex("\\*\\*([^*]+)\\*\\*"),"<strong>$1</strong>")
+    val body=StringBuilder()
+    var inList=false
+    for(line in markdown.lines()){
+        val trimmed=line.trim()
+        if(trimmed.startsWith("- ")||trimmed.startsWith("• ")){if(!inList){body.append("<ul>");inList=true};body.append("<li>${inline(trimmed.drop(2))}</li>")}
+        else{if(inList){body.append("</ul>");inList=false}
+            when{
+                trimmed.startsWith("#### ")->body.append("<h4>${inline(trimmed.drop(5))}</h4>")
+                trimmed.startsWith("### ")->body.append("<h3>${inline(trimmed.drop(4))}</h3>")
+                trimmed.startsWith("## ")->body.append("<h2>${inline(trimmed.drop(3))}</h2>")
+                trimmed.startsWith("# ")->body.append("<h2>${inline(trimmed.drop(2))}</h2>")
+                trimmed.isNotEmpty()->body.append("<p>${inline(trimmed)}</p>")
+            }}
+    }
+    if(inList)body.append("</ul>")
+    return """<html><head><meta charset="utf-8"><style>
+        body{font-family:sans-serif;margin:32px;color:#222;line-height:1.55}
+        h1{font-family:Georgia,serif;font-weight:500} h2{margin-top:24px} h3{margin-top:18px}
+        .brand{text-align:center;color:#666;font-size:12px;margin-top:40px}
+        </style></head><body><h1>${esc(title)}</h1>$body<p class="brand">Monadic DNA Explorer &middot; educational research findings, not a diagnosis</p></body></html>"""
+}
+
 @Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,openAccount: ()->Unit,export: ()->Unit){ScreenColumn{
     Text("Reports",style=MaterialTheme.typography.headlineMedium)
     Text(if((model.resultCount==0))"Reports summarize your research matches. Add your DNA file on Home first." else "Each report reads your ${model.resultCount.grouped()} research matches${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
@@ -284,7 +427,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     AccessNeeded(model,openAccount)
     if(model.report.isNotEmpty()){
         Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);MarkdownText(model.report)
-        Button(onClick=export){Text("Export report")}
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={model.reportSheetOpen=true}){Text("Open report")};OutlinedButton(onClick=export){Text("Export markdown")}}
         if(model.reportQuestions.isNotEmpty())Text("Ask a follow-up",style=MaterialTheme.typography.titleMedium)
         model.reportQuestions.forEach{question->SuggestionChip(onClick={model.chatDraft=question;openChat()},label={Text(question)})}
     }
@@ -297,9 +440,8 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         Text("Private on-device data",style=MaterialTheme.typography.headlineMedium)
         Text("Your DNA, results and personalization are kept in an encrypted database on this device. Unlocking needs your device authentication, and locking closes it.")
         Text(if(model.dataUnlocked)"Key protection: ${model.dataVault.protection}" else "Locked. Your data stays encrypted until you unlock it.",style=MaterialTheme.typography.bodySmall)
-        CheckRow(model.acceptedDisclaimer,{model.acceptedDisclaimer=it},"I understand this is educational research, not medical advice.")
-        Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=model.acceptedDisclaimer&&!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
-        if(!model.acceptedDisclaimer)Text("Tick the box above to enable import.",style=MaterialTheme.typography.bodySmall)
+        if(!model.acceptedDisclaimer)TermsAgreement(onAgree=model::acceptTerms)
+        else Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
         if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}
         Text("Sync across your devices",style=MaterialTheme.typography.titleLarge)
@@ -437,8 +579,8 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                 }
                 else {
                     Text("Raw data from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome or Monadic DNA. It never leaves this device.",style=MaterialTheme.typography.bodySmall)
-                    CheckRow(model.acceptedDisclaimer,{model.acceptedDisclaimer=it},"I understand this is educational research, not medical advice.")
-                    Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=model.acceptedDisclaimer&&!model.busy){Text("Choose DNA file")}
+                    if(!model.acceptedDisclaimer)TermsAgreement(onAgree=model::acceptTerms)
+                    else Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=!model.busy){Text("Choose DNA file")}
                 }
             }
             // Right after the match count lands, offer the fastest payoff before asking for profile details.

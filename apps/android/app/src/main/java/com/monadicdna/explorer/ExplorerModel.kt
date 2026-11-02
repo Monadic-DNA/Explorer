@@ -59,7 +59,9 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     var pickingFile=false
     var report by mutableStateOf("")
     var reportTitle by mutableStateOf("")
-    var reportQuestions by mutableStateOf(emptyList<String>())
+    var reportQuestions by mutableStateOf<List<String>>(emptyList())
+    /** Set when a fresh report completes, so the app presents it in the report sheet. */
+    var reportSheetOpen by mutableStateOf(false)
     var shareResultsWithLLM by mutableStateOf(false)
     /** Set to "premium" when Chat or a report needs Premium or a pass. Cleared by the next operation. */
     var accessNeeded by mutableStateOf<String?>(null)
@@ -71,7 +73,10 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         private set
     fun skipPersonalization(){store.put("personalize-skipped","true");personalizeSkipped=true}
     val personalized get()=profile.isNotBlank()||profileFields.values.any{it.isNotBlank()}
-    var acceptedDisclaimer by mutableStateOf(false)
+    /** Agreeing to the Terms of Service and Privacy Policy (which cover educational use) enables import. Persisted so it is asked once. */
+    var acceptedDisclaimer by mutableStateOf(store.get("terms-accepted")=="v1")
+        private set
+    fun acceptTerms(){store.put("terms-accepted","v1");acceptedDisclaimer=true}
     val messages = mutableStateListOf<Pair<String, String>>()
     /** For Research replies, keyed by message index: each angle researched and how many results it used. */
     val researchAngles = mutableStateMapOf<Int, List<Pair<String,Int>>>()
@@ -523,7 +528,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         if(kind!="Overview") {
             val prompt=reportPrompt(kind)
             val parsed=Core.obj("extract_report",complete(prompt))
-            reportTitle=kind;report=parsed.getString("report")
+            reportTitle="$kind report";report=parsed.getString("report");reportSheetOpen=true
             reportQuestions=(0 until parsed.getJSONArray("questions").length()).map{parsed.getJSONArray("questions").getString(it)}
             pass?.let{billing.consumePass(it)}
             return@run
@@ -538,9 +543,9 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             val prompt=Core.call("render_prompt",json("name" to "generateMapPrompt","values" to json("groupNumber" to (i+1),"totalGroups" to groups.length(),"resultsInGroup" to batch.getInt("count"),"totalResults" to resultCount,"compactResults" to batch.getString("text"),"userContext" to userContext))) as String
             summaries.add(complete(JSONArray().put(json("role" to "user","content" to prompt))))
         }
-        reportTitle=kind
+        reportTitle="$kind report"
         val reduce=Core.call("render_prompt",json("name" to "generateReducePrompt","values" to json("groupSummaries" to JSONArray(summaries),"userContext" to userContext))) as String
-        report=complete(JSONArray().put(json("role" to "user","content" to reduce)))
+        report=complete(JSONArray().put(json("role" to "user","content" to reduce)));reportSheetOpen=true
         // A pass is used only once the report exists, so a failed run keeps it.
         pass?.let{billing.consumePass(it)}
     }

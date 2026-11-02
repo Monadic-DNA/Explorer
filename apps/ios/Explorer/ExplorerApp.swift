@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 @main struct ExplorerApp: App {
@@ -76,6 +77,8 @@ struct ExplorerView: View {
             }
         }
         .sheet(item:$store.selectedStudy){record in NavigationStack{StudyView(record:record).toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){store.selectedStudy=nil}}}}.modifier(ExplorerMessages()).environmentObject(store)}
+        // Fresh reports open full-screen; the inline copy on the Reports tab remains for revisiting.
+        .fullScreenCover(isPresented:$store.reportSheetOpen){ReportSheet(go:{selectedTab=1}).environmentObject(store)}
         .modifier(ExplorerMessages(openAccount:{store.selectedStudy=nil;selectedTab=4;showAccount=true}))
         .fileImporter(isPresented:$importing,allowedContentTypes:[.data]){result in
             switch result{
@@ -138,8 +141,8 @@ struct HomeView<Results:View>:View{
                     if store.resultCount==0 && !store.busy{Button("Find research matches",action:store.runAll).buttonStyle(.borderedProminent).buttonBorderShape(.capsule)}
                 } else {
                     Text("Raw data from 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome or Monadic DNA. It never leaves this device.").font(.footnote)
-                    Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer).font(.footnote)
-                    Button("Choose DNA file",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!store.acceptedDisclaimer||store.busy)
+                    if !store.acceptedDisclaimer{TermsAgreement(onAgree:store.acceptTerms)}
+                    else{Button("Choose DNA file",action:importDNA).buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)}
                 }
             }
             // Right after the match count lands, offer the fastest payoff before asking for profile details.
@@ -160,6 +163,98 @@ struct HomeView<Results:View>:View{
         }
         Text("Associations are not diagnoses or individual health predictions. Odds ratios are relative, not absolute risk; beta values describe trait changes.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote)).foregroundStyle(.secondary)
     }.padding()}.vaultScreen().navigationTitle("Explorer").navigationBarTitleDisplayMode(.inline)}
+}
+
+/// A finished report presented as a document, with native share and the system print/PDF flow.
+struct ReportSheet:View{
+    @EnvironmentObject var store:ExplorerStore
+    var go:(Int)->Void={_ in}
+    @State private var exportURL:URL?=nil
+    var body:some View{
+        NavigationStack{ScrollView{VStack(alignment:.leading,spacing:16){
+            VStack(spacing:10){
+                Image("vault_brand_mark").resizable().scaledToFit().frame(height:40).accessibilityHidden(true)
+                Text(store.reportTitle).font(VaultStyle.heading(30)).multilineTextAlignment(.center)
+                Text("Monadic DNA Explorer").font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption)).opacity(0.7)
+            }.frame(maxWidth:.infinity).padding(24).foregroundStyle(.white).background(VaultStyle.ink,in:RoundedRectangle(cornerRadius:24))
+            Text(.init(store.report))
+            if !store.reportQuestions.isEmpty{
+                Text("Ask a follow-up").font(.headline)
+                ForEach(store.reportQuestions,id:\.self){question in Button(question){store.chatDraft=question;store.reportSheetOpen=false;go(1)}.buttonStyle(.bordered).tint(VaultStyle.accent)}
+            }
+            HStack(spacing:12){
+                Button{sharePdf(store.reportTitle,reportHtml(store.reportTitle,store.report))}label:{Label("Share PDF",systemImage:"square.and.arrow.up")}.buttonStyle(.borderedProminent)
+                Button{exportURL=writePdf(store.reportTitle,reportHtml(store.reportTitle,store.report))}label:{Label("Save as PDF",systemImage:"square.and.arrow.down")}.buttonStyle(.bordered)
+            }
+        }.padding()}.vaultScreen().navigationTitle("Report").navigationBarTitleDisplayMode(.inline).toolbar{ToolbarItem(placement:.confirmationAction){Button("Close"){store.reportSheetOpen=false}}}
+        .sheet(isPresented:Binding(get:{exportURL != nil},set:{if !$0{exportURL=nil}})){if let url=exportURL{DocumentExporter(url:url)}}}
+    }
+}
+
+/// The conversation as markdown, labeled by speaker, for share and PDF export.
+func chatTranscript(_ store:ExplorerStore)->String{store.messages.map{($0.0=="user" ? "**You:** " : "**Explorer:** ")+$0.1}.joined(separator:"\n\n")}
+
+/// Renders the print HTML into a real PDF file in the temp directory, no print dialog.
+func writePdf(_ title:String,_ html:String)->URL?{
+    let formatter=UIMarkupTextPrintFormatter(markupText:html)
+    let renderer=UIPrintPageRenderer();renderer.addPrintFormatter(formatter,startingAtPageAt:0)
+    let paper=CGRect(x:0,y:0,width:595,height:842) // A4 at 72dpi
+    renderer.setValue(paper,forKey:"paperRect")
+    renderer.setValue(paper.insetBy(dx:36,dy:36),forKey:"printableRect")
+    let data=NSMutableData()
+    UIGraphicsBeginPDFContextToData(data,paper,nil)
+    for page in 0..<renderer.numberOfPages{UIGraphicsBeginPDFPage();renderer.drawPage(at:page,in:paper)}
+    UIGraphicsEndPDFContext()
+    let name=title.replacingOccurrences(of:"[^A-Za-z0-9]+",with:"-",options:.regularExpression).trimmingCharacters(in:CharacterSet(charactersIn:"-"))
+    let url=FileManager.default.temporaryDirectory.appendingPathComponent((name.isEmpty ? "monadic-report" : name)+".pdf")
+    do{try data.write(to:url);return url}catch{return nil}
+}
+
+/// Shares the actual PDF file through the native sheet, presented from whatever screen is up.
+func sharePdf(_ title:String,_ html:String){
+    guard let url=writePdf(title,html) else{return}
+    let sheet=UIActivityViewController(activityItems:[url],applicationActivities:nil)
+    var top=UIApplication.shared.connectedScenes.compactMap{($0 as? UIWindowScene)?.keyWindow}.first?.rootViewController
+    while let next=top?.presentedViewController{top=next}
+    top?.present(sheet,animated:true)
+}
+
+/// The system save-to-files picker for an already-generated file.
+struct DocumentExporter:UIViewControllerRepresentable{
+    let url:URL
+    func makeUIViewController(context:Context)->UIDocumentPickerViewController{UIDocumentPickerViewController(forExporting:[url],asCopy:true)}
+    func updateUIViewController(_ controller:UIDocumentPickerViewController,context:Context){}
+}
+
+/// Small markdown-to-HTML pass for the print view: headings, bold, bullets, paragraphs.
+func reportHtml(_ title:String,_ markdown:String)->String{
+    func esc(_ s:String)->String{s.replacingOccurrences(of:"&",with:"&amp;").replacingOccurrences(of:"<",with:"&lt;").replacingOccurrences(of:">",with:"&gt;")}
+    func inline(_ s:String)->String{esc(s).replacingOccurrences(of:"\\*\\*([^*]+)\\*\\*",with:"<strong>$1</strong>",options:.regularExpression)}
+    var body="";var inList=false
+    for line in markdown.components(separatedBy:"\n"){
+        let trimmed=line.trimmingCharacters(in:.whitespaces)
+        if trimmed.hasPrefix("- ")||trimmed.hasPrefix("• "){if !inList{body+="<ul>";inList=true};body+="<li>\(inline(String(trimmed.dropFirst(2))))</li>"}
+        else{if inList{body+="</ul>";inList=false}
+            if trimmed.hasPrefix("#### "){body+="<h4>\(inline(String(trimmed.dropFirst(5))))</h4>"}
+            else if trimmed.hasPrefix("### "){body+="<h3>\(inline(String(trimmed.dropFirst(4))))</h3>"}
+            else if trimmed.hasPrefix("## "){body+="<h2>\(inline(String(trimmed.dropFirst(3))))</h2>"}
+            else if trimmed.hasPrefix("# "){body+="<h2>\(inline(String(trimmed.dropFirst(2))))</h2>"}
+            else if !trimmed.isEmpty{body+="<p>\(inline(trimmed))</p>"}}
+    }
+    if inList{body+="</ul>"}
+    return "<html><head><meta charset=\"utf-8\"><style>body{font-family:-apple-system,sans-serif;margin:32px;color:#222;line-height:1.55}h1{font-family:Georgia,serif;font-weight:500}h2{margin-top:24px}h3{margin-top:18px}.brand{text-align:center;color:#666;font-size:12px;margin-top:40px}</style></head><body><h1>\(esc(title))</h1>\(body)<p class=\"brand\">Monadic DNA Explorer &middot; educational research findings, not a diagnosis</p></body></html>"
+}
+
+/// One-time explicit agreement with tappable full policy documents; agreeing covers the educational-use note.
+struct TermsAgreement:View{
+    var onAgree:()->Void
+    var body:some View{
+        VStack(alignment:.leading,spacing:10){
+            Text("This app shares educational research findings, not medical advice.").font(.footnote)
+            Text(.init("By continuing you agree to the [Terms of Service](https://github.com/Monadic-DNA/Explorer/blob/main/terms_and_conditions.md) and [Privacy Policy](https://github.com/Monadic-DNA/Explorer/blob/main/privacy_policy.md).")).font(.footnote).tint(VaultStyle.accent)
+            Button("Agree and continue",action:onAgree).buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
+        }
+    }
 }
 
 /// Vault's StarLoaderView: colored stars spin and pulse around the brand mark while the app works.
@@ -356,10 +451,19 @@ struct ChatView:View{
     @EnvironmentObject var store:ExplorerStore
     var personalize:()->Void
     @State private var message=""
+    @State private var chatExportURL:URL?=nil
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
         // The raw model identifier lives in Settings; consumers need the provider name only.
         HStack{Text("Provider: \(providerName)").font(.footnote);Spacer();NavigationLink("Change"){SettingsView()}}.padding(.horizontal)
+        // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
+        if !store.messages.isEmpty{
+            HStack(spacing:12){
+                Button{sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}label:{Label("Share PDF",systemImage:"square.and.arrow.up")}.buttonStyle(.bordered)
+                Button{chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}label:{Label("Save as PDF",systemImage:"square.and.arrow.down")}}.buttonStyle(.bordered)
+            }.padding(.horizontal)
+            .sheet(isPresented:Binding(get:{chatExportURL != nil},set:{if !$0{chatExportURL=nil}})){if let url=chatExportURL{DocumentExporter(url:url)}}
+        }
         ProviderConsent().padding(.horizontal)
         if store.messages.isEmpty{
             Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary).padding(.horizontal)
@@ -394,6 +498,7 @@ struct ReportsView:View{
             if !store.report.isEmpty {
                 Section(store.reportTitle) {
                     Text(.init(store.report)).textSelection(.enabled)
+                    Button("Open report"){store.reportSheetOpen=true}
                     Button("Export Markdown report") { export("monadic-report.md", store.report) }
                 }
             }
@@ -447,9 +552,8 @@ struct VaultView:View{
         Section("On-device genetic data"){
             Text("Your DNA, results and personalization are kept in an encrypted database on this device. Unlocking needs your device authentication, and locking closes it.")
             Text(store.dataUnlocked ? "Key protection: \(store.protection)" : "Locked. Your data stays encrypted until you unlock it.").font(.footnote)
-            Toggle("I understand this is educational research, not medical advice.",isOn:$store.acceptedDisclaimer)
-            Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(!store.acceptedDisclaimer||store.busy)
-            if !store.acceptedDisclaimer{Text("Turn on the switch above to enable import.").font(.footnote).foregroundStyle(.secondary)}
+            if !store.acceptedDisclaimer{TermsAgreement(onAgree:store.acceptTerms)}
+            else{Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(store.busy)}
             Button(store.dataUnlocked ? "Lock data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
         Section("Sync across your devices"){

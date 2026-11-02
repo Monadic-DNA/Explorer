@@ -39,12 +39,16 @@ import UIKit
     @Published var report=""
     @Published var reportTitle=""
     @Published var reportQuestions:[String]=[]
+    /// Set when a fresh report completes, so the app presents it in the report sheet.
+    @Published var reportSheetOpen=false
     @Published var messages:[(String,String)]=[]
     /// For Research replies, keyed by message index: each angle researched and how many results it used.
     @Published var researchAngles:[Int:[(String,Int)]]=[:]
     /// Follow-up questions suggested by the latest reply.
     @Published var chatFollowups:[String]=[]
-    @Published var acceptedDisclaimer=false
+    /// Agreeing to the Terms of Service and Privacy Policy (which cover educational use) enables import. Persisted so it is asked once.
+    @Published var acceptedDisclaimer=DeviceStore.get("terms-accepted")=="v1"
+    func acceptTerms(){try? DeviceStore.put("terms-accepted","v1");acceptedDisclaimer=true}
     @Published var shareResultsWithLLM=false
     private var task:Task<Void,Never>?
     let billing = StoreBilling()
@@ -492,7 +496,7 @@ import UIKit
         if kind != "Overview" {
             let content=try await self.complete(try await self.reportPrompt(kind))
             let parsed=try Core.object("extract_report",content)
-            self.reportTitle=kind;self.report=parsed["report"] as? String ?? content;self.reportQuestions=parsed["questions"] as? [String] ?? []
+            self.reportTitle="\(kind) report";self.report=parsed["report"] as? String ?? content;self.reportQuestions=parsed["questions"] as? [String] ?? [];self.reportSheetOpen=true
             // A pass is used only once the report exists, so a failed run keeps it.
             if let pass{self.billing.consumePass(pass)}
             return
@@ -508,7 +512,7 @@ import UIKit
             summaries.append(try await self.complete([["role":"user","content":prompt]]))
         }
         let reduce=try Core.string("render_prompt",["name":"generateReducePrompt","values":["groupSummaries":summaries,"userContext":userContext]])
-        self.reportTitle=kind;self.report=try await self.complete([["role":"user","content":reduce]])
+        self.reportTitle="\(kind) report";self.report=try await self.complete([["role":"user","content":reduce]]);self.reportSheetOpen=true
         if let pass{self.billing.consumePass(pass)}
     }}
 }
