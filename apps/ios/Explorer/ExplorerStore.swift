@@ -411,7 +411,14 @@ import UIKit
         let config=try Core.object("llm_config",llmConfig)
         let endpoint=(config["endpoint"] as? String ?? "").trimmingCharacters(in:CharacterSet(charactersIn:"/"));let identifier=config["identifier"] as? String ?? model
         if provider=="ollama"{
-            let data=try await request(URL(string:endpoint+"/api/chat")!,["model":identifier,"messages":messages,"stream":false,"options":["temperature":options["temperature"] ?? 0.7,"num_predict":options["max_tokens"] ?? 0]])
+            // Ollama takes images as a per-message base64 array rather than OpenAI content parts.
+            let converted=messages.map{msg->[String:Any] in
+                guard let parts=msg["content"] as? [[String:Any]] else{return msg}
+                let text=parts.filter{$0["type"] as? String=="text"}.compactMap{$0["text"] as? String}.joined(separator:"\n")
+                let images=parts.filter{$0["type"] as? String=="image_url"}.compactMap{(($0["image_url"] as? [String:Any])?["url"] as? String)?.components(separatedBy:"base64,").last}
+                return ["role":msg["role"] ?? "user","content":text,"images":images]
+            }
+            let data=try await request(URL(string:endpoint+"/api/chat")!,["model":identifier,"messages":converted,"stream":false,"options":["temperature":options["temperature"] ?? 0.7,"num_predict":options["max_tokens"] ?? 0]])
             guard let message=data["message"] as? [String:Any],let content=message["content"] as? String else{throw Core.Failure(message:"Invalid Ollama response")};return content
         }
         if provider=="huggingface" && apiKey.isEmpty{throw Core.Failure(message:"Enter your own provider API key in Settings")}
@@ -439,19 +446,40 @@ import UIKit
         let prompt=try await Task.detached{try Core.object("store_report_prompt",input)}.value
         return prompt["messages"] as? [[String:Any]] ?? []
     }
+    /// A chat attachment: images go to the provider as vision content; text documents are inlined into the question.
+    struct ChatAttachment:Identifiable{let id=UUID();let name:String;let mime:String;let data:Data;var isImage:Bool{mime.hasPrefix("image/")}}
+    @Published var chatAttachments:[ChatAttachment]=[]
+    func attachChat(_ name:String,_ mime:String,_ data:Data)throws{
+        guard chatAttachments.count<6 else{throw Core.Failure(message:"Up to 6 attachments per question")}
+        guard data.count<=8*1024*1024 else{throw Core.Failure(message:"Attachments are limited to 8 MB")}
+        chatAttachments.append(ChatAttachment(name:name,mime:mime,data:data))
+    }
     /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
     func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
+        guard !message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !self.chatAttachments.isEmpty else{throw Core.Failure(message:"Enter a message")}
         _=try await self.requireAccess("Chat")
+        let images=self.chatAttachments.filter{$0.isImage};let docs=self.chatAttachments.filter{!$0.isImage}
+        var question=message
+        for doc in docs{question+="\n\nAttached document \"\(doc.name)\":\n```\n\(String(decoding:doc.data.prefix(20000),as:UTF8.self))\n```"}
         // As on the web, the first question includes the user's 500 most relevant results; follow-ups use the conversation.
         let first=self.messages.isEmpty
         if first{self.status="Finding your most relevant results…"}
-        let accessions=first ? await self.similarStudies(message,limit:5000) : []
+        let accessions=first ? await self.similarStudies(message.isEmpty ? (docs.first?.name ?? "attachment") : message,limit:5000) : []
         self.status="Asking the AI provider…"
-        let input=try self.storeInput(["query":message,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":try Core.string("user_context",self.profileData()),"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
-        let prompt=try await Task.detached{try Core.object("store_chat_prompt",input)}.value
+        let input=try self.storeInput(["query":question,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":try Core.string("user_context",self.profileData()),"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
+        var prompt=try await Task.detached{try Core.object("store_chat_prompt",input)}.value
+        // Vision content: the last user message becomes an OpenAI-style parts array, which nilAI's multimodal model accepts.
+        if !images.isEmpty, var promptMessages=prompt["messages"] as? [[String:Any]],let index=promptMessages.lastIndex(where:{($0["role"] as? String)=="user"}){
+            var parts:[[String:Any]]=[["type":"text","text":promptMessages[index]["content"] ?? ""]]
+            for image in images{parts.append(["type":"image_url","image_url":["url":"data:\(image.mime);base64,\(image.data.base64EncodedString())"]])}
+            promptMessages[index]["content"]=parts
+            prompt["messages"]=promptMessages
+        }
         let reply=try Core.object("research_extract",["content":try await self.complete(prompt)])
-        self.messages.append(("user",message));self.messages.append(("assistant",reply["answer"] as? String ?? ""))
+        let shown=self.chatAttachments.isEmpty ? message : (message+"\nAttached: "+self.chatAttachments.map{$0.name}.joined(separator:", ")).trimmingCharacters(in:.whitespaces)
+        self.chatAttachments=[]
+        self.messages.append(("user",shown));self.messages.append(("assistant",reply["answer"] as? String ?? ""))
         self.chatFollowups=reply["questions"] as? [String] ?? []
         onSent()
     }}

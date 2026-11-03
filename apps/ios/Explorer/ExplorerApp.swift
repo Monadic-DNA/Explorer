@@ -1,6 +1,16 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import PhotosUI
+
+/// Downscales a picked image for vision upload: 1024px on the long edge, JPEG 0.85.
+func scaledImageData(_ image:UIImage)->Data?{
+    let side=max(image.size.width,image.size.height)
+    let scale=side>1024 ? 1024/side : 1
+    let size=CGSize(width:image.size.width*scale,height:image.size.height*scale)
+    let rendered=UIGraphicsImageRenderer(size:size).image{_ in image.draw(in:CGRect(origin:.zero,size:size))}
+    return rendered.jpegData(compressionQuality:0.85)
+}
 
 @main struct ExplorerApp: App {
     @StateObject private var store=ExplorerStore()
@@ -183,8 +193,8 @@ struct ReportSheet:View{
                 ForEach(store.reportQuestions,id:\.self){question in Button(question){store.chatDraft=question;store.reportSheetOpen=false;go(1)}.buttonStyle(.bordered).tint(VaultStyle.accent)}
             }
             HStack(spacing:12){
-                Button{sharePdf(store.reportTitle,reportHtml(store.reportTitle,store.report))}label:{Label("Share PDF",systemImage:"square.and.arrow.up")}.buttonStyle(.borderedProminent)
-                Button{exportURL=writePdf(store.reportTitle,reportHtml(store.reportTitle,store.report))}label:{Label("Save as PDF",systemImage:"square.and.arrow.down")}.buttonStyle(.bordered)
+                Button{sharePdf(store.reportTitle,reportHtml(store.reportTitle,store.report,logo:pdfLogo()))}label:{Label("Share PDF",systemImage:"square.and.arrow.up")}.buttonStyle(.borderedProminent)
+                Button{exportURL=writePdf(store.reportTitle,reportHtml(store.reportTitle,store.report,logo:pdfLogo()))}label:{Label("Save as PDF",systemImage:"square.and.arrow.down")}.buttonStyle(.bordered)
             }
         }.padding()}.vaultScreen().navigationTitle("Report").navigationBarTitleDisplayMode(.inline).toolbar{ToolbarItem(placement:.confirmationAction){Button("Close"){store.reportSheetOpen=false}}}
         .sheet(isPresented:Binding(get:{exportURL != nil},set:{if !$0{exportURL=nil}})){if let url=exportURL{DocumentExporter(url:url)}}}
@@ -226,8 +236,8 @@ struct DocumentExporter:UIViewControllerRepresentable{
     func updateUIViewController(_ controller:UIDocumentPickerViewController,context:Context){}
 }
 
-/// Small markdown-to-HTML pass for the print view: headings, bold, bullets, paragraphs.
-func reportHtml(_ title:String,_ markdown:String)->String{
+/// Small markdown-to-HTML pass for the print view: headings, bold, bullets, paragraphs. The logo is a base64 data URI, empty to omit.
+func reportHtml(_ title:String,_ markdown:String,logo:String="")->String{
     func esc(_ s:String)->String{s.replacingOccurrences(of:"&",with:"&amp;").replacingOccurrences(of:"<",with:"&lt;").replacingOccurrences(of:">",with:"&gt;")}
     func inline(_ s:String)->String{esc(s).replacingOccurrences(of:"\\*\\*([^*]+)\\*\\*",with:"<strong>$1</strong>",options:.regularExpression)}
     var body="";var inList=false
@@ -242,8 +252,12 @@ func reportHtml(_ title:String,_ markdown:String)->String{
             else if !trimmed.isEmpty{body+="<p>\(inline(trimmed))</p>"}}
     }
     if inList{body+="</ul>"}
-    return "<html><head><meta charset=\"utf-8\"><style>body{font-family:-apple-system,sans-serif;margin:32px;color:#222;line-height:1.55}h1{font-family:Georgia,serif;font-weight:500}h2{margin-top:24px}h3{margin-top:18px}.brand{text-align:center;color:#666;font-size:12px;margin-top:40px}</style></head><body><h1>\(esc(title))</h1>\(body)<p class=\"brand\">Monadic DNA Explorer &middot; educational research findings, not a diagnosis</p></body></html>"
+    let mark=logo.isEmpty ? "" : "<div style=\"text-align:center;margin-bottom:4px\"><img src=\"data:image/png;base64,\(logo)\" width=\"64\"></div>"
+    return "<html><head><meta charset=\"utf-8\"><style>body{font-family:-apple-system,sans-serif;margin:32px;color:#222;line-height:1.55}h1{font-family:Georgia,serif;font-weight:500}h2{margin-top:24px}h3{margin-top:18px}.brand{text-align:center;color:#666;font-size:12px;margin-top:40px}</style></head><body>\(mark)<h1>\(esc(title))</h1>\(body)<p class=\"brand\">Monadic DNA Explorer &middot; educational research findings, not a diagnosis</p></body></html>"
 }
+
+/// The dark star as a data URI for the print HTML; the brand mark asset is white-on-dark and disappears on the light page.
+func pdfLogo()->String{UIImage(named:"vault_star")?.pngData()?.base64EncodedString() ?? ""}
 
 /// One-time explicit agreement with tappable full policy documents; agreeing covers the educational-use note.
 struct TermsAgreement:View{
@@ -452,6 +466,8 @@ struct ChatView:View{
     var personalize:()->Void
     @State private var message=""
     @State private var chatExportURL:URL?=nil
+    @State private var pickedPhotos:[PhotosPickerItem]=[]
+    @State private var showDocPicker=false
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
         // The raw model identifier lives in Settings; consumers need the provider name only.
@@ -461,14 +477,15 @@ struct ChatView:View{
             Spacer()
             // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
             if !store.messages.isEmpty{
-                Button("Share PDF"){sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}.font(.footnote)
-                Button("Save"){chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store)))}.font(.footnote)
+                Button("Share PDF"){sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store),logo:pdfLogo()))}.font(.footnote)
+                Button("Save"){chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store),logo:pdfLogo()))}.font(.footnote)
             }
         }.padding(.horizontal)
         .sheet(isPresented:Binding(get:{chatExportURL != nil},set:{if !$0{chatExportURL=nil}})){if let url=chatExportURL{DocumentExporter(url:url)}}
         // Consent collapses to a single line once granted; the full toggle remains the gate while it is off.
         if store.shareResultsWithLLM{HStack{Text("Sharing matched results with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}.padding(.horizontal)}
         else{ProviderConsent().padding(.horizontal)}
+        Text(store.provider=="nilai" ? "nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." : "Your DNA file never leaves this device. Prompts go only to your selected provider.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal)
         // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
         List{
             if store.messages.isEmpty{
@@ -482,9 +499,26 @@ struct ChatView:View{
                 if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
             }}
             if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
+            // While the provider runs, the conversation ends in a live status card and the composer is disabled.
+            if store.busy{HStack(spacing:12){VaultStarLoader().scaleEffect(0.35).frame(width:44,height:44);Text(store.status).font(.callout);Spacer();if store.cancellable{Button("Cancel"){store.cancel()}.font(.footnote)}}}
         }
-        // Standard chat composer: growing field with an inline send button, disabled until sharing is allowed.
-        HStack{TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder).disabled(!store.shareResultsWithLLM);Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy||!store.shareResultsWithLLM||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal)
+        // Attachments: images go to the provider as vision content; text documents are inlined into the question.
+        if !store.chatAttachments.isEmpty{ScrollView(.horizontal){HStack(spacing:8){ForEach(store.chatAttachments){attachment in Button{store.chatAttachments.removeAll{$0.id==attachment.id}}label:{Label(attachment.name,systemImage:attachment.isImage ? "photo" : "doc.text").font(.footnote)}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}}.padding(.horizontal)}
+        HStack(spacing:4){
+            PhotosPicker(selection:$pickedPhotos,maxSelectionCount:6,matching:.images){Image(systemName:"photo")}.disabled(!store.shareResultsWithLLM || store.busy)
+            Button{showDocPicker=true}label:{Image(systemName:"paperclip")}.disabled(!store.shareResultsWithLLM || store.busy)
+            TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder).disabled(!store.shareResultsWithLLM || store.busy)
+            Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy||!store.shareResultsWithLLM||(message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
+        }.padding(.horizontal)
+        .onChange(of:pickedPhotos){_,items in for item in items{Task{if let data=try? await item.loadTransferable(type:Data.self){
+            // Downscale for vision upload: 1024px on the long edge, JPEG 0.85.
+            if let image=UIImage(data:data),let scaled=scaledImageData(image){try? store.attachChat(item.itemIdentifier ?? "image","image/jpeg",scaled)}
+        }}};pickedPhotos=[]}
+        .fileImporter(isPresented:$showDocPicker,allowedContentTypes:[.plainText,.json,.commaSeparatedText,.text],allowsMultipleSelection:true){result in if case .success(let urls)=result{for url in urls{
+            let accessing=url.startAccessingSecurityScopedResource();defer{if accessing{url.stopAccessingSecurityScopedResource()}}
+            let mime=UTType(filenameExtension:url.pathExtension)?.preferredMIMEType ?? "text/plain"
+            if let data=try? Data(contentsOf:url){try? store.attachChat(url.lastPathComponent,mime,data)}
+        }}}
         // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
         HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy||!store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)
     }.vaultScreen().navigationTitle("Chat")

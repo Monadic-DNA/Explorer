@@ -291,8 +291,8 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             Spacer(Modifier.weight(1f))
             if(model.messages.isNotEmpty()){
                 val context=LocalContext.current
-                TextButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Share PDF",style=MaterialTheme.typography.bodySmall)}
-                TextButton(onClick={savePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Save",style=MaterialTheme.typography.bodySmall)}
+                TextButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model),pdfLogo(context)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Share PDF",style=MaterialTheme.typography.bodySmall)}
+                TextButton(onClick={savePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model),pdfLogo(context)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Save",style=MaterialTheme.typography.bodySmall)}
             }
         }
         // Consent collapses to a single line once granted; the full checkbox remains the gate while it is off.
@@ -300,6 +300,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             Text("Sharing matched results with $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
             TextButton(onClick={model.shareResultsWithLLM=false},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Revoke",style=MaterialTheme.typography.bodySmall)}
         } else Consent(model)
+        Text(if(model.provider=="nilai")"nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." else "Your DNA file never leaves this device. Prompts go only to your selected provider.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){
             // While an access requirement is shown, it takes the place of the intro so its button stays visible.
@@ -313,13 +314,28 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
             }}}
             if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
+            // While the provider runs, the conversation ends in a live status card and the composer is disabled.
+            if(model.busy)item{Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+                VaultStarLoader(Modifier.size(40.dp))
+                Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
+                if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}
+            }}}
         }
         AccessNeeded(model,openAccount)
-        // Standard chat composer: growing field with an inline send button, disabled until sharing is allowed.
+        // Attachments: images go to the provider as vision content; text documents are inlined into the question.
+        val context=LocalContext.current
+        val pickImages=rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(6)){uris->model.pickingFile=false;if(BuildConfig.DEBUG)android.util.Log.d("Attach","picked ${uris.size} images");uris.forEach{uri->runCatching{val scaled=readScaledImage(context,uri);if(BuildConfig.DEBUG)android.util.Log.d("Attach","scaled ${uri.lastPathSegment}: ${scaled?.size}");scaled?.let{model.attachChat(displayName(context,uri),"image/jpeg",it)}}.onFailure{model.error=it.message}}}
+        val pickDocs=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->model.pickingFile=false;uri?.let{runCatching{context.contentResolver.openInputStream(it)?.use{stream->model.attachChat(displayName(context,it),context.contentResolver.getType(it)?:"text/plain",stream.readBytes())}}?.onFailure{e->model.error=e.message}}}
+        if(model.chatAttachments.isNotEmpty())Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            model.chatAttachments.forEach{attachment->InputChip(selected=false,onClick={model.chatAttachments.remove(attachment)},label={Text(attachment.name.take(28),style=MaterialTheme.typography.bodySmall)},leadingIcon={Icon(if(attachment.isImage)Icons.Default.Image else Icons.Default.Description,contentDescription=null,modifier=Modifier.size(16.dp))},trailingIcon={Icon(Icons.Default.Close,contentDescription="Remove",modifier=Modifier.size(14.dp))},border=vaultChipBorder())}
+        }
+        // Standard chat composer: growing field with an inline send button, disabled until sharing is allowed and while the provider runs.
         Row(verticalAlignment=Alignment.CenterVertically){
-            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM,label={Text("Ask about your findings")},maxLines=3,modifier=Modifier.weight(1f))
+            IconButton(onClick={model.pickingFile=true;pickImages.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=model.shareResultsWithLLM&&!model.busy){Icon(Icons.Default.Image,contentDescription="Attach image")}
+            IconButton(onClick={model.pickingFile=true;pickDocs.launch(arrayOf("text/*","application/json","text/csv","text/markdown"))},enabled=model.shareResultsWithLLM&&!model.busy){Icon(Icons.Default.AttachFile,contentDescription="Attach document")}
+            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM&&!model.busy,label={Text("Ask about your findings")},maxLines=3,modifier=Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
-            FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
+            FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&(message.isNotBlank()||model.chatAttachments.isNotEmpty())&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
         }
         // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
         TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End),contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.bodySmall)}
@@ -341,8 +357,8 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){model.reportQuestions.forEach{question->SuggestionChip(onClick={model.chatDraft=question;model.reportSheetOpen=false;openChat()},label={Text(question)})}}
             }
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                Button(onClick={sharePdf(context,model.reportTitle,reportHtml(model.reportTitle,model.report))}){Text("Share PDF")}
-                OutlinedButton(onClick={savePdf(model.reportTitle,reportHtml(model.reportTitle,model.report))}){Text("Save as PDF")}
+                Button(onClick={sharePdf(context,model.reportTitle,reportHtml(model.reportTitle,model.report,pdfLogo(context)))}){Text("Share PDF")}
+                OutlinedButton(onClick={savePdf(model.reportTitle,reportHtml(model.reportTitle,model.report,pdfLogo(context)))}){Text("Save as PDF")}
                 TextButton(onClick={model.reportSheetOpen=false}){Text("Close")}
             }
         }
@@ -354,7 +370,35 @@ private fun chatTranscript(model: ExplorerModel)=buildString{
     model.messages.forEach{(role,text)->append(if(role=="user")"**You:** " else "**Explorer:** ");append(text);append("\n\n")}
 }.trim()
 
-/** Renders the print HTML into a real PDF silently. The WebView only renders when attached to a window, so it is parked offscreen in the activity, drawn page by page, then removed. */
+/** The picked file's display name; lastPathSegment on SAF URIs is a raw path, not a name. */
+private fun displayName(context: android.content.Context, uri: Uri): String=
+    runCatching{context.contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use{c->if(c.moveToFirst())c.getString(0) else null}}.getOrNull()?:uri.lastPathSegment?:"file"
+
+/** Downscales a picked image for vision upload: 1024px on the long edge, JPEG 85. */
+private fun readScaledImage(context: android.content.Context, uri: Uri): ByteArray?{
+    val bounds=android.graphics.BitmapFactory.Options().apply{inJustDecodeBounds=true}
+    val stream=context.contentResolver.openInputStream(uri)
+    if(BuildConfig.DEBUG)android.util.Log.d("Attach","stream for $uri: $stream")
+    if(stream==null)return null
+    stream.use{android.graphics.BitmapFactory.decodeStream(it,null,bounds)}
+    if(BuildConfig.DEBUG)android.util.Log.d("Attach","bounds: ${bounds.outWidth}x${bounds.outHeight}")
+    var sample=1;while(bounds.outWidth/sample>1024||bounds.outHeight/sample>1024)sample*=2
+    val opts=android.graphics.BitmapFactory.Options().apply{inSampleSize=sample}
+    val bitmap=context.contentResolver.openInputStream(uri)?.use{android.graphics.BitmapFactory.decodeStream(it,null,opts)}?:return null
+    val out=ByteArrayOutputStream();bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,out)
+    return out.toByteArray()
+}
+
+// The brand mark as a data URI for the print HTML, read once.
+private var pdfLogoCache: String?=null
+private fun pdfLogo(context: android.content.Context): String{
+    pdfLogoCache?.let{return it}
+    // The brand mark asset is white-on-dark and disappears on the light page; the star is the dark variant.
+    val bytes=context.resources.openRawResource(R.drawable.vault_star).use{it.readBytes()}
+    return android.util.Base64.encodeToString(bytes,android.util.Base64.NO_WRAP).also{pdfLogoCache=it}
+}
+
+/** Renders the print HTML into a real PDF silently. Chromium rasterizes only the part of a WebView that intersects the window, so the full-height view is slid up through the window page by page; at each stop the newly exposed region rasterizes and is drawn. A single translated draw (or an offscreen view) leaves later pages blank. */
 private fun renderPdf(context: android.content.Context, title: String, html: String, done: (java.io.File?)->Unit){
     val activity=context as? android.app.Activity ?: run{done(null);return}
     val root=activity.findViewById<android.view.ViewGroup>(android.R.id.content)
@@ -362,27 +406,38 @@ private fun renderPdf(context: android.content.Context, title: String, html: Str
     val out=java.io.File(java.io.File(context.cacheDir,"reports").apply{mkdirs()},"$name.pdf")
     val view=WebView(context)
     val pageW=794;val pageH=1123 // A4 at 96dpi
-    view.translationX=-(pageW*3f)
-    root.addView(view,pageW,pageH)
+    root.addView(view,0,android.view.ViewGroup.LayoutParams(pageW,pageH))
+    val handler=android.os.Handler(android.os.Looper.getMainLooper())
     fun cleanup(result: java.io.File?){root.removeView(view);done(result)}
     view.webViewClient=object: WebViewClient(){
         override fun onPageFinished(web: WebView, url: String){
             // Drawing right after load yields a blank page; the renderer needs a beat after onPageFinished.
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            handler.postDelayed({
             try {
                 web.measure(android.view.View.MeasureSpec.makeMeasureSpec(pageW,android.view.View.MeasureSpec.EXACTLY),android.view.View.MeasureSpec.makeMeasureSpec(0,android.view.View.MeasureSpec.UNSPECIFIED))
-                web.layout(0,0,pageW,web.measuredHeight)
-                if(BuildConfig.DEBUG)android.util.Log.d("PDF","render $name: contentHeight=${web.measuredHeight}")
-                if(web.measuredHeight<pageH/2){cleanup(null);return@postDelayed}
-                val pages=maxOf(1,Math.ceil(web.measuredHeight.toDouble()/pageH).toInt())
+                val contentH=web.measuredHeight
+                if(BuildConfig.DEBUG)android.util.Log.d("PDF","render $name: contentHeight=$contentH")
+                if(contentH<pageH/2){cleanup(null);return@postDelayed}
+                val pages=maxOf(1,Math.ceil(contentH.toDouble()/pageH).toInt())
                 val doc=android.graphics.pdf.PdfDocument()
-                for(p in 0 until pages){
-                    val page=doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(pageW,pageH,p+1).create())
-                    page.canvas.save();page.canvas.translate(0f,-(p*pageH).toFloat());web.draw(page.canvas);page.canvas.restore()
-                    doc.finishPage(page)
+                fun drawPage(p: Int){
+                    if(p>=pages){
+                        java.io.FileOutputStream(out).use{doc.writeTo(it)};doc.close()
+                        cleanup(out);return
+                    }
+                    // Slide the full-height view so this page's region fills the visible window, then let it rasterize.
+                    web.layout(0,-p*pageH,pageW,contentH-p*pageH)
+                    handler.postDelayed({
+                        try {
+                            val page=doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(pageW,pageH,p+1).create())
+                            // The slide controls what rasterized; the translate selects this page's slice of the view's local content.
+                            page.canvas.save();page.canvas.translate(0f,-(p*pageH).toFloat());web.draw(page.canvas);page.canvas.restore()
+                            doc.finishPage(page)
+                            drawPage(p+1)
+                        } catch(e: Exception){cleanup(null)}
+                    },200)
                 }
-                java.io.FileOutputStream(out).use{doc.writeTo(it)};doc.close()
-                cleanup(out)
+                drawPage(0)
             } catch(e: Exception){cleanup(null)}
             },600)
         }
@@ -400,8 +455,8 @@ private fun sharePdf(context: android.content.Context, title: String, html: Stri
     }
 }
 
-/** Small markdown-to-HTML pass for the print view: headings, bold, bullets, paragraphs. */
-private fun reportHtml(title: String, markdown: String): String{
+/** Small markdown-to-HTML pass for the print view: headings, bold, bullets, paragraphs. The logo is a base64 data URI, empty to omit. */
+private fun reportHtml(title: String, markdown: String, logo: String=""): String{
     fun esc(s: String)=s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
     fun inline(s: String)=esc(s).replace(Regex("\\*\\*([^*]+)\\*\\*"),"<strong>$1</strong>")
     val body=StringBuilder()
@@ -423,7 +478,7 @@ private fun reportHtml(title: String, markdown: String): String{
         body{font-family:sans-serif;margin:32px;color:#222;line-height:1.55}
         h1{font-family:Georgia,serif;font-weight:500} h2{margin-top:24px} h3{margin-top:18px}
         .brand{text-align:center;color:#666;font-size:12px;margin-top:40px}
-        </style></head><body><h1>${esc(title)}</h1>$body<p class="brand">Monadic DNA Explorer &middot; educational research findings, not a diagnosis</p></body></html>"""
+        </style></head><body>${if(logo.isNotEmpty())"<div style=\"text-align:center;margin-bottom:4px\"><img src=\"data:image/png;base64,$logo\" width=\"64\"></div>" else ""}<h1>${esc(title)}</h1>$body<p class="brand">Monadic DNA Explorer &middot; educational research findings, not a diagnosis</p></body></html>"""
 }
 
 @Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,openAccount: ()->Unit,export: ()->Unit){ScreenColumn{

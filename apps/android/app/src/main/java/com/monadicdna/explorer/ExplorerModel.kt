@@ -454,7 +454,18 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val config=Core.obj("llm_config",llmConfig());val endpoint=config.getString("endpoint").trimEnd('/')
         if(provider=="huggingface")require(apiKey.isNotBlank()){"Enter your provider API key in Settings. Keys stay on this device."}
         if(provider=="ollama"){
-            val data=request("$endpoint/api/chat",json("model" to config.getString("identifier"),"messages" to messages,"stream" to false,"options" to json("temperature" to options.opt("temperature"),"num_predict" to options.opt("max_tokens"))))
+            // Ollama takes images as a per-message base64 array rather than OpenAI content parts.
+            val ollamaMessages=JSONArray()
+            for(i in 0 until messages.length()){
+                val msg=messages.getJSONObject(i);val content=msg.opt("content")
+                if(content is JSONArray){
+                    val parts=(0 until content.length()).map{content.getJSONObject(it)}
+                    ollamaMessages.put(json("role" to msg.getString("role"),
+                        "content" to parts.filter{it.optString("type")=="text"}.joinToString("\n"){it.getString("text")},
+                        "images" to JSONArray(parts.filter{it.optString("type")=="image_url"}.map{it.getJSONObject("image_url").getString("url").substringAfter("base64,")})))
+                } else ollamaMessages.put(msg)
+            }
+            val data=request("$endpoint/api/chat",json("model" to config.getString("identifier"),"messages" to ollamaMessages,"stream" to false,"options" to json("temperature" to options.opt("temperature"),"num_predict" to options.opt("max_tokens"))))
             return data.getJSONObject("message").getString("content")
         }
         val bearer=if(provider=="nilai")nilaiAuthorization(endpoint)else apiKey
@@ -466,19 +477,46 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     private suspend fun reportPrompt(kind: String)=withContext(Dispatchers.Default){
         Core.obj("store_report_prompt",storeInput("kind" to kind,"customization" to profileData(),"context" to profile)).getJSONArray("messages")
     }
+    /** A chat attachment: images go to the provider as vision content; text documents are inlined into the question. */
+    data class ChatAttachment(val name: String, val mime: String, val data: ByteArray){val isImage get()=mime.startsWith("image/")}
+    val chatAttachments=mutableStateListOf<ChatAttachment>()
+    fun attachChat(name: String, mime: String, data: ByteArray){
+        require(chatAttachments.size<6){"Up to 6 attachments per question."}
+        require(data.size<=8*1024*1024){"Attachments are limited to 8 MB."}
+        chatAttachments.add(ChatAttachment(name,mime,data))
+    }
+
     /** `onSent` runs once a reply has arrived, so a failed send keeps the user's question. */
     fun sendChat(message: String, onSent: ()->Unit={}) = run("Asking selected provider") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
-        require(message.isNotBlank()){"Enter a message"}
+        require(message.isNotBlank()||chatAttachments.isNotEmpty()){"Enter a message"}
         requireAccess("Chat")
+        val images=chatAttachments.filter{it.isImage};val docs=chatAttachments.filter{!it.isImage}
+        var question=message
+        docs.forEach{doc->question+="\n\nAttached document \"${doc.name}\":\n```\n${String(doc.data).take(20000)}\n```"}
         val first=messages.isEmpty()
         // As on the web, the first question includes the user's 500 most relevant results; follow-ups use the conversation.
-        val accessions=if(first){status="Finding your most relevant results…";similarStudies(message,5000)}else JSONArray()
+        val accessions=if(first){status="Finding your most relevant results…";similarStudies(message.ifBlank{docs.firstOrNull()?.name?:"attachment"},5000)}else JSONArray()
         status="Asking ${mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[provider]?:provider}…"
         val history=JSONArray(messages.map{json("role" to it.first,"content" to it.second)})
-        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to message,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to Core.call("user_context",profileData()),"accessions" to accessions,"history" to history))}
+        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to question,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to Core.call("user_context",profileData()),"accessions" to accessions,"history" to history))}
+        // Vision content: the last user message becomes an OpenAI-style parts array, which nilAI's multimodal model accepts.
+        if(images.isNotEmpty()){
+            val arr=prompt.getJSONArray("messages")
+            for(i in arr.length()-1 downTo 0){
+                val msg=arr.getJSONObject(i)
+                if(msg.getString("role")=="user"){
+                    val parts=JSONArray().put(json("type" to "text","text" to msg.getString("content")))
+                    images.forEach{img->parts.put(json("type" to "image_url","image_url" to json("url" to "data:${img.mime};base64,${android.util.Base64.encodeToString(img.data,android.util.Base64.NO_WRAP)}")))}
+                    msg.put("content",parts);break
+                }
+            }
+        }
         val reply=Core.obj("research_extract",json("content" to complete(prompt)))
-        messages.add("user" to message);messages.add("assistant" to reply.getString("answer"))
+        val names=chatAttachments.map{it.name}
+        val shown=if(names.isEmpty())message else (message+"\nAttached: "+names.joinToString(", ")).trim()
+        chatAttachments.clear()
+        messages.add("user" to shown);messages.add("assistant" to reply.getString("answer"))
         chatFollowups=(0 until reply.getJSONArray("questions").length()).map{reply.getJSONArray("questions").getString(it)}
         onSent()
     }
