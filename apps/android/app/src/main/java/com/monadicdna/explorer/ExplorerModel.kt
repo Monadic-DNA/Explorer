@@ -63,6 +63,26 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     /** Set when a fresh report completes, so the app presents it in the report sheet. */
     var reportSheetOpen by mutableStateOf(false)
     var shareResultsWithLLM by mutableStateOf(false)
+    /** On-device health metrics (Health Connect) enrich prompts; only aggregates, only with provider consent. */
+    val health=HealthData(app)
+    var healthEnabled by mutableStateOf(store.get("healthEnabled")=="1")
+        private set
+    fun changeHealthEnabled(on: Boolean){healthEnabled=on;store.put("healthEnabled",if(on)"1" else "")}
+    /** The health prompt block for a topic, empty when disabled, unavailable, or without data. */
+    private suspend fun healthBlock(topic: String=""): String{
+        if(!healthEnabled||!shareResultsWithLLM)return ""
+        return runCatching{health.promptBlock(healthCategories(topic))}.getOrDefault("").let{if(it.isEmpty())"" else "\n\n$it"}
+    }
+    /** Maps a chat query, study trait, or report kind onto the metric categories it speaks to. */
+    private fun healthCategories(topic: String): Set<String>{
+        if(topic.isBlank())return setOf("cardiovascular","sleep","activity","metabolic")
+        val t=topic.lowercase();val out=mutableSetOf<String>()
+        if(Regex("heart|cardio|cholesterol|blood pressure|hypertension|hrv|vascular").containsMatchIn(t))out+="cardiovascular"
+        if(Regex("sleep|insomnia|apnea|apnoea|circadian").containsMatchIn(t))out+="sleep"
+        if(Regex("exercise|fitness|activity|steps|endurance|vo2|training").containsMatchIn(t))out+="activity"
+        if(Regex("weight|bmi|metabolic|diabetes|glucose|insulin|obesity").containsMatchIn(t))out+="metabolic"
+        return out.ifEmpty{setOf("cardiovascular","sleep","activity","metabolic")}
+    }
     /** Set to "premium" when Chat or a report needs Premium or a pass. Cleared by the next operation. */
     var accessNeeded by mutableStateOf<String?>(null)
         private set
@@ -323,7 +343,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         requireAccess("Chat")
         val accessions=similarStudies(study.optString("disease_trait"),5000)
-        val prompt=withContext(Dispatchers.Default){Core.obj("store_commentary_prompt",storeInput("studyId" to study.optInt("id"),"customization" to Core.call("user_context",profileData()),"accessions" to accessions))}
+        val prompt=withContext(Dispatchers.Default){Core.obj("store_commentary_prompt",storeInput("studyId" to study.optInt("id"),"customization" to ((Core.call("user_context",profileData()) as String)+healthBlock(study.optString("disease_trait"))),"accessions" to accessions))}
         commentaryStudyId=study.optInt("id");commentary=complete(prompt)
     }
     suspend fun resultsPage(filter: String, direction: String, sort: String, offset: Int, limit: Int=100): JSONObject=withContext(Dispatchers.Default){
@@ -475,7 +495,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         return response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
     }
     private suspend fun reportPrompt(kind: String)=withContext(Dispatchers.Default){
-        Core.obj("store_report_prompt",storeInput("kind" to kind,"customization" to profileData(),"context" to profile)).getJSONArray("messages")
+        Core.obj("store_report_prompt",storeInput("kind" to kind,"customization" to profileData(),"context" to (profile+healthBlock(kind)))).getJSONArray("messages")
     }
     /** A chat attachment: images go to the provider as vision content; text documents are inlined into the question. */
     data class ChatAttachment(val name: String, val mime: String, val data: ByteArray){val isImage get()=mime.startsWith("image/")}
@@ -499,7 +519,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val accessions=if(first){status="Finding your most relevant results…";similarStudies(message.ifBlank{docs.firstOrNull()?.name?:"attachment"},5000)}else JSONArray()
         status="Asking ${mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[provider]?:provider}…"
         val history=JSONArray(messages.map{json("role" to it.first,"content" to it.second)})
-        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to question,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to Core.call("user_context",profileData()),"accessions" to accessions,"history" to history))}
+        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to question,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to ((Core.call("user_context",profileData()) as String)+healthBlock(message)),"accessions" to accessions,"history" to history))}
         // Vision content: the last user message becomes an OpenAI-style parts array, which nilAI's multimodal model accepts.
         if(images.isNotEmpty()){
             val arr=prompt.getJSONArray("messages")
@@ -534,7 +554,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         require(question.isNotBlank()){"Enter a question"}
         require(resultCount>0){"Add your DNA file first so there are matches to research."}
         requireAccess("Research")
-        val customization=Core.call("user_context",profileData()) as String
+        val customization=(Core.call("user_context",profileData()) as String)+healthBlock(question)
         val description=Core.call("llm_description",llmConfig()) as String
         status="Finding research angles…"
         val keywordPrompt=Core.obj("research_keywords_prompt",json("query" to question,"customization" to customization))
@@ -574,7 +594,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         // Groups arrive formatted from the store, so the full result set never reaches Kotlin.
         val groups=withContext(Dispatchers.Default){Core.arr("store_report_groups",storeInput("groups" to ((resultCount+249)/250)))}
         val summaries=mutableListOf<String>()
-        val userContext=(Core.call("user_context",profileData()) as String)+"\n"+profile
+        val userContext=(Core.call("user_context",profileData()) as String)+"\n"+profile+healthBlock("Overview")
         for(i in 0 until groups.length()){
             ensureActiveTask();status="Analyzing report group ${i+1}/${groups.length()}"
             val batch=groups.getJSONObject(i)

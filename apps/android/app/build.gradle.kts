@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,7 +7,7 @@ plugins {
 }
 android {
     namespace = "com.monadicdna.explorer"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.monadicdna.explorer"
         minSdk = 26
@@ -16,6 +18,23 @@ android {
         ndk { abiFilters += providers.gradleProperty("explorerAbis").orElse("arm64-v8a").get().split(',') }
     }
     buildFeatures { compose = true; buildConfig = true }
+    // Release signing: upload key for Play App Signing, credentials in gitignored keystore.properties.
+    val keystoreProperties = Properties().apply { val f = rootProject.file("keystore.properties"); if (f.exists()) f.inputStream().use { load(it) } }
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias", "")
+            keyPassword = keystoreProperties.getProperty("keyPassword", "")
+            storeFile = keystoreProperties.getProperty("storeFile", "").takeIf { it.isNotEmpty() }?.let { rootProject.file(it) }
+            storePassword = keystoreProperties.getProperty("storePassword", "")
+        }
+    }
+    buildTypes {
+        release {
+            // Signing config applies only when keystore.properties exists, so CI without the key still assembles.
+            if (keystoreProperties.getProperty("storePassword", "").isNotEmpty()) signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
@@ -32,6 +51,8 @@ tasks.named("preBuild") { doFirst { check(catalogAsset.exists()) { "Missing bund
 dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.8.7")
+    // Health Connect: on-device health metrics for report and chat enrichment.
+    implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.android.billingclient:billing-ktx:8.0.0")
     // Carries the sync key to a new device, end-to-end encrypted (docs/native-data-store.md).
     implementation("com.google.android.gms:play-services-auth-blockstore:16.4.0")

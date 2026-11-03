@@ -573,6 +573,14 @@ struct YouView<Vault:View>:View{
             },header:{Text("About you")},footer:{Text("Separate multiple entries with commas.")})
             Button("Done",action:done)
         }
+        if store.health.available{
+            Section(content:{
+                Toggle("Include Apple Health data",isOn:Binding(get:{store.healthEnabled},set:{on in
+                    if on{Task{if await store.health.authorize(){store.setHealthEnabled(true)}}}
+                    else{store.setHealthEnabled(false)}
+                }))
+            },footer:{Text("Optional. Thirty-day averages of metrics like resting heart rate, sleep, steps and weight are added to report and chat prompts so answers can relate findings to how you are doing. Raw records never leave this device; the averages go only to your AI provider when sharing is allowed.")})
+        }
         Section("Your data"){
             Text(store.variantCount>0 ? "\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) research matches" : "No DNA file imported yet.")
             NavigationLink("Vault and backups"){vault()}

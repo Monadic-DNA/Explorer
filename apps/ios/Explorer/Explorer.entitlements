@@ -5,6 +5,9 @@
 	<!-- Every file the app creates, including SQLite's journal files, is unreadable while the device is locked. -->
 	<key>com.apple.developer.default-data-protection</key>
 	<string>NSFileProtectionComplete</string>
+	<!-- Apple Health metrics enrich reports and chat; read-only, aggregates only. -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
 	<!-- Encrypted sync records live in the user's own iCloud private database. -->
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>

@@ -27,6 +27,26 @@ import UIKit
     /// A question started on Home that the Chat tab picks up.
     @Published var chatDraft=""
     @Published private(set) var personalizeSkipped=DeviceStore.get("personalize-skipped")=="true"
+    /// On-device health metrics (Apple Health) enrich prompts; only aggregates, only with provider consent.
+    let health=HealthData()
+    @Published private(set) var healthEnabled=DeviceStore.get("health-enabled")=="true"
+    func setHealthEnabled(_ on:Bool){healthEnabled=on;try? DeviceStore.put("health-enabled",on ? "true" : "")}
+    /// The health prompt block for a topic, empty when disabled, unavailable, or without data.
+    private func healthBlock(_ topic:String="") async -> String{
+        guard healthEnabled,shareResultsWithLLM else{return ""}
+        let block=await health.promptBlock(categories:healthCategories(topic))
+        return block.isEmpty ? "" : "\n\n"+block
+    }
+    /// Maps a chat query, study trait, or report kind onto the metric categories it speaks to.
+    private func healthCategories(_ topic:String)->Set<String>{
+        guard !topic.isEmpty else{return ["cardiovascular","sleep","activity","metabolic"]}
+        let t=topic.lowercased();var out=Set<String>()
+        if t.range(of:"heart|cardio|cholesterol|blood pressure|hypertension|hrv|vascular",options:.regularExpression) != nil{out.insert("cardiovascular")}
+        if t.range(of:"sleep|insomnia|apnea|apnoea|circadian",options:.regularExpression) != nil{out.insert("sleep")}
+        if t.range(of:"exercise|fitness|activity|steps|endurance|vo2|training",options:.regularExpression) != nil{out.insert("activity")}
+        if t.range(of:"weight|bmi|metabolic|diabetes|glucose|insulin|obesity",options:.regularExpression) != nil{out.insert("metabolic")}
+        return out.isEmpty ? ["cardiovascular","sleep","activity","metabolic"] : out
+    }
     var personalized:Bool{!profile.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || profileFields.values.contains{!$0.isEmpty}}
     func skipPersonalization(){try? DeviceStore.put("personalize-skipped","true");personalizeSkipped=true}
     @Published var selectedStudy:Record?
@@ -304,7 +324,7 @@ import UIKit
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         _=try await self.requireAccess("Chat")
         let accessions=await self.similarStudies(record.text("disease_trait"),limit:5000)
-        let input=try self.storeInput(["studyId":record.id,"customization":try Core.string("user_context",self.profileData()),"accessions":accessions])
+        let input=try self.storeInput(["studyId":record.id,"customization":(try Core.string("user_context",self.profileData()))+(await self.healthBlock(record.name)),"accessions":accessions])
         let prompt=try await Task.detached{try Core.object("store_commentary_prompt",input)}.value
         self.commentaryStudyId=record.id;self.commentary=try await self.complete(prompt)
     }}
@@ -442,7 +462,7 @@ import UIKit
         return try Core.string("nilai_invocation",input)
     }
     private func reportPrompt(_ kind:String) async throws -> [[String:Any]] {
-        let input=try storeInput(["kind":kind,"customization":try profileData(),"context":profile])
+        let input=try storeInput(["kind":kind,"customization":try profileData(),"context":profile+(await healthBlock(kind))])
         let prompt=try await Task.detached{try Core.object("store_report_prompt",input)}.value
         return prompt["messages"] as? [[String:Any]] ?? []
     }
@@ -467,7 +487,7 @@ import UIKit
         if first{self.status="Finding your most relevant results…"}
         let accessions=first ? await self.similarStudies(message.isEmpty ? (docs.first?.name ?? "attachment") : message,limit:5000) : []
         self.status="Asking the AI provider…"
-        let input=try self.storeInput(["query":question,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":try Core.string("user_context",self.profileData()),"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
+        let input=try self.storeInput(["query":question,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":(try Core.string("user_context",self.profileData()))+(await self.healthBlock(message)),"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
         var prompt=try await Task.detached{try Core.object("store_chat_prompt",input)}.value
         // Vision content: the last user message becomes an OpenAI-style parts array, which nilAI's multimodal model accepts.
         if !images.isEmpty, var promptMessages=prompt["messages"] as? [[String:Any]],let index=promptMessages.lastIndex(where:{($0["role"] as? String)=="user"}){
@@ -493,7 +513,7 @@ import UIKit
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         guard self.resultCount>0 else{throw Core.Failure(message:"Add your DNA file first so there are matches to research")}
         _=try await self.requireAccess("Research")
-        let customization=try Core.string("user_context",self.profileData()),description=try Core.string("llm_description",self.llmConfig)
+        let customization=(try Core.string("user_context",self.profileData()))+(await self.healthBlock(question)),description=try Core.string("llm_description",self.llmConfig)
         self.status="Finding research angles…"
         let keywordPrompt=try Core.object("research_keywords_prompt",["query":question,"customization":customization])
         let keywords=try Core.call("research_parse_keywords",["content":try await self.complete(keywordPrompt),"query":question]) as? [String] ?? [question]
@@ -532,7 +552,7 @@ import UIKit
         // Groups arrive formatted from the store, so the full result set never reaches Swift.
         let input=try self.storeInput(["groups":(self.resultCount+249)/250])
         let groups=try await Task.detached{try Core.array("store_report_groups",input)}.value
-        let userContext=try Core.string("user_context",self.profileData())+"\n"+self.profile
+        let userContext=(try Core.string("user_context",self.profileData()))+"\n"+self.profile+(await self.healthBlock("Overview"))
         var summaries:[String]=[]
         for (index,group) in groups.enumerated(){
             try Task.checkCancellation();self.status="Report group \(index+1)/\(groups.count)"

@@ -16,6 +16,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Explorer reads 30-day averages of metrics like resting heart rate, sleep, steps and weight so reports and chat can relate your genetic findings to how you are doing. Raw records stay in Apple Health; averages go only to your chosen AI provider when sharing is allowed.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authenticate to unlock your encrypted DNA, results and customization.</string>
 	<key>NSAppTransportSecurity</key>

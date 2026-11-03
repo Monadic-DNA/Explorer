@@ -711,6 +711,14 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
         Text("Saved automatically.",style=MaterialTheme.typography.bodySmall)
         Button(onClick=done){Text("Done")}
     }
+    if(model.health.available()){
+        Text("Health data from this device",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
+        Text("Optional. Thirty-day averages of metrics like resting heart rate, sleep, steps and weight are added to report and chat prompts so answers can relate findings to how you are doing. Raw records never leave this device; the averages go only to your AI provider when sharing is allowed.",style=MaterialTheme.typography.bodySmall)
+        val healthPerms=rememberLauncherForActivityResult(model.health.permissionContract()){granted->model.pickingFile=false;model.changeHealthEnabled(granted.containsAll(model.health.permissions))}
+        Row(Modifier.fillMaxWidth().toggleable(value=model.healthEnabled,role=Role.Switch,onValueChange={if(it){model.pickingFile=true;healthPerms.launch(model.health.permissions)} else model.changeHealthEnabled(false)}),verticalAlignment=Alignment.CenterVertically){
+            Text(if(model.healthEnabled)"On" else "Off",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Switch(checked=model.healthEnabled,onCheckedChange=null)
+        }
+    }
     Text("Your data",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
     val variants=model.metadata.optInt("count")
     Text(if(variants>0)"${variants.grouped()} variants • ${model.resultCount.grouped()} research matches" else "No DNA file imported yet.",style=MaterialTheme.typography.bodyMedium)
