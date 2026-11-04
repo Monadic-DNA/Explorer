@@ -89,6 +89,9 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun dismissAccessNeeded(){accessNeeded=null}
     /** A question started on Home that the Chat tab picks up. */
     var chatDraft by mutableStateOf("")
+    /** The Chat action that can be retried after its latest request fails. */
+    var chatRetryAction by mutableStateOf<String?>(null)
+        private set
     var personalizeSkipped by mutableStateOf(store.get("personalize-skipped")=="true")
         private set
     fun skipPersonalization(){store.put("personalize-skipped","true");personalizeSkipped=true}
@@ -258,14 +261,14 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         error("Another device keeps changing your data; sync will retry")
     }
 
-    fun run(label: String, block: suspend () -> Unit) {
+    fun run(label: String, chatActionOnFailure: String? = null, block: suspend () -> Unit) {
         if (busy) return
         task = viewModelScope.launch {
-            busy=true; status=label; error=null; notice=null; progress=null; accessNeeded=null
+            busy=true; status=label; error=null; notice=null; progress=null; accessNeeded=null;chatRetryAction=null
             // Every change is already written to the encrypted store, so nothing remains to save afterwards.
             try { block(); status="Complete" }
             catch (cancelled: CancellationException) { status="Cancelled"; throw cancelled }
-            catch (e: Exception) { error=e.message ?: "Operation failed" }
+            catch (e: Exception) { error=e.message ?: "Operation failed";chatRetryAction=chatActionOnFailure }
             finally { busy=false; progress=null }
         }
     }
@@ -462,14 +465,15 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     }
     /** Runs a prompt built by the core, which carries its own token and temperature limits. */
     private suspend fun complete(prompt: JSONObject): String=complete(prompt.getJSONArray("messages"),json("max_tokens" to prompt.optInt("maxTokens"),"temperature" to prompt.optDouble("temperature")).also{o->prompt.optString("reasoningEffort").takeIf{it.isNotEmpty()}?.let{o.put("reasoning_effort",it)}})
-    private class RateLimited: Exception("The AI provider is busy. Please try again in a minute.")
-    /** AI providers rate-limit bursts (Research makes about 12 calls), so wait and retry before giving up. */
-    private suspend fun complete(messages: JSONArray, options: JSONObject=JSONObject()): String {
-        for(wait in listOf(5_000L,15_000L,30_000L)) {
-            try { return completeOnce(messages,options) } catch(_:RateLimited) { status="The AI provider is busy; retrying…"; delay(wait) }
-        }
-        return completeOnce(messages,options)
-    }
+    private class RateLimited: Exception("The AI provider is busy. Please wait a moment, then try again.")
+    /** Each provider call, including rate-limit retries, has a deadline beyond measured nilAI and local-model latencies. */
+    private suspend fun complete(messages: JSONArray, options: JSONObject=JSONObject()): String =
+        withTimeoutOrNull(120_000L) {
+            for(wait in listOf(2_000L,5_000L,10_000L)) {
+                try { return@withTimeoutOrNull completeOnce(messages,options) } catch(_:RateLimited) { status="The AI provider is busy; retrying shortly…";delay(wait) }
+            }
+            completeOnce(messages,options)
+        } ?: throw IllegalStateException("The AI provider did not respond within two minutes. Check your connection or provider settings, then try again.")
     private suspend fun completeOnce(messages: JSONArray, options: JSONObject): String {
         val config=Core.obj("llm_config",llmConfig());val endpoint=config.getString("endpoint").trimEnd('/')
         if(provider=="huggingface")require(apiKey.isNotBlank()){"Enter your provider API key in Settings. Keys stay on this device."}
@@ -507,7 +511,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     }
 
     /** `onSent` runs once a reply has arrived, so a failed send keeps the user's question. */
-    fun sendChat(message: String, onSent: ()->Unit={}) = run("Asking selected provider") {
+    fun sendChat(message: String, onSent: ()->Unit={}) = run("Asking selected provider",chatActionOnFailure="chat") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         require(message.isNotBlank()||chatAttachments.isNotEmpty()){"Enter a message"}
         requireAccess("Chat")
@@ -549,7 +553,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val found=runCatching{api("/api/similar-studies",json("query" to text,"limit" to limit)).getJSONArray("studies")}.getOrDefault(JSONArray())
         return JSONArray((0 until found.length()).map{found.getJSONObject(it).optString("study_accession")})
     }
-    fun research(question: String, onSent: ()->Unit={}) = run("Researching") {
+    fun research(question: String, onSent: ()->Unit={}) = run("Researching",chatActionOnFailure="research") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
         require(question.isNotBlank()){"Enter a question"}
         require(resultCount>0){"Add your DNA file first so there are matches to research."}

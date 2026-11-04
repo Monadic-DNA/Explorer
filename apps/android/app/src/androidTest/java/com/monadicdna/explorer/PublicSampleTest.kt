@@ -33,7 +33,7 @@ class PublicSampleTest {
             model=ExplorerModel(ui.activity.application,SecureDataVault(ui.activity,TestVaultProtector(),File(ui.activity.cacheDir,"public-sample-${UUID.randomUUID()}")),TestSyncKeys())
             model.authenticate={}
             ui.activity.setContent { VaultTheme { ExplorerApp(model) } }
-            model.acceptedDisclaimer=true
+            model.acceptTerms()
         }
         // Import runs Run all against the bundled catalog, as a user would see it.
         val bytes=assets.open("public-sample/23andme-public.txt").use{it.readBytes()}

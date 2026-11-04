@@ -123,7 +123,7 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center){VaultStarLoader(Modifier.padding(top=8.dp))}
                 Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}
             }
-            Messages(model)
+            Messages(model,showChatRetry=tab=="Chat")
             if(model.locking){Text("Your data is protected",Modifier.padding(24.dp))} else when(tab){
                 "Home"->HomeScreen(model,::selectTab){model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}
                 "You"->YouScreen(model,{selectTab("Home");if(model.personalized)model.notice="Saved. Chat and reports will use what you told us about yourself."}){selectTab("Vault")}
@@ -142,9 +142,9 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     if(model.reportSheetOpen&&model.report.isNotEmpty())ReportSheet(model,{selectTab("Chat")}){title,html->savePdf(title,html)}
 }
 
-@Composable private fun Messages(model: ExplorerModel){
+@Composable private fun Messages(model: ExplorerModel,showChatRetry: Boolean=false){
     // An access requirement is shown by AccessNeeded, with a button, instead of here.
-    model.error?.takeIf{model.accessNeeded==null}?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
+    model.error?.takeIf{model.accessNeeded==null&&!(showChatRetry&&model.chatRetryAction!=null)}?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(message,color=MaterialTheme.colorScheme.error);TextButton(onClick={model.error=null}){Text("Dismiss")}}}}
     model.notice?.let{message->Card(Modifier.padding(horizontal=12.dp,vertical=6.dp).fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer,contentColor=MaterialTheme.colorScheme.onPrimaryContainer)){Column(Modifier.padding(12.dp)){Text(message);TextButton(onClick={model.notice=null}){Text("Dismiss")}}}}
 }
 
@@ -263,7 +263,11 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     }
 }
 
-@Composable private fun Consent(model: ExplorerModel){CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},"Allow matched results and profile context to be sent to my selected LLM provider.")}
+@Composable private fun Consent(model: ExplorerModel){
+    val provider=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
+    val label=if(model.shareResultsWithLLM)"Sharing matches and optional profile and health summaries with $provider. Uncheck to revoke." else "Share matches and optional profile and health summaries with $provider. Raw DNA stays on this device."
+    CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},label)
+}
 /** The angles a Research answer looked at, collapsed by default as on the web. */
 @Composable private fun ResearchAngles(angles: List<Pair<String,Int>>){
     var open by remember{mutableStateOf(false)}
@@ -282,7 +286,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 @Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit,savePdf: (String,String)->Unit){
     var message by remember{mutableStateOf(model.chatDraft)}
     LaunchedEffect(Unit){model.chatDraft=""}
-    Column(Modifier.fillMaxSize().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+    Column(Modifier.fillMaxSize().imePadding().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
         // One compact row: provider on the left, transcript actions on the right once a conversation exists.
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
@@ -301,6 +305,12 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             TextButton(onClick={model.shareResultsWithLLM=false},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Revoke",style=MaterialTheme.typography.bodySmall)}
         } else Consent(model)
         Text(if(model.provider=="nilai")"nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." else "Your DNA file never leaves this device. Prompts go only to your selected provider.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        val retryAction=model.chatRetryAction
+        if(retryAction!=null&&model.error!=null&&model.accessNeeded==null)Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+            Text(model.error!!,color=MaterialTheme.colorScheme.error)
+            Text("Your message is still in the composer. Check your connection or provider settings, then retry.",style=MaterialTheme.typography.bodySmall)
+            TextButton(onClick={if(retryAction=="research")model.research(message){message=""} else model.sendChat(message){message=""}},enabled=!model.busy&&model.shareResultsWithLLM&&(if(retryAction=="research")message.isNotBlank() else message.isNotBlank()||model.chatAttachments.isNotEmpty())){Text("Retry")}
+        }}
         // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){
             // While an access requirement is shown, it takes the place of the intro so its button stays visible.
@@ -333,7 +343,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         Row(verticalAlignment=Alignment.CenterVertically){
             IconButton(onClick={model.pickingFile=true;pickImages.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=model.shareResultsWithLLM&&!model.busy){Icon(Icons.Default.Image,contentDescription="Attach image")}
             IconButton(onClick={model.pickingFile=true;pickDocs.launch(arrayOf("text/*","application/json","text/csv","text/markdown"))},enabled=model.shareResultsWithLLM&&!model.busy){Icon(Icons.Default.AttachFile,contentDescription="Attach document")}
-            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM&&!model.busy,label={Text("Ask about your findings")},maxLines=3,modifier=Modifier.weight(1f))
+            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM&&!model.busy,label={Text("Ask about your findings")},minLines=2,maxLines=6,modifier=Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
             FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&(message.isNotBlank()||model.chatAttachments.isNotEmpty())&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
         }
@@ -485,6 +495,9 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
     Text("Reports",style=MaterialTheme.typography.headlineMedium)
     Text(if((model.resultCount==0))"Reports summarize your research matches. Add your DNA file on Home first." else "Each report reads your ${model.resultCount.grouped()} research matches${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
     Consent(model)
+    Text("Reports summarize your matches and may suggest follow-up questions.",style=MaterialTheme.typography.bodySmall)
+    Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass covers one run.",style=MaterialTheme.typography.bodySmall)
+    Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)
     ReportCards(model){kind->if(!model.busy&&(model.resultCount>0))model.generateReport(kind)}
     AccessNeeded(model,openAccount)
     if(model.report.isNotEmpty()){
@@ -709,7 +722,6 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
         }
         OutlinedTextField(value=model.profile,onValueChange={model.profile=it},enabled=!model.syncing && !model.locking,label={Text("Anything else for your reports (optional)")},modifier=Modifier.fillMaxWidth())
         Text("Saved automatically.",style=MaterialTheme.typography.bodySmall)
-        Button(onClick=done){Text("Done")}
     }
     if(model.health.available()){
         Text("Health data from this device",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
@@ -723,4 +735,5 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     val variants=model.metadata.optInt("count")
     Text(if(variants>0)"${variants.grouped()} variants • ${model.resultCount.grouped()} research matches" else "No DNA file imported yet.",style=MaterialTheme.typography.bodyMedium)
     Row{OutlinedButton(onClick=openVault){Text("Vault and backups")};Spacer(Modifier.width(8.dp));if(model.dataUnlocked)TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}}
+    if(model.dataUnlocked)Button(onClick=done,modifier=Modifier.fillMaxWidth()){Text("Done")}
 }}

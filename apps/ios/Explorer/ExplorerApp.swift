@@ -28,7 +28,7 @@ struct ExplorerMessages: ViewModifier {
     func body(content:Content)->some View {
         content
             // Access requirements get a button to Account instead of a bare error.
-            .alert(store.accessNeeded != nil ? "Premium needed" : "Explorer",isPresented:Binding(get:{store.error != nil},set:{if !$0{store.error=nil}})){
+            .alert(store.accessNeeded != nil ? "Premium needed" : "Explorer",isPresented:Binding(get:{store.error != nil && store.chatRetryAction == nil},set:{if !$0{store.error=nil}})){
                 if store.accessNeeded != nil{Button("See Premium options"){store.error=nil;store.accessNeeded=nil;openAccount()};Button("Not now",role:.cancel){store.error=nil;store.accessNeeded=nil}}
                 else{Button("OK"){store.error=nil}}
             }message:{Text(store.error ?? "")}
@@ -459,7 +459,9 @@ struct ResultsView:View{
 
 struct ProviderConsent:View{
     @EnvironmentObject var store:ExplorerStore
-    var body:some View{Toggle("Allow matched results and profile context to be sent to my selected LLM provider.",isOn:$store.shareResultsWithLLM).font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))}
+    private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
+    private var label:String{store.shareResultsWithLLM ? "Sharing matches and optional profile and health summaries with \(providerName). Uncheck to revoke." : "Share matches and optional profile and health summaries with \(providerName). Raw DNA stays on this device."}
+    var body:some View{Toggle(label,isOn:$store.shareResultsWithLLM).font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))}
 }
 struct ChatView:View{
     @EnvironmentObject var store:ExplorerStore
@@ -483,11 +485,21 @@ struct ChatView:View{
         }.padding(.horizontal)
         .sheet(isPresented:Binding(get:{chatExportURL != nil},set:{if !$0{chatExportURL=nil}})){if let url=chatExportURL{DocumentExporter(url:url)}}
         // Consent collapses to a single line once granted; the full toggle remains the gate while it is off.
-        if store.shareResultsWithLLM{HStack{Text("Sharing matched results with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}.padding(.horizontal)}
+        if store.shareResultsWithLLM{HStack{Text("Sharing matches and optional profile and health summaries with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}.padding(.horizontal)}
         else{ProviderConsent().padding(.horizontal)}
         Text(store.provider=="nilai" ? "nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." : "Your DNA file never leaves this device. Prompts go only to your selected provider.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal)
         // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
         List{
+            if let action=store.chatRetryAction,let error=store.error,store.accessNeeded==nil{
+                VStack(alignment:.leading,spacing:8){
+                    Text(error).foregroundStyle(.red)
+                    Text("Your message is still in the composer. Check your connection or provider settings, then retry.").font(.footnote).foregroundStyle(.secondary)
+                    Button("Retry"){
+                        if action=="research"{store.research(message){message=""}}
+                        else{store.sendChat(message){message=""}}
+                    }.disabled(store.busy||!store.shareResultsWithLLM||(action=="research" && store.resultCount==0)||(action=="research" ? message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty : message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
+                }.padding().background(VaultStyle.canvas,in:RoundedRectangle(cornerRadius:12)).listRowSeparator(.hidden)
+            }
             if store.messages.isEmpty{
                 Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary)
                 if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
@@ -501,13 +513,13 @@ struct ChatView:View{
             if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
             // While the provider runs, the conversation ends in a live status card and the composer is disabled.
             if store.busy{HStack(spacing:12){VaultStarLoader().scaleEffect(0.35).frame(width:44,height:44);Text(store.status).font(.callout);Spacer();if store.cancellable{Button("Cancel"){store.cancel()}.font(.footnote)}}}
-        }
+        }.scrollDismissesKeyboard(.interactively)
         // Attachments: images go to the provider as vision content; text documents are inlined into the question.
         if !store.chatAttachments.isEmpty{ScrollView(.horizontal){HStack(spacing:8){ForEach(store.chatAttachments){attachment in Button{store.chatAttachments.removeAll{$0.id==attachment.id}}label:{Label(attachment.name,systemImage:attachment.isImage ? "photo" : "doc.text").font(.footnote)}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}}.padding(.horizontal)}
         HStack(spacing:4){
             PhotosPicker(selection:$pickedPhotos,maxSelectionCount:6,matching:.images){Image(systemName:"photo")}.disabled(!store.shareResultsWithLLM || store.busy)
             Button{showDocPicker=true}label:{Image(systemName:"paperclip")}.disabled(!store.shareResultsWithLLM || store.busy)
-            TextField("Ask about your findings",text:$message,axis:.vertical).textFieldStyle(.roundedBorder).disabled(!store.shareResultsWithLLM || store.busy)
+            TextField("Ask about your findings",text:$message,axis:.vertical).lineLimit(2...6).textFieldStyle(.roundedBorder).layoutPriority(1).disabled(!store.shareResultsWithLLM || store.busy)
             Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy||!store.shareResultsWithLLM||(message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
         }.padding(.horizontal)
         .onChange(of:pickedPhotos){_,items in for item in items{Task{if let data=try? await item.loadTransferable(type:Data.self){
@@ -533,6 +545,9 @@ struct ReportsView:View{
         List {
             Text(store.resultCount==0 ? "Reports summarize your research matches. Add your DNA file on Home first." : "Each report reads your \(store.resultCount.formatted()) research matches\(store.personalized ? " and what you told us about yourself" : "").")
             ProviderConsent()
+            Text("Reports summarize your matches and may suggest follow-up questions.")
+            Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass covers one run.").font(.footnote)
+            Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.").font(.footnote)
             ReportCards{kind in if !store.busy && store.resultCount>0{store.generateReport(kind)}}.listRowSeparator(.hidden)
             if !store.report.isEmpty {
                 Section(store.reportTitle) {
@@ -571,7 +586,6 @@ struct YouView<Vault:View>:View{
                 TextField("Anything else for your reports (optional)",text:$store.profile,axis:.vertical).disabled(store.syncing || store.locking)
                 Text("Saved automatically.").font(.footnote)
             },header:{Text("About you")},footer:{Text("Separate multiple entries with commas.")})
-            Button("Done",action:done)
         }
         if store.health.available{
             Section(content:{
@@ -586,6 +600,7 @@ struct YouView<Vault:View>:View{
             NavigationLink("Vault and backups"){vault()}
             if store.dataUnlocked{Button("Lock data",action:store.lockData).disabled(store.busy)}
         }
+        if store.dataUnlocked{Button("Done",action:done)}
     }.vaultScreen().navigationTitle("You")}
 }
 

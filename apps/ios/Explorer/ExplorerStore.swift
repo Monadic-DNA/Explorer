@@ -26,6 +26,8 @@ import UIKit
     @Published var accessNeeded:String?
     /// A question started on Home that the Chat tab picks up.
     @Published var chatDraft=""
+    /// The Chat action that can be retried after its latest request fails.
+    @Published private(set) var chatRetryAction:String?
     @Published private(set) var personalizeSkipped=DeviceStore.get("personalize-skipped")=="true"
     /// On-device health metrics (Apple Health) enrich prompts; only aggregates, only with provider consent.
     let health=HealthData()
@@ -52,7 +54,7 @@ import UIKit
     @Published var selectedStudy:Record?
     @Published var busy=false
     @Published var status=""
-    @Published var error:String?
+    @Published var error:String? {didSet{if error==nil{chatRetryAction=nil}}}
     @Published var notice:String?
     @Published private(set) var progress:Double?
     @Published private(set) var protection=""
@@ -245,13 +247,14 @@ import UIKit
         throw Core.Failure(message:"Another device keeps changing your data; sync will retry")
     }
     var variantCount:Int { metadata["count"] as? Int ?? 0 }
-    func work(_ label:String,_ operation:@escaping @MainActor () async throws -> Void){
+    func work(_ label:String,chatActionOnFailure:String?=nil,_ operation:@escaping @MainActor () async throws -> Void){
         guard !busy else{return}
-        busy=true;status=label;error=nil;notice=nil;progress=nil;accessNeeded=nil
+        busy=true;status=label;error=nil;notice=nil;progress=nil;accessNeeded=nil;chatRetryAction=nil
         task=Task {
             defer{busy=false;progress=nil}
             // Every change is already written to the encrypted store, so nothing remains to save afterwards.
-            do{try await operation();status="Complete"}catch is CancellationError{status="Cancelled"}catch{self.error=error.localizedDescription}
+            // error must be assigned before chatRetryAction: the error didSet clears the retry action.
+            do{try await operation();status="Complete"}catch is CancellationError{status="Cancelled"}catch{if Task.isCancelled{status="Cancelled"}else{self.error=error.localizedDescription;self.chatRetryAction=self.accessNeeded == nil ? chatActionOnFailure : nil}}
         }
     }
     func cancel(){task?.cancel()}
@@ -418,14 +421,28 @@ import UIKit
         return try await complete(prompt["messages"] as? [[String:Any]] ?? [],options:options)
     }
     struct RateLimited:Error{}
-    /// AI providers rate-limit bursts (Research makes about 12 calls), so wait and retry before giving up.
+    private struct CompletionDeadlineExceeded:Error{}
+    /// Each provider completion, including rate-limit retries, has a deadline beyond measured nilAI and local-model latencies.
     private func complete(_ messages:[[String:Any]],options:[String:Any]=[:]) async throws -> String {
-        for wait:UInt64 in [5,15,30] {
+        do{
+            return try await withThrowingTaskGroup(of:String.self){group in
+                group.addTask{try await self.completeWithRateLimitRetries(messages,options:options)}
+                group.addTask{try await Task.sleep(nanoseconds:120_000_000_000);throw CompletionDeadlineExceeded()}
+                guard let result=try await group.next() else{throw Core.Failure(message:"The AI provider returned no response.")}
+                group.cancelAll()
+                return result
+            }
+        }catch is CompletionDeadlineExceeded{
+            throw Core.Failure(message:"The AI provider did not respond within two minutes. Check your connection or provider settings, then try again.")
+        }
+    }
+    private func completeWithRateLimitRetries(_ messages:[[String:Any]],options:[String:Any]) async throws -> String {
+        for wait:UInt64 in [2,5,10] {
             do{return try await completeOnce(messages,options:options)}
-            catch is RateLimited{status="The AI provider is busy; retrying…";try await Task.sleep(nanoseconds:wait*1_000_000_000)}
+            catch is RateLimited{status="The AI provider is busy; retrying shortly…";try await Task.sleep(nanoseconds:wait*1_000_000_000)}
         }
         do{return try await completeOnce(messages,options:options)}
-        catch is RateLimited{throw Core.Failure(message:"The AI provider is busy. Please try again in a minute.")}
+        catch is RateLimited{throw Core.Failure(message:"The AI provider is busy. Please wait a moment, then try again.")}
     }
     private func completeOnce(_ messages:[[String:Any]],options:[String:Any]) async throws -> String {
         let config=try Core.object("llm_config",llmConfig)
@@ -475,7 +492,7 @@ import UIKit
         chatAttachments.append(ChatAttachment(name:name,mime:mime,data:data))
     }
     /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
-    func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider"){
+    func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider",chatActionOnFailure:"chat"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         guard !message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !self.chatAttachments.isEmpty else{throw Core.Failure(message:"Enter a message")}
         _=try await self.requireAccess("Chat")
@@ -509,7 +526,7 @@ import UIKit
         return found.compactMap{$0["study_accession"] as? String}
     }
     /// Research in Chat (premium): the shared core's multi-angle pipeline, identical to the web.
-    func research(_ question:String,onSent:@escaping @MainActor ()->Void={}){work("Researching"){
+    func research(_ question:String,onSent:@escaping @MainActor ()->Void={}){work("Researching",chatActionOnFailure:"research"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         guard self.resultCount>0 else{throw Core.Failure(message:"Add your DNA file first so there are matches to research")}
         _=try await self.requireAccess("Research")

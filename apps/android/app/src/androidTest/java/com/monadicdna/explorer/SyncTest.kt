@@ -37,7 +37,7 @@ class SyncTest {
         DeviceStore(context).apply{remove("sync-on");remove("sync-decided")}
         val keys=TestSyncKeys()
         val dirs=listOf(File(context.cacheDir,"sync-a-${UUID.randomUUID()}"),File(context.cacheDir,"sync-b-${UUID.randomUUID()}"))
-        fun device(dir:File):ExplorerModel{lateinit var model:ExplorerModel;onMain{model=ExplorerModel(app,SecureDataVault(context,TestVaultProtector(),dir),keys,sync).apply{authenticate={};acceptedDisclaimer=true}};return model}
+        fun device(dir:File):ExplorerModel{lateinit var model:ExplorerModel;onMain{model=ExplorerModel(app,SecureDataVault(context,TestVaultProtector(),dir),keys,sync).apply{authenticate={};acceptTerms()}};return model}
         try {
             val a=device(dirs[0])
             onMain{a.run("Import"){a.importGenotypeData("# 23andMe\nrs4129267 2 100 TT\nrs7298766 12 100 AG\nrs2281727 17 100 GG\n".toByteArray(),"genome.txt")}}

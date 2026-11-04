@@ -27,4 +27,24 @@ final class VaultDesignTests: XCTestCase {
         cardAttachment.lifetime = .keepAlways
         add(cardAttachment)
     }
+
+    @MainActor func testReportsAndYouViewsRender() throws {
+        let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer{try? FileManager.default.removeItem(at:directory)}
+        let store=ExplorerStore(dataVault:SecureDataVault(protector:TestVaultProtector(),directory:directory),syncKeys:TestSyncKeys(),cloud:TestSyncCloud())
+
+        let reports=ImageRenderer(content:ReportsView(openChat:{},export:{_,_ in}).environmentObject(store).frame(width:390,height:844))
+        reports.scale=2
+        let reportsAttachment=XCTAttachment(image:try XCTUnwrap(reports.uiImage))
+        reportsAttachment.name="Reports guidance and access"
+        reportsAttachment.lifetime = .keepAlways
+        add(reportsAttachment)
+
+        let you=ImageRenderer(content:YouView(done:{},vault:{EmptyView()}).environmentObject(store).frame(width:390,height:844))
+        you.scale=2
+        let youAttachment=XCTAttachment(image:try XCTUnwrap(you.uiImage))
+        youAttachment.name="You profile and data layout"
+        youAttachment.lifetime = .keepAlways
+        add(youAttachment)
+    }
 }
