@@ -107,7 +107,8 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     // Screens opened from More return there; other tabs return Home before Back leaves the app.
     BackHandler(enabled=tab!="Home"){selectTab(if(tab in tabs)"Home" else "More")}
     Scaffold(
-        topBar={TopAppBar(title={Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)})},
+        // The brand star rides in the top chrome so it stays visible past onboarding.
+        topBar={TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
         bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { tabs.forEachIndexed{index,name->NavigationBarItem(selected=tab==name||(name=="More"&&tab !in tabs),onClick={selectTab(name)},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.AutoMirrored.Filled.Chat;2->Icons.Default.Description;3->Icons.Default.Person;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
@@ -118,8 +119,8 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lock data")}
                 else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Unlock data")}
             }
-            if(model.busy){
-                // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader.
+            if(model.busy&&tab!="Home"){
+                // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader. Home renders its own processing panel, so it skips this bar.
                 model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center){VaultStarLoader(Modifier.padding(top=8.dp))}
                 Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}
             }
@@ -377,7 +378,8 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 
 /** The conversation as markdown, labeled by speaker, for share and PDF export. */
 private fun chatTranscript(model: ExplorerModel)=buildString{
-    model.messages.forEach{(role,text)->append(if(role=="user")"**You:** " else "**Explorer:** ");append(text);append("\n\n")}
+    // The speaker label gets its own line so a reply starting with a heading still parses as one.
+    model.messages.forEach{(role,text)->append(if(role=="user")"**You:**\n" else "**Explorer:**\n");append(text);append("\n\n")}
 }.trim()
 
 /** The picked file's display name; lastPathSegment on SAF URIs is a raw path, not a name. */
@@ -415,6 +417,8 @@ private fun renderPdf(context: android.content.Context, title: String, html: Str
     val name=title.replace(Regex("[^A-Za-z0-9]+"),"-").trim('-').ifBlank{"monadic-report"}
     val out=java.io.File(java.io.File(context.cacheDir,"reports").apply{mkdirs()},"$name.pdf")
     val view=WebView(context)
+    // WebView inherits the system font scale; print must honor the CSS sizes instead.
+    view.settings.textZoom=100
     val pageW=794;val pageH=1123 // A4 at 96dpi
     root.addView(view,0,android.view.ViewGroup.LayoutParams(pageW,pageH))
     val handler=android.os.Handler(android.os.Looper.getMainLooper())
@@ -596,6 +600,16 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     val variants=model.metadata.optInt("count")
     val ready=(model.resultCount>0)&&(model.personalized||model.personalizeSkipped)
     ScreenColumn{
+        if(model.busy){
+            // While a run is on, Home is the processing screen: animation, status, progress. The global busy bar is suppressed on Home so this is the single indicator.
+            Column(Modifier.fillMaxWidth().padding(vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)){
+                VaultStarLoader()
+                Text(model.status,style=MaterialTheme.typography.titleMedium)
+                model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth(0.6f))}
+                Text("Everything runs on this device; nothing is uploaded.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}
+            }
+        } else {
         if(model.syncOffered)OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Text("Keep your data on a new phone",style=MaterialTheme.typography.titleMedium)
             Text("Explorer can keep an end-to-end encrypted copy in a hidden folder in your own Google Drive, so a new Android phone fills in automatically. Monadic DNA never stores your data.",style=MaterialTheme.typography.bodySmall)
@@ -611,6 +625,16 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             Text("Welcome back. Unlock your saved data to continue.",style=MaterialTheme.typography.titleMedium)
             Button(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         } else if(ready){
+            // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
+            Step(1,"Add your DNA file",done=true,enabled=false){}
+            Step(2,"Tell us about you",done=model.personalized,enabled=!model.personalized){
+                Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.",style=MaterialTheme.typography.bodySmall)
+                Button(onClick={go("You")}){Text("Personalize")}
+            }
+            Step(3,"Ask and read",done=false,enabled=true){
+                Text("Read your free Health report in about 15 seconds, or chat about your matches.",style=MaterialTheme.typography.bodySmall)
+                Button(onClick={go("Reports")},enabled=!model.busy){Text("Get my free Health report")}
+            }
             // Results at a glance, as on the web's /explore dashboard.
             model.dashboard?.let{p->
                 val insight=p.optJSONObject("insight")
@@ -622,6 +646,8 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                             val c=categories.getJSONObject(index);val palette=vaultCardPalette(c.optString("id"))
                             Card(onClick={go("Results")},colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)){Column(Modifier.padding(horizontal=16.dp,vertical=12.dp)){Text(c.optString("label"),style=MaterialTheme.typography.titleSmall);Text("${c.optInt("count").grouped()} matches",style=MaterialTheme.typography.bodySmall)}}
                         }
+                        // The last card clears the screen edge when the carousel is scrolled fully.
+                        Spacer(Modifier.width(16.dp))
                     }
                 }
                 insight?.optJSONObject("standout")?.let{standout->
@@ -644,6 +670,8 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             }
         } else {
             if(model.syncing&&variants==0)Text("Restoring your data from your other device…",style=MaterialTheme.typography.titleMedium)
+            // A first-run Home with no data gets the brand hero instead of bare text.
+            if(variants==0&&!model.syncing)VaultHero()
             Text("Understand what your DNA says about you",style=MaterialTheme.typography.headlineMedium)
             if(variants==0)Text("Explorer compares your raw DNA file with published genetic research on this device. Then you can ask questions about your results and read reports.",style=MaterialTheme.typography.bodyMedium)
             Step(1,"Add your DNA file",done=variants>0,enabled=true){
@@ -674,6 +702,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             }
             TextButton(onClick={go("Browse")}){Text("Browse research without your DNA")}
         }
+        }
         Text("Genetic associations are educational research findings, not a diagnosis. Odds ratios are relative, not absolute risk; beta values describe trait changes.",style=MaterialTheme.typography.bodySmall)
     }
 }
@@ -683,7 +712,11 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     val colors=if(done)CardDefaults.outlinedCardColors(containerColor=MaterialTheme.colorScheme.primaryContainer) else CardDefaults.outlinedCardColors()
     OutlinedCard(Modifier.fillMaxWidth().alpha(if(enabled)1f else 0.45f),colors=colors,border=androidx.compose.foundation.BorderStroke(if(enabled&&!done)2.dp else 1.dp,if(enabled&&!done)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)){
         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Text(if(done)"✓  $title" else "$number  $title",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                // The step marker is a brand disc, not an emoji numeral, so it sits inside the type system.
+                Box(Modifier.size(28.dp).background(MaterialTheme.colorScheme.primary,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center){Text(if(done)"✓" else "$number",color=MaterialTheme.colorScheme.onPrimary,style=MaterialTheme.typography.titleSmall)}
+                Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+            }
             if(enabled||!done)content()
         }
     }

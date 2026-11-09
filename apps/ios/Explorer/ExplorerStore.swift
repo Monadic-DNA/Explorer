@@ -145,7 +145,7 @@ import UIKit
         storeHandle=opened["handle"] as? Int;metadata=opened["metadata"] as? [String:Any] ?? [:]
         restoreCustomization(try Core.object("store_customization",try storeInput()))
         try refreshResults()
-        dataUnlocked=true;vaultExists=true;restorable=false;storageMessage="Saved securely on this device";protection=await dataVault.protection
+        dataUnlocked=true;vaultExists=true;restorable=false;storageMessage="Saved on this device";protection=await dataVault.protection
         try setUpSync()
         // Credit any App Store passes that arrived while locked.
         await billing.current()

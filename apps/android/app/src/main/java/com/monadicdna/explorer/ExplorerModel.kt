@@ -166,7 +166,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         storeHandle=opened.getLong("handle");metadata=opened.getJSONObject("metadata")
         restoreCustomization(Core.obj("store_customization",storeInput()))
         refreshResults();refreshDashboard()
-        dataUnlocked=true;restorable=false;storageMessage="Saved securely on this device"
+        dataUnlocked=true;restorable=false;storageMessage="Saved on this device"
         setUpSync()
     }
     fun unlockSavedData()=run("Unlocking saved data"){unlockData()}

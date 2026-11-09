@@ -66,8 +66,8 @@ struct ExplorerView: View {
         VStack(spacing:0){
             // A first-time user has no vault yet, so there is nothing to lock or unlock.
             if store.dataUnlocked || store.vaultExists{storageStatus}
-            // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader.
-            if store.busy{
+            // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader. Home renders its own processing panel, so it skips this bar.
+            if store.busy && selectedTab != 0{
                 if store.progress == nil{HStack{Spacer();VaultStarLoader();Spacer()}}
                 HStack{if let progress=store.progress{ProgressView(value:progress).frame(width:60)};Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();if store.cancellable{Button("Cancel",action:store.cancel)}}.padding()
             }
@@ -83,7 +83,7 @@ struct ExplorerView: View {
                     NavigationLink("Connection and AI provider"){SettingsView()}
                     NavigationLink("Account and premium",isActive:$showAccount){AccountView(billing:store.billing)}
                     Section("Supported DNA exports"){Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, Monadic DNA and compatible raw files. Gzip archives are supported.")}
-                }.vaultScreen().navigationTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
+                }.vaultScreen().vaultTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
             }
         }
         .sheet(item:$store.selectedStudy){record in NavigationStack{StudyView(record:record).toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){store.selectedStudy=nil}}}}.modifier(ExplorerMessages()).environmentObject(store)}
@@ -113,6 +113,16 @@ struct HomeView<Results:View>:View{
     @State private var question=""
     private var ready:Bool{store.resultCount>0 && (store.personalized||store.personalizeSkipped)}
     var body:some View{ScrollView{VStack(alignment:.leading,spacing:18){
+        if store.busy {
+            // While a run is on, Home is the processing screen: animation, status, progress. The global busy bar is suppressed on Home so this is the single indicator.
+            VStack(spacing:12){
+                VaultStarLoader()
+                Text(store.status).font(.headline)
+                if let progress=store.progress{ProgressView(value:progress).frame(maxWidth:220)}
+                Text("Everything runs on this device; nothing is uploaded.").font(.footnote).foregroundStyle(.secondary)
+                if store.cancellable{Button("Cancel",action:store.cancel)}
+            }.frame(maxWidth:.infinity).padding(.vertical,48)
+        } else {
         if store.syncOffered {
             VStack(alignment:.leading,spacing:8){
                 Text("Keep your data on a new iPhone").font(.headline)
@@ -129,6 +139,16 @@ struct HomeView<Results:View>:View{
             VaultHero()
             Text("Welcome back. Unlock your saved data to continue.").font(VaultStyle.heading(20))
         } else if ready {
+            // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
+            Step(number:1,title:"Add your DNA file",done:true,enabled:false){Color.clear.frame(height:0)}
+            Step(number:2,title:"Tell us about you",done:store.personalized,enabled:!store.personalized){
+                Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.").font(.footnote)
+                Button("Personalize"){go(3)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
+            }
+            Step(number:3,title:"Ask and read",done:false,enabled:true){
+                Text("Read your free Health report in about 15 seconds, or chat about your matches.").font(.footnote)
+                Button("Get my free Health report"){go(2)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
+            }
             // Results at a glance, as on the web's /explore dashboard.
             ResultsAtAGlance(results:{results()})
             Text("Ask about your DNA").font(VaultStyle.heading(28))
@@ -142,6 +162,8 @@ struct HomeView<Results:View>:View{
             HStack{Text("\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) matches").font(.footnote);Spacer();NavigationLink("Matches"){results()};NavigationLink("Browse"){BrowseView()}}
         } else {
             if store.syncing && store.variantCount==0{Text("Restoring your data from your other device…").font(.headline)}
+            // A first-run Home with no data gets the brand hero instead of bare text.
+            if store.variantCount==0 && !store.syncing{VaultHero()}
             Text("Understand what your DNA says about you").font(VaultStyle.heading(28))
             if store.variantCount==0{Text("Explorer compares your raw DNA file with published genetic research on this device. Then you can ask questions about your results and read reports.")}
             Step(number:1,title:"Add your DNA file",done:store.variantCount>0,enabled:true){
@@ -171,8 +193,9 @@ struct HomeView<Results:View>:View{
             Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Read your free Health report in about 15 seconds, or chat about your matches.").font(.footnote)}
             NavigationLink("Browse research without your DNA"){BrowseView()}
         }
+        }
         Text("Associations are not diagnoses or individual health predictions. Odds ratios are relative, not absolute risk; beta values describe trait changes.").font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote)).foregroundStyle(.secondary)
-    }.padding()}.vaultScreen().navigationTitle("Explorer").navigationBarTitleDisplayMode(.inline)}
+    }.padding()}.vaultScreen().vaultTitle("Explorer")}
 }
 
 /// A finished report presented as a document, with native share and the system print/PDF flow.
@@ -202,7 +225,8 @@ struct ReportSheet:View{
 }
 
 /// The conversation as markdown, labeled by speaker, for share and PDF export.
-func chatTranscript(_ store:ExplorerStore)->String{store.messages.map{($0.0=="user" ? "**You:** " : "**Explorer:** ")+$0.1}.joined(separator:"\n\n")}
+// The speaker label gets its own line so a reply starting with a heading still parses as one.
+func chatTranscript(_ store:ExplorerStore)->String{store.messages.map{($0.0=="user" ? "**You:**\n" : "**Explorer:**\n")+$0.1}.joined(separator:"\n\n")}
 
 /// Renders the print HTML into a real PDF file in the temp directory, no print dialog.
 func writePdf(_ title:String,_ html:String)->URL?{
@@ -308,7 +332,8 @@ struct ResultsAtAGlance<Results:View>:View{
                 ScrollView(.horizontal,showsIndicators:false){HStack(spacing:8){ForEach(Array(categories.prefix(8).enumerated()),id:\.offset){_,category in
                     let palette=VaultStyle.cardPalette(category["id"] as? String ?? "other")
                     NavigationLink{results()}label:{VStack(alignment:.leading,spacing:2){Text(category["label"] as? String ?? "").font(.headline);Text("\((category["count"] as? Int ?? 0).formatted()) matches").font(.footnote)}.padding(.horizontal,16).padding(.vertical,12).background(palette.background,in:RoundedRectangle(cornerRadius:20)).foregroundStyle(palette.foreground)}
-                }}.padding(.vertical,2)}
+                // The trailing pad lets the last card clear the screen edge when the carousel is scrolled fully.
+                }.padding(.vertical,2).padding(.trailing,16)}
             }
             if let standout=insight["standout"] as? [String:Any]{
                 let record=Record(raw:standout)
@@ -319,13 +344,25 @@ struct ResultsAtAGlance<Results:View>:View{
     // Reloads whenever the stored results change.
     }.task(id:store.resultsVersion){preview=(try? await store.preview()) ?? [:]}}
 }
+extension View{
+    /// The brand star rides next to the screen title so it stays visible past onboarding.
+    func vaultTitle(_ title:String)->some View{
+        navigationTitle(title).navigationBarTitleDisplayMode(.inline).toolbar{ToolbarItem(placement:.principal){HStack(spacing:6){Image("vault_star").resizable().scaledToFit().frame(width:16,height:16);Text(title).font(.headline)}}}
+    }
+}
+
 struct Step<Content:View>:View{
     let number:Int;let title:String;let done:Bool;let enabled:Bool
     @ViewBuilder var content:()->Content
     // Done steps are tinted, the current step is outlined, and later steps are dimmed.
     var body:some View{VStack(alignment:.leading,spacing:8){
-        Text(done ? "✓  \(title)" : "\(number)  \(title)").font(.headline)
-        content()
+        HStack(spacing:10){
+            // The step marker is a brand disc, not an emoji numeral, so it sits inside the type system.
+            ZStack{Circle().fill(Color.accentColor).frame(width:28,height:28);Text(done ? "✓" : "\(number)").font(.callout.bold()).foregroundStyle(.white)}
+            Text(title).font(.headline)
+        }
+        // Completed steps collapse to their checked title, as on Android.
+        if enabled || !done{content()}
     }.frame(maxWidth:.infinity,alignment:.leading).padding()
     .background(done ? Color.accentColor.opacity(0.12) : Color.clear,in:RoundedRectangle(cornerRadius:20))
     .overlay(RoundedRectangle(cornerRadius:20).stroke(enabled && !done ? Color.primary : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
@@ -533,7 +570,7 @@ struct ChatView:View{
         }}}
         // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
         HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy||!store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)
-    }.vaultScreen().navigationTitle("Chat")
+    }.vaultScreen().vaultTitle("Chat")
     // A question started on Home arrives as a draft.
     .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}
 }
@@ -563,7 +600,7 @@ struct ReportsView:View{
                     }
                 }
             }
-        }.vaultScreen().navigationTitle("Reports")
+        }.vaultScreen().vaultTitle("Reports")
     }
 }
 
@@ -601,7 +638,7 @@ struct YouView<Vault:View>:View{
             if store.dataUnlocked{Button("Lock data",action:store.lockData).disabled(store.busy)}
         }
         if store.dataUnlocked{Button("Done",action:done)}
-    }.vaultScreen().navigationTitle("You")}
+    }.vaultScreen().vaultTitle("You")}
 }
 
 struct VaultView:View{
