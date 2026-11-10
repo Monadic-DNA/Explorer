@@ -88,7 +88,7 @@ struct ExplorerView: View {
         }
         .sheet(item:$store.selectedStudy){record in NavigationStack{StudyView(record:record).toolbar{ToolbarItem(placement:.confirmationAction){Button("Done"){store.selectedStudy=nil}}}}.modifier(ExplorerMessages()).environmentObject(store)}
         // Fresh reports open full-screen; the inline copy on the Reports tab remains for revisiting.
-        .fullScreenCover(isPresented:$store.reportSheetOpen){ReportSheet(go:{selectedTab=1}).environmentObject(store)}
+        .fullScreenCover(isPresented:$store.reportSheetOpen){ReportSheet(go:{selectedTab=$0}).environmentObject(store)}
         .modifier(ExplorerMessages(openAccount:{store.selectedStudy=nil;selectedTab=4;showAccount=true}))
         .fileImporter(isPresented:$importing,allowedContentTypes:[.data]){result in
             switch result{
@@ -226,7 +226,7 @@ struct ReportSheet:View{
 
 /// The conversation as markdown, labeled by speaker, for share and PDF export.
 // The speaker label gets its own line so a reply starting with a heading still parses as one.
-func chatTranscript(_ store:ExplorerStore)->String{store.messages.map{($0.0=="user" ? "**You:**\n" : "**Explorer:**\n")+$0.1}.joined(separator:"\n\n")}
+@MainActor func chatTranscript(_ store:ExplorerStore)->String{store.messages.map{($0.0=="user" ? "**You:**\n" : "**Explorer:**\n")+$0.1}.joined(separator:"\n\n")}
 
 /// Renders the print HTML into a real PDF file in the temp directory, no print dialog.
 func writePdf(_ title:String,_ html:String)->URL?{
@@ -315,7 +315,7 @@ struct VaultStarLoader:View{
         }.frame(width:120,height:120)
         .onAppear{rotation=360;scale=0.8}
     }
-    private func offset(for index:Int)->CGSize{let angle=CGFloat(index)*.pi/2;return CGSize(width:50*cos(angle),height:50*sin(angle))}
+    private func offset(for index:Int)->CGSize{let angle=CGFloat(index) * .pi / 2;return CGSize(width:50*cos(angle),height:50*sin(angle))}
 }
 
 /// The Home dashboard: category cards plus the strongest-signal highlight, loaded from the store.
@@ -333,7 +333,7 @@ struct ResultsAtAGlance<Results:View>:View{
                     let palette=VaultStyle.cardPalette(category["id"] as? String ?? "other")
                     NavigationLink{results()}label:{VStack(alignment:.leading,spacing:2){Text(category["label"] as? String ?? "").font(.headline);Text("\((category["count"] as? Int ?? 0).formatted()) matches").font(.footnote)}.padding(.horizontal,16).padding(.vertical,12).background(palette.background,in:RoundedRectangle(cornerRadius:20)).foregroundStyle(palette.foreground)}
                 // The trailing pad lets the last card clear the screen edge when the carousel is scrolled fully.
-                }.padding(.vertical,2).padding(.trailing,16)}
+                }.padding(.vertical,2).padding(.trailing,16)}}
             }
             if let standout=insight["standout"] as? [String:Any]{
                 let record=Record(raw:standout)
@@ -534,7 +534,7 @@ struct ChatView:View{
                     Button("Retry"){
                         if action=="research"{store.research(message){message=""}}
                         else{store.sendChat(message){message=""}}
-                    }.disabled(store.busy||!store.shareResultsWithLLM||(action=="research" && store.resultCount==0)||(action=="research" ? message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty : message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
+                    }.disabled(store.busy || !store.shareResultsWithLLM||(action=="research" && store.resultCount==0)||(action=="research" ? message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty : message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
                 }.padding().background(VaultStyle.canvas,in:RoundedRectangle(cornerRadius:12)).listRowSeparator(.hidden)
             }
             if store.messages.isEmpty{
@@ -557,7 +557,7 @@ struct ChatView:View{
             PhotosPicker(selection:$pickedPhotos,maxSelectionCount:6,matching:.images){Image(systemName:"photo")}.disabled(!store.shareResultsWithLLM || store.busy)
             Button{showDocPicker=true}label:{Image(systemName:"paperclip")}.disabled(!store.shareResultsWithLLM || store.busy)
             TextField("Ask about your findings",text:$message,axis:.vertical).lineLimit(2...6).textFieldStyle(.roundedBorder).layoutPriority(1).disabled(!store.shareResultsWithLLM || store.busy)
-            Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy||!store.shareResultsWithLLM||(message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
+            Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy || !store.shareResultsWithLLM||(message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
         }.padding(.horizontal)
         .onChange(of:pickedPhotos){_,items in for item in items{Task{if let data=try? await item.loadTransferable(type:Data.self){
             // Downscale for vision upload: 1024px on the long edge, JPEG 0.85.
@@ -569,7 +569,7 @@ struct ChatView:View{
             if let data=try? Data(contentsOf:url){try? store.attachChat(url.lastPathComponent,mime,data)}
         }}}
         // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
-        HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy||!store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)
+        HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy || !store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)
     }.vaultScreen().vaultTitle("Chat")
     // A question started on Home arrives as a draft.
     .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}

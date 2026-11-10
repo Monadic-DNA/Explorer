@@ -81,12 +81,15 @@ cd apps/android
 Requires macOS, Xcode with iOS 17+ SDK/simulators, Node 24, rustup, and XcodeGen (`brew install xcodegen`).
 
 ```sh
+python3 scripts/prepare-public-sample.py
 node scripts/build-native.mjs ios simulator
 xcodebuild -project apps/ios/Explorer.xcodeproj -scheme Explorer \
   -destination 'platform=iOS Simulator,name=iPhone 16' \
-  -derivedDataPath apps/ios/build test CODE_SIGNING_ALLOWED=NO
+  -derivedDataPath apps/ios/build test CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES
 # Substitute an installed simulator from: xcrun simctl list devices available
 ```
+
+Simulator builds need ad-hoc signing for CloudKit initialization; disabling signing causes a launch-time crash. The public-sample tests inject a test vault protector because the simulator cannot provide a Secure Enclave.
 
 For a device: `node scripts/build-native.mjs ios device`, open the generated project, set your development team and signing, and run. Rust libraries are linked by platform and architecture. Generate both simulator architectures if building a universal simulator destination. `CARGO_TARGET_DIR` overrides are supported by Android and WASM generation; iOS project linkage expects the default repository `target/` directory.
 

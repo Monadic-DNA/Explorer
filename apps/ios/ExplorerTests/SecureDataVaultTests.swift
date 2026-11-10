@@ -42,7 +42,8 @@ final class SecureDataVaultTests:XCTestCase {
         let protector=TestVaultProtector()
         let vault=SecureDataVault(protector:protector,directory:root)
         let missing=await vault.exists;XCTAssertFalse(missing)
-        var handle=try XCTUnwrap(try await vault.unlock()["handle"] as? Int)
+        let opened=try await vault.unlock()
+        var handle=try XCTUnwrap(opened["handle"] as? Int)
         _=try Core.importToStore(handle,Data("# 23andMe\nrs1 1 100 AG\n".utf8),"private.txt")
         _=try Core.call("store_set_customization",["store":handle,"customization":["fields":["age":"42"],"context":"private context"]])
         await vault.lock(handle)
@@ -51,7 +52,8 @@ final class SecureDataVaultTests:XCTestCase {
         for secret in ["private context","private.txt","SQLite format"]{XCTAssertFalse(raw.contains(secret),secret)}
         // A restarted app opens the same data with the same device key.
         let restarted=SecureDataVault(protector:protector,directory:root)
-        handle=try XCTUnwrap(try await restarted.unlock()["handle"] as? Int)
+        let reopened=try await restarted.unlock()
+        handle=try XCTUnwrap(reopened["handle"] as? Int)
         XCTAssertEqual(try Core.object("store_metadata",["store":handle])["count"] as? Int,1)
         XCTAssertEqual((try Core.object("store_customization",["store":handle])["fields"] as? [String:String])?["age"],"42")
         await restarted.lock(handle)

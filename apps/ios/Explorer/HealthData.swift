@@ -22,7 +22,7 @@ final class HealthData{
 
     func authorize() async -> Bool{
         guard available else{return false}
-        return (try? await store.requestAuthorization(toShare:[],read:readTypes)) ?? false
+        do{try await store.requestAuthorization(toShare:[],read:readTypes);return true}catch{return false}
     }
 
     /** A metric's categories drive which prompts include it. */
@@ -47,7 +47,7 @@ final class HealthData{
 
     private func latest(_ type:HKQuantityType,unit:HKUnit) async -> (Double,Int)?{
         let predicate=HKQuery.predicateForSamples(withStart:monthAgo,end:Date())
-        let sort= NSSortDescriptor(key:HKSampleSortIdentifierStartDate,ascending:false)
+        let sort=NSSortDescriptor(key:HKSampleSortIdentifierStartDate,ascending:false)
         return await withCheckedContinuation{continuation in
             let query=HKSampleQuery(sampleType:type,predicate:predicate,limit:50,sortDescriptors:[sort]){_,samples,_ in
                 let quantities=(samples as? [HKQuantitySample]) ?? []

@@ -327,7 +327,7 @@ import UIKit
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
         _=try await self.requireAccess("Chat")
         let accessions=await self.similarStudies(record.text("disease_trait"),limit:5000)
-        let input=try self.storeInput(["studyId":record.id,"customization":(try Core.string("user_context",self.profileData()))+(await self.healthBlock(record.name)),"accessions":accessions])
+        let input=try self.storeInput(["studyId":record.id,"customization":(try Core.string("user_context",self.profileData()))+(await self.healthBlock(record.text("disease_trait"))),"accessions":accessions])
         let prompt=try await Task.detached{try Core.object("store_commentary_prompt",input)}.value
         self.commentaryStudyId=record.id;self.commentary=try await self.complete(prompt)
     }}

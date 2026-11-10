@@ -20,14 +20,21 @@ protocol SyncCloud: AnyObject {
 /// CloudKit's private database in the user's own iCloud account. Data counts against their iCloud storage.
 /// Saving with `.ifServerRecordUnchanged` gives a real compare-and-set.
 final class CloudKitSyncCloud: SyncCloud {
-    private let database=CKContainer.default().privateCloudDatabase
+    private var database:CKDatabase{CKContainer.default().privateCloudDatabase}
     private static let type="SyncRecord"
+    private func ensureCloudKitAvailable()throws{
+        #if targetEnvironment(simulator)
+        throw Core.Failure(message:"iCloud sync is unavailable in the iOS simulator. Run the signed app on a device to use iCloud sync.")
+        #endif
+    }
     func authorize() async throws {
+        try ensureCloudKitAvailable()
         let status=try await CKContainer.default().accountStatus()
         guard status == .available else{throw Core.Failure(message:status == .restricted ? "iCloud is restricted on this device, so sync can't be turned on." : "Sign in to iCloud in Settings, with iCloud Drive turned on, to keep your data on a new iPhone.")}
     }
     private func id(_ record:String)->CKRecord.ID{CKRecord.ID(recordName:record)}
     private func fetch(_ names:[String]) async throws -> [String:CKRecord] {
+        try ensureCloudKitAvailable()
         var out:[String:CKRecord]=[:]
         for (recordID,result) in try await database.records(for:names.map(id)) {
             switch result {
@@ -61,6 +68,7 @@ final class CloudKitSyncCloud: SyncCloud {
         return baseRevision+1
     }
     func deleteAll() async throws {
+        try ensureCloudKitAvailable()
         _=try await database.modifyRecords(saving:[],deleting:Self.names.map(id))
     }
     /// The records the core syncs; see `RECORDS` in crates/explorer-core/src/sync.rs.

@@ -4,6 +4,7 @@ import UIKit
 // Colors and artwork come from the same checked-in sources as Android.
 enum VaultStyle {
     static let ink = Color("vault_darkMain")
+    static let accent = Color.accentColor
     static let canvas = Color("vault_offTone")
     static let lavender = Color("vault_purple200")
     static let purpleInk = Color("vault_purple900")

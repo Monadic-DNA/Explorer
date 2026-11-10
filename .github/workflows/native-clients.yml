@@ -61,7 +61,7 @@ jobs:
         shell: bash
         run: |
           simulator_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for devices in d["devices"].values() for v in devices if v["name"].startswith("iPhone")))')
-          xcodebuild -resultBundlePath apps/ios/ExplorerTests.xcresult -project apps/ios/Explorer.xcodeproj -scheme Explorer -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath apps/ios/build test CODE_SIGNING_ALLOWED=NO
+          xcodebuild -resultBundlePath apps/ios/ExplorerTests.xcresult -project apps/ios/Explorer.xcodeproj -scheme Explorer -destination "platform=iOS Simulator,id=$simulator_id" -derivedDataPath apps/ios/build test CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES
 
       - name: Export iOS visual snapshots
         if: always()
