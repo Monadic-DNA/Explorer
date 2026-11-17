@@ -5,6 +5,7 @@ options:
   bundleIdPrefix: com.monadicdna
 settings:
   base:
+    DEVELOPMENT_TEAM: G7QQMG8Q65
     SWIFT_VERSION: '5.0'
     IPHONEOS_DEPLOYMENT_TARGET: '17.0'
     ENABLE_USER_SCRIPT_SANDBOXING: NO
@@ -22,16 +23,19 @@ targets:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.monadicdna.explorer
+        PRODUCT_BUNDLE_IDENTIFIER: tech.cryptonomic.monadic-vault
         SWIFT_OBJC_BRIDGING_HEADER: Generated/ExplorerCoreFFI.h
         HEADER_SEARCH_PATHS: '$(inherited) $(SRCROOT)/Generated'
-        OTHER_LDFLAGS: '$(inherited) -lexplorer_core'
+        OTHER_LDFLAGS: '$(inherited)'
+        'OTHER_LDFLAGS[sdk=iphoneos*]': '$(inherited) $(SRCROOT)/../../target/aarch64-apple-ios/release/libexplorer_core.a'
+        'OTHER_LDFLAGS[sdk=iphonesimulator*][arch=arm64]': '$(inherited) $(SRCROOT)/../../target/aarch64-apple-ios-sim/release/libexplorer_core.a'
+        'OTHER_LDFLAGS[sdk=iphonesimulator*][arch=x86_64]': '$(inherited) $(SRCROOT)/../../target/x86_64-apple-ios/release/libexplorer_core.a'
         'LIBRARY_SEARCH_PATHS[sdk=iphoneos*]': '$(inherited) $(SRCROOT)/../../target/aarch64-apple-ios/release'
         'LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*][arch=arm64]': '$(inherited) $(SRCROOT)/../../target/aarch64-apple-ios-sim/release'
         'LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*][arch=x86_64]': '$(inherited) $(SRCROOT)/../../target/x86_64-apple-ios/release'
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: '1.0.0'
-        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: '1.0.9'
+        CURRENT_PROJECT_VERSION: 6
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Explorer/Info.plist
         CODE_SIGN_ENTITLEMENTS: Explorer/Explorer.entitlements

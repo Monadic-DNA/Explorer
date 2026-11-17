@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Monadic DNA Explorer</string>
+	<string>Monadic DNA</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -18,6 +18,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Explorer reads 30-day averages of metrics like resting heart rate, sleep, steps and weight so reports and chat can relate your genetic findings to how you are doing. Raw records stay in Apple Health; averages go only to your chosen AI provider when sharing is allowed.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Monadic DNA does not write or update Apple Health data. HealthKit requires this description for authorization; the app requests read-only access to calculate 30-day health summaries for reports and chat.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Authenticate to unlock your encrypted DNA, results and customization.</string>
 	<key>NSAppTransportSecurity</key>
@@ -37,6 +39,13 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>

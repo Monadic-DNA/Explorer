@@ -20,7 +20,9 @@ protocol SyncCloud: AnyObject {
 /// CloudKit's private database in the user's own iCloud account. Data counts against their iCloud storage.
 /// Saving with `.ifServerRecordUnchanged` gives a real compare-and-set.
 final class CloudKitSyncCloud: SyncCloud {
-    private var database:CKDatabase{CKContainer.default().privateCloudDatabase}
+    private static let containerIdentifier="iCloud.com.monadicdna.explorer"
+    private var container:CKContainer{CKContainer(identifier:Self.containerIdentifier)}
+    private var database:CKDatabase{container.privateCloudDatabase}
     private static let type="SyncRecord"
     private func ensureCloudKitAvailable()throws{
         #if targetEnvironment(simulator)
@@ -29,7 +31,7 @@ final class CloudKitSyncCloud: SyncCloud {
     }
     func authorize() async throws {
         try ensureCloudKitAvailable()
-        let status=try await CKContainer.default().accountStatus()
+        let status=try await container.accountStatus()
         guard status == .available else{throw Core.Failure(message:status == .restricted ? "iCloud is restricted on this device, so sync can't be turned on." : "Sign in to iCloud in Settings, with iCloud Drive turned on, to keep your data on a new iPhone.")}
     }
     private func id(_ record:String)->CKRecord.ID{CKRecord.ID(recordName:record)}
