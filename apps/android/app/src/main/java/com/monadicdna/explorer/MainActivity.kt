@@ -277,6 +277,20 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     TextButton(onClick={open=!open},contentPadding=PaddingValues(0.dp)){Text((if(open)"▼ " else "▶ ")+"Researched ${angles.size} angles",style=MaterialTheme.typography.labelLarge)}
     if(open)angles.forEach{(keyword,count)->Text("• $keyword (${count.grouped()} ${if(count==1)"study" else "studies"})",style=MaterialTheme.typography.bodySmall)}
 }
+/** The web's "studies used" list plus the personalization/health context behind the first answer, each collapsed independently. */
+@Composable private fun ChatSources(sources: List<JSONObject>, contextUsed: String){
+    var studiesOpen by remember{mutableStateOf(false)}
+    var contextOpen by remember{mutableStateOf(false)}
+    TextButton(onClick={studiesOpen=!studiesOpen},contentPadding=PaddingValues(0.dp)){Text((if(studiesOpen)"▼ " else "▶ ")+"${sources.size} studies used",style=MaterialTheme.typography.labelLarge)}
+    if(studiesOpen)Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
+        sources.forEach{source->
+            Text("• ${source.optString("traitName")} (${source.optString("gwasId")})",style=MaterialTheme.typography.bodySmall)
+            Text("${source.optString("matchedSnp")}: ${source.optString("userGenotype")} • ${source.optString("riskLevel").replaceFirstChar{it.uppercase()}} risk • ${if(source.optString("effectType")=="beta")"Beta" else "OR"} ${"%.2f".format(source.optDouble("riskScore"))}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    TextButton(onClick={contextOpen=!contextOpen},contentPadding=PaddingValues(0.dp)){Text((if(contextOpen)"▼ " else "▶ ")+"Personalization and health data used",style=MaterialTheme.typography.labelLarge)}
+    if(contextOpen)Text(if(contextUsed.isBlank())"None. You have not filled in About you and health data sharing is off, so this answer used only your research matches." else contextUsed,style=MaterialTheme.typography.bodySmall)
+}
 /** Explains what Chat or a premium report needs and links to Account, instead of a bare error. */
 @Composable private fun AccessNeeded(model: ExplorerModel, openAccount: ()->Unit){
     model.accessNeeded ?: return
@@ -359,6 +373,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             itemsIndexed(model.messages.toList()){index,(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){
                 Text(if(role=="user")"You" else "Explorer",fontWeight=FontWeight.Bold);if(role=="user")Text(text) else MarkdownText(text)
                 model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
+                model.chatSources[index]?.takeIf{it.isNotEmpty()}?.let{sources->ChatSources(sources,model.chatContextUsed)}
             }}}
             if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.

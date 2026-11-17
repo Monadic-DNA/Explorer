@@ -563,6 +563,18 @@ struct ChatView:View{
                 Text(item.element.0=="user" ? "You" : "Explorer").font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)
                 // The angles a Research answer looked at, collapsed by default as on the web.
                 if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
+                // The web's "studies used" list plus the personalization/health context behind the first answer.
+                if let sources=store.chatSources[item.offset],!sources.isEmpty{
+                    DisclosureGroup("\(sources.count) studies used"){
+                        ForEach(Array(sources.enumerated()),id:\.offset){_,source in VStack(alignment:.leading,spacing:2){
+                            Text("• \(source["traitName"] as? String ?? "") (\(source["gwasId"] as? String ?? ""))").font(.footnote)
+                            Text("\(source["matchedSnp"] as? String ?? ""): \(source["userGenotype"] as? String ?? "") • \((source["riskLevel"] as? String ?? "").capitalized) risk • \((source["effectType"] as? String)=="beta" ? "Beta" : "OR") \(String(format:"%.2f",source["riskScore"] as? Double ?? 0))").font(.footnote).foregroundStyle(.secondary)
+                        }}
+                    }.font(.footnote)
+                    DisclosureGroup("Personalization and health data used"){
+                        Text(store.chatContextUsed.isEmpty ? "None. You have not filled in About you and health data sharing is off, so this answer used only your research matches." : store.chatContextUsed).font(.footnote)
+                    }.font(.footnote)
+                }
             }}
             if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.

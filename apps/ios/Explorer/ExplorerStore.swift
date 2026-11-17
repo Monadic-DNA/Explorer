@@ -68,6 +68,10 @@ import UIKit
     @Published var researchAngles:[Int:[(String,Int)]]=[:]
     /// Follow-up questions suggested by the latest reply.
     @Published var chatFollowups:[String]=[]
+    /// For the first Chat answer, keyed by message index: the matched studies it was built from, as on the web's "studies used".
+    @Published var chatSources:[Int:[[String:Any]]]=[:]
+    /// The personalization and Apple Health text shared for the current conversation's first answer; empty when none was shared.
+    @Published private(set) var chatContextUsed=""
     /// Agreeing to the Terms of Service and Privacy Policy (which cover educational use) enables import. Persisted so it is asked once.
     @Published var acceptedDisclaimer=DeviceStore.get("terms-accepted")=="v1"
     func acceptTerms(){try? DeviceStore.put("terms-accepted","v1");acceptedDisclaimer=true}
@@ -564,7 +568,7 @@ import UIKit
     }
     /// Clears the current conversation so the user can start a new one. Saved transcripts are untouched.
     func newChat(){
-        messages=[];researchAngles=[:];chatFollowups=[];chatAttachments=[]
+        messages=[];researchAngles=[:];chatSources=[:];chatContextUsed="";chatFollowups=[];chatAttachments=[]
         chatRetryAction=nil;accessNeeded=nil;error=nil
     }
     /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
@@ -580,8 +584,13 @@ import UIKit
         if first{self.status="Finding your most relevant results…"}
         let accessions=first ? await self.similarStudies(message.isEmpty ? (docs.first?.name ?? "attachment") : message,limit:5000) : []
         self.status="Asking the AI provider…"
-        let input=try self.storeInput(["query":question,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":(try Core.string("user_context",self.profileData()))+(await self.healthBlock(message)),"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
+        let summaryText=(try Core.string("user_context",self.profileData()))+(await self.healthBlock(message))
+        let input=try self.storeInput(["query":question,"llmDescription":try Core.string("llm_description",self.llmConfig),"summary":summaryText,"accessions":accessions,"history":self.messages.map{["role":$0.0,"content":$0.1]}])
         var prompt=try await Task.detached{try Core.object("store_chat_prompt",input)}.value
+        if first{
+            self.chatContextUsed=summaryText.trimmingCharacters(in:.whitespacesAndNewlines)
+            self.chatSources[1]=prompt["usedResults"] as? [[String:Any]] ?? []
+        }
         // Vision content: the last user message becomes an OpenAI-style parts array, which nilAI's multimodal model accepts.
         if !images.isEmpty, var promptMessages=prompt["messages"] as? [[String:Any]],let index=promptMessages.lastIndex(where:{($0["role"] as? String)=="user"}){
             var parts:[[String:Any]]=[["type":"text","text":promptMessages[index]["content"] ?? ""]]

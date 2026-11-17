@@ -103,6 +103,11 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     val messages = mutableStateListOf<Pair<String, String>>()
     /** For Research replies, keyed by message index: each angle researched and how many results it used. */
     val researchAngles = mutableStateMapOf<Int, List<Pair<String,Int>>>()
+    /** For the first Chat answer, keyed by message index: the matched studies it was built from, as on the web's "studies used". */
+    val chatSources = mutableStateMapOf<Int, List<JSONObject>>()
+    /** The personalization and Health Connect text shared for the current conversation's first answer; empty when none was shared. */
+    var chatContextUsed by mutableStateOf("")
+        private set
     /** Follow-up questions suggested by the latest Research reply. */
     var chatFollowups by mutableStateOf(emptyList<String>())
         private set
@@ -563,7 +568,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
 
     /** Clears the current conversation so the user can start a new one. Saved transcripts are untouched. */
     fun newChat(){
-        messages.clear();researchAngles.clear();chatFollowups=emptyList();chatAttachments.clear()
+        messages.clear();researchAngles.clear();chatSources.clear();chatContextUsed="";chatFollowups=emptyList();chatAttachments.clear()
         chatRetryAction=null;accessNeeded=null;error=null
     }
     /** `onSent` runs once a reply has arrived, so a failed send keeps the user's question. */
@@ -579,7 +584,9 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val accessions=if(first){status="Finding your most relevant results…";similarStudies(message.ifBlank{docs.firstOrNull()?.name?:"attachment"},5000)}else JSONArray()
         status="Asking ${mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[provider]?:provider}…"
         val history=JSONArray(messages.map{json("role" to it.first,"content" to it.second)})
-        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to question,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to ((Core.call("user_context",profileData()) as String)+healthBlock(message)),"accessions" to accessions,"history" to history))}
+        val summaryText=(Core.call("user_context",profileData()) as String)+healthBlock(message)
+        val prompt=withContext(Dispatchers.Default){Core.obj("store_chat_prompt",storeInput("query" to question,"llmDescription" to Core.call("llm_description",llmConfig()),"summary" to summaryText,"accessions" to accessions,"history" to history))}
+        if(first){chatContextUsed=summaryText.trim();chatSources[1]=(0 until (prompt.optJSONArray("usedResults")?.length()?:0)).map{prompt.getJSONArray("usedResults").getJSONObject(it)}}
         // Vision content: the last user message becomes an OpenAI-style parts array, which nilAI's multimodal model accepts.
         if(images.isNotEmpty()){
             val arr=prompt.getJSONArray("messages")

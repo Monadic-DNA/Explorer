@@ -338,9 +338,13 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
         // The first question includes the user's results most relevant to it; follow-ups don't.
         "store_chat_prompt" => {
             let mut prompt = input.clone();
-            if crate::array(&input["history"]).is_empty() { prompt["results"] = json!(relevant_results(&store.conn, input, crate::research::CHAT_RESULTS)?); }
+            // The studies that fed the first answer are returned too, so the apps can show them like the web's "studies used" list.
+            let mut used = json!([]);
+            if crate::array(&input["history"]).is_empty() { used = json!(relevant_results(&store.conn, input, crate::research::CHAT_RESULTS)?); prompt["results"] = used.clone(); }
             prompt["totalResults"] = json!(result_count(&store.conn)?);
-            Ok(crate::research::chat_prompt(&prompt))
+            let mut out = crate::research::chat_prompt(&prompt);
+            out["usedResults"] = used;
+            Ok(out)
         }
         "store_research_angle_prompt" => {
             let results = relevant_results(&store.conn, input, crate::research::RESULTS_PER_ANGLE)?;
