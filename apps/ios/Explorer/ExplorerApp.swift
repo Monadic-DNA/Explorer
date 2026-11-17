@@ -65,9 +65,9 @@ struct ExplorerView: View {
     var body: some View {
         VStack(spacing:0){
             // A first-time user has no vault yet, so there is nothing to lock or unlock.
-            if store.dataUnlocked || store.vaultExists{storageStatus}
-            // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader. Home renders its own processing panel, so it skips this bar.
-            if store.busy && selectedTab != 0{
+            if (store.dataUnlocked || store.vaultExists) && !(selectedTab==1 && !store.messages.isEmpty){storageStatus}
+            // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader. Home and Chat render their own indicators, so they skip this bar.
+            if store.busy && selectedTab != 0 && selectedTab != 1{
                 if store.progress == nil{HStack{Spacer();VaultStarLoader();Spacer()}}
                 HStack{if let progress=store.progress{ProgressView(value:progress).frame(width:60)};Text(store.status).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption));Spacer();if store.cancellable{Button("Cancel",action:store.cancel)}}.padding()
             }
@@ -507,26 +507,43 @@ struct ChatView:View{
     @State private var chatExportURL:URL?=nil
     @State private var pickedPhotos:[PhotosPickerItem]=[]
     @State private var showDocPicker=false
+    @State private var confirmNewChat=false
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
-        // The raw model identifier lives in Settings; consumers need the provider name only.
-        HStack{
-            Text("Provider: \(providerName)").font(.footnote)
-            NavigationLink("Change"){SettingsView()}.font(.footnote)
-            Spacer()
-            // The whole transcript exports like a report: native share, or a paginated PDF via the print flow.
-            if !store.messages.isEmpty{
-                Button("Share PDF"){sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store),logo:pdfLogo()))}.font(.footnote)
+        let ongoing=!store.messages.isEmpty && store.shareResultsWithLLM
+        if ongoing{
+            // Once a conversation exists, a single actions row owns the header; provider and sharing controls move into the menu.
+            HStack{
+                Button("New chat"){confirmNewChat=true}.font(.footnote).disabled(store.busy)
+                Button("Share"){sharePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store),logo:pdfLogo()))}.font(.footnote)
                 Button("Save"){chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store),logo:pdfLogo()))}.font(.footnote)
-            }
-        }.padding(.horizontal)
+                Spacer()
+                Menu{
+                    NavigationLink("Provider: \(providerName)"){SettingsView()}
+                    Button("Revoke sharing"){store.shareResultsWithLLM=false}
+                }label:{Image(systemName:"ellipsis.circle")}
+            }.padding(.horizontal)
+        } else {
+            HStack{
+                Text("Provider: \(providerName)").font(.footnote)
+                NavigationLink("Change"){SettingsView()}.font(.footnote)
+                Spacer()
+            }.padding(.horizontal)
+            if store.shareResultsWithLLM{HStack{Text("Sharing matches and optional profile and health summaries with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}.padding(.horizontal)}
+            else{ProviderConsent().padding(.horizontal)
+                Text(store.provider=="nilai" ? "nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." : "Your DNA file never leaves this device. Prompts go only to your selected provider.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal)}
+        }
+        .confirmationDialog("Start a new chat? The current conversation is cleared. Save it as a PDF first if you want to keep it.",isPresented:$confirmNewChat,titleVisibility:.visible){
+            Button("Clear and start new",role:.destructive){store.newChat()}
+            Button("Cancel",role:.cancel){}
+        }
         .sheet(isPresented:Binding(get:{chatExportURL != nil},set:{if !$0{chatExportURL=nil}})){if let url=chatExportURL{DocumentExporter(url:url)}}
         // Consent collapses to a single line once granted; the full toggle remains the gate while it is off.
         if store.shareResultsWithLLM{HStack{Text("Sharing matches and optional profile and health summaries with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}.padding(.horizontal)}
-        else{ProviderConsent().padding(.horizontal)}
-        Text(store.provider=="nilai" ? "nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." : "Your DNA file never leaves this device. Prompts go only to your selected provider.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal)
+        else{ProviderConsent().padding(.horizontal)
+            Text(store.provider=="nilai" ? "nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." : "Your DNA file never leaves this device. Prompts go only to your selected provider.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal)}
         // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
-        List{
+        ScrollViewReader{proxy in List{
             if let action=store.chatRetryAction,let error=store.error,store.accessNeeded==nil{
                 VStack(alignment:.leading,spacing:8){
                     Text(error).foregroundStyle(.red)
@@ -548,9 +565,17 @@ struct ChatView:View{
                 if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
             }}
             if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
-            // While the provider runs, the conversation ends in a live status card and the composer is disabled.
-            if store.busy{HStack(spacing:12){VaultStarLoader().scaleEffect(0.35).frame(width:44,height:44);Text(store.status).font(.callout);Spacer();if store.cancellable{Button("Cancel"){store.cancel()}.font(.footnote)}}}
+            // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
+            if store.busy{HStack{
+                Text(store.messages.last?.1.isEmpty == false ? "" : store.status).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("Stop"){store.cancel()}.font(.caption)
+            }}
+            Color.clear.frame(height:1).id("chat-bottom").listRowSeparator(.hidden)
         }.scrollDismissesKeyboard(.interactively)
+        .onChange(of:store.messages.count){_,_ in withAnimation{proxy.scrollTo("chat-bottom",anchor:.bottom)}}
+        .onChange(of:store.messages.last?.1.count){_,_ in withAnimation{proxy.scrollTo("chat-bottom",anchor:.bottom)}}
+        }
         // Attachments: images go to the provider as vision content; text documents are inlined into the question.
         if !store.chatAttachments.isEmpty{ScrollView(.horizontal){HStack(spacing:8){ForEach(store.chatAttachments){attachment in Button{store.chatAttachments.removeAll{$0.id==attachment.id}}label:{Label(attachment.name,systemImage:attachment.isImage ? "photo" : "doc.text").font(.footnote)}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}}.padding(.horizontal)}
         HStack(spacing:4){

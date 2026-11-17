@@ -474,6 +474,57 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             }
             completeOnce(messages,options)
         } ?: throw IllegalStateException("The AI provider did not respond within two minutes. Check your connection or provider settings, then try again.")
+    /** Streaming completion, as on the web: OpenAI SSE for nilAI/HuggingFace, NDJSON for Ollama. Each delta is handed to the UI. */
+    private suspend fun streamComplete(prompt: JSONObject, onDelta: (String)->Unit): String =
+        streamComplete(prompt.getJSONArray("messages"),json("max_tokens" to prompt.optInt("maxTokens"),"temperature" to prompt.optDouble("temperature")).also{o->prompt.optString("reasoningEffort").takeIf{it.isNotEmpty()}?.let{o.put("reasoning_effort",it)}},onDelta)
+    private suspend fun streamComplete(messages: JSONArray, options: JSONObject, onDelta: (String)->Unit): String {
+        val answer=StringBuilder()
+        withTimeoutOrNull(120_000L) {
+            for(wait in listOf(2_000L,5_000L,10_000L)) {
+                try { streamOnce(messages,options){d->answer.append(d);onDelta(d)};return@withTimeoutOrNull } catch(_:RateLimited) { status="The AI provider is busy; retrying shortly…";delay(wait) }
+            }
+            streamOnce(messages,options){d->answer.append(d);onDelta(d)}
+        } ?: throw IllegalStateException("The AI provider did not respond within two minutes. Check your connection or provider settings, then try again.")
+        return answer.toString()
+    }
+    private suspend fun streamOnce(messages: JSONArray, options: JSONObject, onDelta: (String)->Unit) = withContext(Dispatchers.IO) {
+        val config=Core.obj("llm_config",llmConfig());val endpoint=config.getString("endpoint").trimEnd('/')
+        val ollama=provider=="ollama"
+        if(provider=="huggingface")require(apiKey.isNotBlank()){"Enter your provider API key in Settings. Keys stay on this device."}
+        var msgs=messages
+        val body=if(ollama){
+            val ollamaMessages=JSONArray()
+            for(i in 0 until messages.length()){
+                val msg=messages.getJSONObject(i);val content=msg.opt("content")
+                if(content is JSONArray){
+                    val parts=(0 until content.length()).map{content.getJSONObject(it)}
+                    ollamaMessages.put(json("role" to msg.getString("role"),
+                        "content" to parts.filter{it.optString("type")=="text"}.joinToString("\n"){it.getString("text")},
+                        "images" to JSONArray(parts.filter{it.optString("type")=="image_url"}.map{it.getJSONObject("image_url").getString("url").substringAfter("base64,")})))
+                } else ollamaMessages.put(msg)
+            }
+            json("model" to config.getString("identifier"),"messages" to ollamaMessages,"stream" to true,"options" to json("temperature" to options.opt("temperature"),"num_predict" to options.opt("max_tokens")))
+        } else json("model" to config.getString("identifier"),"messages" to msgs,"stream" to true).also{b->for(key in options.keys())b.put(key,options.get(key))}
+        val bearer=if(provider=="nilai")nilaiAuthorization(endpoint)else apiKey
+        val builder=Request.Builder().url(if(ollama)"$endpoint/api/chat" else "$endpoint/chat/completions").header("Accept","text/event-stream").post(body.toString().toRequestBody("application/json".toMediaType()))
+        if(bearer.isNotEmpty())builder.header("Authorization","Bearer $bearer")
+        val call=http.newCall(builder.build())
+        currentCoroutineContext().job.invokeOnCompletion{if(!isActive)call.cancel()}
+        call.execute().use{response->
+            if(response.code==429)throw RateLimited()
+            if(!response.isSuccessful)throw IllegalStateException("Request failed (HTTP ${response.code}). Check your connection and AI provider settings.")
+            val source=response.body?.source()?:return@use
+            while(!source.exhausted()){
+                val line=source.readUtf8Line()?:break
+                val payload=if(line.startsWith("data:"))line.removePrefix("data:").trim()else if(ollama)line else continue
+                if(payload.isEmpty()||payload=="[DONE]")continue
+                val chunk=runCatching{JSONObject(payload)}.getOrNull()?:continue
+                val delta=if(ollama)chunk.optJSONObject("message")?.optString("content").orEmpty()
+                    else chunk.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta")?.optString("content").orEmpty()
+                if(delta.isNotEmpty())onDelta(delta)
+            }
+        }
+    }
     private suspend fun completeOnce(messages: JSONArray, options: JSONObject): String {
         val config=Core.obj("llm_config",llmConfig());val endpoint=config.getString("endpoint").trimEnd('/')
         if(provider=="huggingface")require(apiKey.isNotBlank()){"Enter your provider API key in Settings. Keys stay on this device."}
@@ -510,6 +561,11 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         chatAttachments.add(ChatAttachment(name,mime,data))
     }
 
+    /** Clears the current conversation so the user can start a new one. Saved transcripts are untouched. */
+    fun newChat(){
+        messages.clear();researchAngles.clear();chatFollowups=emptyList();chatAttachments.clear()
+        chatRetryAction=null;accessNeeded=null;error=null
+    }
     /** `onSent` runs once a reply has arrived, so a failed send keeps the user's question. */
     fun sendChat(message: String, onSent: ()->Unit={}) = run("Asking selected provider",chatActionOnFailure="chat") {
         require(shareResultsWithLLM){"Confirm sharing matched results with the selected provider first."}
@@ -536,11 +592,22 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
                 }
             }
         }
-        val reply=Core.obj("research_extract",json("content" to complete(prompt)))
         val names=chatAttachments.map{it.name}
         val shown=if(names.isEmpty())message else (message+"\nAttached: "+names.joinToString(", ")).trim()
         chatAttachments.clear()
-        messages.add("user" to shown);messages.add("assistant" to reply.getString("answer"))
+        messages.add("user" to shown)
+        // Stream the answer in place, as on the web; fall back to a single response if the provider returns nothing streamed.
+        messages.add("assistant" to "")
+        val answerIndex=messages.lastIndex
+        var content=try {
+            streamComplete(prompt){delta->messages[answerIndex]="assistant" to (messages[answerIndex].second+delta)}
+        } catch(e:Exception){
+            if(messages[answerIndex].second.isEmpty())"" else throw e
+        }
+        if(content.isBlank())content=complete(prompt)
+        val reply=Core.obj("research_extract",json("content" to content))
+        // The core strips the trailing follow-up questions from the answer; they render as chips only.
+        messages[answerIndex]="assistant" to reply.getString("answer")
         chatFollowups=(0 until reply.getJSONArray("questions").length()).map{reply.getJSONArray("questions").getString(it)}
         onSent()
     }

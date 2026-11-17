@@ -464,6 +464,77 @@ import UIKit
         let data=try await request(URL(string:endpoint+"/chat/completions")!,["model":identifier,"messages":messages,"stream":false].merging(options){$1},bearer:bearer)
         guard let choices=data["choices"] as? [[String:Any]],let message=choices.first?["message"] as? [String:Any],let content=message["content"] as? String else{throw Core.Failure(message:"Invalid provider response")};return content
     }
+    /// Streaming completion, as on the web: OpenAI SSE for nilAI/HuggingFace, NDJSON for Ollama. Each delta updates the UI.
+    private func streamComplete(_ prompt:[String:Any],onDelta:@escaping @MainActor (String)->Void) async throws -> String {
+        var options:[String:Any]=["max_tokens":prompt["maxTokens"] ?? 0,"temperature":prompt["temperature"] ?? 0.7]
+        if let effort=prompt["reasoningEffort"] as? String{options["reasoning_effort"]=effort}
+        return try await streamComplete(prompt["messages"] as? [[String:Any]] ?? [],options:options,onDelta:onDelta)
+    }
+    private func streamComplete(_ messages:[[String:Any]],options:[String:Any],onDelta:@escaping @MainActor (String)->Void) async throws -> String {
+        do{
+            return try await withThrowingTaskGroup(of:String.self){group in
+                group.addTask{
+                    for wait:UInt64 in [2,5,10] {
+                        do{
+                            var answer=""
+                            try await self.streamOnce(messages,options:options){delta in answer+=delta;await onDelta(delta)}
+                            return answer
+                        }catch is RateLimited{await MainActor.run{self.status="The AI provider is busy; retrying shortly…"};try await Task.sleep(nanoseconds:wait*1_000_000_000)}
+                    }
+                    var answer=""
+                    try await self.streamOnce(messages,options:options){delta in answer+=delta;await onDelta(delta)}
+                    return answer
+                }
+                group.addTask{try await Task.sleep(nanoseconds:120_000_000_000);throw CompletionDeadlineExceeded()}
+                guard let result=try await group.next() else{throw Core.Failure(message:"The AI provider returned no response.")}
+                group.cancelAll()
+                return result
+            }
+        }catch is CompletionDeadlineExceeded{
+            throw Core.Failure(message:"The AI provider did not respond within two minutes. Check your connection or provider settings, then try again.")
+        }
+    }
+    private func streamOnce(_ messages:[[String:Any]],options:[String:Any],onDelta:@escaping @MainActor (String)->Void) async throws {
+        let config=try Core.object("llm_config",llmConfig)
+        let endpoint=(config["endpoint"] as? String ?? "").trimmingCharacters(in:CharacterSet(charactersIn:"/"));let identifier=config["identifier"] as? String ?? model
+        if provider=="huggingface" && apiKey.isEmpty{throw Core.Failure(message:"Enter your own provider API key in Settings")}
+        let bearer=provider=="nilai" ? try await nilaiAuthorization(endpoint) : apiKey
+        var body:[String:Any]
+        var url:URL
+        if provider=="ollama"{
+            let converted=messages.map{msg->[String:Any] in
+                guard let parts=msg["content"] as? [[String:Any]] else{return msg}
+                let text=parts.filter{$0["type"] as? String=="text"}.compactMap{$0["text"] as? String}.joined(separator:"\n")
+                let images=parts.filter{$0["type"] as? String=="image_url"}.compactMap{(($0["image_url"] as? [String:Any])?["url"] as? String)?.components(separatedBy:"base64,").last}
+                return ["role":msg["role"] ?? "user","content":text,"images":images]
+            }
+            body=["model":identifier,"messages":converted,"stream":true,"options":["temperature":options["temperature"] ?? 0.7,"num_predict":options["max_tokens"] ?? 0]]
+            url=URL(string:endpoint+"/api/chat")!
+        }else{
+            body=["model":identifier,"messages":messages,"stream":true].merging(options){$1}
+            url=URL(string:endpoint+"/chat/completions")!
+        }
+        var req=URLRequest(url:url)
+        req.httpMethod="POST"
+        req.setValue("application/json",forHTTPHeaderField:"Content-Type")
+        req.setValue("text/event-stream",forHTTPHeaderField:"Accept")
+        if !bearer.isEmpty{req.setValue("Bearer \(bearer)",forHTTPHeaderField:"Authorization")}
+        req.httpBody=try JSONSerialization.data(withJSONObject:body)
+        let (bytes,response)=try await URLSession.shared.bytes(for:req)
+        let status=(response as? HTTPURLResponse)?.statusCode ?? 0
+        if status==429{throw RateLimited()}
+        guard (200...299).contains(status) else{throw Core.Failure(message:"Request failed (HTTP \(status)). Check your connection and AI provider settings.")}
+        for try await line in bytes.lines{
+            let payload:String
+            if line.hasPrefix("data:"){payload=line.dropFirst(5).trimmingCharacters(in:.whitespaces)}else if provider=="ollama"{payload=line}else{continue}
+            if payload.isEmpty || payload=="[DONE]"{continue}
+            guard let chunk=try? JSONSerialization.jsonObject(with:Data(payload.utf8)) as? [String:Any] else{continue}
+            let delta:String
+            if provider=="ollama"{delta=(chunk["message"] as? [String:Any])?["content"] as? String ?? ""}
+            else{delta=(((chunk["choices"] as? [[String:Any]])?.first?["delta"] as? [String:Any])?["content"] as? String) ?? ""}
+            if !delta.isEmpty{await onDelta(delta)}
+        }
+    }
     private func nilaiAuthorization(_ endpoint:String)async throws->String{
         let (data,response)=try await URLSession.shared.data(from:URL(string:endpoint+"/public_key")!)
         guard (response as? HTTPURLResponse)?.statusCode==200 else{throw Core.Failure(message:"Unable to retrieve nilAI public key")}
@@ -491,6 +562,11 @@ import UIKit
         guard data.count<=8*1024*1024 else{throw Core.Failure(message:"Attachments are limited to 8 MB")}
         chatAttachments.append(ChatAttachment(name:name,mime:mime,data:data))
     }
+    /// Clears the current conversation so the user can start a new one. Saved transcripts are untouched.
+    func newChat(){
+        messages=[];researchAngles=[:];chatFollowups=[];chatAttachments=[]
+        chatRetryAction=nil;accessNeeded=nil;error=nil
+    }
     /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
     func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider",chatActionOnFailure:"chat"){
         guard self.shareResultsWithLLM else{throw Core.Failure(message:"Confirm sharing matched results with the selected provider first")}
@@ -513,10 +589,22 @@ import UIKit
             promptMessages[index]["content"]=parts
             prompt["messages"]=promptMessages
         }
-        let reply=try Core.object("research_extract",["content":try await self.complete(prompt)])
         let shown=self.chatAttachments.isEmpty ? message : (message+"\nAttached: "+self.chatAttachments.map{$0.name}.joined(separator:", ")).trimmingCharacters(in:.whitespaces)
         self.chatAttachments=[]
-        self.messages.append(("user",shown));self.messages.append(("assistant",reply["answer"] as? String ?? ""))
+        self.messages.append(("user",shown))
+        // Stream the answer in place, as on the web; fall back to a single response if the provider returns nothing streamed.
+        self.messages.append(("assistant",""))
+        let answerIndex=self.messages.count-1
+        var content=""
+        do{
+            content=try await self.streamComplete(prompt){delta in self.messages[answerIndex].1+=delta}
+        }catch{
+            guard self.messages[answerIndex].1.isEmpty else{throw error}
+        }
+        if content.isEmpty{content=try await self.complete(prompt)}
+        let reply=try Core.object("research_extract",["content":content])
+        // The core strips the trailing follow-up questions from the answer; they render as chips only.
+        self.messages[answerIndex].1=reply["answer"] as? String ?? content
         self.chatFollowups=reply["questions"] as? [String] ?? []
         onSent()
     }}

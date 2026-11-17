@@ -19,6 +19,8 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -113,13 +115,13 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
             // A first-time user has no vault yet, so there is nothing to lock or unlock.
-            if(model.dataUnlocked||model.dataVault.exists)Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+            if((model.dataUnlocked||model.dataVault.exists)&&!(tab=="Chat"&&model.messages.isNotEmpty()))Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
                 val variants=model.metadata.optInt("count")
                 Text(if(variants>0&&model.dataUnlocked)"${variants.grouped()} variants • ${model.storageMessage}" else model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
                 if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lock data")}
                 else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Unlock data")}
             }
-            if(model.busy&&tab!="Home"){
+            if(model.busy&&tab!="Home"&&tab!="Chat"){
                 // Determinate work shows a bar; open-ended work (reports, chat) gets the Vault star loader. Home renders its own processing panel, so it skips this bar.
                 model.progress?.let{LinearProgressIndicator(progress={it},modifier=Modifier.fillMaxWidth())}?:Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center){VaultStarLoader(Modifier.padding(top=8.dp))}
                 Row(Modifier.padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium);if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}}
@@ -290,22 +292,47 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     Column(Modifier.fillMaxSize().imePadding().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
         // One compact row: provider on the left, transcript actions on the right once a conversation exists.
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-            Text("Provider: $providerName",style=MaterialTheme.typography.bodySmall)
-            TextButton(onClick=openSettings,contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Change",style=MaterialTheme.typography.bodySmall)}
-            Spacer(Modifier.weight(1f))
-            if(model.messages.isNotEmpty()){
-                val context=LocalContext.current
-                TextButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model),pdfLogo(context)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Share PDF",style=MaterialTheme.typography.bodySmall)}
+        val ongoing=model.messages.isNotEmpty()&&model.shareResultsWithLLM
+        var confirmNew by remember{mutableStateOf(false)}
+        val context=LocalContext.current
+        if(ongoing){
+            // Once a conversation exists, a single actions row owns the header; provider and sharing controls move into the overflow menu.
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                TextButton(onClick={confirmNew=true},enabled=!model.busy,contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("New chat",style=MaterialTheme.typography.bodySmall)}
+                TextButton(onClick={sharePdf(context,"Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model),pdfLogo(context)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Share",style=MaterialTheme.typography.bodySmall)}
                 TextButton(onClick={savePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(model),pdfLogo(context)))},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Save",style=MaterialTheme.typography.bodySmall)}
+                Spacer(Modifier.weight(1f))
+                var menu by remember{mutableStateOf(false)}
+                Box{
+                    IconButton(onClick={menu=true}){Icon(Icons.Default.MoreVert,contentDescription="Chat options")}
+                    DropdownMenu(expanded=menu,onDismissRequest={menu=false}){
+                        DropdownMenuItem(text={Text("Provider: $providerName")},onClick={menu=false;openSettings()})
+                        DropdownMenuItem(text={Text("Revoke sharing")},onClick={menu=false;model.shareResultsWithLLM=false})
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Text("Provider: $providerName",style=MaterialTheme.typography.bodySmall)
+                TextButton(onClick=openSettings,contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Change",style=MaterialTheme.typography.bodySmall)}
+                Spacer(Modifier.weight(1f))
+            }
+            // Consent collapses to a single line once granted; the full checkbox plus privacy explainer remains the gate while it is off.
+            if(model.shareResultsWithLLM)Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Text("Sharing matched results with $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+                TextButton(onClick={model.shareResultsWithLLM=false},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Revoke",style=MaterialTheme.typography.bodySmall)}
+            } else {
+                Consent(model)
+                Text(if(model.provider=="nilai")"nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." else "Your DNA file never leaves this device. Prompts go only to your selected provider.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        // Consent collapses to a single line once granted; the full checkbox remains the gate while it is off.
-        if(model.shareResultsWithLLM)Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-            Text("Sharing matched results with $providerName",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-            TextButton(onClick={model.shareResultsWithLLM=false},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Revoke",style=MaterialTheme.typography.bodySmall)}
-        } else Consent(model)
-        Text(if(model.provider=="nilai")"nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." else "Your DNA file never leaves this device. Prompts go only to your selected provider.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        if(confirmNew)AlertDialog(
+            onDismissRequest={confirmNew=false},
+            title={Text("Start a new chat?")},
+            text={Text("The current conversation is cleared. Save it as a PDF first if you want to keep it.")},
+            confirmButton={TextButton(onClick={model.newChat();confirmNew=false}){Text("Clear and start new")}},
+            dismissButton={TextButton(onClick={confirmNew=false}){Text("Cancel")}}
+        )
         val retryAction=model.chatRetryAction
         if(retryAction!=null&&model.error!=null&&model.accessNeeded==null)Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
             Text(model.error!!,color=MaterialTheme.colorScheme.error)
@@ -313,7 +340,16 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             TextButton(onClick={if(retryAction=="research")model.research(message){message=""} else model.sendChat(message){message=""}},enabled=!model.busy&&model.shareResultsWithLLM&&(if(retryAction=="research")message.isNotBlank() else message.isNotBlank()||model.chatAttachments.isNotEmpty())){Text("Retry")}
         }}
         // The intro and suggestions live inside the list so everything scrolls on small screens and the composer plus Send stay pinned below.
-        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        val listState=rememberLazyListState()
+        // Keep the newest text in view while an answer streams in: target the last item, then pin to the very bottom.
+        LaunchedEffect(model.messages.size,model.messages.lastOrNull()?.second?.length){
+            val count=listState.layoutInfo.totalItemsCount
+            if(count>0){
+                listState.scrollToItem(count-1)
+                listState.dispatchRawDelta(1_000_000f)
+            }
+        }
+        LazyColumn(Modifier.weight(1f),state=listState,verticalArrangement=Arrangement.spacedBy(12.dp)){
             // While an access requirement is shown, it takes the place of the intro so its button stays visible.
             if(model.messages.isEmpty()&&model.accessNeeded==null){
                 item{Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)}
@@ -325,16 +361,14 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
             }}}
             if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
-            // While the provider runs, the conversation ends in a live status card and the composer is disabled.
-            if(model.busy)item{Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-                VaultStarLoader(Modifier.size(40.dp))
-                Text(model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
-                if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}
-            }}}
+            // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
+            if(model.busy)item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Text(if(model.messages.lastOrNull()?.second?.isNotEmpty()==true)"" else model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick=model::cancel,contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Stop",style=MaterialTheme.typography.bodySmall)}
+            }}
         }
         AccessNeeded(model,openAccount)
         // Attachments: images go to the provider as vision content; text documents are inlined into the question.
-        val context=LocalContext.current
         val pickImages=rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(6)){uris->model.pickingFile=false;if(BuildConfig.DEBUG)android.util.Log.d("Attach","picked ${uris.size} images");uris.forEach{uri->runCatching{val scaled=readScaledImage(context,uri);if(BuildConfig.DEBUG)android.util.Log.d("Attach","scaled ${uri.lastPathSegment}: ${scaled?.size}");scaled?.let{model.attachChat(displayName(context,uri),"image/jpeg",it)}}.onFailure{model.error=it.message}}}
         val pickDocs=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->model.pickingFile=false;uri?.let{runCatching{context.contentResolver.openInputStream(it)?.use{stream->model.attachChat(displayName(context,it),context.contentResolver.getType(it)?:"text/plain",stream.readBytes())}}?.onFailure{e->model.error=e.message}}}
         if(model.chatAttachments.isNotEmpty())Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
