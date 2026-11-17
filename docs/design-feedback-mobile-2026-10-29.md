@@ -57,6 +57,10 @@ Nav icons are stock Material outlines (house, bubble, doc, person, dots). Next t
 
 VaultTheme hardcodes a light scheme ("light app canvas with dark brand panels") and iOS pins .preferredColorScheme(.light). As a design decision this is coherent and the palette would survive it. The cost is real though: users in system dark mode get a bright app at night for a product they may read in bed (health content). If a dark theme ever lands, the pastel-200/tonal-900 card system inverts badly and needs a designed dark ramp, not an inversion. Deferring is fine; record it as a known, accepted gap.
 
+## Addendum: pre-launch polish pass (2026-11-10)
+
+Closed from the still-open list: brand mark now rides in the top chrome on both platforms (star next to the screen title); onboarding step numerals are brand discs instead of emoji numerals; the status header string is shortened so it stays on one line; the category carousel has 16dp end padding. Also landed: first-run Home leads with the VaultHero brand panel, a run shows a single processing panel on Home (star animation, status, progress, Cancel) with the global busy bar suppressed on that tab, and the step guide persists as a checked rail after results land instead of disappearing. Chat PDF transcripts put speaker labels on their own line so reply headings parse, and Android PDF rendering pins WebView textZoom to 100 so enlarged system fonts no longer balloon print output. Remaining open items: stock nav icons, vault illustration tint, tabular figures.
+
 ## Addendum: alignment with the monadicVault app (checked 2026-10-29)
 
 Explorer's design sources (design/vault/) are already synced from Monadic-DNA/Vault at revision 58c9f56, which is current main, so the two apps share the brand by construction. Comparing against the sibling app changed several recommendations above:

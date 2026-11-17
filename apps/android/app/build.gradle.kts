@@ -11,9 +11,9 @@ android {
     defaultConfig {
         applicationId = "com.monadicdna.explorer"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        targetSdk = 36
+        versionCode = 2
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += providers.gradleProperty("explorerAbis").orElse("arm64-v8a").get().split(',') }
     }
@@ -33,6 +33,8 @@ android {
             // Signing config applies only when keystore.properties exists, so CI without the key still assembles.
             if (keystoreProperties.getProperty("storePassword", "").isNotEmpty()) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
+            // Ship native symbols in the bundle so Play shows native stack traces.
+            ndk { debugSymbolLevel = "FULL" }
         }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
