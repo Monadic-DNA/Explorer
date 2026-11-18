@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
  * inline code. Anything else is shown as plain text.
  */
 @Composable fun MarkdownText(markdown: String, modifier: Modifier=Modifier) {
+    // Long-form answers and reports read in the system text face; Space Grotesk stays on headings and chrome.
+    val body=MaterialTheme.typography.bodyLarge.copy(fontFamily=FontFamily.Default,fontWeight=FontWeight.Normal)
     Column(modifier,verticalArrangement=Arrangement.spacedBy(6.dp)) {
         for(line in markdown.lines()) {
             val trimmed=line.trim()
@@ -32,18 +34,18 @@ import androidx.compose.ui.unit.dp
                 trimmed.isEmpty() -> {}
                 Regex("^(-{3,}|\\*{3,}|_{3,})$").matches(trimmed) -> {}
                 heading!=null -> Text(inline(heading.groupValues[2]),style=if(heading.groupValues[1].length<=2)MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=6.dp))
-                bullet!=null -> ListItem("•",bullet.groupValues[1],indent=line.length-line.trimStart().length)
-                numbered!=null -> ListItem(numbered.groupValues[1],numbered.groupValues[2],indent=line.length-line.trimStart().length)
-                else -> Text(inline(trimmed),style=MaterialTheme.typography.bodyLarge)
+                bullet!=null -> ListItem("•",bullet.groupValues[1],indent=line.length-line.trimStart().length,body=body)
+                numbered!=null -> ListItem(numbered.groupValues[1],numbered.groupValues[2],indent=line.length-line.trimStart().length,body=body)
+                else -> Text(inline(trimmed),style=body)
             }
         }
     }
 }
 
-@Composable private fun ListItem(marker: String, text: String, indent: Int) {
+@Composable private fun ListItem(marker: String, text: String, indent: Int, body: androidx.compose.ui.text.TextStyle) {
     Row(Modifier.padding(start=(8+indent*6).dp)) {
-        Text(marker,style=MaterialTheme.typography.bodyLarge,modifier=Modifier.width(24.dp))
-        Text(inline(text),style=MaterialTheme.typography.bodyLarge)
+        Text(marker,style=body,modifier=Modifier.width(24.dp))
+        Text(inline(text),style=body)
     }
 }
 

@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -222,7 +223,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     val evidence=remember(result.toString()){Core.obj("evidence",result)}
     val palette=remember(result.toString()){vaultCardPalette(Core.obj("preview_category",result).getString("id"))}
     val shape=androidx.compose.foundation.shape.RoundedCornerShape(40.dp);val colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)
-    val body: @Composable ColumnScope.()->Unit={Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${if(result.optString("effectType")=="beta")"Beta" else "OR"} ${effectNumber(result.optDouble("riskScore"))}");Text(when(result.optString("riskLevel")){"increased"->"▲ Increased";"decreased"->"▼ Decreased";else->"● ${result.optString("riskLevel").replaceFirstChar{it.uppercase()}}"},fontWeight=FontWeight.Bold);Text(evidence.getString("label"),style=MaterialTheme.typography.labelSmall)}}
+    val body: @Composable ColumnScope.()->Unit={Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${if(result.optString("effectType")=="beta")"Beta" else "OR"} ${effectNumber(result.optDouble("riskScore"))}",style=MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings="tnum"));Text(when(result.optString("riskLevel")){"increased"->"▲ Increased";"decreased"->"▼ Decreased";else->"● ${result.optString("riskLevel").replaceFirstChar{it.uppercase()}}"},fontWeight=FontWeight.Bold);Text(evidence.getString("label"),style=MaterialTheme.typography.labelSmall)}}
     if(onClick!=null)Card(onClick=onClick,modifier=Modifier.fillMaxWidth(),shape=shape,colors=colors,content=body) else Card(Modifier.fillMaxWidth(),shape=shape,colors=colors,content=body)
 }
 
@@ -285,7 +286,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     if(studiesOpen)Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
         sources.forEach{source->
             Text("• ${source.optString("traitName")} (${source.optString("gwasId")})",style=MaterialTheme.typography.bodySmall)
-            Text("${source.optString("matchedSnp")}: ${source.optString("userGenotype")} • ${source.optString("riskLevel").replaceFirstChar{it.uppercase()}} risk • ${if(source.optString("effectType")=="beta")"Beta" else "OR"} ${"%.2f".format(source.optDouble("riskScore"))}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${source.optString("matchedSnp")}: ${source.optString("userGenotype")} • ${source.optString("riskLevel").replaceFirstChar{it.uppercase()}} risk • ${if(source.optString("effectType")=="beta")"Beta" else "OR"} ${"%.2f".format(source.optDouble("riskScore"))}",style=MaterialTheme.typography.bodySmall.copy(fontFamily=FontFamily.Monospace,fontFeatureSettings="tnum"),color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
     TextButton(onClick={contextOpen=!contextOpen},contentPadding=PaddingValues(0.dp)){Text((if(contextOpen)"▼ " else "▶ ")+"Personalization and health data used",style=MaterialTheme.typography.labelLarge)}

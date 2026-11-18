@@ -210,7 +210,7 @@ struct ReportSheet:View{
                 Text(store.reportTitle).font(VaultStyle.heading(30)).multilineTextAlignment(.center)
                 Text("Monadic DNA Explorer").font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption)).opacity(0.7)
             }.frame(maxWidth:.infinity).padding(24).foregroundStyle(.white).background(VaultStyle.ink,in:RoundedRectangle(cornerRadius:24))
-            Text(.init(store.report))
+            Text(.init(store.report)).font(.body)
             if !store.reportQuestions.isEmpty{
                 Text("Ask a follow-up").font(.headline)
                 ForEach(store.reportQuestions,id:\.self){question in Button(question){store.chatDraft=question;store.reportSheetOpen=false;go(1)}.buttonStyle(.bordered).tint(VaultStyle.accent)}
@@ -440,7 +440,7 @@ struct ResultView:View{
         VStack(alignment: .leading, spacing: 10) {
             Image("vault_star").resizable().scaledToFit().frame(width:28,height:28).accessibilityHidden(true)
             Text(record.text("traitName")).font(VaultStyle.cardTitle).fixedSize(horizontal:false, vertical:true)
-            Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType")=="beta" ? "Beta" : "OR") \(effectNumber(record.number("riskScore")))")
+            Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType")=="beta" ? "Beta" : "OR") \(effectNumber(record.number("riskScore")))").monospacedDigit()
             Label(record.text("riskLevel").capitalized,systemImage:record.text("riskLevel")=="increased" ? "arrow.up" : record.text("riskLevel")=="decreased" ? "arrow.down" : "circle").font(VaultStyle.body().bold())
             Text(evidence).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))
         }
@@ -560,7 +560,7 @@ struct ChatView:View{
                 if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize)}
             }
             ForEach(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){
-                Text(item.element.0=="user" ? "You" : "Explorer").font(.caption.bold());Text(.init(item.element.1)).textSelection(.enabled)
+                Text(item.element.0=="user" ? "You" : "Explorer").font(.caption.bold());Text(.init(item.element.1)).font(.body).textSelection(.enabled)
                 // The angles a Research answer looked at, collapsed by default as on the web.
                 if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
                 // The web's "studies used" list plus the personalization/health context behind the first answer.
@@ -568,7 +568,7 @@ struct ChatView:View{
                     DisclosureGroup("\(sources.count) studies used"){
                         ForEach(Array(sources.enumerated()),id:\.offset){_,source in VStack(alignment:.leading,spacing:2){
                             Text("• \(source["traitName"] as? String ?? "") (\(source["gwasId"] as? String ?? ""))").font(.footnote)
-                            Text("\(source["matchedSnp"] as? String ?? ""): \(source["userGenotype"] as? String ?? "") • \((source["riskLevel"] as? String ?? "").capitalized) risk • \((source["effectType"] as? String)=="beta" ? "Beta" : "OR") \(String(format:"%.2f",source["riskScore"] as? Double ?? 0))").font(.footnote).foregroundStyle(.secondary)
+                            Text("\(source["matchedSnp"] as? String ?? ""): \(source["userGenotype"] as? String ?? "") • \((source["riskLevel"] as? String ?? "").capitalized) risk • \((source["effectType"] as? String)=="beta" ? "Beta" : "OR") \(String(format:"%.2f",source["riskScore"] as? Double ?? 0))").font(.system(.footnote,design:.monospaced)).monospacedDigit().foregroundStyle(.secondary)
                         }}
                     }.font(.footnote)
                     DisclosureGroup("Personalization and health data used"){
@@ -625,7 +625,7 @@ struct ReportsView:View{
             ReportCards{kind in if !store.busy && store.resultCount>0{store.generateReport(kind)}}.listRowSeparator(.hidden)
             if !store.report.isEmpty {
                 Section(store.reportTitle) {
-                    Text(.init(store.report)).textSelection(.enabled)
+                    Text(.init(store.report)).font(.body).textSelection(.enabled)
                     Button("Open report"){store.reportSheetOpen=true}
                     Button("Export Markdown report") { export("monadic-report.md", store.report) }
                 }
