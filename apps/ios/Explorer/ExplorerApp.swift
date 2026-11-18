@@ -519,6 +519,7 @@ struct ChatView:View{
                 Button("Save"){chatExportURL=writePdf("Chat with Monadic DNA Explorer",reportHtml("Chat with Monadic DNA Explorer",chatTranscript(store),logo:pdfLogo()))}.font(.footnote)
                 Spacer()
                 Menu{
+                    Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.disabled(store.busy||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
                     NavigationLink("Provider: \(providerName)"){SettingsView()}
                     Button("Revoke sharing"){store.shareResultsWithLLM=false}
                 }label:{Image(systemName:"ellipsis.circle")}
@@ -559,23 +560,31 @@ struct ChatView:View{
                 if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
                 if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize)}
             }
-            ForEach(Array(store.messages.enumerated()),id:\.offset){item in VStack(alignment:.leading,spacing:8){
-                Text(item.element.0=="user" ? "You" : "Explorer").font(.caption.bold());Text(.init(item.element.1)).font(.body).textSelection(.enabled)
-                // The angles a Research answer looked at, collapsed by default as on the web.
-                if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
-                // The web's "studies used" list plus the personalization/health context behind the first answer.
-                if let sources=store.chatSources[item.offset],!sources.isEmpty{
-                    DisclosureGroup("\(sources.count) studies used"){
-                        ForEach(Array(sources.enumerated()),id:\.offset){_,source in VStack(alignment:.leading,spacing:2){
-                            Text("• \(source["traitName"] as? String ?? "") (\(source["gwasId"] as? String ?? ""))").font(.footnote)
-                            Text("\(source["matchedSnp"] as? String ?? ""): \(source["userGenotype"] as? String ?? "") • \((source["riskLevel"] as? String ?? "").capitalized) risk • \((source["effectType"] as? String)=="beta" ? "Beta" : "OR") \(String(format:"%.2f",source["riskScore"] as? Double ?? 0))").font(.system(.footnote,design:.monospaced)).monospacedDigit().foregroundStyle(.secondary)
-                        }}
-                    }.font(.footnote)
-                    DisclosureGroup("Personalization and health data used"){
-                        Text(store.chatContextUsed.isEmpty ? "None. You have not filled in About you and health data sharing is off, so this answer used only your research matches." : store.chatContextUsed).font(.footnote)
-                    }.font(.footnote)
+            // Flat conversation: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
+            ForEach(Array(store.messages.enumerated()),id:\.offset){item in
+                if item.element.0=="user"{
+                    HStack{Spacer(minLength:40)
+                        Text(item.element.1).font(.body).padding(.horizontal,14).padding(.vertical,10)
+                            .background(Color.accentColor.opacity(0.12),in:RoundedRectangle(cornerRadius:18))
+                    }.listRowSeparator(.hidden)
+                } else {
+                    VStack(alignment:.leading,spacing:8){
+                        Text(.init(item.element.1)).font(.body).textSelection(.enabled)
+                        if let angles=store.researchAngles[item.offset]{DisclosureGroup("Researched \(angles.count) angles"){ForEach(angles,id:\.0){Text("• \($0.0) (\($0.1.formatted()) \($0.1==1 ? "study" : "studies"))").font(.footnote)}}.font(.footnote)}
+                        if let sources=store.chatSources[item.offset],!sources.isEmpty{
+                            DisclosureGroup("\(sources.count) studies used"){
+                                ForEach(Array(sources.enumerated()),id:\.offset){_,source in VStack(alignment:.leading,spacing:2){
+                                    Text("• \(source["traitName"] as? String ?? "") (\(source["gwasId"] as? String ?? ""))").font(.footnote)
+                                    Text("\(source["matchedSnp"] as? String ?? ""): \(source["userGenotype"] as? String ?? "") • \((source["riskLevel"] as? String ?? "").capitalized) risk • \((source["effectType"] as? String)=="beta" ? "Beta" : "OR") \(String(format:"%.2f",source["riskScore"] as? Double ?? 0))").font(.system(.footnote,design:.monospaced)).monospacedDigit().foregroundStyle(.secondary)
+                                }}
+                            }.font(.footnote)
+                            DisclosureGroup("Personalization and health data used"){
+                                Text(store.chatContextUsed.isEmpty ? "None. You have not filled in About you and health data sharing is off, so this answer used only your research matches." : store.chatContextUsed).font(.footnote)
+                            }.font(.footnote)
+                        }
+                    }
                 }
-            }}
+            }
             if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
             if store.busy{HStack{
@@ -593,7 +602,7 @@ struct ChatView:View{
         HStack(spacing:4){
             PhotosPicker(selection:$pickedPhotos,maxSelectionCount:6,matching:.images){Image(systemName:"photo")}.disabled(!store.shareResultsWithLLM || store.busy)
             Button{showDocPicker=true}label:{Image(systemName:"paperclip")}.disabled(!store.shareResultsWithLLM || store.busy)
-            TextField("Ask about your findings",text:$message,axis:.vertical).lineLimit(2...6).textFieldStyle(.roundedBorder).layoutPriority(1).disabled(!store.shareResultsWithLLM || store.busy)
+            TextField("Ask about your findings",text:$message,axis:.vertical).lineLimit(1...5).textFieldStyle(.roundedBorder).layoutPriority(1).disabled(!store.shareResultsWithLLM || store.busy)
             Button{store.sendChat(message){message=""}}label:{Image(systemName:"paperplane.fill")}.disabled(store.busy || !store.shareResultsWithLLM||(message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && store.chatAttachments.isEmpty))
         }.padding(.horizontal)
         .onChange(of:pickedPhotos){_,items in for item in items{Task{if let data=try? await item.loadTransferable(type:Data.self){
@@ -605,9 +614,9 @@ struct ChatView:View{
             let mime=UTType(filenameExtension:url.pathExtension)?.preferredMIMEType ?? "text/plain"
             if let data=try? Data(contentsOf:url){try? store.attachChat(url.lastPathComponent,mime,data)}
         }}}
-        // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
-        HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy || !store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)
-    }.vaultScreen().vaultTitle("Chat")
+        // Before a conversation starts, Research keeps its quiet link; during one, it lives in the menu so the answer area keeps the space.
+        if store.messages.isEmpty{HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy || !store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)}
+    }.vaultScreen().toolbar(.hidden,for:.navigationBar)
     // A question started on Home arrives as a draft.
     .onAppear{if !store.chatDraft.isEmpty{message=store.chatDraft;store.chatDraft=""}}}
 }

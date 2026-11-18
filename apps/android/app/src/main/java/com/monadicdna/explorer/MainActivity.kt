@@ -111,7 +111,8 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     BackHandler(enabled=tab!="Home"){selectTab(if(tab in tabs)"Home" else "More")}
     Scaffold(
         // The brand star rides in the top chrome so it stays visible past onboarding.
-        topBar={TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
+        // Chat is a reading surface: the title bar yields its height to the conversation there.
+        topBar={if(tab!="Chat")TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
         bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { tabs.forEachIndexed{index,name->NavigationBarItem(selected=tab==name||(name=="More"&&tab !in tabs),onClick={selectTab(name)},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.AutoMirrored.Filled.Chat;2->Icons.Default.Description;3->Icons.Default.Person;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
@@ -321,6 +322,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 Box{
                     IconButton(onClick={menu=true}){Icon(Icons.Default.MoreVert,contentDescription="Chat options")}
                     DropdownMenu(expanded=menu,onDismissRequest={menu=false}){
+                        DropdownMenuItem(text={Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium")},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0,onClick={menu=false;model.research(message){message=""}})
                         DropdownMenuItem(text={Text("Provider: $providerName")},onClick={menu=false;openSettings()})
                         DropdownMenuItem(text={Text("Revoke sharing")},onClick={menu=false;model.shareResultsWithLLM=false})
                     }
@@ -371,11 +373,18 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 if((model.resultCount>0))items(CHAT_SUGGESTIONS){suggestion->SuggestionChip(onClick={message=suggestion},label={Text(suggestion)})}
                 if((model.resultCount>0)&&!model.personalized)item{TextButton(onClick=personalize){Text("Personalize answers")}}
             }
-            itemsIndexed(model.messages.toList()){index,(role,text)->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){
-                Text(if(role=="user")"You" else "Explorer",fontWeight=FontWeight.Bold);if(role=="user")Text(text) else MarkdownText(text)
-                model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
-                model.chatSources[index]?.takeIf{it.isNotEmpty()}?.let{sources->ChatSources(sources,model.chatContextUsed)}
-            }}}
+            // Flat conversation, as in modern chat apps: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
+            itemsIndexed(model.messages.toList()){index,(role,text)->
+                if(role=="user")Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){
+                    Surface(color=MaterialTheme.colorScheme.secondaryContainer,shape=androidx.compose.foundation.shape.RoundedCornerShape(18.dp),modifier=Modifier.widthIn(max=320.dp)){
+                        Text(text,Modifier.padding(horizontal=14.dp,vertical=10.dp),style=MaterialTheme.typography.bodyLarge.copy(fontFamily=FontFamily.Default,fontWeight=FontWeight.Normal))
+                    }
+                } else Column(Modifier.fillMaxWidth()){
+                    MarkdownText(text)
+                    model.researchAngles[index]?.let{angles->ResearchAngles(angles)}
+                    model.chatSources[index]?.takeIf{it.isNotEmpty()}?.let{sources->ChatSources(sources,model.chatContextUsed)}
+                }
+            }
             if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
             if(model.busy)item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
@@ -394,12 +403,12 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         Row(verticalAlignment=Alignment.CenterVertically){
             IconButton(onClick={model.pickingFile=true;pickImages.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=model.shareResultsWithLLM&&!model.busy){Icon(Icons.Default.Image,contentDescription="Attach image")}
             IconButton(onClick={model.pickingFile=true;pickDocs.launch(arrayOf("text/*","application/json","text/csv","text/markdown"))},enabled=model.shareResultsWithLLM&&!model.busy){Icon(Icons.Default.AttachFile,contentDescription="Attach document")}
-            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM&&!model.busy,label={Text("Ask about your findings")},minLines=2,maxLines=6,modifier=Modifier.weight(1f))
+            OutlinedTextField(value=message,onValueChange={message=it},enabled=model.shareResultsWithLLM&&!model.busy,label={Text("Ask about your findings")},minLines=1,maxLines=5,modifier=Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
             FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&(message.isNotBlank()||model.chatAttachments.isNotEmpty())&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
         }
-        // Research is the premium Chat feature; regular chat is free. Kept quiet so Send reads as the primary action.
-        TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End),contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.bodySmall)}
+        // Before a conversation starts, Research keeps its quiet link; during one, it lives in the overflow menu so the answer area keeps the space.
+        if(model.messages.isEmpty())TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End),contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.bodySmall)}
     }
 }
 // Fresh reports open in a full sheet; the inline copy on the Reports tab remains for revisiting.
