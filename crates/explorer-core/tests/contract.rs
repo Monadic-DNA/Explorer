@@ -149,3 +149,24 @@ fn session_result_views_match_the_json_operations_without_host_copies() {
     assert_eq!(dispatch("session_results",json!({"session":session})).unwrap(),results);
     dispatch("session_close",json!({"session":session})).unwrap();
 }
+
+#[test]
+fn research_extract_tolerates_marker_and_list_variants() {
+    use explorer_core::dispatch;
+    // Exact prompt format: dash bullets after FOLLOWUP.
+    let reply=dispatch("research_extract",json!({"content":"Answer text.\n\nFOLLOWUP:\n- First question?\n- Second question?"})).unwrap();
+    assert_eq!(reply["answer"],"Answer text.");
+    assert_eq!(reply["questions"],json!(["First question?","Second question?"]));
+    // Bold heading with numbered questions, as some models emit.
+    let reply=dispatch("research_extract",json!({"content":"Answer text.\n\n**FOLLOWUP:**\n1. First question?\n2) Second question?\n3. Third question?"})).unwrap();
+    assert_eq!(reply["answer"],"Answer text.");
+    assert_eq!(reply["questions"].as_array().unwrap().len(),3);
+    // A natural-language heading and bulleted questions.
+    let reply=dispatch("research_extract",json!({"content":"Answer text.\n\nFollow-up questions:\n• First question?\n• Second question?"})).unwrap();
+    assert_eq!(reply["questions"].as_array().unwrap().len(),2);
+    assert!(!reply["answer"].as_str().unwrap().contains("Follow-up"));
+    // No marker: the answer is untouched and there are no questions.
+    let reply=dispatch("research_extract",json!({"content":"Just an answer."})).unwrap();
+    assert_eq!(reply["answer"],"Just an answer.");
+    assert_eq!(reply["questions"],json!([]));
+}

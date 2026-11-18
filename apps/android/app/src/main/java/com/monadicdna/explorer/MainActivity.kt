@@ -112,14 +112,14 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     Scaffold(
         // The brand star rides in the top chrome so it stays visible past onboarding.
         // Chat is a reading surface: the title bar yields its height to the conversation there.
-        topBar={if(tab!="Chat")TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
+        topBar={if(tab!="Chat")TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Backend and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
         bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { tabs.forEachIndexed{index,name->NavigationBarItem(selected=tab==name||(name=="More"&&tab !in tabs),onClick={selectTab(name)},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.AutoMirrored.Filled.Chat;2->Icons.Default.Description;3->Icons.Default.Person;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
             // A first-time user has no vault yet, so there is nothing to lock or unlock.
-            if((model.dataUnlocked||model.dataVault.exists)&&!(tab=="Chat"&&model.messages.isNotEmpty()))Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
-                val variants=model.metadata.optInt("count")
-                Text(if(variants>0&&model.dataUnlocked)"${variants.grouped()} variants • ${model.storageMessage}" else model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+            // Lock/unlock lives on Home and You; other tabs keep their whole top area for content.
+            if((model.dataUnlocked||model.dataVault.exists)&&tab=="Home")Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                Text(model.storageMessage,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
                 if(model.dataUnlocked) TextButton(onClick=model::lockData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Lock data")}
                 else TextButton(onClick=model::unlockSavedData,enabled=!model.busy){Icon(Icons.Default.Lock,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Unlock data")}
             }
@@ -139,7 +139,17 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 "Vault"->VaultScreen(model){model.pickingFile=true;importDNA.launch(arrayOf("text/*","application/gzip","application/octet-stream"))}
                 "Settings"->SettingsScreen(model)
                 "Account"->AccountScreen(model)
-                "More"->ScreenColumn{Text("More",style=MaterialTheme.typography.headlineMedium);listOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Connection and AI provider","Account" to "Account and premium").forEach{(name,label)->OutlinedButton(onClick={selectTab(name)},modifier=Modifier.fillMaxWidth()){Text(label)}};Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.")}
+                "More"->ScreenColumn{
+                    // Standard settings rows, not a wall of outlined buttons; the top bar already names the screen.
+                    listOf(Triple("Results","Your matches",Icons.Default.List),Triple("Browse","Browse research",Icons.Default.Search),Triple("Vault","Vault and backups",Icons.Default.Lock),Triple("Settings","Backend and AI provider",Icons.Default.Settings),Triple("Account","Account and premium",Icons.Default.Star)).forEach{(name,label,icon)->
+                        Row(Modifier.fillMaxWidth().toggleable(value=false,role=Role.Button,onValueChange={selectTab(name)}).padding(vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
+                            Icon(icon,contentDescription=null,tint=VaultColors.purple900)
+                            Text(label,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+                            Icon(Icons.Default.ChevronRight,contentDescription=null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -187,14 +197,22 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 
 @Composable private fun BrowseScreen(model: ExplorerModel){
     var query by remember{mutableStateOf("")};var trait by remember{mutableStateOf("")};var semantic by remember{mutableStateOf(true)};var offset by remember{mutableIntStateOf(0)}
+    val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxSize().padding(16.dp)){
         OutlinedTextField(value=query,onValueChange={query=it},label={Text("Search traits, studies, genes or SNPs")},modifier=Modifier.fillMaxWidth())
         OutlinedTextField(value=trait,onValueChange={trait=it},label={Text("Trait filter (optional)")},modifier=Modifier.fillMaxWidth())
-        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){CheckRow(semantic,{semantic=it},"Semantic search",small=false)};Button(onClick={offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
+        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){CheckRow(semantic,{semantic=it},"Semantic search",small=false)};Button(onClick={keyboard?.hide();offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
         if(model.studies.isEmpty())Text("Search the catalog to discover studies.")
-        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)){items(model.studies,key={it.optInt("id")}){study->Card(onClick={model.showStudy(study)},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(study.optString("disease_trait","Unknown trait"),fontWeight=FontWeight.Bold);Text(study.optString("study"),maxLines=3);Text(listOf(study.optString("strongest_snp_risk_allele"),study.optString("study_accession"),study.optString("confidenceBand","Research finding")).filter{it.isNotBlank()&&it!="null"}.joinToString(" • "),style=MaterialTheme.typography.labelSmall)}}}}
+        // One card per study: UKB-style traits have many variant rows with the same title and abstract, which read as duplicates.
+        val grouped=remember(model.studies){model.studies.groupBy{it.optString("study_accession")}.map{(_,rows)->rows.first() to rows.size}}
+        LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)){items(grouped,key={it.first.optInt("id")}){(study,variants)->Card(onClick={model.showStudy(study)},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(study.optString("disease_trait","Unknown trait"),fontWeight=FontWeight.Bold);Text(study.optString("study"),maxLines=3);Text(listOf(if(variants>1)"$variants variants analyzed" else study.optString("strongest_snp_risk_allele"),study.optString("study_accession"),study.optString("confidenceBand","Research finding")).filter{it.isNotBlank()&&it!="null"}.joinToString(" • "),style=MaterialTheme.typography.labelSmall)}}}}
         // Pagination is useful only once there are results to page through.
-        if(model.studies.isNotEmpty())Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()){TextButton(onClick={offset=(offset-50).coerceAtLeast(0);model.browse(query,trait,semantic,offset)},enabled=offset>0&&!model.busy){Text("Previous")};TextButton(onClick={offset+=50;model.browse(query,trait,semantic,offset)},enabled=!model.busy){Text("Next")}}
+        if(model.studies.isNotEmpty())Row(horizontalArrangement=Arrangement.SpaceBetween,modifier=Modifier.fillMaxWidth()){
+            // Page 1 has no Previous; hiding it beats a faint disabled button.
+            if(offset>0)TextButton(onClick={offset=(offset-50).coerceAtLeast(0);model.browse(query,trait,semantic,offset)},enabled=!model.busy){Text("Previous")}
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick={offset+=50;model.browse(query,trait,semantic,offset)},enabled=!model.busy){Text("Next")}
+        }
     }
 }
 
@@ -252,9 +270,13 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             if(!hasDNA)OutlinedButton(onClick=openVault){Text("Go to Vault")}
         } else {
             OutlinedTextField(value=filter,onValueChange={filter=it},label={Text("Filter saved traits")},modifier=Modifier.fillMaxWidth())
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)},border=vaultChipBorder())}
-                listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)},border=vaultChipBorder())}
+            // A trailing fade tells the user the chip row scrolls.
+            Box{
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)},border=vaultChipBorder())}
+                    listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)},border=vaultChipBorder())}
+                }
+                Box(Modifier.align(Alignment.CenterEnd).width(28.dp).height(40.dp).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent,MaterialTheme.colorScheme.background))))
             }
             if(total!=model.resultCount)Text("Showing ${total.grouped()} of ${model.resultCount.grouped()}",style=MaterialTheme.typography.bodySmall)
             LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=16.dp)){
@@ -274,8 +296,16 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 
 @Composable private fun Consent(model: ExplorerModel){
     val provider=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
-    val label=if(model.shareResultsWithLLM)"Sharing matches and optional profile and health summaries with $provider. Uncheck to revoke." else "Share matches and optional profile and health summaries with $provider. Raw DNA stays on this device."
-    CheckRow(model.shareResultsWithLLM,{model.shareResultsWithLLM=it},label)
+    if(!model.shareResultsWithLLM){
+        // Consent is the gate to the feature, so it is a real button, not a checkbox under legal copy.
+        Column(verticalArrangement=Arrangement.spacedBy(4.dp)){
+            Button(onClick={model.shareResultsWithLLM=true}){Text("Share my matches with $provider")}
+            Text("Only matched results and optional profile and health summaries are sent. Raw DNA stays on this device.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    } else Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+        Text("Sharing matched results with $provider",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+        TextButton(onClick={model.shareResultsWithLLM=false}){Text("Revoke")}
+    }
 }
 /** The angles a Research answer looked at, collapsed by default as on the web. */
 @Composable private fun ResearchAngles(angles: List<Pair<String,Int>>){
@@ -344,7 +374,6 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 TextButton(onClick={model.shareResultsWithLLM=false},contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text("Revoke",style=MaterialTheme.typography.bodySmall)}
             } else {
                 Consent(model)
-                Text(if(model.provider=="nilai")"nilAI is a privacy-protecting provider: answers are computed inside a hardware enclave and prompts are not retained. Your DNA file never leaves this device." else "Your DNA file never leaves this device. Prompts go only to your selected provider.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if(confirmNew)AlertDialog(
@@ -375,9 +404,9 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             if(model.messages.isEmpty()&&model.accessNeeded==null){
                 // A quiet brand moment on the empty conversation: the star and a greeting instead of a bare instruction.
                 item{Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(36.dp));Text("Ask about your results",fontFamily=Garamond,fontSize=26.sp,color=VaultColors.darkMain)}}
-                item{Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)}
+                item{Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"Tap Share my matches above to begin. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)}
                 if((model.resultCount>0))items(CHAT_SUGGESTIONS){suggestion->PastelChip(onClick={message=suggestion},label={Text(suggestion)})}
-                if((model.resultCount>0)&&!model.personalized)item{TextButton(onClick=personalize){Text("Personalize answers")}}
+                if((model.resultCount>0)&&!model.personalized)item{TextButton(onClick=personalize){Icon(Icons.Default.Person,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Personalize answers",style=MaterialTheme.typography.labelLarge)}}
             }
             // Flat conversation, as in modern chat apps: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
             itemsIndexed(model.messages.toList()){index,(role,text)->
@@ -413,8 +442,10 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             Spacer(Modifier.width(8.dp))
             FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&(message.isNotBlank()||model.chatAttachments.isNotEmpty())&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
         }
+        // The one persistent disclaimer, so answers themselves do not repeat boilerplate.
+        Text("Educational research, not medical advice.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.align(Alignment.CenterHorizontally))
         // Before a conversation starts, Research keeps its quiet link; during one, it lives in the overflow menu so the answer area keeps the space.
-        if(model.messages.isEmpty())TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End),contentPadding=PaddingValues(horizontal=6.dp,vertical=0.dp)){Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.bodySmall)}
+        if(model.messages.isEmpty())TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End)){Icon(Icons.Default.Science,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.labelLarge)}
     }
 }
 // Fresh reports open in a full sheet; the inline copy on the Reports tab remains for revisiting.
@@ -562,10 +593,10 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
 
 @Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,openAccount: ()->Unit,export: ()->Unit){ScreenColumn{
     Text("Reports",style=MaterialTheme.typography.headlineMedium)
-    Text(if((model.resultCount==0))"Reports summarize your research matches. Add your DNA file on Home first." else "Each report reads your ${model.resultCount.grouped()} research matches${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
+    Text(if((model.resultCount==0))"Reports summarize your research matches. Add your DNA file on Home first." else "Each report reads your ${model.resultCount.grouped()} research matches (studies that match your DNA)${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
     Consent(model)
     Text("Reports summarize your matches and may suggest follow-up questions.",style=MaterialTheme.typography.bodySmall)
-    Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass covers one run.",style=MaterialTheme.typography.bodySmall)
+    Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass generates one report.",style=MaterialTheme.typography.bodySmall)
     Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)
     ReportCards(model){kind->if(!model.busy&&(model.resultCount>0))model.generateReport(kind)}
     AccessNeeded(model,openAccount)
@@ -603,7 +634,7 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
 }
 
 @Composable private fun SettingsScreen(model: ExplorerModel){ScreenColumn{
-    Text("Connection and AI provider",style=MaterialTheme.typography.headlineMedium)
+    Text("Backend and AI provider",style=MaterialTheme.typography.headlineMedium)
     OutlinedTextField(value=model.backend,onValueChange={model.backend=it},label={Text("Explorer backend HTTPS origin")},modifier=Modifier.fillMaxWidth())
     Text("The backend hosts the research catalog and account services. Your raw DNA stays on device.")
     Row{listOf("huggingface","ollama","nilai").forEach{provider->FilterChip(selected=model.provider==provider,onClick={model.selectProvider(provider)},label={Text(provider)},border=vaultChipBorder())}}
@@ -643,11 +674,12 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
                 }
             } }
         }
+        if(!billing.busy&&billing.products.isEmpty())Text("Purchases need Google Play on this device. You can still chat and read the free Health report.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(onClick=billing::restore,enabled=!billing.busy){Text("Restore purchases")}
-        TextButton(onClick={openBrowser(context,"https://play.google.com/store/account/subscriptions?package=com.monadicdna.explorer")}){Text("Manage Google Play subscriptions")}
+        TextButton(onClick={openBrowser(context,"https://play.google.com/store/account/subscriptions?package=com.monadicdna.explorer")}){Icon(Icons.Default.OpenInNew,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Manage Google Play subscriptions",style=MaterialTheme.typography.labelLarge)}
         if(billing.busy) CircularProgressIndicator()
         if(billing.message.isNotBlank()) Text(billing.message)
-        Text("The monthly subscription renews automatically unless cancelled in Google Play. Each report pass covers one run of that report.",style=MaterialTheme.typography.bodySmall)
+        Text("The monthly subscription renews automatically unless cancelled in Google Play. Each report pass generates one report of that type.",style=MaterialTheme.typography.bodySmall)
         Text("Stablecoin payments are available only on Web. They are not available in the Android app.",style=MaterialTheme.typography.bodySmall)
     }
 }
@@ -694,7 +726,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             Column(Modifier.fillMaxWidth().background(VaultColors.darkMain,androidx.compose.foundation.shape.RoundedCornerShape(28.dp)).padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                 androidx.compose.foundation.Image(painterResource(R.drawable.vault_brand_mark),contentDescription=null,modifier=Modifier.size(36.dp))
                 Text("Your DNA. Your discoveries.",color=androidx.compose.ui.graphics.Color.White,fontFamily=Garamond,fontSize=28.sp)
-                Text("${variants.grouped()} variants • ${model.resultCount.grouped()} research matches, analyzed on this device",color=androidx.compose.ui.graphics.Color.White.copy(alpha=0.75f),style=MaterialTheme.typography.bodySmall)
+                Text("${variants.grouped()} variants (SNP calls) • ${model.resultCount.grouped()} studies matching your DNA, analyzed on this device",color=androidx.compose.ui.graphics.Color.White.copy(alpha=0.75f),style=MaterialTheme.typography.bodySmall)
             }
             // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
             Step(1,"Add your DNA file",done=true,enabled=false){}
@@ -845,15 +877,13 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     }
     if(model.health.available()){
         Text("Health data from this device",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=8.dp))
-        Text("Optional. Thirty-day averages of metrics like resting heart rate, sleep, steps and weight are added to report and chat prompts so answers can relate findings to how you are doing. Raw records never leave this device; the averages go only to your AI provider when sharing is allowed.",style=MaterialTheme.typography.bodySmall)
+        Text("Optional. Thirty-day averages (resting heart rate, sleep, steps, weight) enrich chat and report answers. Raw records stay on this device.",style=MaterialTheme.typography.bodySmall)
         val healthPerms=rememberLauncherForActivityResult(model.health.permissionContract()){granted->model.pickingFile=false;model.changeHealthEnabled(granted.containsAll(model.health.permissions))}
         Row(Modifier.fillMaxWidth().toggleable(value=model.healthEnabled,role=Role.Switch,onValueChange={if(it){model.pickingFile=true;healthPerms.launch(model.health.permissions)} else model.changeHealthEnabled(false)}),verticalAlignment=Alignment.CenterVertically){
             Text(if(model.healthEnabled)"On" else "Off",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Switch(checked=model.healthEnabled,onCheckedChange=null)
         }
     }
     Text("Your data",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
-    val variants=model.metadata.optInt("count")
-    Text(if(variants>0)"${variants.grouped()} variants • ${model.resultCount.grouped()} research matches" else "No DNA file imported yet.",style=MaterialTheme.typography.bodyMedium)
     Row{OutlinedButton(onClick=openVault){Text("Vault and backups")};Spacer(Modifier.width(8.dp));if(model.dataUnlocked)TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}}
     if(model.dataUnlocked)Button(onClick=done,modifier=Modifier.fillMaxWidth()){Text("Done")}
 }}

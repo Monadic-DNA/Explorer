@@ -85,7 +85,7 @@ RESEARCH ANALYSES ({} angles):
 
 Synthesize these analyses into a comprehensive answer to the user's question. Identify patterns across angles, highlight convergent findings, note what stands out given the user's context. Use the standard structure: overview, genetic landscape, personal implications, action steps. Target 600-900 words. Plain language. Complete your full response.
 
-GWAS results show statistical associations at the population level, not deterministic outcomes. Educational purposes only.
+GWAS results show statistical associations at the population level, not deterministic outcomes. Weigh that uncertainty where it matters, but do not append a closing disclaimer or educational-purposes boilerplate: the app shows that notice once in the chat UI.
 
 After the response, append exactly this block:
 
@@ -98,12 +98,26 @@ FOLLOWUP:
 }
 /// Splits a reply into the answer and its follow-up questions, like LLMChatInline.tsx on the web.
 pub fn extract(v: &Value) -> Value {
-    static SPLIT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static HEAD: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static ITEM: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let content = text(v, "content");
-    let mut parts = SPLIT.get_or_init(|| regex::Regex::new(r"\n+FOLLOWUP:\n").unwrap()).split(content);
-    let answer = parts.next().unwrap_or("").trim();
-    let questions: Vec<&str> = parts.next().map(|f| f.split('\n').filter_map(|l| l.strip_prefix("- ")).map(str::trim).filter(|q| !q.is_empty()).collect()).unwrap_or_default();
-    json!({"answer":answer,"questions":questions})
+    // Models vary the marker: FOLLOWUP:, **FOLLOWUP:**, "Follow-up questions:", with dashes, bullets or numbers.
+    let head = HEAD.get_or_init(|| regex::Regex::new(r"(?i)^[\s*#]*(followup|follow[\s-]*up questions?)[\s:*#]*$").unwrap());
+    let item = ITEM.get_or_init(|| regex::Regex::new(r"^\s*(?:[-*•]|\d+[.)])\s+(.*)$").unwrap());
+    let lines: Vec<&str> = content.lines().collect();
+    let split_at = lines.iter().position(|l| head.is_match(l.trim()));
+    let (answer, question_lines) = match split_at {
+        Some(i) => (lines[..i].join("\n"), lines[i + 1..].to_vec()),
+        None => (content.to_string(), Vec::new()),
+    };
+    let mut questions: Vec<String> = question_lines.iter()
+        .filter_map(|l| item.captures(l).map(|c| c[1].trim().to_string()))
+        .filter(|q| !q.is_empty()).collect();
+    // A bare list of questions under the heading counts too.
+    if questions.is_empty() {
+        questions = question_lines.iter().map(|l| l.trim().to_string()).filter(|q| !q.is_empty()).collect();
+    }
+    json!({"answer":answer.trim(),"questions":questions})
 }
 /// How the selected model is described in prompts; matches getLLMDescription in lib/llm-client.ts.
 pub fn description(v: &Value) -> Value {
