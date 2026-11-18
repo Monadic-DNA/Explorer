@@ -811,10 +811,20 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
 }
 
 @Composable private fun YouScreen(model: ExplorerModel, done: ()->Unit, openVault: ()->Unit){ScreenColumn{
-    Text("About you",style=MaterialTheme.typography.headlineMedium)
-    Text("Optional details make Chat and Reports specific to you. They are encrypted on this device and only shared with your AI provider when you allow it.",style=MaterialTheme.typography.bodyMedium)
+    Text("About you",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain)
+    Text("Optional details make Chat and Reports specific to you. They are encrypted on this device and only shared with your AI provider when you allow it.",style=MaterialTheme.typography.bodySmall)
     if(!model.dataUnlocked){OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock to edit")}}
     else {
+        // Personalization is collapsed by default, so Health and Your data are visible without scrolling.
+        var aboutOpen by remember{mutableStateOf(false)}
+        Row(Modifier.fillMaxWidth().toggleable(value=aboutOpen,role=Role.Button,onValueChange={aboutOpen=it}).padding(vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
+            Column(Modifier.weight(1f)){
+                Text("Personalization",style=MaterialTheme.typography.titleLarge,color=VaultColors.purple900)
+                Text(if(model.personalized)"Saved. Tap to review your details." else "Age, ancestry, health history and more, all optional",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(if(aboutOpen)Icons.Default.ExpandLess else Icons.Default.ExpandMore,contentDescription=if(aboutOpen)"Collapse personalization" else "Expand personalization")
+        }
+        if(aboutOpen){
         model.profileSchema.forEach { field ->
             val key=field.getString("key")
             if(field.getString("type")=="select") {
@@ -831,9 +841,10 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
         }
         OutlinedTextField(value=model.profile,onValueChange={model.profile=it},enabled=!model.syncing && !model.locking,label={Text("Anything else for your reports (optional)")},modifier=Modifier.fillMaxWidth())
         Text("Saved automatically.",style=MaterialTheme.typography.bodySmall)
+        }
     }
     if(model.health.available()){
-        Text("Health data from this device",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
+        Text("Health data from this device",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=8.dp))
         Text("Optional. Thirty-day averages of metrics like resting heart rate, sleep, steps and weight are added to report and chat prompts so answers can relate findings to how you are doing. Raw records never leave this device; the averages go only to your AI provider when sharing is allowed.",style=MaterialTheme.typography.bodySmall)
         val healthPerms=rememberLauncherForActivityResult(model.health.permissionContract()){granted->model.pickingFile=false;model.changeHealthEnabled(granted.containsAll(model.health.permissions))}
         Row(Modifier.fillMaxWidth().toggleable(value=model.healthEnabled,role=Role.Switch,onValueChange={if(it){model.pickingFile=true;healthPerms.launch(model.health.permissions)} else model.changeHealthEnabled(false)}),verticalAlignment=Alignment.CenterVertically){

@@ -668,11 +668,13 @@ struct YouView<Vault:View>:View{
     @EnvironmentObject var store:ExplorerStore
     var done:()->Void
     @ViewBuilder var vault:()->Vault
+    // Personalization is collapsed by default, so Health and Your data are visible without scrolling.
+    @State private var aboutOpen=false
     var body:some View{Form{
         Section{Text("Optional details make Chat and Reports specific to you. They are encrypted on this device and only shared with your AI provider when you allow it.")}
         if !store.dataUnlocked{Button("Unlock to edit",action:store.unlockSavedData).disabled(store.busy)}
         else {
-            Section(content:{
+            DisclosureGroup(isExpanded:$aboutOpen,content:{
                 ForEach(store.profileSchema){field in
                     let value=Binding<String>(get:{store.profileFields[field.key] ?? ""},set:{store.profileFields[field.key]=$0})
                     // Schema labels carry the input hint; the section footer says it once instead.
@@ -682,7 +684,11 @@ struct YouView<Vault:View>:View{
                 }
                 TextField("Anything else for your reports (optional)",text:$store.profile,axis:.vertical).disabled(store.syncing || store.locking)
                 Text("Saved automatically.").font(.footnote)
-            },header:{Text("About you")},footer:{Text("Separate multiple entries with commas.")})
+            },label:{VStack(alignment:.leading,spacing:2){
+                Text("Personalization").font(.title3.bold()).foregroundStyle(VaultStyle.purpleInk)
+                Text(store.personalized ? "Saved. Tap to review your details." : "Age, ancestry, health history and more, all optional").font(.footnote).foregroundStyle(.secondary)
+            }})
+            if aboutOpen{Text("Separate multiple entries with commas.").font(.footnote).foregroundStyle(.secondary)}
         }
         if store.health.available{
             Section(content:{
