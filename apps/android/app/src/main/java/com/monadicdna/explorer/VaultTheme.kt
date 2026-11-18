@@ -30,7 +30,8 @@ val Garamond = FontFamily(Font(R.font.eb_garamond_medium, FontWeight.Medium))
     fun TextStyle.brand() = copy(fontFamily = SpaceGrotesk)
     MaterialTheme(
         colorScheme = lightColorScheme(
-            primary = VaultColors.darkMain, onPrimary = Color.White,
+            // Brand plum for actions; darkMain stays on titles and the hero panels.
+            primary = VaultColors.purple900, onPrimary = Color.White,
             secondary = VaultColors.purple900, onSecondary = Color.White,
             primaryContainer = VaultColors.purple200, onPrimaryContainer = VaultColors.purple900,
             secondaryContainer = VaultColors.purple100, onSecondaryContainer = VaultColors.purple900,

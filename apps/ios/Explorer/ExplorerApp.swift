@@ -16,7 +16,8 @@ func scaledImageData(_ image:UIImage)->Data?{
     @StateObject private var store=ExplorerStore()
     @Environment(\.scenePhase) private var scenePhase
     init() { VaultStyle.configure() }
-    var body: some Scene { WindowGroup { ExplorerView().font(VaultStyle.body()).tint(VaultStyle.ink).preferredColorScheme(.light).environmentObject(store)
+    var body: some Scene { WindowGroup { ExplorerView().font(VaultStyle.body()).tint(VaultStyle.purpleInk).preferredColorScheme(.light).environmentObject(store)
+        // Brand plum for actions; ink stays on titles and the hero panels.
         .overlay { if scenePhase != .active || store.locking { ZStack { Color("vault_offTone").ignoresSafeArea(); Label("Your data is protected",systemImage:"lock.shield").font(.headline) } } }
         .onChange(of:scenePhase) { _, phase in if phase == .background { store.backgroundLock() } } } }
 }
@@ -372,9 +373,9 @@ struct Step<Content:View>:View{
         if enabled || !done{content()}
     }.frame(maxWidth:.infinity,alignment:.leading).padding()
     // Done steps rest in mint, the live step in lavender: the rail reads as progress, not paperwork.
-    .background(done ? Color("vault_green100") : enabled ? Color("vault_purple100") : Color.clear,in:RoundedRectangle(cornerRadius:20))
-    .overlay(RoundedRectangle(cornerRadius:20).stroke(enabled && !done ? VaultStyle.purpleInk : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
-    .opacity(enabled ? 1 : 0.45)}
+    .background(done ? Color("vault_green100") : enabled ? Color("vault_purple100") : Color.clear,in:RoundedRectangle(cornerRadius:24))
+    .overlay(RoundedRectangle(cornerRadius:24).stroke(enabled && !done ? VaultStyle.purpleInk : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
+    .opacity(enabled ? 1 : done ? 0.75 : 0.45)}
 }
 
 struct ReportCards:View{
@@ -391,7 +392,7 @@ struct ReportCards:View{
             // Tier as a filled chip: the price tier should be scannable before tapping.
             let tier=kind=="Health" ? "Free" : premium ? "" : "Premium"
             if !tier.isEmpty{Text(tier).font(.caption).padding(.horizontal,10).padding(.vertical,4).background(Color(ink).opacity(0.12),in:Capsule())}
-        }.padding().background(Color(bg),in:RoundedRectangle(cornerRadius:16))}.foregroundStyle(Color(ink))
+        }.padding().background(Color(bg),in:RoundedRectangle(cornerRadius:24))}.foregroundStyle(Color(ink))
     }}
 }
 
@@ -452,7 +453,7 @@ struct ResultView:View{
     var evidence:String{(try? Core.object("evidence",record.raw)["label"] as? String) ?? "Research finding"}
     var body:some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image("vault_star").resizable().scaledToFit().frame(width:28,height:28).accessibilityHidden(true)
+            Image("vault_star").resizable().scaledToFit().frame(width:28,height:28).accessibilityHidden(true).colorMultiply(palette.foreground)
             Text(record.text("traitName")).font(VaultStyle.cardTitle).fixedSize(horizontal:false, vertical:true)
             Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType")=="beta" ? "Beta" : "OR") \(effectNumber(record.number("riskScore")))").monospacedDigit()
             Label(record.text("riskLevel").capitalized,systemImage:record.text("riskLevel")=="increased" ? "arrow.up" : record.text("riskLevel")=="decreased" ? "arrow.down" : "circle").font(VaultStyle.body().bold())
@@ -460,7 +461,8 @@ struct ResultView:View{
         }
         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(palette.foreground)
-        .background(palette.background, in: RoundedRectangle(cornerRadius:40))
+        // Radius scale: 28pt heroes/sheets, 24pt content cards, 18pt bubbles, capsule chips.
+        .background(palette.background, in: RoundedRectangle(cornerRadius:24))
         .listRowBackground(Color.clear).listRowSeparator(.hidden)
     }
 }
