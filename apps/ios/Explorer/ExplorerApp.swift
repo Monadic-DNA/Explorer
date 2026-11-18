@@ -139,6 +139,12 @@ struct HomeView<Results:View>:View{
             VaultHero()
             Text("Welcome back. Unlock your saved data to continue.").font(VaultStyle.heading(20))
         } else if ready {
+            // The ready Home opens on a dark brand panel with the user's own counts, so the first screen feels like their product, not a form.
+            VStack(alignment:.leading,spacing:8){
+                Image("vault_brand_mark").resizable().scaledToFit().frame(height:36)
+                Text("Your DNA. Your discoveries.").font(VaultStyle.heading(28)).foregroundStyle(.white)
+                Text("\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) research matches, analyzed on this device").font(.footnote).foregroundStyle(.white.opacity(0.75))
+            }.frame(maxWidth:.infinity,alignment:.leading).padding(22).background(VaultStyle.ink,in:RoundedRectangle(cornerRadius:28))
             // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
             Step(number:1,title:"Add your DNA file",done:true,enabled:false){Color.clear.frame(height:0)}
             Step(number:2,title:"Tell us about you",done:store.personalized,enabled:!store.personalized){
@@ -364,8 +370,9 @@ struct Step<Content:View>:View{
         // Completed steps collapse to their checked title, as on Android.
         if enabled || !done{content()}
     }.frame(maxWidth:.infinity,alignment:.leading).padding()
-    .background(done ? Color.accentColor.opacity(0.12) : Color.clear,in:RoundedRectangle(cornerRadius:20))
-    .overlay(RoundedRectangle(cornerRadius:20).stroke(enabled && !done ? Color.primary : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
+    // Done steps rest in mint, the live step in lavender: the rail reads as progress, not paperwork.
+    .background(done ? Color("vault_green100") : enabled ? Color("vault_purple100") : Color.clear,in:RoundedRectangle(cornerRadius:20))
+    .overlay(RoundedRectangle(cornerRadius:20).stroke(enabled && !done ? VaultStyle.purpleInk : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
     .opacity(enabled ? 1 : 0.45)}
 }
 
@@ -373,12 +380,17 @@ struct ReportCards:View{
     @EnvironmentObject var store:ExplorerStore
     var open:(String)->Void
     private var premium:Bool{store.premiumActive}
+    // Each report gets its Vault category pastel and star, so the reports list reads as a family rather than four grey rows.
+    private let art:[String:(bg:String,ink:String,star:String)]=["Health":("vault_green200","vault_green900","vault_star"),"Healthspan":("vault_yellow200","vault_yellow900","vault_star_yellow"),"Top traits":("vault_purple200","vault_purple900","vault_star_orange"),"Overview":("vault_blue200","vault_blue900","vault_star_blue")]
     var body:some View{ForEach(reportKinds,id:\.0){kind,description in
-        Button{open(kind)}label:{HStack{VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).foregroundStyle(.secondary)};Spacer();
+        let (bg,ink,star)=art[kind]!
+        Button{open(kind)}label:{HStack(spacing:12){
+            Image(star).resizable().scaledToFit().frame(width:28,height:28)
+            VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).opacity(0.8)};Spacer();
             // Tier as a filled chip: the price tier should be scannable before tapping.
             let tier=kind=="Health" ? "Free" : premium ? "" : "Premium"
-            if !tier.isEmpty{Text(tier).font(.caption).padding(.horizontal,10).padding(.vertical,4).background(kind=="Health" ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.15),in:Capsule())}
-        }.padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary.opacity(0.5)))}.tint(.primary)
+            if !tier.isEmpty{Text(tier).font(.caption).padding(.horizontal,10).padding(.vertical,4).background(Color(ink).opacity(0.12),in:Capsule())}
+        }.padding().background(Color(bg),in:RoundedRectangle(cornerRadius:16))}.foregroundStyle(Color(ink))
     }}
 }
 
@@ -556,8 +568,10 @@ struct ChatView:View{
                 }.padding().background(VaultStyle.canvas,in:RoundedRectangle(cornerRadius:12)).listRowSeparator(.hidden)
             }
             if store.messages.isEmpty{
+                // A quiet brand moment on the empty conversation: the star and a greeting instead of a bare instruction.
+                HStack(spacing:10){Image("vault_star").resizable().scaledToFit().frame(width:36,height:36);Text("Ask about your results").font(VaultStyle.heading(26))}
                 Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "To start, allow sharing above. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary)
-                if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
+                if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule).tint(VaultStyle.purpleInk).background(VaultStyle.lavender,in:Capsule())}}
                 if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize)}
             }
             // Flat conversation: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
@@ -565,8 +579,8 @@ struct ChatView:View{
                 if item.element.0=="user"{
                     HStack{Spacer(minLength:40)
                         Text(item.element.1).font(.body).padding(.horizontal,14).padding(.vertical,10)
-                            .background(Color.accentColor.opacity(0.12),in:RoundedRectangle(cornerRadius:18))
-                    }.listRowSeparator(.hidden)
+                            .background(VaultStyle.lavender,in:RoundedRectangle(cornerRadius:18))
+                    }.listRowSeparator(.hidden).foregroundStyle(VaultStyle.purpleInk)
                 } else {
                     VStack(alignment:.leading,spacing:8){
                         Text(.init(item.element.1)).font(.body).textSelection(.enabled)
@@ -585,7 +599,7 @@ struct ChatView:View{
                     }
                 }
             }
-            if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}
+            if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule).tint(VaultStyle.purpleInk).background(VaultStyle.lavender,in:Capsule())}}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
             if store.busy{HStack{
                 Text(store.messages.last?.1.isEmpty == false ? "" : store.status).font(.caption).foregroundStyle(.secondary)

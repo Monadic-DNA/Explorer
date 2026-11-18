@@ -155,6 +155,10 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 
 // M3 chip borders ignore the theme outline and render dark; Vault borders are always the soft token.
 @Composable private fun vaultChipBorder()=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outline)
+/** Suggestions and follow-ups are soft lavender chips, so interactive prompts read as invitations rather than more grey text. */
+@Composable private fun PastelChip(onClick: ()->Unit, label: @Composable ()->Unit){
+    SuggestionChip(onClick=onClick,label=label,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=VaultColors.purple100,labelColor=VaultColors.purple900),border=vaultChipBorder())
+}
 
 /** One-time explicit agreement with tappable full policy documents; agreeing covers the educational-use note. */
 @Composable private fun TermsAgreement(onAgree: ()->Unit){
@@ -369,14 +373,16 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
         LazyColumn(Modifier.weight(1f),state=listState,verticalArrangement=Arrangement.spacedBy(12.dp)){
             // While an access requirement is shown, it takes the place of the intro so its button stays visible.
             if(model.messages.isEmpty()&&model.accessNeeded==null){
+                // A quiet brand moment on the empty conversation: the star and a greeting instead of a bare instruction.
+                item{Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(36.dp));Text("Ask about your results",fontFamily=Garamond,fontSize=26.sp,color=VaultColors.darkMain)}}
                 item{Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"To start, allow sharing above. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)}
-                if((model.resultCount>0))items(CHAT_SUGGESTIONS){suggestion->SuggestionChip(onClick={message=suggestion},label={Text(suggestion)})}
+                if((model.resultCount>0))items(CHAT_SUGGESTIONS){suggestion->PastelChip(onClick={message=suggestion},label={Text(suggestion)})}
                 if((model.resultCount>0)&&!model.personalized)item{TextButton(onClick=personalize){Text("Personalize answers")}}
             }
             // Flat conversation, as in modern chat apps: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
             itemsIndexed(model.messages.toList()){index,(role,text)->
                 if(role=="user")Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){
-                    Surface(color=MaterialTheme.colorScheme.secondaryContainer,shape=androidx.compose.foundation.shape.RoundedCornerShape(18.dp),modifier=Modifier.widthIn(max=320.dp)){
+                    Surface(color=VaultColors.purple200,contentColor=VaultColors.purple900,shape=androidx.compose.foundation.shape.RoundedCornerShape(18.dp),modifier=Modifier.widthIn(max=320.dp)){
                         Text(text,Modifier.padding(horizontal=14.dp,vertical=10.dp),style=MaterialTheme.typography.bodyLarge.copy(fontFamily=FontFamily.Default,fontWeight=FontWeight.Normal))
                     }
                 } else Column(Modifier.fillMaxWidth()){
@@ -385,7 +391,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                     model.chatSources[index]?.takeIf{it.isNotEmpty()}?.let{sources->ChatSources(sources,model.chatContextUsed)}
                 }
             }
-            if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->SuggestionChip(onClick={message=q},label={Text(q)})}
+            if(!model.busy&&model.chatFollowups.isNotEmpty())items(model.chatFollowups){q->PastelChip(onClick={message=q},label={Text(q)})}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
             if(model.busy)item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                 Text(if(model.messages.lastOrNull()?.second?.isNotEmpty()==true)"" else model.status,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -424,7 +430,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             MarkdownText(model.report)
             if(model.reportQuestions.isNotEmpty()){
                 Text("Ask a follow-up",style=MaterialTheme.typography.titleMedium)
-                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){model.reportQuestions.forEach{question->SuggestionChip(onClick={model.chatDraft=question;model.reportSheetOpen=false;openChat()},label={Text(question)})}}
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){model.reportQuestions.forEach{question->PastelChip(onClick={model.chatDraft=question;model.reportSheetOpen=false;openChat()},label={Text(question)})}}
             }
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 Button(onClick={sharePdf(context,model.reportTitle,reportHtml(model.reportTitle,model.report,pdfLogo(context)))}){Text("Share PDF")}
@@ -567,7 +573,7 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
         Text(model.reportTitle,style=MaterialTheme.typography.titleLarge);MarkdownText(model.report)
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={model.reportSheetOpen=true}){Text("Open report")};OutlinedButton(onClick=export){Text("Export markdown")}}
         if(model.reportQuestions.isNotEmpty())Text("Ask a follow-up",style=MaterialTheme.typography.titleMedium)
-        model.reportQuestions.forEach{question->SuggestionChip(onClick={model.chatDraft=question;openChat()},label={Text(question)})}
+        model.reportQuestions.forEach{question->PastelChip(onClick={model.chatDraft=question;openChat()},label={Text(question)})}
     }
 }}
 
@@ -684,6 +690,12 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             Text("Welcome back. Unlock your saved data to continue.",style=MaterialTheme.typography.titleMedium)
             Button(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         } else if(ready){
+            // The ready Home opens on a dark brand panel with the user's own counts, so the first screen feels like their product, not a form.
+            Column(Modifier.fillMaxWidth().background(VaultColors.darkMain,androidx.compose.foundation.shape.RoundedCornerShape(28.dp)).padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                androidx.compose.foundation.Image(painterResource(R.drawable.vault_brand_mark),contentDescription=null,modifier=Modifier.size(36.dp))
+                Text("Your DNA. Your discoveries.",color=androidx.compose.ui.graphics.Color.White,fontFamily=Garamond,fontSize=28.sp)
+                Text("${variants.grouped()} variants • ${model.resultCount.grouped()} research matches, analyzed on this device",color=androidx.compose.ui.graphics.Color.White.copy(alpha=0.75f),style=MaterialTheme.typography.bodySmall)
+            }
             // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
             Step(1,"Add your DNA file",done=true,enabled=false){}
             Step(2,"Tell us about you",done=model.personalized,enabled=!model.personalized){
@@ -697,7 +709,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             // Results at a glance, as on the web's /explore dashboard.
             model.dashboard?.let{p->
                 val insight=p.optJSONObject("insight")
-                Text("Your results at a glance",style=MaterialTheme.typography.titleLarge)
+                Text("Your results at a glance",fontFamily=Garamond,fontSize=26.sp,color=VaultColors.darkMain)
                 insight?.let{i->Text("${i.optInt("elevatedCount").grouped()} elevated • ${i.optInt("protectiveCount").grouped()} protective",style=MaterialTheme.typography.bodySmall)}
                 p.optJSONArray("categories")?.takeIf{it.length()>0}?.let{categories->
                     Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
@@ -714,14 +726,14 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                     ResultCard(standout){model.loadStudy(standout.optInt("studyId"))}
                 }
             }
-            Text("Ask about your DNA",style=MaterialTheme.typography.headlineMedium)
+            Text("Ask about your DNA",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain)
             Text("Chat answers questions using your ${model.resultCount.grouped()} research matches${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
             var question by remember{mutableStateOf("")}
             OutlinedTextField(value=question,onValueChange={question=it},label={Text("What would you like to know?")},modifier=Modifier.fillMaxWidth())
             Button(onClick={model.chatDraft=question;go("Chat")},enabled=question.isNotBlank()){Text("Ask")}
-            CHAT_SUGGESTIONS.forEach{suggestion->SuggestionChip(onClick={model.chatDraft=suggestion;go("Chat")},label={Text(suggestion)})}
+            CHAT_SUGGESTIONS.forEach{suggestion->PastelChip(onClick={model.chatDraft=suggestion;go("Chat")},label={Text(suggestion)})}
             if(!model.personalized)OutlinedCard(onClick={go("You")},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Make answers about you",style=MaterialTheme.typography.titleMedium);Text("Add your age, ancestry and health history. It stays encrypted on this device.",style=MaterialTheme.typography.bodySmall)}}
-            Text("Reports",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
+            Text("Reports",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain,modifier=Modifier.padding(top=8.dp))
             ReportCards(model){go("Reports")}
             Row(verticalAlignment=Alignment.CenterVertically){
                 Text("${variants.grouped()} variants • ${model.resultCount.grouped()} matches",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
@@ -768,8 +780,9 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
 
 @Composable private fun Step(number: Int, title: String, done: Boolean, enabled: Boolean, content: @Composable ColumnScope.()->Unit){
     // Done steps are tinted, the current step is outlined, and later steps are dimmed.
-    val colors=if(done)CardDefaults.outlinedCardColors(containerColor=MaterialTheme.colorScheme.primaryContainer) else CardDefaults.outlinedCardColors()
-    OutlinedCard(Modifier.fillMaxWidth().alpha(if(enabled)1f else 0.45f),colors=colors,border=androidx.compose.foundation.BorderStroke(if(enabled&&!done)2.dp else 1.dp,if(enabled&&!done)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)){
+    // Done steps rest in mint, the live step in lavender: the rail reads as progress, not paperwork.
+    val container=if(done)VaultColors.green100 else if(enabled)VaultColors.purple100 else MaterialTheme.colorScheme.surface
+    OutlinedCard(Modifier.fillMaxWidth().alpha(if(enabled)1f else 0.45f),colors=CardDefaults.outlinedCardColors(containerColor=container),border=androidx.compose.foundation.BorderStroke(if(enabled&&!done)2.dp else 1.dp,if(enabled&&!done)VaultColors.purple900 else MaterialTheme.colorScheme.outline)){
         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
                 // The step marker is a brand disc, not an emoji numeral, so it sits inside the type system.
@@ -783,12 +796,16 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
 
 @Composable private fun ReportCards(model: ExplorerModel, onClick: (String)->Unit){
     val premium=model.premiumActive
+    // Each report gets its Vault category pastel and star, so the reports list reads as a family rather than four grey rows.
+    val art=mapOf("Health" to Triple(VaultColors.green200,VaultColors.green900,R.drawable.vault_star),"Healthspan" to Triple(VaultColors.yellow200,VaultColors.yellow900,R.drawable.vault_star_yellow),"Top traits" to Triple(VaultColors.purple200,VaultColors.purple900,R.drawable.vault_star_orange),"Overview" to Triple(VaultColors.blue200,VaultColors.blue900,R.drawable.vault_star_blue))
     REPORTS.forEach{(kind,description)->
-        OutlinedCard(onClick={onClick(kind)},modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){
+        val (background,ink,star)=art[kind]!!
+        Card(onClick={onClick(kind)},modifier=Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=background,contentColor=ink)){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+            androidx.compose.foundation.Image(painterResource(star),contentDescription=null,modifier=Modifier.size(28.dp))
             Column(Modifier.weight(1f)){Text("$kind report",style=MaterialTheme.typography.titleMedium);Text(description,style=MaterialTheme.typography.bodySmall)}
             // Tier as a filled chip: the price tier should be scannable before tapping.
             val tier=if(kind=="Health")"Free" else if(premium)"" else "Premium"
-            if(tier.isNotEmpty())Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(50),color=if(tier=="Free")MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant){Text(tier,Modifier.padding(horizontal=10.dp,vertical=4.dp),style=MaterialTheme.typography.labelMedium)}
+            if(tier.isNotEmpty())Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(50),color=ink.copy(alpha=0.12f),contentColor=ink){Text(tier,Modifier.padding(horizontal=10.dp,vertical=4.dp),style=MaterialTheme.typography.labelMedium)}
         }}
     }
 }
