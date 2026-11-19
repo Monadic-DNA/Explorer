@@ -814,6 +814,12 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                     else Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=!model.busy){Text("Choose DNA file")}
                 }
             }
+            // Users without a DNA export can get a kit; batching is the anonymity story, in plain language.
+            if(variants==0){
+                val context=LocalContext.current
+                Text("Don't have a DNA file? Sign up for a Monadic DNA testing kit. We sequence kits in batches with other customers' samples instead of one at a time, which makes a sample harder to tie to you. Your results are then analyzed on this device.",style=MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick={openBrowser(context,"https://docs.google.com/forms/d/e/1FAIpQLSdHFDpsyU0t6PlaXEkbHX-pwF_y7icuPJeOHyGHMDpe11XigQ/viewform?usp=dialog")}){Text("Sign up for a testing kit")}
+            }
             // Right after the match count lands, offer the fastest payoff before asking for profile details.
             if(variants>0&&!ready&&model.reportTitle!="Health")OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
                 Text("See your results in under a minute",style=MaterialTheme.typography.titleMedium)

@@ -356,6 +356,9 @@ pub fn dispatch(op: &str, input: &Value) -> Result<Value, String> {
         "store_pass_credit" => credit_pass(&store.conn, input),
         "store_pass_use" => use_pass(&store.conn, input),
         "store_set_customization" => set_customization(store, &input["customization"]),
+        // Generic encrypted values (last report, chat transcript). Same meta table as device/settings.
+        "store_get_value" => Ok(json!(meta(&store.conn, text(input, "key"))?)),
+        "store_set_value" => { set_meta(&store.conn, text(input, "key"), text(input, "value"))?; Ok(json!(true)) }
         _ => Err("Unknown store operation".into()),
     })
 }

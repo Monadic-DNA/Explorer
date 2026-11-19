@@ -125,6 +125,29 @@ import UIKit
     override convenience init(){self.init(dataVault:SecureDataVault())}
     private func handle() throws -> Int {guard let storeHandle else{throw Core.Failure(message:"Unlock your saved data first")};return storeHandle}
     private func storeInput(_ values:[String:Any]=[:]) throws -> [String:Any] {values.merging(["store":try handle()]){$1}}
+    /// The last report and conversation survive background locks and restarts, in the encrypted store.
+    private func persistWork(){
+        guard let input=try? storeInput() else{return}
+        let work:[String:Any]=[
+            "report":report,"reportTitle":reportTitle,"reportQuestions":reportQuestions,
+            "messages":messages.map{["role":$0.0,"text":$0.1]},
+            "sources":Dictionary(uniqueKeysWithValues:chatSources.map{(String($0.key),$0.value)}),
+            "angles":Dictionary(uniqueKeysWithValues:researchAngles.map{(String($0.key),$0.value.map{["keyword":$0.0,"count":$0.1]})}),
+            "followups":chatFollowups,"contextUsed":chatContextUsed
+        ]
+        guard let data=try? JSONSerialization.data(withJSONObject:work),let text=String(data:data,encoding:.utf8) else{return}
+        _=try? Core.call("store_set_value",input.merging(["key":"last_work","value":text]){$1})
+    }
+    private func restoreWork(){
+        guard let raw=try? Core.call("store_get_value",(try? storeInput()) ?? [:]) as? String,let data=raw.data(using:.utf8),
+              let work=try? JSONSerialization.jsonObject(with:data) as? [String:Any] else{return}
+        report=work["report"] as? String ?? "";reportTitle=work["reportTitle"] as? String ?? ""
+        reportQuestions=work["reportQuestions"] as? [String] ?? []
+        messages=(work["messages"] as? [[String:Any]] ?? []).compactMap{m in guard let role=m["role"] as? String,let text=m["text"] as? String else{return nil};return (role,text)}
+        chatSources=(work["sources"] as? [String:[[String:Any]]] ?? [:]).reduce(into:[:]){out,entry in out[Int(entry.key) ?? 0]=entry.value}
+        researchAngles=(work["angles"] as? [String:[[String:Any]]] ?? [:]).reduce(into:[:]){out,entry in out[Int(entry.key) ?? 0]=entry.value.compactMap{a in guard let k=a["keyword"] as? String,let c=a["count"] as? Int else{return nil};return (k,c)}}
+        chatFollowups=work["followups"] as? [String] ?? [];chatContextUsed=work["contextUsed"] as? String ?? ""
+    }
     // Personalization edits are written shortly after typing stops; only changed fields are stamped for sync.
     private func customizationChanged(){
         guard dataUnlocked && !loadingCustomization else{return}
@@ -148,6 +171,7 @@ import UIKit
         let opened=try await dataVault.unlock()
         storeHandle=opened["handle"] as? Int;metadata=opened["metadata"] as? [String:Any] ?? [:]
         restoreCustomization(try Core.object("store_customization",try storeInput()))
+        restoreWork()
         try refreshResults()
         dataUnlocked=true;vaultExists=true;restorable=false;storageMessage="Saved on this device";protection=await dataVault.protection
         try setUpSync()
@@ -570,6 +594,7 @@ import UIKit
     func newChat(){
         messages=[];researchAngles=[:];chatSources=[:];chatContextUsed="";chatFollowups=[];chatAttachments=[]
         chatRetryAction=nil;accessNeeded=nil;error=nil
+        persistWork()
     }
     /// `onSent` runs once a reply has arrived, so a failed send keeps the user's question.
     func sendChat(_ message:String,onSent:@escaping @MainActor ()->Void={}){work("Asking selected provider",chatActionOnFailure:"chat"){
@@ -615,6 +640,7 @@ import UIKit
         // The core strips the trailing follow-up questions from the answer; they render as chips only.
         self.messages[answerIndex].1=reply["answer"] as? String ?? content
         self.chatFollowups=reply["questions"] as? [String] ?? []
+        persistWork()
         onSent()
     }}
     /// Studies most similar to the text, from the stateless semantic search; empty when unavailable.
@@ -649,6 +675,7 @@ import UIKit
         self.messages.append(("user",question));self.messages.append(("assistant",reply["answer"] as? String ?? ""))
         self.researchAngles[self.messages.count-1]=angles
         self.chatFollowups=reply["questions"] as? [String] ?? []
+        persistWork()
         onSent()
     }}
     func generateReport(_ kind:String){work("Generating report"){
@@ -661,6 +688,7 @@ import UIKit
             self.reportTitle="\(kind) report";self.report=parsed["report"] as? String ?? content;self.reportQuestions=parsed["questions"] as? [String] ?? [];self.reportSheetOpen=true
             // A pass is used only once the report exists, so a failed run keeps it.
             if let pass{self.billing.consumePass(pass)}
+            persistWork()
             return
         }
         // Groups arrive formatted from the store, so the full result set never reaches Swift.
@@ -676,5 +704,6 @@ import UIKit
         let reduce=try Core.string("render_prompt",["name":"generateReducePrompt","values":["groupSummaries":summaries,"userContext":userContext]])
         self.reportTitle="\(kind) report";self.report=try await self.complete([["role":"user","content":reduce]]);self.reportSheetOpen=true
         if let pass{self.billing.consumePass(pass)}
+        persistWork()
     }}
 }

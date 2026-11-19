@@ -144,6 +144,37 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         viewModelScope.launch { if(!dataVault.exists) restorable=runCatching{syncKeys.get()!=null}.getOrDefault(false) }
     }
     private fun handle()=requireNotNull(storeHandle){"Unlock your saved data first."}
+    /** The last report and conversation survive background locks and restarts, in the encrypted store. */
+    private suspend fun persistWork() {
+        if(storeHandle==null)return
+        val work=JSONObject()
+        work.put("report",report);work.put("reportTitle",reportTitle);work.put("reportQuestions",JSONArray(reportQuestions))
+        work.put("messages",JSONArray(messages.map{json("role" to it.first,"text" to it.second)}))
+        work.put("sources",JSONObject(chatSources.mapKeys{it.key.toString()}.mapValues{JSONArray(it.value)}))
+        work.put("angles",JSONObject(researchAngles.mapKeys{it.key.toString()}.mapValues{entry->JSONArray(entry.value.map{json("keyword" to it.first,"count" to it.second)})}))
+        work.put("followups",JSONArray(chatFollowups));work.put("contextUsed",chatContextUsed)
+        withContext(Dispatchers.Default){Core.call("store_set_value",storeInput("key" to "last_work","value" to work.toString()))}
+    }
+    private suspend fun restoreWork() {
+        val raw=withContext(Dispatchers.Default){Core.call("store_get_value",storeInput("key" to "last_work")) as String?} ?: return
+        val work=runCatching{JSONObject(raw)}.getOrNull() ?: return
+        report=work.optString("report");reportTitle=work.optString("reportTitle")
+        work.optJSONArray("reportQuestions")?.let{qs->reportQuestions=(0 until qs.length()).map{qs.getString(it)}}
+        work.optJSONArray("messages")?.let{list->
+            messages.clear()
+            for(i in 0 until list.length()){val m=list.getJSONObject(i);messages.add(m.getString("role") to m.getString("text"))}
+        }
+        work.optJSONObject("sources")?.let{sources->
+            chatSources.clear()
+            for(key in sources.keys()){val list=sources.getJSONArray(key);chatSources[key.toInt()]=(0 until list.length()).map{list.getJSONObject(it)}}
+        }
+        work.optJSONObject("angles")?.let{angles->
+            researchAngles.clear()
+            for(key in angles.keys()){val list=angles.getJSONArray(key);researchAngles[key.toInt()]=(0 until list.length()).map{val a=list.getJSONObject(it);a.getString("keyword") to a.getInt("count")}}
+        }
+        work.optJSONArray("followups")?.let{qs->chatFollowups=(0 until qs.length()).map{qs.getString(it)}}
+        chatContextUsed=work.optString("contextUsed")
+    }
     private fun storeInput(vararg values: Pair<String,Any?>)=json("store" to handle(),*values)
     private fun restoreCustomization(value:JSONObject) {
         loadingCustomization=true
@@ -170,6 +201,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         val opened=dataVault.unlock{requireNotNull(authenticate){"Open the app to unlock your saved data."}.invoke()}
         storeHandle=opened.getLong("handle");metadata=opened.getJSONObject("metadata")
         restoreCustomization(Core.obj("store_customization",storeInput()))
+        restoreWork()
         refreshResults();refreshDashboard()
         dataUnlocked=true;restorable=false;storageMessage="Saved on this device"
         setUpSync()
@@ -570,6 +602,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
     fun newChat(){
         messages.clear();researchAngles.clear();chatSources.clear();chatContextUsed="";chatFollowups=emptyList();chatAttachments.clear()
         chatRetryAction=null;accessNeeded=null;error=null
+        viewModelScope.launch{persistWork()}
     }
     /** `onSent` runs once a reply has arrived, so a failed send keeps the user's question. */
     fun sendChat(message: String, onSent: ()->Unit={}) = run("Asking selected provider",chatActionOnFailure="chat") {
@@ -616,6 +649,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         // The core strips the trailing follow-up questions from the answer; they render as chips only.
         messages[answerIndex]="assistant" to reply.getString("answer")
         chatFollowups=(0 until reply.getJSONArray("questions").length()).map{reply.getJSONArray("questions").getString(it)}
+        persistWork()
         onSent()
     }
     /**
@@ -655,6 +689,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         messages.add("user" to question);messages.add("assistant" to reply.getString("answer"))
         researchAngles[messages.size-1]=angles
         chatFollowups=(0 until reply.getJSONArray("questions").length()).map{reply.getJSONArray("questions").getString(it)}
+        persistWork()
         onSent()
     }
     fun generateReport(kind: String) = run("Generating $kind report") {
@@ -667,6 +702,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
             reportTitle="$kind report";report=parsed.getString("report");reportSheetOpen=true
             reportQuestions=(0 until parsed.getJSONArray("questions").length()).map{parsed.getJSONArray("questions").getString(it)}
             pass?.let{billing.consumePass(it)}
+            persistWork()
             return@run
         }
         // Groups arrive formatted from the store, so the full result set never reaches Kotlin.
@@ -684,6 +720,7 @@ class ExplorerModel @JvmOverloads constructor(app: Application, val dataVault:Se
         report=complete(JSONArray().put(json("role" to "user","content" to reduce)));reportSheetOpen=true
         // A pass is used only once the report exists, so a failed run keeps it.
         pass?.let{billing.consumePass(it)}
+        persistWork()
     }
 
 }

@@ -190,6 +190,11 @@ struct HomeView<Results:View>:View{
                 Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.").font(.footnote)
                 if store.variantCount>0 && !store.personalized{HStack{Button("Personalize"){go(3)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule);Button("Skip for now",action:store.skipPersonalization)}}
             }
+            // Users without a DNA export can get a kit; batching is the anonymity story, in plain language.
+            if store.variantCount==0{
+                Text("Don't have a DNA file? Sign up for a Monadic DNA testing kit. We sequence kits in batches with other customers' samples instead of one at a time, which makes a sample harder to tie to you. Your results are then analyzed on this device.").font(.footnote)
+                Link("Sign up for a testing kit",destination:URL(string:"https://docs.google.com/forms/d/e/1FAIpQLSdHFDpsyU0t6PlaXEkbHX-pwF_y7icuPJeOHyGHMDpe11XigQ/viewform?usp=dialog")!)
+            }
             // Home switches to Chat and Reports once steps 1 and 2 are done, so step 3 is a preview here.
             Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Read your free Health report, usually in under a minute, or chat about your matches.").font(.footnote)}
             NavigationLink("Browse research without your DNA"){BrowseView()}
