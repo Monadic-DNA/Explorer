@@ -82,9 +82,8 @@ struct ExplorerView: View {
                     NavigationLink("Your matches"){ResultsView(export:export,importResults:{startImport("results")})}
                     NavigationLink("Browse research"){BrowseView()}
                     NavigationLink("Vault and backups"){vault}
-                    NavigationLink("Backend and AI provider"){SettingsView()}
+                    NavigationLink("AI settings"){SettingsView()}
                     NavigationLink("Account and premium",isActive:$showAccount){AccountView(billing:store.billing)}
-                    Section("Supported DNA exports"){Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, Monadic DNA and compatible raw files. Gzip archives are supported.")}
                 }.vaultScreen().vaultTitle("More")}.tabItem{Label("More",systemImage:"ellipsis")}.tag(4)
             }
         }
@@ -125,13 +124,6 @@ struct HomeView<Results:View>:View{
                 if store.cancellable{Button("Cancel",action:store.cancel)}
             }.frame(maxWidth:.infinity).padding(.vertical,48)
         } else {
-        if store.syncOffered {
-            VStack(alignment:.leading,spacing:8){
-                Text("Keep your data on a new iPhone").font(.headline)
-                Text("Explorer can keep an end-to-end encrypted copy in your own iCloud, so a new iPhone or iPad fills in automatically. Monadic DNA never stores your data.").font(.footnote)
-                HStack{Button("Turn on"){store.setSync(true)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy);Button("Not now",action:store.declineSync)}
-            }.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:20).stroke(.secondary.opacity(0.5)))
-        }
         if !store.dataUnlocked && !store.vaultExists && store.restorable {
             VaultHero()
             Text("Your data is ready to restore").font(VaultStyle.heading(28))
@@ -147,16 +139,9 @@ struct HomeView<Results:View>:View{
                 Text("Your DNA. Your discoveries.").font(VaultStyle.heading(28)).foregroundStyle(.white)
                 Text("\(store.variantCount.formatted()) variants (SNP calls) • \(store.resultCount.formatted()) studies matching your DNA, analyzed on this device").font(.footnote).foregroundStyle(.white.opacity(0.75))
             }.frame(maxWidth:.infinity,alignment:.leading).padding(22).background(VaultStyle.ink,in:RoundedRectangle(cornerRadius:28))
-            // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
-            Step(number:1,title:"Add your DNA file",done:true,enabled:false){Color.clear.frame(height:0)}
-            Step(number:2,title:"Tell us about you",done:store.personalized,enabled:!store.personalized){
-                Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.").font(.footnote)
-                Button("Personalize"){go(3)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-            }
-            Step(number:3,title:"Ask and read",done:false,enabled:true){
-                Text("Read your free Health report in about 15 seconds, or chat about your matches.").font(.footnote)
-                Button("Get my free Health report"){go(2)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
-            }
+            // The step rail becomes a compact status line once setup is done; actions lead.
+            Text("DNA file added • \(store.personalized ? "Personalization saved" : "Personalization skipped")").font(.footnote).foregroundStyle(.secondary)
+            Button("Get my free Health report"){go(2)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
             // Results at a glance, as on the web's /explore dashboard.
             ResultsAtAGlance(results:{results()})
             Text("Ask about your DNA").font(VaultStyle.heading(28))
@@ -167,6 +152,14 @@ struct HomeView<Results:View>:View{
             if !store.personalized{Button{go(3)}label:{VStack(alignment:.leading,spacing:4){Text("Make answers about you").font(.headline);Text("Add your age, ancestry and health history. It stays encrypted on this device.").font(.footnote)}.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:16).stroke(.secondary))}.tint(.primary)}
             Text("Reports").font(VaultStyle.heading(22)).padding(.top,8)
             ReportCards{_ in go(2)}
+            // The backup offer is secondary: it sits below the product content, not above the hero.
+            if store.syncOffered {
+                VStack(alignment:.leading,spacing:8){
+                    Text("Keep your data on a new iPhone").font(.headline)
+                    Text("Explorer can keep an end-to-end encrypted copy in your own iCloud, so a new iPhone or iPad fills in automatically. Monadic DNA never stores your data.").font(.footnote)
+                    HStack{Button("Turn on"){store.setSync(true)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy);Button("Not now",action:store.declineSync)}
+                }.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:20).stroke(.secondary.opacity(0.5)))
+            }
             HStack{Text("\(store.variantCount.formatted()) variants • \(store.resultCount.formatted()) matches").font(.footnote);Spacer();NavigationLink("Matches"){results()};NavigationLink("Browse"){BrowseView()}}
         } else {
             if store.syncing && store.variantCount==0{Text("Restoring your data from your other device…").font(.headline)}
@@ -188,7 +181,7 @@ struct HomeView<Results:View>:View{
             // Right after the match count lands, offer the fastest payoff before asking for profile details.
             if store.variantCount>0 && !ready && store.reportTitle != "Health" {
                 VStack(alignment:.leading,spacing:8){
-                    Text("See your results in 15 seconds").font(.headline)
+                    Text("See your results in under a minute").font(.headline)
                     Text("Your free Health report reads your \(store.resultCount.formatted()) research matches and summarizes the findings with the strongest evidence.").font(.footnote)
                     Button("Get my free Health report"){go(2)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(store.busy)
                 }.frame(maxWidth:.infinity,alignment:.leading).padding().overlay(RoundedRectangle(cornerRadius:20).stroke(.secondary.opacity(0.5)))
@@ -198,7 +191,7 @@ struct HomeView<Results:View>:View{
                 if store.variantCount>0 && !store.personalized{HStack{Button("Personalize"){go(3)}.buttonStyle(.borderedProminent).buttonBorderShape(.capsule);Button("Skip for now",action:store.skipPersonalization)}}
             }
             // Home switches to Chat and Reports once steps 1 and 2 are done, so step 3 is a preview here.
-            Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Read your free Health report in about 15 seconds, or chat about your matches.").font(.footnote)}
+            Step(number:3,title:"Ask and read",done:false,enabled:false){Text("Read your free Health report, usually in under a minute, or chat about your matches.").font(.footnote)}
             NavigationLink("Browse research without your DNA"){BrowseView()}
         }
         }
@@ -375,7 +368,7 @@ struct Step<Content:View>:View{
     // Done steps rest in mint, the live step in lavender: the rail reads as progress, not paperwork.
     .background(done ? Color("vault_green100") : enabled ? Color("vault_purple100") : Color.clear,in:RoundedRectangle(cornerRadius:24))
     .overlay(RoundedRectangle(cornerRadius:24).stroke(enabled && !done ? VaultStyle.purpleInk : Color.secondary.opacity(0.4),lineWidth:enabled && !done ? 2 : 1))
-    .opacity(enabled ? 1 : done ? 0.75 : 0.45)}
+    .opacity(enabled || done ? 1 : 0.45)}
 }
 
 struct ReportCards:View{
@@ -389,9 +382,11 @@ struct ReportCards:View{
         Button{open(kind)}label:{HStack(spacing:12){
             Image(star).resizable().scaledToFit().frame(width:28,height:28)
             VStack(alignment:.leading,spacing:4){Text("\(kind) report").font(.headline);Text(description).font(.footnote).opacity(0.8)};Spacer();
-            // Tier as a filled chip: the price tier should be scannable before tapping.
-            let tier=kind=="Health" ? "Free" : premium ? "" : "Premium"
-            if !tier.isEmpty{Text(tier).font(.caption).padding(.horizontal,10).padding(.vertical,4).background(Color(ink).opacity(0.12),in:Capsule())}
+            // One plum Premium pill across cards; Free stays green; a generated report shows Open.
+            let generated=store.reportTitle==kind && !store.report.isEmpty
+            let tier=generated ? "Open" : kind=="Health" ? "Free" : premium ? "" : "Premium"
+            let pill=generated ? Color(ink) : kind=="Health" ? Color("vault_green900") : VaultStyle.purpleInk
+            if !tier.isEmpty{Text(tier).font(.caption).foregroundStyle(kind=="Health" && !generated ? pill : Color.white).padding(.horizontal,10).padding(.vertical,4).background(kind=="Health" && !generated ? pill.opacity(0.12) : pill,in:Capsule())}
         }.padding().background(Color(bg),in:RoundedRectangle(cornerRadius:24))}.foregroundStyle(Color(ink))
     }}
 }
@@ -402,13 +397,17 @@ struct BrowseView:View{
     @State private var trait=""
     @State private var semantic=true
     @State private var offset=0
+    @State private var showTrait=false
     var body:some View{VStack{
         Form{
             TextField("Trait, study, gene or SNP",text:$query).autocorrectionDisabled()
-            TextField("Trait filter (optional)",text:$trait)
-            Toggle("Semantic search",isOn:$semantic)
+            if showTrait{TextField("Trait filter (optional)",text:$trait)}
+            else{Button("Add a trait filter"){showTrait=true}}
+            Toggle("Search by meaning, not just keywords",isOn:$semantic)
             Button("Search"){UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),to:nil,from:nil,for:nil);offset=0;store.browse(query,trait,semantic:semantic)}.disabled(store.busy)
-        }.frame(height:230)
+        }.frame(height:showTrait ? 230 : 190)
+        // Example searches make the empty state useful.
+        if store.studies.isEmpty{HStack{Text("Try:").font(.footnote);ForEach(["Type 2 diabetes","APOE"],id:\.self){example in Button(example){query=example;offset=0;store.browse(example,trait,semantic:semantic)}.buttonStyle(.bordered).buttonBorderShape(.capsule)}}.padding(.horizontal)}
         // One card per study: UKB-style traits have many variant rows with the same title and abstract, which read as duplicates.
         List(Array(Dictionary(grouping:store.studies,by:{$0.text("study_accession")}).map{($0.value.first!,$0.value.count)}.sorted{$0.0.text("study_accession")<$1.0.text("study_accession")}),id:\.0.id){study,variants in Button{store.selectedStudy=study}label:{VStack(alignment:.leading,spacing:6){Text(study.text("disease_trait")).font(.custom("SpaceGrotesk-Bold",size:17,relativeTo:.headline));Text(study.text("study")).font(.custom("SpaceGrotesk-Regular",size:15,relativeTo:.subheadline)).foregroundStyle(.secondary);Text([variants>1 ? "\(variants) variants analyzed" : study.text("strongest_snp_risk_allele"),study.text("study_accession"),study.text("confidenceBand","Research finding")].filter{!$0.isEmpty}.joined(separator:" • ")).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))}}.tint(.primary)}
         // Page 1 has no Previous; hiding it beats a faint disabled button.
@@ -420,7 +419,7 @@ struct StudyView:View{
     @EnvironmentObject var store:ExplorerStore
     let record:Record
     private var hasDNA:Bool{store.dataUnlocked && store.variantCount>0}
-    private var effectLabel:String{((try? Core.object("effect",["value":record.text("or_or_beta"),"ci":record.text("ci_text")]))?["effectType"] as? String)=="beta" ? "Beta (trait change)" : "Odds ratio"}
+    private var effectLabel:String{((try? Core.object("effect",["value":record.text("or_or_beta"),"ci":record.text("ci_text")]))?["effectType"] as? String)=="beta" ? "Reported Beta (per allele)" : "Reported OR (per allele)"}
     var body:some View{List{
         Section{
             Text(record.text("disease_trait")).font(VaultStyle.heading(24));Text(record.text("study"))
@@ -436,6 +435,9 @@ struct StudyView:View{
                 if store.busy{Text(store.status).font(.footnote)}
                 if store.commentaryStudyId==record.id && !store.commentary.isEmpty{Text(.init(store.commentary)).textSelection(.enabled)}
             }
+        }
+        Section{
+            Text("OR: odds per allele copy. Beta: trait units per allele. GWAS: genome-wide association study. Your match card shows your genotype-adjusted value; the study values below are the published per-allele estimates.").font(.footnote).foregroundStyle(.secondary)
         }
         Section("Research details"){
             ForEach([("study_accession","Accession"),("mapped_gene","Genes"),("snps","Variants"),("strongest_snp_risk_allele","Risk allele"),("or_or_beta",effectLabel),("ci_text","Effect interval"),("p_value","P-value"),("initial_sample_size","Discovery sample"),("replication_sample_size","Replication sample"),("first_author","Author"),("journal","Journal"),("date","Publication date")],id:\.0){key,label in
@@ -455,9 +457,10 @@ struct ResultView:View{
         VStack(alignment: .leading, spacing: 10) {
             Image("vault_star").resizable().scaledToFit().frame(width:28,height:28).accessibilityHidden(true).colorMultiply(palette.foreground)
             Text(record.text("traitName")).font(VaultStyle.cardTitle).fixedSize(horizontal:false, vertical:true)
-            Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType")=="beta" ? "Beta" : "OR") \(effectNumber(record.number("riskScore")))").monospacedDigit()
+            Text("\(record.text("matchedSnp")): \(record.text("userGenotype")) • \(record.text("effectType")=="beta" ? "Your Beta" : "Your OR") \(effectNumber(record.number("riskScore")))").monospacedDigit()
             Label(record.text("riskLevel").capitalized,systemImage:record.text("riskLevel")=="increased" ? "arrow.up" : record.text("riskLevel")=="decreased" ? "arrow.down" : "circle").font(VaultStyle.body().bold())
             Text(evidence).font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption))
+            Text("Association, not a diagnosis.").font(.custom("SpaceGrotesk-Regular",size:12,relativeTo:.caption)).opacity(0.75)
         }
         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(palette.foreground)
@@ -501,10 +504,12 @@ struct ResultsView:View{
                 if total != store.resultCount{Text("Showing \(total.formatted()) of \(store.resultCount.formatted())").font(.footnote)}
             }
         }
-        ForEach(rows){record in
+        // One card per trait within the page: repeated variant rows for the same trait read as duplicates otherwise.
+        ForEach(Array(Dictionary(grouping:rows,by:{$0.text("traitName")}).map{($0.value.first!,$0.value.count)}),id:\.0.id){record,variants in
             Button{store.loadStudy(record.id)}label:{ResultView(record:record)}.buttonStyle(.plain).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 // Load the next page as the list nears its end.
                 .onAppear{if record.id==rows.dropLast(10).last?.id ?? rows.last?.id, rows.count<total{Task{await load(reset:false)}}}
+            if variants>1{Text("+ \(variants-1) more \(variants==2 ? "variant" : "variants") for this trait").font(.footnote).foregroundStyle(.secondary)}
         }
     }.vaultScreen().navigationTitle("Your results")
     .task(id:"\(filter)|\(direction)|\(sort)|\(store.resultsVersion)"){await load(reset:true)}}
@@ -521,7 +526,9 @@ struct ProviderConsent:View{
                 Text("Only matched results and optional profile and health summaries are sent. Raw DNA stays on this device.").font(.footnote).foregroundStyle(.secondary)
             }
         } else {
-            Toggle("Sharing matches and optional profile and health summaries with \(providerName). Uncheck to revoke.",isOn:$store.shareResultsWithLLM).font(.custom("SpaceGrotesk-Regular",size:13,relativeTo:.footnote))
+            HStack{Text("Sharing matched results with \(providerName)").font(.footnote);Spacer();Button("Revoke"){store.shareResultsWithLLM=false}.font(.footnote)}
+                .padding(.horizontal,12).padding(.vertical,8)
+                .overlay(RoundedRectangle(cornerRadius:16).stroke(Color.secondary.opacity(0.4),lineWidth:1))
         }
     }
 }
@@ -533,6 +540,7 @@ struct ChatView:View{
     @State private var pickedPhotos:[PhotosPickerItem]=[]
     @State private var showDocPicker=false
     @State private var confirmNewChat=false
+    @State private var moreQuestions=false
     private var providerName:String{["nilai":"nilAI","huggingface":"HuggingFace","ollama":"Ollama"][store.provider] ?? store.provider}
     var body:some View{VStack(alignment:.leading){
         let ongoing=!store.messages.isEmpty && store.shareResultsWithLLM
@@ -579,7 +587,11 @@ struct ChatView:View{
                 // A quiet brand moment on the empty conversation: the star and a greeting instead of a bare instruction.
                 HStack(spacing:10){Image("vault_star").resizable().scaledToFit().frame(width:36,height:36);Text("Ask about your results").font(VaultStyle.heading(26))}
                 Text(store.resultCount==0 ? "Chat answers questions about your research matches. Add your DNA file on Home first." : !store.shareResultsWithLLM ? "Tap Share my matches above to begin. Your matches go only to the provider shown." : "Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer.").foregroundStyle(.secondary)
-                if store.resultCount>0{ForEach(chatSuggestions,id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule).tint(VaultStyle.purpleInk).background(VaultStyle.lavender,in:Capsule())}}
+                if store.resultCount>0{
+                    // Two short suggestions plus an expander, instead of a wall of chips.
+                    ForEach(chatSuggestions.prefix(moreQuestions ? chatSuggestions.count : 2),id:\.self){suggestion in Button(suggestion){message=suggestion}.buttonStyle(.bordered).buttonBorderShape(.capsule).tint(VaultStyle.purpleInk).overlay(Capsule().stroke(VaultStyle.purpleInk.opacity(0.5),lineWidth:1))}
+                    Button(moreQuestions ? "Fewer questions" : "More questions"){moreQuestions.toggle()}.font(.footnote)
+                }
                 if store.resultCount>0 && !store.personalized{Button("Personalize answers",action:personalize)}
             }
             // Flat conversation: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
@@ -607,7 +619,7 @@ struct ChatView:View{
                     }
                 }
             }
-            if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule).tint(VaultStyle.purpleInk).background(VaultStyle.lavender,in:Capsule())}}
+            if !store.busy{ForEach(store.chatFollowups,id:\.self){question in Button(question){message=question}.buttonStyle(.bordered).buttonBorderShape(.capsule).tint(VaultStyle.purpleInk).overlay(Capsule().stroke(VaultStyle.purpleInk.opacity(0.5),lineWidth:1))}}
             // Waiting and streaming share one minimal inline indicator; no card, no loader, so the conversation keeps the space.
             if store.busy{HStack{
                 Text(store.messages.last?.1.isEmpty == false ? "" : store.status).font(.caption).foregroundStyle(.secondary)
@@ -637,7 +649,7 @@ struct ChatView:View{
             if let data=try? Data(contentsOf:url){try? store.attachChat(url.lastPathComponent,mime,data)}
         }}}
         // The one persistent disclaimer, so answers themselves do not repeat boilerplate.
-        Text("Educational research, not medical advice.").font(.caption2).foregroundStyle(.secondary).frame(maxWidth:.infinity)
+        Text("Educational research, not medical advice.").font(.footnote).foregroundStyle(.secondary).frame(maxWidth:.infinity)
         // Before a conversation starts, Research keeps its quiet link; during one, it lives in the menu so the answer area keeps the space.
         if store.messages.isEmpty{HStack{Spacer();Button(store.premiumActive ? "Research this in depth" : "Research this in depth • Premium"){store.research(message){message=""}}.font(.footnote).disabled(store.busy || !store.shareResultsWithLLM||store.resultCount==0||message.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}.padding(.horizontal).padding(.bottom,4)}
     }.vaultScreen().toolbar(.hidden,for:.navigationBar)
@@ -653,8 +665,11 @@ struct ReportsView:View{
             Text(store.resultCount==0 ? "Reports summarize your research matches. Add your DNA file on Home first." : "Each report reads your \(store.resultCount.formatted()) research matches (studies that match your DNA)\(store.personalized ? " and what you told us about yourself" : "").")
             ProviderConsent()
             Text("Reports summarize your matches and may suggest follow-up questions.")
-            Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass generates one report.").font(.footnote)
-            Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.").font(.footnote)
+            // Timing, passes and provider details live behind one help row, not three paragraphs.
+            DisclosureGroup("Timing, passes and providers"){
+                Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass generates one report.").font(.footnote)
+                Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.").font(.footnote)
+            }.font(.footnote)
             ReportCards{kind in if !store.busy && store.resultCount>0{store.generateReport(kind)}}.listRowSeparator(.hidden)
             if !store.report.isEmpty {
                 Section(store.reportTitle) {
@@ -712,7 +727,7 @@ struct YouView<Vault:View>:View{
             NavigationLink("Vault and backups"){vault()}
             if store.dataUnlocked{Button("Lock data",action:store.lockData).disabled(store.busy)}
         }
-        if store.dataUnlocked{Button("Done",action:done)}
+        if store.dataUnlocked{Text("Changes save automatically.").font(.footnote).foregroundStyle(.secondary)}
     }.vaultScreen().vaultTitle("You")}
 }
 
@@ -728,6 +743,7 @@ struct VaultView:View{
             Text(store.dataUnlocked ? "Key protection: \(store.protection)" : "Locked. Your data stays encrypted until you unlock it.").font(.footnote)
             if !store.acceptedDisclaimer{TermsAgreement(onAgree:store.acceptTerms)}
             else{Button("Import DNA (.txt, .tsv, .csv, .gz)",action:importDNA).disabled(store.busy)}
+            Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome and Monadic DNA exports. Raw data is processed on this device.").font(.footnote).foregroundStyle(.secondary)
             Button(store.dataUnlocked ? "Lock data" : "Unlock saved data"){if store.dataUnlocked{store.lockData()}else{store.unlockSavedData()}}.disabled(store.busy)
         }
         Section("Sync across your devices"){
@@ -789,6 +805,7 @@ struct AccountView: View {
                     }
                 }
                 if !billing.loading && billing.products.isEmpty{Text("Purchases need the App Store on this device. You can still chat and read the free Health report.").font(.footnote).foregroundStyle(.secondary)}
+                if !billing.loading && billing.products.isEmpty{Button("Retry loading purchases"){Task{await billing.load()}}}
                 Button("Restore purchases") { Task { await billing.restore() } }.disabled(billing.loading)
                 Button("Manage Apple subscriptions") { Task { await billing.manage() } }
                 if !billing.message.isEmpty { Text(billing.message).font(.footnote) }

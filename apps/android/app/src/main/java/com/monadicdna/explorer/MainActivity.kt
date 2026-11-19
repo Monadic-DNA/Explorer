@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -112,10 +114,14 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
     Scaffold(
         // The brand star rides in the top chrome so it stays visible past onboarding.
         // Chat is a reading surface: the title bar yields its height to the conversation there.
-        topBar={if(tab!="Chat")TopAppBar(title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "Backend and AI provider","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
+        topBar={if(tab!="Chat")TopAppBar(
+            // Nested More screens get a visible route back to their parent.
+            navigationIcon={if(tab in listOf("Results","Browse","Vault","Settings","Account"))IconButton(onClick={selectTab("More")}){Icon(Icons.AutoMirrored.Filled.ArrowBack,contentDescription="Back to More")}},
+            title={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(20.dp));Text(mapOf("Results" to "Your matches","Browse" to "Browse research","Vault" to "Vault and backups","Settings" to "AI settings","Account" to "Account and premium")[tab]?:tab,style=MaterialTheme.typography.titleLarge)}})},
         bottomBar={NavigationBar(containerColor=MaterialTheme.colorScheme.background) { tabs.forEachIndexed{index,name->NavigationBarItem(selected=tab==name||(name=="More"&&tab !in tabs),onClick={selectTab(name)},label={Text(name)},icon={Icon(when(index){0->Icons.Default.Home;1->Icons.AutoMirrored.Filled.Chat;2->Icons.Default.Description;3->Icons.Default.Person;else->Icons.Default.MoreHoriz},contentDescription=name)})} }}
     ){padding->
         Column(Modifier.padding(padding).fillMaxSize()){
+            // All scrolling content gets clearance past the bottom nav and the top bars.
             // A first-time user has no vault yet, so there is nothing to lock or unlock.
             // Lock/unlock lives on Home and You; other tabs keep their whole top area for content.
             if((model.dataUnlocked||model.dataVault.exists)&&tab=="Home")Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
@@ -141,14 +147,13 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
                 "Account"->AccountScreen(model)
                 "More"->ScreenColumn{
                     // Standard settings rows, not a wall of outlined buttons; the top bar already names the screen.
-                    listOf(Triple("Results","Your matches",Icons.Default.List),Triple("Browse","Browse research",Icons.Default.Search),Triple("Vault","Vault and backups",Icons.Default.Lock),Triple("Settings","Backend and AI provider",Icons.Default.Settings),Triple("Account","Account and premium",Icons.Default.Star)).forEach{(name,label,icon)->
+                    listOf(Triple("Results","Your matches",Icons.Default.List),Triple("Browse","Browse research",Icons.Default.Search),Triple("Vault","Vault and backups",Icons.Default.Lock),Triple("Settings","AI settings",Icons.Default.Settings),Triple("Account","Account and premium",Icons.Default.Star)).forEach{(name,label,icon)->
                         Row(Modifier.fillMaxWidth().toggleable(value=false,role=Role.Button,onValueChange={selectTab(name)}).padding(vertical=14.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
                             Icon(icon,contentDescription=null,tint=VaultColors.purple900)
                             Text(label,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
                             Icon(Icons.Default.ChevronRight,contentDescription=null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    Text("Genotype formats: 23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome, and Monadic DNA. Compressed .gz files are supported. Genetic data is processed on device.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -165,9 +170,9 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 
 // M3 chip borders ignore the theme outline and render dark; Vault borders are always the soft token.
 @Composable private fun vaultChipBorder()=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outline)
-/** Suggestions and follow-ups are soft lavender chips, so interactive prompts read as invitations rather than more grey text. */
+/** Suggestions and follow-ups are outlined plum chips: filled lavender is reserved for the user's own messages. */
 @Composable private fun PastelChip(onClick: ()->Unit, label: @Composable ()->Unit){
-    SuggestionChip(onClick=onClick,label=label,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=VaultColors.purple100,labelColor=VaultColors.purple900),border=vaultChipBorder())
+    SuggestionChip(onClick=onClick,label=label,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=MaterialTheme.colorScheme.background,labelColor=VaultColors.purple900),border=androidx.compose.foundation.BorderStroke(1.dp,VaultColors.purple900.copy(alpha=0.5f)))
 }
 
 /** One-time explicit agreement with tappable full policy documents; agreeing covers the educational-use note. */
@@ -193,16 +198,22 @@ private fun readDocument(context: android.content.Context, uri: Uri, max: Int=15
 
 private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java.math.BigDecimal(value).round(java.math.MathContext(3)).stripTrailingZeros().toPlainString()
 
-@Composable private fun ScreenColumn(content: @Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp),content=content)}
+@Composable private fun ScreenColumn(content: @Composable ColumnScope.()->Unit){Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start=20.dp,end=20.dp,top=20.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp),content=content)}
 
 @Composable private fun BrowseScreen(model: ExplorerModel){
     var query by remember{mutableStateOf("")};var trait by remember{mutableStateOf("")};var semantic by remember{mutableStateOf(true)};var offset by remember{mutableIntStateOf(0)}
     val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxSize().padding(16.dp)){
         OutlinedTextField(value=query,onValueChange={query=it},label={Text("Search traits, studies, genes or SNPs")},modifier=Modifier.fillMaxWidth())
-        OutlinedTextField(value=trait,onValueChange={trait=it},label={Text("Trait filter (optional)")},modifier=Modifier.fillMaxWidth())
-        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){CheckRow(semantic,{semantic=it},"Semantic search",small=false)};Button(onClick={keyboard?.hide();offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
-        if(model.studies.isEmpty())Text("Search the catalog to discover studies.")
+        // The trait filter is optional and stays out of the way until asked for.
+        var showTrait by remember{mutableStateOf(false)}
+        if(showTrait)OutlinedTextField(value=trait,onValueChange={trait=it},label={Text("Trait filter (optional)")},modifier=Modifier.fillMaxWidth())
+        else TextButton(onClick={showTrait=true},contentPadding=PaddingValues(0.dp)){Text("Add a trait filter",style=MaterialTheme.typography.labelLarge)}
+        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){CheckRow(semantic,{semantic=it},"Search by meaning, not just keywords",small=false)};Button(onClick={keyboard?.hide();offset=0;model.browse(query,trait,semantic)},enabled=!model.busy){Text("Search")}}
+        if(model.studies.isEmpty()){
+            Text("Search the catalog to discover studies. Try an example:",style=MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){listOf("Type 2 diabetes","APOE").forEach{example->PastelChip(onClick={query=example;keyboard?.hide();offset=0;model.browse(example,trait,semantic)},label={Text(example)})}}
+        }
         // One card per study: UKB-style traits have many variant rows with the same title and abstract, which read as duplicates.
         val grouped=remember(model.studies){model.studies.groupBy{it.optString("study_accession")}.map{(_,rows)->rows.first() to rows.size}}
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp)){items(grouped,key={it.first.optInt("id")}){(study,variants)->Card(onClick={model.showStudy(study)},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text(study.optString("disease_trait","Unknown trait"),fontWeight=FontWeight.Bold);Text(study.optString("study"),maxLines=3);Text(listOf(if(variants>1)"$variants variants analyzed" else study.optString("strongest_snp_risk_allele"),study.optString("study_accession"),study.optString("confidenceBand","Research finding")).filter{it.isNotBlank()&&it!="null"}.joinToString(" • "),style=MaterialTheme.typography.labelSmall)}}}}
@@ -220,7 +231,9 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     val context=LocalContext.current
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         Text(study.optString("disease_trait"),style=MaterialTheme.typography.headlineMedium);Text(study.optString("study"))
-        val effectLabel=remember(study.toString()){if(Core.obj("effect",json("value" to study.optString("or_or_beta"),"ci" to study.optString("ci_text"))).optString("effectType")=="beta")"Beta (trait change)" else "Odds ratio"}
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){TextButton(onClick={model.selectedStudy=null;model.commentary=""}){Text("Close")}}
+        Text("OR: odds per allele copy. Beta: trait units per allele. GWAS: genome-wide association study. Your match card shows your genotype-adjusted value; the study values below are the published per-allele estimates.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        val effectLabel=remember(study.toString()){if(Core.obj("effect",json("value" to study.optString("or_or_beta"),"ci" to study.optString("ci_text"))).optString("effectType")=="beta")"Reported Beta (per allele)" else "Reported OR (per allele)"}
         for((key,label) in listOf("study_accession" to "Accession","mapped_gene" to "Genes","snps" to "Variants","strongest_snp_risk_allele" to "Reported risk allele","or_or_beta" to effectLabel,"ci_text" to "Effect interval","p_value" to "P-value","initial_sample_size" to "Discovery sample","replication_sample_size" to "Replication sample","first_author" to "Author","journal" to "Journal","date" to "Publication date")){val value=study.optString(key);if(value.isNotBlank()&&value!="null")Text("$label: $value")}
         val hasDNA=model.dataUnlocked&&model.metadata.optInt("count")>0
         Button(onClick={model.analyze(study)},enabled=!model.busy&&hasDNA){Text("Match my DNA on device")}
@@ -247,7 +260,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
     val palette=remember(result.toString()){vaultCardPalette(Core.obj("preview_category",result).getString("id"))}
     // Radius scale: 28dp heroes/sheets, 24dp content cards, 18dp bubbles, capsule chips.
     val shape=androidx.compose.foundation.shape.RoundedCornerShape(24.dp);val colors=CardDefaults.cardColors(containerColor=palette.first,contentColor=palette.second)
-    val body: @Composable ColumnScope.()->Unit={Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp),colorFilter=androidx.compose.ui.graphics.ColorFilter.tint(palette.second));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${if(result.optString("effectType")=="beta")"Beta" else "OR"} ${effectNumber(result.optDouble("riskScore"))}",style=MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings="tnum"));Text(when(result.optString("riskLevel")){"increased"->"▲ Increased";"decreased"->"▼ Decreased";else->"● ${result.optString("riskLevel").replaceFirstChar{it.uppercase()}}"},fontWeight=FontWeight.Bold);Text(evidence.getString("label"),style=MaterialTheme.typography.bodySmall)}}
+    val body: @Composable ColumnScope.()->Unit={Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(28.dp),colorFilter=androidx.compose.ui.graphics.ColorFilter.tint(palette.second));Text(result.optString("traitName"),fontFamily=Garamond,fontWeight=FontWeight.Medium,fontSize=24.sp);Text("${result.optString("matchedSnp")}: ${result.optString("userGenotype")} • ${if(result.optString("effectType")=="beta")"Your Beta" else "Your OR"} ${effectNumber(result.optDouble("riskScore"))}",style=MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings="tnum"));Text(when(result.optString("riskLevel")){"increased"->"▲ Increased";"decreased"->"▼ Decreased";else->"● ${result.optString("riskLevel").replaceFirstChar{it.uppercase()}}"},fontWeight=FontWeight.Bold);Text(evidence.getString("label"),style=MaterialTheme.typography.bodySmall);Text("Association, not a diagnosis.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
     if(onClick!=null)Card(onClick=onClick,modifier=Modifier.fillMaxWidth(),shape=shape,colors=colors,content=body) else Card(Modifier.fillMaxWidth(),shape=shape,colors=colors,content=body)
 }
 
@@ -275,14 +288,19 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             Box{
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
                     listOf("All","Increased","Decreased").forEach{FilterChip(selected=direction==it,onClick={direction=it},label={Text(it)},border=vaultChipBorder())}
-                    listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text(it)},border=vaultChipBorder())}
+                    // Sort chips say what they do, distinct from the direction filters.
+                    listOf("Catalog order","Effect size","P-value").forEach{FilterChip(selected=sort==it,onClick={sort=it},label={Text("Sort: ${it.lowercase()}")},border=vaultChipBorder())}
                 }
                 Box(Modifier.align(Alignment.CenterEnd).width(28.dp).height(40.dp).background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(androidx.compose.ui.graphics.Color.Transparent,MaterialTheme.colorScheme.background))))
             }
             if(total!=model.resultCount)Text("Showing ${total.grouped()} of ${model.resultCount.grouped()}",style=MaterialTheme.typography.bodySmall)
             LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=16.dp)){
-                itemsIndexed(rows,key={_,row->row.optInt("studyId")}){index,result->
+                // One card per trait within the page: repeated variant rows for the same trait read as duplicates otherwise.
+                val grouped=rows.groupBy{it.optString("traitName")}.map{(_,matches)->matches.first() to matches.size}
+                itemsIndexed(grouped,key={_,pair->pair.first.optInt("studyId")}){index,entry->
+                    val (result,variants)=entry
                     ResultCard(result){model.loadStudy(result.optInt("studyId"))}
+                    if(variants>1)Text("+ ${variants-1} more ${if(variants==2)"variant" else "variants"} for this trait",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     // Load the next page as the list nears its end.
                     if(index>=rows.size-10&&rows.size<total&&!loading)LaunchedEffect(rows.size){
                         loading=true
@@ -303,7 +321,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             Button(onClick={model.shareResultsWithLLM=true}){Text("Share my matches with $provider")}
             Text("Only matched results and optional profile and health summaries are sent. Raw DNA stays on this device.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    } else Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+    } else Row(Modifier.fillMaxWidth().border(1.dp,MaterialTheme.colorScheme.outline,androidx.compose.foundation.shape.RoundedCornerShape(16.dp)).padding(horizontal=12.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically){
         Text("Sharing matched results with $provider",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
         TextButton(onClick={model.shareResultsWithLLM=false}){Text("Revoke")}
     }
@@ -339,6 +357,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
 }
 @Composable private fun ChatScreen(model: ExplorerModel,openSettings: ()->Unit,personalize: ()->Unit,openAccount: ()->Unit,savePdf: (String,String)->Unit){
     var message by remember{mutableStateOf(model.chatDraft)}
+    var moreQuestions by remember{mutableStateOf(false)}
     LaunchedEffect(Unit){model.chatDraft=""}
     Column(Modifier.fillMaxSize().imePadding().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
         val providerName=mapOf("nilai" to "nilAI","huggingface" to "HuggingFace","ollama" to "Ollama")[model.provider]?:model.provider
@@ -406,7 +425,11 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
                 // A quiet brand moment on the empty conversation: the star and a greeting instead of a bare instruction.
                 item{Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){androidx.compose.foundation.Image(painterResource(R.drawable.vault_star),contentDescription=null,modifier=Modifier.size(36.dp));Text("Ask about your results",fontFamily=Garamond,fontSize=26.sp,color=VaultColors.darkMain)}}
                 item{Text(when{(model.resultCount==0)->"Chat answers questions about your research matches. Add your DNA file on Home first.";!model.shareResultsWithLLM->"Tap Share my matches above to begin. Your matches go only to the provider shown.";else->"Ask anything about your results, or start with a suggestion. Research looks at a question from 10 angles for a detailed answer."},style=MaterialTheme.typography.bodyMedium)}
-                if((model.resultCount>0))items(CHAT_SUGGESTIONS){suggestion->PastelChip(onClick={message=suggestion},label={Text(suggestion)})}
+                if((model.resultCount>0)){
+                    // Two short suggestions plus an expander, instead of a wall of chips.
+                    items(CHAT_SUGGESTIONS.take(if(moreQuestions)CHAT_SUGGESTIONS.size else 2)){suggestion->PastelChip(onClick={message=suggestion},label={Text(suggestion)})}
+                    item{TextButton(onClick={moreQuestions=!moreQuestions},contentPadding=PaddingValues(0.dp)){Text(if(moreQuestions)"Fewer questions" else "More questions",style=MaterialTheme.typography.labelLarge)}}
+                }
                 if((model.resultCount>0)&&!model.personalized)item{TextButton(onClick=personalize){Icon(Icons.Default.Person,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Personalize answers",style=MaterialTheme.typography.labelLarge)}}
             }
             // Flat conversation, as in modern chat apps: user questions are compact right-aligned bubbles, answers are full-width text with no card or speaker label.
@@ -444,7 +467,7 @@ private fun effectNumber(value: Double): String = if(value.isNaN()) "" else java
             FilledIconButton(onClick={model.sendChat(message){message=""}},enabled=!model.busy&&(message.isNotBlank()||model.chatAttachments.isNotEmpty())&&model.shareResultsWithLLM){Icon(Icons.AutoMirrored.Filled.Send,contentDescription="Send")}
         }
         // The one persistent disclaimer, so answers themselves do not repeat boilerplate.
-        Text("Educational research, not medical advice.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.align(Alignment.CenterHorizontally))
+        Text("Educational research, not medical advice.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.align(Alignment.CenterHorizontally))
         // Before a conversation starts, Research keeps its quiet link; during one, it lives in the overflow menu so the answer area keeps the space.
         if(model.messages.isEmpty())TextButton(onClick={model.research(message){message=""}},enabled=!model.busy&&message.isNotBlank()&&model.resultCount>0&&model.shareResultsWithLLM,modifier=Modifier.align(Alignment.End)){Icon(Icons.Default.Science,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text(if(model.premiumActive)"Research this in depth" else "Research this in depth • Premium",style=MaterialTheme.typography.labelLarge)}
     }
@@ -593,12 +616,17 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
 }
 
 @Composable private fun ReportScreen(model: ExplorerModel,openChat: ()->Unit,openAccount: ()->Unit,export: ()->Unit){ScreenColumn{
-    Text("Reports",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain)
+    // The top bar already names the screen; the content starts with the value statement.
     Text(if((model.resultCount==0))"Reports summarize your research matches. Add your DNA file on Home first." else "Each report reads your ${model.resultCount.grouped()} research matches (studies that match your DNA)${if(model.personalized)" and what you told us about yourself" else ""}.",style=MaterialTheme.typography.bodyMedium)
     Consent(model)
     Text("Reports summarize your matches and may suggest follow-up questions.",style=MaterialTheme.typography.bodySmall)
-    Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass generates one report.",style=MaterialTheme.typography.bodySmall)
-    Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)
+    // Timing, passes and provider details live behind one help row, not three paragraphs.
+    var reportHelp by remember{mutableStateOf(false)}
+    TextButton(onClick={reportHelp=!reportHelp},contentPadding=PaddingValues(0.dp)){Icon(if(reportHelp)Icons.Default.ExpandLess else Icons.Default.ExpandMore,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(4.dp));Text("Timing, passes and providers",style=MaterialTheme.typography.labelLarge)}
+    if(reportHelp){
+        Text("Health is free. Premium unlocks Healthspan, Top traits, and Overview; one report pass generates one report.",style=MaterialTheme.typography.bodySmall)
+        Text("Generation can take a few minutes, depending on your provider and the report. Educational research, not medical advice.",style=MaterialTheme.typography.bodySmall)
+    }
     ReportCards(model){kind->if(!model.busy&&(model.resultCount>0))model.generateReport(kind)}
     AccessNeeded(model,openAccount)
     if(model.report.isNotEmpty()){
@@ -618,6 +646,7 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
         Text(if(model.dataUnlocked)"Key protection: ${model.dataVault.protection}" else "Locked. Your data stays encrypted until you unlock it.",style=MaterialTheme.typography.bodySmall)
         if(!model.acceptedDisclaimer)TermsAgreement(onAgree=model::acceptTerms)
         else Button(onClick={model.run("Preparing secure import"){model.unlockData();importDNA()}},enabled=!model.busy){Text("Import raw DNA (.txt, .tsv, .csv, .gz)")}
+        Text("23andMe, AncestryDNA, MyHeritage, FTDNA, LivingDNA, Mapmygenome and Monadic DNA exports. Raw data is processed on this device.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         if(!model.dataUnlocked) OutlinedButton(onClick=model::unlockSavedData,enabled=!model.busy){Text("Unlock saved data")}
         else OutlinedButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}
         Text("Sync across your devices",style=MaterialTheme.typography.titleLarge)
@@ -635,7 +664,7 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
 }
 
 @Composable private fun SettingsScreen(model: ExplorerModel){ScreenColumn{
-    Text("Backend and AI provider",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain)
+    Text("AI settings",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain)
     OutlinedTextField(value=model.backend,onValueChange={model.backend=it},label={Text("Explorer backend HTTPS origin")},modifier=Modifier.fillMaxWidth())
     Text("The backend hosts the research catalog and account services. Your raw DNA stays on device.")
     Row{listOf("huggingface","ollama","nilai").forEach{provider->FilterChip(selected=model.provider==provider,onClick={model.selectProvider(provider)},label={Text(provider)},border=vaultChipBorder())}}
@@ -677,6 +706,7 @@ private fun reportHtml(title: String, markdown: String, logo: String=""): String
         }
         if(!billing.busy&&billing.products.isEmpty())Text("Purchases need Google Play on this device. You can still chat and read the free Health report.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(onClick=billing::restore,enabled=!billing.busy){Text("Restore purchases")}
+        if(!billing.busy&&billing.products.isEmpty())TextButton(onClick={billing.load()}){Text("Retry loading purchases")}
         TextButton(onClick={openBrowser(context,"https://play.google.com/store/account/subscriptions?package=com.monadicdna.explorer")}){Icon(Icons.Default.OpenInNew,contentDescription=null,modifier=Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Manage Google Play subscriptions",style=MaterialTheme.typography.labelLarge)}
         if(billing.busy) CircularProgressIndicator()
         if(billing.message.isNotBlank()) Text(billing.message)
@@ -708,11 +738,6 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                 if(model.cancellable)TextButton(onClick=model::cancel){Text("Cancel")}
             }
         } else {
-        if(model.syncOffered)OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Text("Keep your data on a new phone",style=MaterialTheme.typography.titleMedium)
-            Text("Explorer can keep an end-to-end encrypted copy in a hidden folder in your own Google Drive, so a new Android phone fills in automatically. Monadic DNA never stores your data.",style=MaterialTheme.typography.bodySmall)
-            Row{Button(onClick={model.setSync(true)},enabled=!model.busy){Text("Turn on")};Spacer(Modifier.width(8.dp));TextButton(onClick=model::declineSync){Text("Not now")}}
-        }}
         if(!model.dataUnlocked&&!model.dataVault.exists&&model.restorable){
             VaultHero()
             Text("Your data is ready to restore",style=MaterialTheme.typography.headlineMedium)
@@ -729,16 +754,9 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
                 Text("Your DNA. Your discoveries.",color=androidx.compose.ui.graphics.Color.White,fontFamily=Garamond,fontSize=28.sp)
                 Text("${variants.grouped()} variants (SNP calls) • ${model.resultCount.grouped()} studies matching your DNA, analyzed on this device",color=androidx.compose.ui.graphics.Color.White.copy(alpha=0.75f),style=MaterialTheme.typography.bodySmall)
             }
-            // The step guide stays as an orientation rail: steps done so far are checked, step 3 is now live.
-            Step(1,"Add your DNA file",done=true,enabled=false){}
-            Step(2,"Tell us about you",done=model.personalized,enabled=!model.personalized){
-                Text("Two minutes here turns general findings into answers about you: Chat and Reports use your age, ancestry and health history. Everything is optional and stays encrypted on this device.",style=MaterialTheme.typography.bodySmall)
-                Button(onClick={go("You")}){Text("Personalize")}
-            }
-            Step(3,"Ask and read",done=false,enabled=true){
-                Text("Read your free Health report in about 15 seconds, or chat about your matches.",style=MaterialTheme.typography.bodySmall)
-                Button(onClick={go("Reports")},enabled=!model.busy){Text("Get my free Health report")}
-            }
+            // The step rail becomes a compact status line once setup is done; actions lead.
+            Text("DNA file added • ${if(model.personalized)"Personalization saved" else "Personalization skipped"}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick={go("Reports")},enabled=!model.busy){Text("Get my free Health report")}
             // Results at a glance, as on the web's /explore dashboard.
             model.dashboard?.let{p->
                 val insight=p.optJSONObject("insight")
@@ -768,6 +786,12 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             if(!model.personalized)OutlinedCard(onClick={go("You")},modifier=Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp)){Text("Make answers about you",style=MaterialTheme.typography.titleMedium);Text("Add your age, ancestry and health history. It stays encrypted on this device.",style=MaterialTheme.typography.bodySmall)}}
             Text("Reports",fontFamily=Garamond,fontSize=28.sp,color=VaultColors.darkMain,modifier=Modifier.padding(top=8.dp))
             ReportCards(model){go("Reports")}
+            // The backup offer is secondary: it sits below the product content, not above the hero.
+            if(model.syncOffered)OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                Text("Keep your data on a new phone",style=MaterialTheme.typography.titleMedium)
+                Text("Explorer can keep an end-to-end encrypted copy in a hidden folder in your own Google Drive, so a new Android phone fills in automatically. Monadic DNA never stores your data.",style=MaterialTheme.typography.bodySmall)
+                Row{Button(onClick={model.setSync(true)},enabled=!model.busy){Text("Turn on")};Spacer(Modifier.width(8.dp));TextButton(onClick=model::declineSync){Text("Not now")}}
+            }}
             Row(verticalAlignment=Alignment.CenterVertically){
                 Text("${variants.grouped()} variants • ${model.resultCount.grouped()} matches",Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
                 TextButton(onClick={go("Results")}){Text("Matches")};TextButton(onClick={go("Browse")}){Text("Browse")}
@@ -792,7 +816,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             }
             // Right after the match count lands, offer the fastest payoff before asking for profile details.
             if(variants>0&&!ready&&model.reportTitle!="Health")OutlinedCard(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                Text("See your results in 15 seconds",style=MaterialTheme.typography.titleMedium)
+                Text("See your results in under a minute",style=MaterialTheme.typography.titleMedium)
                 Text("Your free Health report reads your ${model.resultCount.grouped()} research matches and summarizes the findings with the strongest evidence.",style=MaterialTheme.typography.bodySmall)
                 Button(onClick={go("Reports")},enabled=!model.busy){Text("Get my free Health report")}
             }}
@@ -802,7 +826,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
             }
             // Home switches to Chat and Reports once steps 1 and 2 are done, so step 3 is a preview here.
             Step(3,"Ask and read",done=false,enabled=false){
-                Text("Read your free Health report in about 15 seconds, or chat about your matches.",style=MaterialTheme.typography.bodySmall)
+                Text("Read your free Health report, usually in under a minute, or chat about your matches.",style=MaterialTheme.typography.bodySmall)
             }
             TextButton(onClick={go("Browse")}){Text("Browse research without your DNA")}
         }
@@ -815,7 +839,7 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
     // Done steps are tinted, the current step is outlined, and later steps are dimmed.
     // Done steps rest in mint, the live step in lavender: the rail reads as progress, not paperwork.
     val container=if(done)VaultColors.green100 else if(enabled)VaultColors.purple100 else MaterialTheme.colorScheme.surface
-    OutlinedCard(Modifier.fillMaxWidth().alpha(if(enabled)1f else if(done)0.75f else 0.45f),shape=androidx.compose.foundation.shape.RoundedCornerShape(24.dp),colors=CardDefaults.outlinedCardColors(containerColor=container),border=androidx.compose.foundation.BorderStroke(if(enabled&&!done)2.dp else 1.dp,if(enabled&&!done)VaultColors.purple900 else MaterialTheme.colorScheme.outline)){
+    OutlinedCard(Modifier.fillMaxWidth().alpha(if(enabled||done)1f else 0.45f),shape=androidx.compose.foundation.shape.RoundedCornerShape(24.dp),colors=CardDefaults.outlinedCardColors(containerColor=container),border=androidx.compose.foundation.BorderStroke(if(enabled&&!done)2.dp else 1.dp,if(enabled&&!done)VaultColors.purple900 else MaterialTheme.colorScheme.outline)){
         Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
                 // The step marker is a brand disc, not an emoji numeral, so it sits inside the type system.
@@ -836,9 +860,11 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
         Card(onClick={onClick(kind)},modifier=Modifier.fillMaxWidth(),shape=androidx.compose.foundation.shape.RoundedCornerShape(24.dp),colors=CardDefaults.cardColors(containerColor=background,contentColor=ink)){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
             androidx.compose.foundation.Image(painterResource(star),contentDescription=null,modifier=Modifier.size(28.dp))
             Column(Modifier.weight(1f)){Text("$kind report",style=MaterialTheme.typography.titleMedium);Text(description,style=MaterialTheme.typography.bodySmall)}
-            // Tier as a filled chip: the price tier should be scannable before tapping.
-            val tier=if(kind=="Health")"Free" else if(premium)"" else "Premium"
-            if(tier.isNotEmpty())Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(50),color=ink.copy(alpha=0.12f),contentColor=ink){Text(tier,Modifier.padding(horizontal=10.dp,vertical=4.dp),style=MaterialTheme.typography.labelMedium)}
+            // One plum Premium pill across cards; Free stays green; a generated report shows Open.
+            val generated=model.reportTitle==kind&&model.report.isNotEmpty()
+            val tier=if(generated)"Open" else if(kind=="Health")"Free" else if(premium)"" else "Premium"
+            val pillColor=if(generated)ink else if(kind=="Health")VaultColors.green900 else VaultColors.purple900
+            if(tier.isNotEmpty())Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(50),color=if(kind=="Health"&&!generated)pillColor.copy(alpha=0.12f) else pillColor,contentColor=if(kind=="Health"&&!generated)pillColor else androidx.compose.ui.graphics.Color.White){Text(tier,Modifier.padding(horizontal=10.dp,vertical=4.dp),style=MaterialTheme.typography.labelMedium)}
         }}
     }
 }
@@ -881,10 +907,10 @@ private val CHAT_SUGGESTIONS=listOf("Which of my results have the strongest evid
         Text("Optional. Thirty-day averages (resting heart rate, sleep, steps, weight) enrich chat and report answers. Raw records stay on this device.",style=MaterialTheme.typography.bodySmall)
         val healthPerms=rememberLauncherForActivityResult(model.health.permissionContract()){granted->model.pickingFile=false;model.changeHealthEnabled(granted.containsAll(model.health.permissions))}
         Row(Modifier.fillMaxWidth().toggleable(value=model.healthEnabled,role=Role.Switch,onValueChange={if(it){model.pickingFile=true;healthPerms.launch(model.health.permissions)} else model.changeHealthEnabled(false)}),verticalAlignment=Alignment.CenterVertically){
-            Text(if(model.healthEnabled)"On" else "Off",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Switch(checked=model.healthEnabled,onCheckedChange=null)
+            Text("Include device health averages",Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Switch(checked=model.healthEnabled,onCheckedChange=null)
         }
     }
     Text("Your data",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=8.dp))
     Row{OutlinedButton(onClick=openVault){Text("Vault and backups")};Spacer(Modifier.width(8.dp));if(model.dataUnlocked)TextButton(onClick=model::lockData,enabled=!model.busy){Text("Lock data")}}
-    if(model.dataUnlocked)Button(onClick=done,modifier=Modifier.fillMaxWidth()){Text("Done")}
+    if(model.dataUnlocked)Text("Changes save automatically.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
 }}

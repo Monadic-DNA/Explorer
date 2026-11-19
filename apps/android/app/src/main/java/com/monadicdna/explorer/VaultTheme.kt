@@ -45,7 +45,8 @@ val Garamond = FontFamily(Font(R.font.eb_garamond_medium, FontWeight.Medium))
             displayLarge=base.displayLarge.brand(), displayMedium=base.displayMedium.brand(), displaySmall=base.displaySmall.brand(),
             headlineLarge=base.headlineLarge.brand().copy(fontWeight=FontWeight.Bold), headlineMedium=base.headlineMedium.brand().copy(fontWeight=FontWeight.Bold), headlineSmall=base.headlineSmall.brand(),
             titleLarge=base.titleLarge.brand(), titleMedium=base.titleMedium.brand(), titleSmall=base.titleSmall.brand(),
-            bodyLarge=base.bodyLarge.brand().copy(fontWeight=FontWeight.Light), bodyMedium=base.bodyMedium.brand(), bodySmall=base.bodySmall.brand(),
+            // Long passages use regular weight; Light is reserved for the display hero.
+            bodyLarge=base.bodyLarge.brand().copy(fontWeight=FontWeight.Normal), bodyMedium=base.bodyMedium.brand(), bodySmall=base.bodySmall.brand(),
             labelLarge=base.labelLarge.brand(), labelMedium=base.labelMedium.brand(), labelSmall=base.labelSmall.brand()
         ),
         shapes = Shapes(extraSmall=RoundedCornerShape(10.dp), small=RoundedCornerShape(16.dp), medium=RoundedCornerShape(24.dp), large=RoundedCornerShape(32.dp), extraLarge=RoundedCornerShape(40.dp)),
